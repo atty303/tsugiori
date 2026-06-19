@@ -18,8 +18,9 @@ explicitly asks for it.
   adapter.
 - [x] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
-- [ ] Add an ADR for the expression AST once the expression model is specific
-  enough to choose durable syntax and validation boundaries.
+- [ ] Clarify the task artifact lifecycle before implementation, including
+  command boundaries, cache restore and population, manifest ownership, and how
+  task runtime-only usage works without pipeline generation.
 - [x] Define the exact stale generated YAML check behavior without adding CI
   configuration.
 - [x] Define acceptance criteria for Phase 1 without creating implementation
@@ -54,7 +55,11 @@ These are intentionally blocked until implementation starts.
 
 ## Future Phase 3 Candidate Tasks
 
-- [ ] Draft the expression AST data model.
+- [ ] Draft the expression AST data model after the provider backend and task
+  runtime boundaries have been exercised enough to justify detailed syntax and
+  validation choices.
+- [ ] Add an ADR for the expression AST once the expression model is specific
+  enough to choose durable syntax and validation boundaries.
 - [ ] Add expression emission for contexts, literals, function calls, equality,
   boolean operators, and property access.
 - [ ] Add tests showing the difference between host-language `if` and GitHub

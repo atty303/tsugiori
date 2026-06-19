@@ -11,6 +11,7 @@ dates.
 - record early architectural decisions
 - record the boundary between provider-native pipeline authoring and the task
   runtime
+- clarify the task artifact lifecycle before detailed expression DSL design
 - avoid provider backend or task runtime implementation until their design
   boundaries are clear
 
@@ -45,6 +46,9 @@ Out of scope for Phase 1:
 
 ## Phase 2: Task Runtime and Task-Backed Provider Steps
 
+- define the task artifact lifecycle independently from pipeline generation
+- decide whether pipeline compilation and task artifact preparation are exposed
+  through one command, separate commands, or a composed command
 - introduce a task registry for task functions
 - define how task runtime entrypoint names are generated and validated
 - emit normal Actions steps that invoke the task runtime for task-backed steps
@@ -58,6 +62,8 @@ Out of scope for Phase 1:
 
 ## Phase 3: Expression DSL
 
+- defer detailed expression AST design until the provider backend and task
+  runtime boundaries have stabilized enough to justify durable syntax choices
 - model GitHub Actions expressions as an expression AST
 - support contexts such as `github`, `matrix`, `needs`, `inputs`, `secrets`,
   and `steps`
