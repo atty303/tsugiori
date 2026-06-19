@@ -23,6 +23,7 @@ corresponding implementation phase begins.
 packages/
   core/
   compiler/
+  task-runtime/
   cli/
 tests/
   fixtures/
@@ -40,7 +41,7 @@ definition files.
 
 It should avoid filesystem access, process execution, network access, package
 installation, YAML writing, and compiler side effects. Its job is to construct
-structured data that compiler packages can consume later.
+structured data that compiler and task runtime packages can consume later.
 
 The package may contain both provider pipeline modules and task modules, as
 long as the module boundaries stay explicit:
@@ -73,7 +74,7 @@ provider DSL by default.
 ## `packages/compiler`
 
 `packages/compiler` is the execution package for turning authoring source into
-generated artifacts.
+generated provider configuration.
 
 It should own:
 
@@ -89,19 +90,42 @@ It should own:
 The compiler package may depend on `packages/core`. `packages/core` should not
 depend on `packages/compiler`.
 
+## `packages/task-runtime`
+
+`packages/task-runtime` is the execution package for task artifact preparation
+and task runtime dispatch.
+
+It should own:
+
+- loading registered task functions from pure authoring data
+- validating task registry and task entrypoint names
+- building or bundling task artifacts
+- restoring and populating task artifacts through cache adapters
+- reading and writing task artifact manifests when implementation defines their
+  shape
+- dispatching task runtime entrypoints inside CI provider steps
+
+The task runtime package may depend on `packages/core`. `packages/core` should
+not depend on `packages/task-runtime`. The task runtime package should remain
+usable without pipeline generation so handwritten provider configuration can
+still invoke Forge-managed tasks.
+
 ## `packages/cli`
 
-`packages/cli` should stay a thin command-line entrypoint over compiler
-capabilities.
+`packages/cli` should stay a thin command-line entrypoint over compiler and
+task runtime capabilities.
 
-The planned initial commands are:
+Planned commands include:
 
 - `forge generate`
 - `forge generate --check`
+- `forge task prepare`
 
 Command parsing, user-facing diagnostics, and process exit handling belong
-here. Workflow modeling, YAML emission, and stale-check comparison logic should
-remain in `packages/compiler`.
+here. GitHub Actions workflow AST modeling, YAML emission, and stale-check
+comparison logic should remain in `packages/compiler`. Task artifact
+preparation, cache adapter behavior, and task runtime dispatch should remain in
+`packages/task-runtime`.
 
 ## Tests
 
@@ -151,6 +175,7 @@ The implementation phase still needs to decide:
 - formatting and linting commands
 - fixture update workflow
 - whether packages become independent publishable units
+- exact task artifact manifest and cache adapter module layout
 
 Those decisions should be made when implementation begins and the toolchain
 commands are known.

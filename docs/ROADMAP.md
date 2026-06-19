@@ -11,7 +11,8 @@ dates.
 - record early architectural decisions
 - record the boundary between provider-native pipeline authoring and the task
   runtime
-- avoid runtime implementation until the compiler shape is clear
+- avoid provider backend or task runtime implementation until their design
+  boundaries are clear
 
 ## Phase 1: Minimal GitHub Actions Provider Backend
 
@@ -47,7 +48,7 @@ Out of scope for Phase 1:
 - introduce a task registry for task functions
 - define how task runtime entrypoint names are generated and validated
 - emit normal Actions steps that invoke the task runtime for task-backed steps
-- ensure generated YAML and task registry names stay aligned
+- ensure generated provider configuration and task registry names stay aligned
 - decide the task artifact key and manifest shape
 - add explicit task artifact preparation steps before task-backed provider steps
 - define the initial task artifact cache adapter, likely starting with

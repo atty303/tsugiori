@@ -54,9 +54,9 @@ Task artifact preparation becomes a visible part of generated jobs that use
 task-backed provider steps. This keeps artifact delivery explicit instead of
 hiding workflow orchestration inside one Forge command.
 
-Cache adapter design becomes part of the task artifact boundary. The compiler,
-task runtime tooling, and generated preparation steps should depend on an
-artifact contract, not on one storage provider.
+Cache adapter design becomes part of the task artifact boundary. Task runtime
+tooling and generated preparation steps should depend on an artifact contract,
+not on one storage provider.
 
 ## Trade-Offs
 

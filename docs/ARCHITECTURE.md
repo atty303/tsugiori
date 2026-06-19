@@ -201,8 +201,8 @@ configuration shape when they integrate with the task runtime.
 The task artifact cache adapter abstracts storage and retrieval of prepared
 task artifacts.
 
-The compiler, task runtime tooling, and generated preparation steps should
-depend on a small artifact contract rather than on one storage provider.
+The task runtime tooling and generated preparation steps should depend on a
+small artifact contract rather than on one storage provider.
 Candidate adapters include
 `actions/cache`, GCR or another OCI registry, S3, and local development cache
 storage.

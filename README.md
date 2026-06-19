@@ -55,13 +55,13 @@ The pipeline source is intended to be the source of truth, while generated
 may compile pipeline source before commit, but CI should eventually verify that
 committed generated YAML is not stale.
 
-The task runtime is intended to prepare task functions as a content-addressed
-task artifact derived from task source, dependency state, target platform, and
-Forge version. Provider steps should make that artifact available through
-explicit preparation work, then invoke task runtime entrypoints without
-fetching or building Forge-managed task code again. Task artifact storage
-should be adapter-backed so implementations such as `actions/cache`, GCR or
-another OCI registry, and S3 can be substituted.
+Task artifact preparation is intended to produce a content-addressed task
+artifact derived from task source, dependency state, target platform, and Forge
+version. Provider steps should make that artifact available through explicit
+preparation work, then invoke task runtime entrypoints without fetching or
+building Forge-managed task code again. Task artifact storage should be
+adapter-backed so implementations such as `actions/cache`, GCR or another OCI
+registry, and S3 can be substituted.
 
 ## Intended Authoring Style
 

@@ -31,8 +31,8 @@ explicitly asks for it.
 
 These are intentionally blocked until implementation starts.
 
-- [ ] Create the minimal project manifest only after the runtime/toolchain
-  command strategy is selected.
+- [ ] Create the minimal project manifest only after the provider backend and
+  task runtime toolchain command strategy is selected.
 - [ ] Add the smallest GitHub Actions provider backend AST
   representation.
 - [ ] Add deterministic YAML emission for workflow name, events, one job, and

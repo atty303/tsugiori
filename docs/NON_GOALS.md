@@ -23,8 +23,8 @@ native workflow or pipeline semantics.
 
 Dagger provides a programmable CI and build runtime with its own execution
 model. Forge's initial direction is different: keep GitHub Actions orchestration
-native and visible, while moving step implementation bodies into compiled Deno
-entrypoints.
+native and visible, while moving task function bodies into Forge-managed task
+artifacts that provider steps can invoke.
 
 ## Not One Opaque Step
 
