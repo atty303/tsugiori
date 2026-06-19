@@ -14,6 +14,8 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0003-generated-workflows-and-runtime-artifacts.md`: generated workflow YAML
   is committed, while compiled runtime binaries are content-addressed artifacts
   delivered through cache adapters.
+- `0004-core-model-and-ci-backends.md`: Forge keeps a reusable core model while
+  layering provider-specific DSLs, ASTs, validation, and emitters over it.
 
 ## Format
 

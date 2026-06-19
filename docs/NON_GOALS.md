@@ -10,10 +10,14 @@ provider, environment gate, or UI.
 
 ## Not a Generic CI Platform
 
-Forge is not initially intended to become a general CI platform with its own
-hosted control plane or cross-provider abstraction.
+Forge is not intended to become a general CI platform with its own hosted
+control plane, scheduler, runner abstraction, or provider-neutral runtime.
 
 The first target is GitHub Actions YAML generation.
+
+Forge may keep a reusable core model that can support future CI backends, but
+that should not turn into a lowest-common-denominator DSL that hides each
+provider's native workflow semantics.
 
 ## Not a Dagger Clone
 
@@ -31,16 +35,20 @@ Forge should not hide all work inside a single generated step such as:
   run: forge-runtime ci
 ```
 
-That shape would remove useful job and step boundaries from the GitHub Actions
-UI. Forge should preserve meaningful logical steps as normal Actions steps.
+That shape would remove useful job and step boundaries from the CI provider's
+UI. In the GitHub Actions backend, Forge should preserve meaningful logical
+steps as normal Actions steps.
 
-## Not Initially Targeting Other Orchestrators
+## Not Initially Implementing Other Backends
 
-Forge is not initially targeting Kubernetes, Tekton, Argo, Buildkite, or
-self-hosted orchestration.
+Forge is not initially implementing GitLab CI, Kubernetes, Tekton, Argo,
+Buildkite, or self-hosted orchestration.
 
-Those systems may be useful comparison points, but supporting them would expand
-the design surface before the GitHub Actions compiler model has been proven.
+Those systems may be useful comparison points or future backends, but
+supporting them would expand the design surface before the GitHub Actions
+compiler model has been proven. Future backend support should layer
+provider-specific DSLs and emitters over the reusable core rather than
+generalizing away provider-specific concepts too early.
 
 ## Not a Workflow Marketplace
 

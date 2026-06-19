@@ -16,9 +16,33 @@ workflow contracts.
 The API should produce structured intermediate data instead of writing YAML
 directly.
 
-### Workflow AST
+The public surface should make the target CI backend explicit. Shared helpers
+can live in the core API, but backend-specific workflow concepts should be
+introduced by backend-specific entrypoints rather than by one generic DSL that
+tries to hide provider differences.
 
-The workflow AST is the compiler's representation of a GitHub Actions workflow.
+### Core Workflow Model
+
+The core workflow model is the compiler's provider-neutral representation of
+the parts Forge expects to reuse across CI backends.
+
+It should stay small:
+
+- workflow identity
+- jobs and dependencies between jobs
+- logical steps that reference registered runtime subcommands
+- runtime artifact requirements
+- cache adapter selection at the artifact contract level
+
+The core model should not absorb provider-specific semantics such as GitHub
+Actions events, GitHub expression syntax, `workflow_call`, `uses` actions,
+GitLab `rules`, GitLab `stages`, or provider-specific permission and secret
+models.
+
+### GitHub Actions Workflow AST
+
+The GitHub Actions workflow AST is the compiler's backend-specific
+representation of a GitHub Actions workflow.
 
 It should model Actions concepts explicitly:
 
@@ -37,7 +61,10 @@ It should model Actions concepts explicitly:
 The AST should preserve enough structure for validation and deterministic YAML
 emission.
 
-### Expression AST
+Future CI backends should define their own backend ASTs rather than forcing
+their provider semantics through the GitHub Actions AST.
+
+### GitHub Actions Expression AST
 
 GitHub Actions expressions should be represented as an expression AST, not as
 plain strings and not as host-language conditionals.
@@ -52,9 +79,13 @@ Examples include:
 The expression AST should support validation, escaping, interpolation, and YAML
 emission into `${{ ... }}` syntax.
 
-### YAML Emitter
+Future backends may need different expression models or no direct equivalent.
+Those differences should be represented at the backend layer.
 
-The YAML emitter converts the workflow AST into GitHub Actions YAML.
+### GitHub Actions YAML Emitter
+
+The GitHub Actions YAML emitter converts the GitHub Actions workflow AST into
+GitHub Actions YAML.
 
 It should aim for stable output that is easy to review. The emitter should not
 invent an execution model. Its job is to serialize native GitHub Actions
@@ -64,6 +95,10 @@ Generated workflow files are intended to be committed. A local git hook may run
 the compiler before commit, but hook execution should be treated as a
 convenience rather than the only correctness mechanism. A future check mode
 should compare committed YAML with compiler output and fail when it is stale.
+
+Other backends should have their own emitters and output file conventions. For
+example, a future GitLab CI backend would need to emit GitLab-native
+configuration rather than GitHub Actions YAML.
 
 ### Step Registry
 
@@ -116,7 +151,11 @@ binary before logical Forge steps run:
 - cache adapter selection and adapter-specific reference data
 
 The manifest should not become a scheduler. It should describe how to obtain
-the binary that ordinary GitHub Actions steps will invoke.
+the binary that ordinary CI steps emitted by a backend will invoke.
+
+The manifest should be designed as part of the reusable core, while the steps
+that prepare or restore the binary should be emitted by each CI backend using
+that provider's native configuration shape.
 
 ### Runtime Cache Adapter
 
@@ -128,15 +167,20 @@ contract rather than on one storage provider. Candidate adapters include
 `actions/cache`, GCR or another OCI registry, S3, and local development cache
 storage.
 
-The adapter boundary should preserve visible GitHub Actions steps. A generated
-job may contain explicit preparation steps that restore or build the runtime
-binary, but logical Forge steps should still appear as their own normal Actions
-steps that invoke the prepared binary with distinct subcommands.
+The adapter boundary should preserve visible provider-native steps. In the
+GitHub Actions backend, a generated job may contain explicit preparation steps
+that restore or build the runtime binary, but logical Forge steps should still
+appear as their own normal Actions steps that invoke the prepared binary with
+distinct subcommands.
 
 ## Compile Time and GitHub Runtime Time
 
 Forge needs a strict distinction between compile-time behavior and GitHub
 runtime-time behavior.
+
+This section describes the initial GitHub Actions backend. Future backends
+should keep the same compile-time versus CI-runtime distinction, but their
+runtime contexts and expression semantics may differ.
 
 Compile time happens when Forge authoring code runs to produce workflow YAML and
 the runtime binary. At compile time, the compiler can validate structure,

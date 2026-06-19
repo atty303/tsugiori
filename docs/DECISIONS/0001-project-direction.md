@@ -45,6 +45,10 @@ YAML emitter that respects GitHub's semantics.
 Forge will not initially provide its own scheduler, runner abstraction, hosted
 control plane, or generic CI backend.
 
+ADR 0004 refines this by allowing a reusable core model under explicit
+CI-specific backend layers. That does not change the initial GitHub Actions
+target.
+
 ## Trade-Offs
 
 The generated YAML must remain readable and stable, which constrains how much

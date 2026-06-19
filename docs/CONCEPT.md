@@ -1,9 +1,9 @@
 # Concept
 
-Forge is proposed as an Actions-native workflow compiler with
-language-native step implementation.
+Forge is proposed as a CI workflow compiler with language-native step
+implementation. Its first target is GitHub Actions-native workflow generation.
 
-The project has two linked goals:
+The initial GitHub Actions backend has two linked goals:
 
 - let authors describe GitHub Actions workflow structure in typed
   TypeScript/Deno code
@@ -35,6 +35,33 @@ authoring source remains the source of truth, but the emitted YAML should be a
 reviewable artifact that GitHub Actions can load directly from the pushed
 commit. A local git hook can compile the workflow source before commit, and CI
 should eventually be able to fail when generated YAML is stale.
+
+## Core Model and CI Backends
+
+Forge should distinguish reusable core concepts from CI-specific workflow
+semantics.
+
+The core model should stay limited to concepts that can plausibly be shared by
+multiple CI providers:
+
+- workflow identity
+- jobs and job dependencies
+- logical steps that dispatch to registered runtime entrypoints
+- runtime artifact manifests
+- cache adapter contracts for prepared runtime binaries
+
+Provider-specific concepts should be modeled in explicit backend layers. The
+GitHub Actions backend owns Actions events, runner labels, `uses` steps,
+permissions, environments, `workflow_call`, expression syntax, generated file
+paths, and YAML emission. A future GitLab CI backend could reuse the core
+runtime and logical step model, but it would need its own DSL surface and
+compiler rules for GitLab-native jobs, stages, rules, variables, artifacts, and
+cache behavior.
+
+This keeps Forge from becoming either a GitHub-only runtime model or a
+lowest-common-denominator CI abstraction. Users should select the backend they
+are authoring for, and Forge should preserve that provider's native job and
+step visibility.
 
 ## Language-Native Step Implementation
 
@@ -74,11 +101,13 @@ the logical workflow shape.
 
 Forge's core design boundary is:
 
-- GitHub Actions owns orchestration.
+- The selected CI provider owns orchestration.
 - Forge owns authoring, validation, YAML emission, runtime artifact selection,
   and step implementation dispatch.
+- The GitHub Actions backend must preserve GitHub Actions-native workflow
+  semantics.
 
 This boundary is intended to avoid both extremes:
 
 - hand-maintained YAML for complex workflows
-- one opaque CI command that hides the workflow graph from GitHub Actions
+- one opaque CI command that hides the workflow graph from the CI provider

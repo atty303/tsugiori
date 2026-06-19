@@ -10,22 +10,31 @@ explicitly asks for implementation work.
 
 ## Project Direction
 
-Forge is a proposed GitHub Actions compiler and typed CI runtime authoring tool.
+Forge is a proposed CI workflow compiler and typed runtime authoring tool.
+Its first compiler target is GitHub Actions.
 
 Preserve these constraints in every change:
 
-- Forge compiles to standard `.github/workflows/*.yml`.
-- GitHub Actions remains the orchestration and execution platform.
-- Jobs and steps must remain visible as normal GitHub Actions concepts.
-- Step bodies should not be inlined into YAML.
-- Each logical Forge step should compile to a normal Actions step that invokes
-  a compiled Deno runtime binary with a distinct subcommand.
-- Generated workflow YAML is intended to be committed to the repository, with
-  local hooks as a convenience and CI checks as the durable stale-output guard.
+- The GitHub Actions backend compiles to standard `.github/workflows/*.yml`.
+- GitHub Actions remains the orchestration and execution platform for the
+  GitHub Actions backend.
+- Jobs and steps must remain visible as normal GitHub Actions concepts in the
+  GitHub Actions backend.
+- Step bodies should not be inlined into generated CI configuration.
+- In the GitHub Actions backend, each logical Forge step should compile to a
+  normal Actions step that invokes a compiled Deno runtime binary with a
+  distinct subcommand.
+- Generated GitHub Actions workflow YAML is intended to be committed to the
+  repository, with local hooks as a convenience and CI checks as the durable
+  stale-output guard.
 - The compiled runtime binary is intended to be a content-addressed artifact
   that can be restored or populated through a pluggable cache adapter.
 - Forge must not become a Dagger/Earthly-style opaque external CI runtime where
-  GitHub Actions only calls one command.
+  the selected CI provider only calls one command.
+- Keep reusable core concepts separate from CI-specific DSL and compiler
+  layers. Future backends such as GitLab CI should be explicit backend layers
+  over the core model, not a lowest-common-denominator API that erases each CI
+  provider's native workflow concepts.
 
 ## Context Map
 
@@ -60,7 +69,8 @@ When implementation begins:
 
 - Follow the phase order in `docs/ROADMAP.md` unless the user explicitly
   changes it.
-- Start with the smallest AST and YAML emitter slice that can be tested.
+- Start with the smallest core model, GitHub Actions AST, and YAML emitter
+  slice that can be tested.
 - Keep GitHub Actions expressions as an expression AST; do not model GitHub
   runtime `if:` with host-language conditionals.
 - Add tests for compiler output, expression emission, and validation behavior.

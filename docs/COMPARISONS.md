@@ -14,7 +14,7 @@ goal is to clarify boundaries, not to rank tools.
 | github-workflows-kt | Kotlin | GitHub Actions | Native | Forge's initial language/runtime choice is TypeScript/Deno and compiled step dispatch. |
 | Dagger | Programmatic CI/build runtime | Dagger engine | Usually mediated through CI steps | Forge should not replace GitHub Actions orchestration with an external runtime. |
 | Earthly | Earthfile build definitions | Earthly engine | Usually mediated through CI steps | Forge should not hide workflow structure inside a separate build runtime. |
-| Buildkite Dynamic Pipelines | Generated Buildkite pipelines | Buildkite | Native to Buildkite | Forge targets generated GitHub Actions YAML, not Buildkite orchestration. |
+| Buildkite Dynamic Pipelines | Generated Buildkite pipelines | Buildkite | Native to Buildkite | Forge's first backend targets generated GitHub Actions YAML; future backends should still preserve provider-native visibility. |
 
 ## Raw GitHub Actions YAML
 
@@ -107,5 +107,7 @@ Buildkite Dynamic Pipelines allow pipeline definitions to be generated at
 runtime for Buildkite.
 
 Forge shares the broad idea that CI configuration can be generated, but the
-target platform is different. Forge should emit GitHub Actions workflows and
-preserve GitHub Actions semantics.
+initial target platform is different. Forge's first backend should emit GitHub
+Actions workflows and preserve GitHub Actions semantics. A future backend for
+another CI provider would need its own native emitter rather than routing that
+provider through the GitHub Actions model.

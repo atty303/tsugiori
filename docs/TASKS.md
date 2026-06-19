@@ -11,9 +11,10 @@ Do not start runtime implementation until the user explicitly asks for it.
 
 ## Ready Documentation Tasks
 
-- [ ] Review terminology across docs and settle on consistent names for
-  "authoring API", "workflow AST", "expression AST", "step registry", and
-  "runtime binary", "runtime artifact manifest", and "runtime cache adapter".
+- [ ] Review terminology across docs and settle on consistent names for the
+  authoring API, core workflow model, backend workflow AST, expression AST,
+  step registry, runtime binary, runtime artifact manifest, and runtime cache
+  adapter.
 - [ ] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
 - [ ] Add an ADR for the expression AST once the expression model is specific
@@ -31,7 +32,8 @@ These are intentionally blocked until implementation starts.
 
 - [ ] Create the minimal project manifest only after the runtime/toolchain
   command strategy is selected.
-- [ ] Add the smallest workflow AST representation.
+- [ ] Add the smallest core workflow model and GitHub Actions backend AST
+  representation.
 - [ ] Add deterministic YAML emission for workflow name, events, one job, and
   basic steps.
 - [ ] Add golden tests for generated YAML.

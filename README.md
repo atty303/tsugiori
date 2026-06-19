@@ -1,10 +1,11 @@
 # Forge
 
-Forge is a proposed GitHub Actions compiler and typed CI runtime authoring tool.
+Forge is a proposed CI workflow compiler and typed runtime authoring tool.
 
-The intended direction is to let users define both GitHub Actions workflow
-structure and step implementation entrypoints in TypeScript/Deno code, then
-export native `.github/workflows/*.yml` files.
+The first intended target is GitHub Actions. Forge is intended to let users
+define both GitHub Actions workflow structure and step implementation
+entrypoints in TypeScript/Deno code, then export native
+`.github/workflows/*.yml` files.
 
 Forge is currently in the design phase. There is no runtime implementation,
 authoring API, compiler, package manifest, or CI setup yet.
@@ -20,13 +21,28 @@ authoring interface for larger workflows. As workflows grow, authors often need:
 - validation before a workflow reaches GitHub
 - generated YAML that is still understandable in the GitHub web UI
 
-Forge explores a middle ground: use TypeScript/Deno as the authoring language,
-but keep GitHub Actions as the orchestration and execution platform.
+For the initial backend, Forge explores a middle ground: use TypeScript/Deno as
+the authoring language, but keep GitHub Actions as the orchestration and
+execution platform.
 
 ## Initial Direction
 
 Forge is intended to compile language-native workflow definitions into
+provider-native CI configuration. The initial compiler target is
 Actions-native YAML.
+
+The reusable core should model only the parts that are actually shared across
+CI providers: workflow identity, job graph shape, logical step entrypoints,
+runtime artifact selection, and dispatch to a prepared binary artifact.
+Provider-specific workflow details should live in backend-specific DSL and
+compiler layers. For example, the GitHub Actions backend owns Actions events,
+permissions, expression syntax, `uses` steps, workflow file layout, and YAML
+emission. A future GitLab CI backend would need its own native concepts rather
+than pretending those details are the same.
+
+Users should choose the CI backend they are authoring for. Forge should not
+promise transparent portability between CI providers, because each provider has
+different workflow semantics.
 
 The generated workflow should still expose jobs and steps normally in GitHub
 Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,

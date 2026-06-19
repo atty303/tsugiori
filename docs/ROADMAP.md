@@ -9,11 +9,14 @@ dates.
 - document non-goals
 - write comparison notes
 - record early architectural decisions
+- record the boundary between reusable core concepts and CI-specific backend
+  layers
 - avoid runtime implementation until the compiler shape is clear
 
 ## Phase 1: Minimal AST and YAML Emitter
 
-- define a small workflow AST
+- define a small core workflow model
+- define the initial GitHub Actions backend AST
 - support workflow name, events, jobs, and basic steps
 - emit deterministic GitHub Actions YAML
 - keep generated YAML reviewable
@@ -63,3 +66,13 @@ dates.
 - dogfood Forge on its own repository only after the generated workflow shape is
   stable
 - document migration and failure modes discovered through use
+
+## Later: Additional CI Backends
+
+- evaluate another backend, such as GitLab CI, only after the GitHub Actions
+  backend proves the core compiler and runtime artifact model
+- reuse the core workflow model, step registry, runtime artifact manifest, and
+  cache adapter contract where they fit
+- add backend-specific DSL, validation, expression handling, and emitters
+  instead of forcing new providers through GitHub Actions concepts
+- preserve native job and step visibility for the selected CI provider
