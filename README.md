@@ -168,5 +168,7 @@ Codex:
 - `docs/TASKS.md`: AI-friendly task queue
 - `docs/PROMPTS.md`: reusable prompts for planning, ADRs, implementation, and
   review
+- `docs/REPOSITORY_LAYOUT.md`: proposed future source, package, test, fixture,
+  and example layout
 - `.agents/skills/forge-design-review/SKILL.md`: repo-local review skill for
   checking Forge-specific design constraints

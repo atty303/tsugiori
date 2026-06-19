@@ -48,6 +48,8 @@ Read the smallest relevant set before editing:
 - `docs/COMPARISONS.md`: conceptual comparisons with adjacent tools
 - `docs/ROADMAP.md`: implementation sequence and risk ordering
 - `docs/EXAMPLE.md`: illustrative authoring and generated YAML shape
+- `docs/REPOSITORY_LAYOUT.md`: proposed future source, package, test,
+  fixture, and example layout
 - `docs/DECISIONS/`: accepted architectural decisions
 - `docs/CODEX_WORKFLOW.md`: how to run Codex-driven work in this repository
 - `docs/TASKS.md`: current AI-friendly work queue

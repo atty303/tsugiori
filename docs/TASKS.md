@@ -23,7 +23,7 @@ Do not start runtime implementation until the user explicitly asks for it.
   configuration.
 - [x] Define acceptance criteria for Phase 1 without creating implementation
   files.
-- [ ] Draft a future repository layout proposal for source, tests, examples,
+- [x] Draft a future repository layout proposal for source, tests, examples,
   and generated fixtures.
 
 ## Future Phase 1 Candidate Tasks
