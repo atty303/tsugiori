@@ -90,7 +90,7 @@ Out of scope for Phase 1:
 - validate GitHub Actions workflow structure before emission
 - add snapshot or golden tests for generated YAML
 - add tests for expression emission
-- dogfood Forge on its own repository only after the generated workflow shape is
+- dogfood the tool in this repository only after the generated workflow shape is
   stable
 - document migration and failure modes discovered through use
 

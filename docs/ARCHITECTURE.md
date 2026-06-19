@@ -7,7 +7,7 @@ system.
 
 ### Core Package
 
-`@forge/core` is the pure package imported by pipeline and task authors.
+`@tsugiori/core` is the pure package imported by pipeline and task authors.
 
 It may contain both provider pipeline authoring modules and task authoring
 modules. Those modules should stay internally separate, but they do not need to
@@ -19,15 +19,15 @@ construct structured data that compiler and runtime packages can consume later.
 
 Authoring imports should make the provider boundary visible through subpaths.
 For example, GitHub Actions pipeline authoring can live under
-`@forge/core/github-actions`, while task authoring can live under
-`@forge/core/task`.
+`@tsugiori/core/github-actions`, while task authoring can live under
+`@tsugiori/core/task`.
 
 ### Provider Pipeline Authoring
 
-Forge uses `pipeline` as its general term for CI definitions authored with
-Forge. The details of a pipeline definition are provider-native.
+The authoring API uses `pipeline` as its general term for CI definitions. The
+details of a pipeline definition are provider-native.
 
-Forge should not define a provider-neutral pipeline model with shared jobs,
+The project should not define a provider-neutral pipeline model with shared jobs,
 steps, matrices, dependencies, expressions, and outputs. Those concepts vary by
 CI provider, and forcing them into a portable model would reduce provider
 expressiveness.
@@ -38,7 +38,7 @@ preparation shape, and emitter.
 
 ### GitHub Actions Provider Backend
 
-The GitHub Actions provider backend is Forge's compiler and emitter layer for
+The GitHub Actions provider backend is the compiler and emitter layer for
 GitHub Actions. It is not GitHub Actions itself.
 
 It should model GitHub Actions concepts explicitly:
@@ -101,14 +101,14 @@ emit GitLab-native configuration rather than GitHub Actions YAML.
 
 ### Generated YAML Stale Check
 
-When implementation begins, Forge should distinguish generation from stale
+When implementation begins, the compiler should distinguish generation from stale
 output checking.
 
-The planned `forge generate` command should run the pipeline authoring source
+The planned `tsugiori generate` command should run the pipeline authoring source
 and write the generated GitHub Actions workflow files to their configured
 `.github/workflows/*.yml` paths.
 
-The planned `forge generate --check` command should run the same generation
+The planned `tsugiori generate --check` command should run the same generation
 logic without modifying files. It should compare the generated output with the
 committed workflow files and exit with a non-zero status when any generated file
 is missing, extra, or different from the expected output.
@@ -155,10 +155,10 @@ distinct entrypoint:
 
 ```yaml
 - name: Test
-  run: ./.forge/task-runtime test
+  run: ./.tsugiori/task-runtime test
 
 - name: Build
-  run: ./.forge/task-runtime build
+  run: ./.tsugiori/task-runtime build
 ```
 
 The initial direction is to build the task runtime with Deno. The resulting
@@ -173,7 +173,7 @@ registered task functions.
 
 It should be addressed by a stable artifact key derived from the inputs that
 affect task runtime behavior, such as registered task source, dependency state,
-target platform, and Forge version. When those inputs change, the key changes
+target platform, and tool version. When those inputs change, the key changes
 and the artifact should be rebuilt or restored from the matching cache entry.
 
 ### Task Artifact Manifest
@@ -215,14 +215,14 @@ invoke the task runtime with distinct entrypoints.
 
 ## Compile Time and GitHub Runtime Time
 
-Forge needs a strict distinction between compile-time behavior and GitHub
+The design needs a strict distinction between compile-time behavior and GitHub
 runtime-time behavior.
 
 This section describes the initial GitHub Actions provider backend. Future
 provider backends should keep the same compile-time versus CI-runtime
 distinction, but their runtime contexts and expression semantics may differ.
 
-Pipeline compile time happens when Forge authoring code runs to produce
+Pipeline compile time happens when authoring code runs to produce
 provider-native configuration. At compile time, the compiler can validate
 structure, emit YAML, and fail early on unsupported pipeline shapes.
 
@@ -240,15 +240,15 @@ At that point, GitHub evaluates contexts, expands matrices, applies `if`
 conditions, resolves `needs`, handles secrets, enforces environments, and runs
 steps.
 
-Generated or handwritten jobs may also prepare a Forge task artifact at GitHub
+Generated or handwritten jobs may also prepare a task artifact at GitHub
 runtime time by restoring it from a cache adapter or building it on a cache
 miss. That preparation should be visible as ordinary setup work. It should not
-move workflow orchestration into Forge or collapse provider steps into one
+move workflow orchestration into the tool or collapse provider steps into one
 opaque command.
 
 These phases have different information available. For example, matrix values,
 `github` context values, secrets, and previous job outputs are GitHub runtime
-values. They are not generally known when Forge emits YAML.
+values. They are not generally known when the compiler emits YAML.
 
 ## Why `if:` Is an Expression AST
 
@@ -277,7 +277,7 @@ That condition must be preserved in the generated YAML:
 ```yaml
 - name: Upload
   if: ${{ always() && failure() }}
-  run: ./.forge/task-runtime upload
+  run: ./.tsugiori/task-runtime upload
 ```
 
 Representing GitHub `if:` as an expression AST keeps this distinction explicit.

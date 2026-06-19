@@ -6,7 +6,7 @@ task-specific details before sending them.
 ## Planning Prompt
 
 ```text
-We are working in the Forge repository.
+We are working in this repository.
 
 Goal:
 <describe the change>
@@ -35,7 +35,7 @@ Done when:
 ## Documentation Change Prompt
 
 ```text
-Update Forge documentation for <topic>.
+Update documentation for <topic>.
 
 Read AGENTS.md and the smallest relevant docs first. Keep the tone precise and
 sober. Do not claim implementation exists. Do not add code, dependencies,
@@ -52,7 +52,7 @@ Done when:
 ## ADR Prompt
 
 ```text
-Draft an ADR for this Forge decision:
+Draft an ADR for this decision:
 
 Decision:
 <decision>
@@ -61,10 +61,10 @@ Context:
 <why the decision is being considered>
 
 Constraints:
-- Forge's first provider backend targets GitHub Actions-native YAML generation.
+- The first provider backend targets GitHub Actions-native YAML generation.
 - GitHub Actions remains the orchestration platform for the GitHub Actions
   provider backend.
-- Forge should not define a provider-neutral pipeline model that erases
+- The project should not define a provider-neutral pipeline model that erases
   provider-native concepts.
 - Generated workflow YAML should remain a committed, reviewable artifact.
 - Task artifact cache adapters should not hide provider-native jobs or steps.
@@ -77,7 +77,7 @@ Place the ADR under docs/DECISIONS using the next numeric prefix.
 ## Future Implementation Slice Prompt
 
 ```text
-Implement the next minimal Forge slice:
+Implement the next minimal slice:
 
 Slice:
 <specific implementation slice>
@@ -104,7 +104,7 @@ Done when:
 ## Review Prompt
 
 ```text
-Review the current Forge diff.
+Review the current diff.
 
 Use a code-review stance: findings first, ordered by severity, with file and
 line references. Focus on project-direction drift, unimplemented claims,

@@ -7,12 +7,12 @@ Accepted as initial direction.
 ## Context
 
 GitHub Actions loads workflow YAML from the pushed commit before it executes a
-run. If Forge generated workflow YAML only during that run, the generated YAML
+run. If workflow YAML were generated only during that run, the generated YAML
 would not define the run that is already in progress.
 
-Forge also intends to keep task function bodies out of YAML. Task-backed
+The design also keeps task function bodies out of YAML. Task-backed
 provider steps should invoke the task runtime with distinct entrypoints, and
-those step invocations should not fetch or build Forge-managed task code again.
+those step invocations should not fetch or build managed task code again.
 
 The task runtime needs a delivery mechanism for prepared task artifacts.
 Different repositories may prefer different artifact stores, such as
@@ -20,7 +20,7 @@ Different repositories may prefer different artifact stores, such as
 
 ## Decision
 
-Forge pipeline source is the source of truth, and generated
+Pipeline source is the source of truth, and generated
 `.github/workflows/*.yml` files are committed review artifacts.
 
 A local git hook may run the compiler before commit so pipeline source changes
@@ -30,7 +30,7 @@ compiler output and fail when generated YAML is stale.
 
 The task artifact is content-addressed. Its key should be derived from inputs
 that affect task runtime behavior, including registered task source,
-dependency state, target platform, and Forge version. When those inputs change,
+dependency state, target platform, and tool version. When those inputs change,
 the key changes and the artifact is rebuilt or restored from a matching
 artifact entry.
 
@@ -47,12 +47,12 @@ can use the same artifact contract later.
 GitHub Actions continues to see ordinary committed workflow YAML. Jobs and
 steps remain visible in the GitHub UI, and generated YAML remains reviewable.
 
-Forge needs deterministic emission and a check mode so generated YAML drift can
+The compiler needs deterministic emission and a check mode so generated YAML drift can
 be detected outside local hooks.
 
 Task artifact preparation becomes a visible part of generated jobs that use
 task-backed provider steps. This keeps artifact delivery explicit instead of
-hiding workflow orchestration inside one Forge command.
+hiding workflow orchestration inside one tool command.
 
 Cache adapter design becomes part of the task artifact boundary. Task runtime
 tooling and generated preparation steps should depend on an artifact contract,
@@ -69,8 +69,8 @@ cannot be the only enforcement mechanism.
 
 Restoring or building the task artifact adds setup work to generated jobs that
 use task-backed provider steps, but it avoids per-step dependency fetching for
-Forge-managed task code and keeps provider steps visible as normal Actions
+managed task code and keeps provider steps visible as normal Actions
 steps.
 
 Adapter-backed artifact storage adds design surface, but it avoids hard-coding
-Forge to one cache provider before repository needs are known.
+the project to one cache provider before repository needs are known.

@@ -6,7 +6,7 @@ Accepted as initial direction.
 
 ## Context
 
-Forge needs an initial runtime for task function entrypoints. The runtime
+The project needs an initial runtime for task function entrypoints. The runtime
 should be practical enough for an MVP while keeping the main research focus on
 the GitHub Actions provider backend and task model.
 
@@ -21,7 +21,7 @@ The runtime needs to support:
 
 ## Decision
 
-Forge will initially target Deno for the task runtime.
+The task runtime will initially target Deno.
 
 Deno is selected because:
 
@@ -35,14 +35,14 @@ Deno is selected because:
 
 ## Consequences
 
-The initial Forge task runtime can be authored in TypeScript and compiled into
+The initial task runtime can be authored in TypeScript and compiled into
 a binary task artifact that provider steps invoke with entrypoints such as
 `test` and `build`.
 
 Task artifact delivery and cache adapter boundaries are addressed separately in
 ADR 0003.
 
-This does not require Forge to commit permanently to Deno. It establishes a
+This does not require the project to commit permanently to Deno. It establishes a
 pragmatic first runtime while the project validates its more important premise:
 that language-native authoring can produce useful, readable, Actions-native
 YAML and task functions can be prepared automatically.

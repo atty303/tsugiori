@@ -6,7 +6,7 @@ Accepted as initial direction.
 
 ## Context
 
-Forge is intended to improve authoring and validation for provider-native CI
+The project is intended to improve authoring and validation for provider-native CI
 pipelines while preserving the selected CI provider as the execution platform.
 The first CI provider target is GitHub Actions.
 
@@ -21,7 +21,7 @@ compile to native GitHub Actions YAML without hiding the workflow from GitHub.
 
 ## Decision
 
-Forge will initially target GitHub Actions-native YAML generation through a
+The first provider backend will target GitHub Actions-native YAML generation through a
 GitHub Actions provider backend.
 
 Generated workflows should live under `.github/workflows/*.yml` and should use
@@ -41,11 +41,11 @@ ADR 0003.
 This keeps GitHub Actions as the orchestration layer and preserves normal
 debugging and review workflows.
 
-It also means Forge must model GitHub Actions concepts carefully rather than
+It also means the provider backend must model GitHub Actions concepts carefully rather than
 abstract them away. The compiler needs a workflow AST, an expression AST, and a
 YAML emitter that respects GitHub's semantics.
 
-Forge will not initially provide its own scheduler, runner abstraction, hosted
+The project will not initially provide its own scheduler, runner abstraction, hosted
 control plane, or generic CI platform.
 
 ADR 0004 refines this by using provider-native pipeline authoring and keeping
@@ -55,8 +55,8 @@ GitHub Actions target.
 ## Trade-Offs
 
 The generated YAML must remain readable and stable, which constrains how much
-Forge can hide behind abstractions.
+the compiler can hide behind abstractions.
 
 Some GitHub Actions behavior can only be validated partially before runtime.
-Forge should fail early where practical, but it should not pretend to fully
+The compiler should fail early where practical, but it should not pretend to fully
 evaluate GitHub's runtime contexts at compile time.

@@ -1,13 +1,13 @@
 # Example
 
-This example is hypothetical. It shows the intended shape of Forge authoring and
-generated YAML, but no API or compiler has been implemented yet.
+This example is hypothetical. It shows the intended shape of authoring source
+and generated YAML, but no API or compiler has been implemented yet.
 
 ## Hypothetical Authoring File
 
 ```ts
-import { pipeline, expr } from "@forge/core/github-actions";
-import { task } from "@forge/core/task";
+import { pipeline, expr } from "@tsugiori/core/github-actions";
+import { task } from "@tsugiori/core/task";
 
 const testTask = task("test", async (ctx) => {
   await ctx.command("deno", ["test", "-A"]).run();
@@ -96,11 +96,11 @@ jobs:
         with:
           deno-version: ${{ matrix.deno }}
 
-      - name: Prepare Forge task artifact
-        run: forge task prepare --manifest .forge/tasks.json
+      - name: Prepare task artifact
+        run: tsugiori task prepare --manifest .tsugiori/tasks.json
 
       - name: Test
-        run: ./.forge/task-runtime test
+        run: ./.tsugiori/task-runtime test
 
   build:
     runs-on: ubuntu-latest
@@ -117,21 +117,21 @@ jobs:
         with:
           deno-version: 2.x
 
-      - name: Prepare Forge task artifact
-        run: forge task prepare --manifest .forge/tasks.json
+      - name: Prepare task artifact
+        run: tsugiori task prepare --manifest .tsugiori/tasks.json
 
       - name: Build
-        run: ./.forge/task-runtime build
+        run: ./.tsugiori/task-runtime build
 
       - name: Upload coverage
         if: ${{ github.ref == 'refs/heads/main' && success() }}
-        run: ./.forge/task-runtime upload-coverage
+        run: ./.tsugiori/task-runtime upload-coverage
 ```
 
 ## Intended Properties
 
 - `test` and `build` remain separate GitHub Actions jobs.
-- Each task-backed Forge step becomes a normal GitHub Actions step.
+- Each task-backed provider step becomes a normal GitHub Actions step.
 - GitHub Actions still evaluates `needs`, matrix expansion, and `if:`.
 - Task function bodies live in Deno code rather than inline YAML.
 - The generated YAML is intended to be committed and reviewed.

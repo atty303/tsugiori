@@ -2,7 +2,7 @@
 
 ## Repository State
 
-Forge is currently in design phase.
+The project is currently in the design phase.
 
 Do not add runtime code, source directories, package manifests, dependency
 files, generated GitHub workflows, or CI configuration unless the user
@@ -10,7 +10,7 @@ explicitly asks for implementation work.
 
 ## Project Direction
 
-Forge is a proposed CI pipeline authoring tool and task runtime.
+Tsugiori is a proposed CI pipeline authoring tool and task runtime.
 Its first CI provider target is GitHub Actions.
 
 Preserve these constraints in every change:
@@ -21,14 +21,14 @@ Preserve these constraints in every change:
   GitHub Actions provider backend.
 - Jobs and steps must remain visible as normal GitHub Actions concepts in the
   GitHub Actions provider backend.
-- Forge should not define a provider-neutral pipeline model that erases
+- The project should not define a provider-neutral pipeline model that erases
   provider-native concepts.
-- Use `pipeline` as Forge's general CI definition term, while preserving
+- Use `pipeline` as the general CI definition term, while preserving
   GitHub Actions `workflow`, `job`, and `step` as provider-native terms.
 - Task functions are independent from pipeline authoring and may be used
   without generated pipeline YAML.
 - Task function bodies should not be inlined into generated CI configuration.
-- In the GitHub Actions provider backend, a task-backed Forge step should
+- In the GitHub Actions provider backend, a task-backed provider step should
   compile to a normal Actions step that invokes the task runtime with a
   distinct entrypoint.
 - Generated GitHub Actions workflow YAML is intended to be committed to the
@@ -36,7 +36,7 @@ Preserve these constraints in every change:
   stale-output guard.
 - The task artifact is intended to be content-addressed and restored or
   populated through a pluggable cache adapter.
-- Forge must not become a Dagger/Earthly-style opaque external CI runtime where
+- The project must not become a Dagger/Earthly-style opaque external CI runtime where
   the selected CI provider only calls one command.
 - Future provider backends such as GitLab CI should be explicit provider-native
   modules and compiler layers, not a lowest-common-denominator API that erases

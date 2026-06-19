@@ -1,17 +1,16 @@
 # Glossary
 
-This glossary records Forge's current design vocabulary. It describes intended
+This glossary records the current design vocabulary. It describes intended
 concepts, not implemented APIs.
 
 ## Pipeline
 
-A CI definition authored with Forge.
+A CI definition authored with the pipeline API.
 
-`pipeline` is Forge's general term. Provider-native terms remain
-provider-specific. For GitHub Actions, the native emitted concept is still a
-workflow.
+`pipeline` is the general term. Provider-native terms remain provider-specific.
+For GitHub Actions, the native emitted concept is still a workflow.
 
-Forge should not define a provider-neutral pipeline model that erases
+The project should not define a provider-neutral pipeline model that erases
 provider-native concepts.
 
 ## CI Provider
@@ -23,7 +22,7 @@ secrets, permissions, logs, and provider-native UI behavior.
 
 ## Provider Backend
 
-Forge's compiler and emitter layer for a specific CI provider.
+The compiler and emitter layer for a specific CI provider.
 
 A provider backend exposes provider-native authoring modules, validates
 provider-native concepts, and emits provider-native configuration. The first
@@ -33,7 +32,7 @@ intended provider backend is GitHub Actions.
 
 The GitHub Actions-native workflow emitted under `.github/workflows/*.yml`.
 
-Forge may use `pipeline` for authoring vocabulary, but generated GitHub Actions
+The authoring API may use `pipeline` vocabulary, but generated GitHub Actions
 configuration should keep GitHub's native `workflow`, `job`, and `step`
 concepts.
 

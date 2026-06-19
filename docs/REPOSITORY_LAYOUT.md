@@ -1,8 +1,8 @@
 # Repository Layout Proposal
 
-This document proposes a future repository layout for Forge implementation
-work. It is not an implemented structure. Do not create these directories,
-package manifests, generated workflows, fixtures, or CI configuration until the
+This document proposes a future repository layout for implementation work. It
+is not an implemented structure. Do not create these directories, package
+manifests, generated workflows, fixtures, or CI configuration until the
 corresponding implementation phase begins.
 
 ## Goals
@@ -64,11 +64,11 @@ shared task runtime contract types that must remain pure at authoring time.
 Authoring imports should use subpaths so the backend boundary remains visible:
 
 ```ts
-import { pipeline, expr } from "@forge/core/github-actions";
-import { task } from "@forge/core/task";
+import { pipeline, expr } from "@tsugiori/core/github-actions";
+import { task } from "@tsugiori/core/task";
 ```
 
-The root `@forge/core` export should stay small and should not re-export every
+The root `@tsugiori/core` export should stay small and should not re-export every
 provider DSL by default.
 
 ## `packages/compiler`
@@ -81,8 +81,8 @@ It should own:
 - loading and evaluating pipeline authoring source
 - converting pure authoring data into provider backend ASTs when needed
 - deterministic GitHub Actions YAML emission
-- planned `forge generate` behavior
-- planned `forge generate --check` stale-output behavior
+- planned `tsugiori generate` behavior
+- planned `tsugiori generate --check` stale-output behavior
 - writing generated files when running in generation mode
 - reporting stale generated files without mutating the tree when running in
   check mode
@@ -108,7 +108,7 @@ It should own:
 The task runtime package may depend on `packages/core`. `packages/core` should
 not depend on `packages/task-runtime`. The task runtime package should remain
 usable without pipeline generation so handwritten provider configuration can
-still invoke Forge-managed tasks.
+still invoke managed tasks.
 
 ## `packages/cli`
 
@@ -117,9 +117,9 @@ task runtime capabilities.
 
 Planned commands include:
 
-- `forge generate`
-- `forge generate --check`
-- `forge task prepare`
+- `tsugiori generate`
+- `tsugiori generate --check`
+- `tsugiori task prepare`
 
 Command parsing, user-facing diagnostics, and process exit handling belong
 here. GitHub Actions workflow AST modeling, YAML emission, and stale-check
@@ -157,12 +157,12 @@ until implementation reaches the dogfooding phase.
 
 ## Examples
 
-`examples` should hold illustrative Forge authoring source and generated YAML
+`examples` should hold illustrative authoring source and generated YAML
 pairs once implementation can produce them.
 
 Examples should remain GitHub Actions-native for the initial provider backend.
-They should not imply that Forge has implemented future provider backends,
-hosted services, or provider-neutral portability before those features exist.
+They should not imply support for future provider backends, hosted services, or
+provider-neutral portability before those features exist.
 
 ## Deferred Decisions
 
