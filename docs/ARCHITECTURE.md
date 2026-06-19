@@ -100,6 +100,26 @@ Other backends should have their own emitters and output file conventions. For
 example, a future GitLab CI backend would need to emit GitLab-native
 configuration rather than GitHub Actions YAML.
 
+### Generated YAML Stale Check
+
+When implementation begins, Forge should distinguish generation from stale
+output checking.
+
+The planned `forge generate` command should run the authoring source and write
+the generated GitHub Actions workflow files to their configured
+`.github/workflows/*.yml` paths.
+
+The planned `forge generate --check` command should run the same generation
+logic without modifying files. It should compare the generated output with the
+committed workflow files and exit with a non-zero status when any generated file
+is missing, extra, or different from the expected output.
+
+Check mode should be suitable for CI, but this repository should not add
+generated workflow files or CI configuration until implementation work begins.
+The check should report which generated files are stale, while leaving the
+source tree unchanged so authors can run normal generation locally and review
+the resulting diff.
+
 ### Step Registry
 
 The step registry maps logical step identifiers to Deno implementation

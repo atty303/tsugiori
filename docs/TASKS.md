@@ -19,9 +19,9 @@ Do not start runtime implementation until the user explicitly asks for it.
   ambiguous.
 - [ ] Add an ADR for the expression AST once the expression model is specific
   enough to choose durable syntax and validation boundaries.
-- [ ] Define the exact stale generated YAML check behavior without adding CI
+- [x] Define the exact stale generated YAML check behavior without adding CI
   configuration.
-- [ ] Define acceptance criteria for Phase 1 without creating implementation
+- [x] Define acceptance criteria for Phase 1 without creating implementation
   files.
 - [ ] Draft a future repository layout proposal for source, tests, examples,
   and generated fixtures.

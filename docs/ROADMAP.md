@@ -23,6 +23,29 @@ dates.
 - define how committed generated YAML is checked for staleness
 - add focused tests around YAML emission when implementation begins
 
+Acceptance criteria for Phase 1:
+
+- the core workflow model is limited to workflow identity, jobs, job
+  dependencies, and the minimal backend handoff needed by the GitHub Actions
+  emitter
+- the GitHub Actions backend AST can represent workflow name, events, jobs,
+  runner selection, job dependencies, and basic provider-native steps
+- basic steps in Phase 1 mean GitHub Actions `uses` and `run` steps represented
+  directly in the backend AST
+- the YAML emitter produces deterministic `.github/workflows/*.yml` output for
+  that subset, with stable ordering and reviewable formatting
+- generated YAML stale-check behavior is specified before implementation starts
+- focused tests are planned for deterministic emission and stale-output
+  detection when implementation begins
+
+Out of scope for Phase 1:
+
+- the Forge step registry
+- generated `forge-runtime <subcommand>` invocations for logical Forge steps
+- runtime artifact manifests and runtime cache adapters
+- GitHub Actions expression AST support beyond preserving literal scalar values
+- `workflow_call` contracts and reusable workflow validation
+
 ## Phase 2: Step Registry and Generated Runtime Invocation
 
 - introduce a registry for logical step entrypoints
