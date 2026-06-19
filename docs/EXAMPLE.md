@@ -95,8 +95,11 @@ jobs:
         with:
           deno-version: ${{ matrix.deno }}
 
+      - name: Prepare Forge runtime
+        run: forge runtime prepare --manifest .forge/runtime.json
+
       - name: Test
-        run: forge-runtime test
+        run: ./.forge/runtime/forge-runtime test
 
   build:
     runs-on: ubuntu-latest
@@ -108,12 +111,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.x
+
+      - name: Prepare Forge runtime
+        run: forge runtime prepare --manifest .forge/runtime.json
+
       - name: Build
-        run: forge-runtime build
+        run: ./.forge/runtime/forge-runtime build
 
       - name: Upload coverage
         if: ${{ github.ref == 'refs/heads/main' && success() }}
-        run: forge-runtime upload-coverage
+        run: ./.forge/runtime/forge-runtime upload-coverage
 ```
 
 ## Intended Properties
@@ -122,4 +133,8 @@ jobs:
 - Each logical Forge step becomes a normal GitHub Actions step.
 - GitHub Actions still evaluates `needs`, matrix expansion, and `if:`.
 - Step implementation bodies live in Deno code rather than inline YAML.
-- The same runtime binary dispatches different subcommands.
+- The generated YAML is intended to be committed and reviewed.
+- A visible preparation step makes the compiled runtime binary available.
+- The same prepared runtime binary dispatches different subcommands.
+- Runtime artifact storage is intended to be replaceable through cache
+  adapters.

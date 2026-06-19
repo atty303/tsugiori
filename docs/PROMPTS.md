@@ -20,6 +20,8 @@ Context:
 Constraints:
 - Preserve GitHub Actions-native orchestration.
 - Do not collapse workflow behavior into one opaque runtime command.
+- Treat generated workflow YAML as committed review output.
+- Treat runtime binary caches as adapter-backed artifact delivery.
 - Keep unimplemented behavior described as proposed or intended.
 
 Done when:
@@ -39,6 +41,7 @@ package manifests, generated workflows, or CI configuration.
 Done when:
 - The requested documentation is updated.
 - Related docs stay consistent.
+- Any durable change to generated YAML or runtime artifact handling has an ADR.
 - You confirm no implementation scaffolding was added.
 ```
 
@@ -56,6 +59,8 @@ Context:
 Constraints:
 - Forge targets GitHub Actions-native YAML generation.
 - GitHub Actions remains the orchestration platform.
+- Generated workflow YAML should remain a committed, reviewable artifact.
+- Runtime binary cache adapters should not hide logical jobs or steps.
 - The ADR should be concise and sober.
 - Include consequences and trade-offs.
 

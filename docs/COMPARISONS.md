@@ -7,7 +7,7 @@ goal is to clarify boundaries, not to rank tools.
 
 | Approach | Primary authoring surface | Execution model | Step visibility in GitHub Actions | Main difference from Forge |
 | --- | --- | --- | --- | --- |
-| Raw GitHub Actions YAML | YAML | GitHub Actions | Native | Forge proposes a typed authoring layer and compiled runtime entrypoints. |
+| Raw GitHub Actions YAML | YAML | GitHub Actions | Native | Forge proposes a typed source that emits committed YAML plus compiled runtime entrypoints. |
 | Reusable workflows | YAML | GitHub Actions | Native across called workflows | Forge would generate YAML and may later model `workflow_call` contracts in code. |
 | Composite actions | YAML plus scripts | GitHub Actions action runner | Often grouped inside the composite action | Forge aims to preserve logical workflow steps while dispatching to compiled entrypoints. |
 | github-actions-workflow-ts | TypeScript | GitHub Actions | Native | Forge also includes typed step entrypoints and a compiled Deno runtime dispatch model. |
@@ -27,6 +27,10 @@ ordinary code.
 
 Forge's proposed value is not to replace YAML as the execution artifact. It is
 to make YAML a generated artifact from a typed source of truth.
+
+The generated YAML is still intended to be committed and reviewed. Local hooks
+may keep it current before commit, while later CI checks should detect stale
+generated output.
 
 ## Reusable Workflows
 
@@ -52,6 +56,8 @@ logical CI structure.
 
 Forge's initial direction is to keep each logical Forge step as a normal
 workflow step and use a compiled runtime subcommand for the implementation.
+The compiled runtime binary may be restored through a cache adapter, but that
+artifact delivery mechanism should not hide the logical workflow steps.
 
 ## github-actions-workflow-ts
 
@@ -62,6 +68,9 @@ Forge's proposed difference is the additional runtime authoring model: workflow
 structure and step implementation entrypoints would live in the same
 TypeScript/Deno project, with generated steps dispatching to a compiled Deno
 binary.
+
+Forge also treats generated YAML as a committed Actions artifact and treats the
+compiled runtime binary as a cacheable artifact addressed by its inputs.
 
 Forge should still emit native GitHub Actions YAML rather than introduce a
 separate scheduler.

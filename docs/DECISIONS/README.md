@@ -11,6 +11,9 @@ the project direction. Do not use ADRs for routine wording changes.
   generation rather than replacing the CI execution platform.
 - `0002-deno-as-initial-runtime.md`: Deno is the initial runtime choice for the
   compiled step binary.
+- `0003-generated-workflows-and-runtime-artifacts.md`: generated workflow YAML
+  is committed, while compiled runtime binaries are content-addressed artifacts
+  delivered through cache adapters.
 
 ## Format
 

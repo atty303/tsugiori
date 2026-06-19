@@ -17,6 +17,7 @@ dates.
 - support workflow name, events, jobs, and basic steps
 - emit deterministic GitHub Actions YAML
 - keep generated YAML reviewable
+- define how committed generated YAML is checked for staleness
 - add focused tests around YAML emission when implementation begins
 
 ## Phase 2: Step Registry and Generated Runtime Invocation
@@ -24,7 +25,12 @@ dates.
 - introduce a registry for logical step entrypoints
 - emit normal Actions steps that call `forge-runtime <subcommand>`
 - ensure generated YAML and runtime dispatch names stay aligned
-- decide how the runtime binary is built and referenced by workflows
+- decide the runtime artifact key and manifest shape
+- add explicit runtime preparation steps before logical Forge steps
+- define the initial runtime cache adapter, likely starting with
+  `actions/cache`
+- keep later adapters such as OCI registries and S3 behind the same artifact
+  contract
 
 ## Phase 3: Expression DSL
 

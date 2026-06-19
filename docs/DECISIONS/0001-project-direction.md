@@ -30,6 +30,9 @@ Step implementation bodies should be moved into compiled Deno runtime
 entrypoints, but each logical step should still appear as a normal GitHub
 Actions step that invokes the runtime with a specific subcommand.
 
+Generated workflow commit strategy and runtime artifact delivery are refined in
+ADR 0003.
+
 ## Consequences
 
 This keeps GitHub Actions as the orchestration layer and preserves normal

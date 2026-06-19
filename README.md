@@ -37,6 +37,19 @@ Step bodies are not intended to be inlined into YAML. Each logical step should
 compile to a normal GitHub Actions step that invokes the same compiled Deno
 runtime binary with a different subcommand.
 
+The workflow source is intended to be the source of truth, while generated
+`.github/workflows/*.yml` files are committed review artifacts. A local git hook
+may compile workflow source before commit, but CI should eventually verify that
+committed generated YAML is not stale.
+
+The compiled runtime binary is intended to be a content-addressed artifact
+derived from workflow source, step source, dependency state, target platform,
+and Forge version. Generated jobs should make that binary available through an
+explicit preparation step, then each logical Forge step should run the prepared
+binary without fetching or building Forge-managed step code again. Runtime
+artifact storage should be adapter-backed so implementations such as
+`actions/cache`, GCR or another OCI registry, and S3 can be substituted.
+
 ## Intended Authoring Style
 
 This is illustrative only. The API shown here is not implemented.
@@ -110,12 +123,15 @@ jobs:
         with:
           deno-version: ${{ matrix.deno }}
 
+      - name: Prepare Forge runtime
+        run: forge runtime prepare --manifest .forge/runtime.json
+
       - name: Test
-        run: forge-runtime test
+        run: ./.forge/runtime/forge-runtime test
 
       - name: Upload test report
         if: ${{ always() && failure() }}
-        run: forge-runtime upload-test-report
+        run: ./.forge/runtime/forge-runtime upload-test-report
 ```
 
 ## Status

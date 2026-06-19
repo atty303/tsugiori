@@ -73,6 +73,10 @@ For documentation-only changes:
 - changed files are limited to documentation or agent guidance
 - wording does not imply unimplemented behavior already exists
 - generated examples remain GitHub Actions-native
+- generated workflow YAML remains described as committed review output, not as
+  runtime-generated orchestration
+- runtime cache adapters remain artifact delivery mechanisms, not hidden
+  schedulers
 - no package manifests, source files, dependencies, or CI files were added by
   accident
 
@@ -91,6 +95,8 @@ Create or update an ADR when a change:
 
 - changes the execution model
 - changes the initial runtime choice
+- changes how generated workflow YAML or runtime artifacts are produced,
+  committed, restored, or cached
 - changes the AST or expression model in a durable way
 - adds a new target platform
 - changes a non-goal into a goal

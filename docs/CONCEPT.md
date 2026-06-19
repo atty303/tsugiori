@@ -30,6 +30,12 @@ This preserves several important properties:
 Forge should compile to `.github/workflows/*.yml`, not to a separate CI
 scheduler.
 
+Generated workflow YAML is intended to be committed to the repository. The
+authoring source remains the source of truth, but the emitted YAML should be a
+reviewable artifact that GitHub Actions can load directly from the pushed
+commit. A local git hook can compile the workflow source before commit, and CI
+should eventually be able to fail when generated YAML is stale.
+
 ## Language-Native Step Implementation
 
 GitHub Actions YAML is useful for orchestration, but it is a limited medium for
@@ -42,10 +48,10 @@ invoke the same compiled runtime binary with different subcommands, for example:
 
 ```yaml
 - name: Test
-  run: forge-runtime test
+  run: ./.forge/runtime/forge-runtime test
 
 - name: Build
-  run: forge-runtime build
+  run: ./.forge/runtime/forge-runtime build
 ```
 
 The runtime binary is responsible for dispatching to the registered step
@@ -53,13 +59,24 @@ entrypoint. GitHub Actions remains responsible for ordering, condition
 evaluation, matrix expansion, secrets injection, environment protection, and
 other workflow behavior.
 
+The runtime binary should be prepared before logical Forge steps run. Once
+prepared, each generated logical step should invoke the binary directly and
+should not fetch or build Forge-managed step implementation code again. This
+does not prevent a user-authored step from intentionally running commands that
+perform their own network or dependency work.
+
+Runtime binary storage and retrieval should be abstracted behind cache
+adapters. The same compiler/runtime model should be able to use `actions/cache`,
+GCR or another OCI registry, S3, or another compatible store without changing
+the logical workflow shape.
+
 ## Boundary
 
 Forge's core design boundary is:
 
 - GitHub Actions owns orchestration.
-- Forge owns authoring, validation, YAML emission, and step implementation
-  dispatch.
+- Forge owns authoring, validation, YAML emission, runtime artifact selection,
+  and step implementation dispatch.
 
 This boundary is intended to avoid both extremes:
 

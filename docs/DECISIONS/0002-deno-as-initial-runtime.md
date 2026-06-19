@@ -37,6 +37,9 @@ The initial Forge runtime can be authored in TypeScript and compiled into a
 binary that generated workflow steps invoke with subcommands such as
 `forge-runtime test` and `forge-runtime build`.
 
+Runtime artifact delivery and cache adapter boundaries are addressed separately
+in ADR 0003.
+
 This does not require Forge to commit permanently to Deno. It establishes a
 pragmatic first runtime while the project validates its more important premise:
 that typed authoring can produce useful, readable, Actions-native YAML.

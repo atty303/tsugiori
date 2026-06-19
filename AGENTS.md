@@ -20,6 +20,10 @@ Preserve these constraints in every change:
 - Step bodies should not be inlined into YAML.
 - Each logical Forge step should compile to a normal Actions step that invokes
   a compiled Deno runtime binary with a distinct subcommand.
+- Generated workflow YAML is intended to be committed to the repository, with
+  local hooks as a convenience and CI checks as the durable stale-output guard.
+- The compiled runtime binary is intended to be a content-addressed artifact
+  that can be restored or populated through a pluggable cache adapter.
 - Forge must not become a Dagger/Earthly-style opaque external CI runtime where
   GitHub Actions only calls one command.
 

@@ -60,6 +60,11 @@ It should aim for stable output that is easy to review. The emitter should not
 invent an execution model. Its job is to serialize native GitHub Actions
 concepts from the AST into `.github/workflows/*.yml`.
 
+Generated workflow files are intended to be committed. A local git hook may run
+the compiler before commit, but hook execution should be treated as a
+convenience rather than the only correctness mechanism. A future check mode
+should compare committed YAML with compiler output and fail when it is stale.
+
 ### Step Registry
 
 The step registry maps logical step identifiers to Deno implementation
@@ -82,13 +87,51 @@ calls the same runtime binary with a distinct subcommand:
 
 ```yaml
 - name: Test
-  run: forge-runtime test
+  run: ./.forge/runtime/forge-runtime test
 
 - name: Build
-  run: forge-runtime build
+  run: ./.forge/runtime/forge-runtime build
 ```
 
 The initial direction is to use `deno compile` for this runtime binary.
+
+The binary should be addressed by a stable artifact key derived from the inputs
+that affect runtime behavior, such as workflow source, registered step source,
+dependency state, target platform, and Forge version. When those inputs change,
+the key changes and the binary should be rebuilt or restored from the matching
+cache entry.
+
+### Runtime Artifact Manifest
+
+The runtime artifact manifest is proposed metadata connecting generated YAML to
+the runtime binary it expects.
+
+It should record enough information for generated jobs to prepare the correct
+binary before logical Forge steps run:
+
+- artifact key
+- target platform
+- runtime binary path
+- registered subcommands
+- cache adapter selection and adapter-specific reference data
+
+The manifest should not become a scheduler. It should describe how to obtain
+the binary that ordinary GitHub Actions steps will invoke.
+
+### Runtime Cache Adapter
+
+The runtime cache adapter abstracts storage and retrieval of compiled runtime
+artifacts.
+
+The compiler and generated preparation steps should depend on a small artifact
+contract rather than on one storage provider. Candidate adapters include
+`actions/cache`, GCR or another OCI registry, S3, and local development cache
+storage.
+
+The adapter boundary should preserve visible GitHub Actions steps. A generated
+job may contain explicit preparation steps that restore or build the runtime
+binary, but logical Forge steps should still appear as their own normal Actions
+steps that invoke the prepared binary with distinct subcommands.
 
 ## Compile Time and GitHub Runtime Time
 
@@ -99,10 +142,20 @@ Compile time happens when Forge authoring code runs to produce workflow YAML and
 the runtime binary. At compile time, the compiler can validate structure,
 register steps, emit YAML, and fail early on unsupported workflow shapes.
 
+For normal repository work, this compile step is intended to happen before
+commit, commonly through a git hook. The generated YAML is then committed and
+loaded by GitHub Actions like any other workflow file.
+
 GitHub runtime time happens when GitHub Actions executes the generated workflow.
 At that point, GitHub evaluates contexts, expands matrices, applies `if`
 conditions, resolves `needs`, handles secrets, enforces environments, and runs
 steps.
+
+Generated jobs may also prepare the compiled Forge runtime binary at GitHub
+runtime time by restoring it from a cache adapter or building it on a cache
+miss. That preparation should be visible as ordinary setup work. It should not
+move workflow orchestration into Forge or collapse logical steps into one
+opaque command.
 
 These phases have different information available. For example, matrix values,
 `github` context values, secrets, and previous job outputs are GitHub runtime
@@ -135,7 +188,7 @@ That condition must be preserved in the generated YAML:
 ```yaml
 - name: Upload
   if: ${{ always() && failure() }}
-  run: forge-runtime upload
+  run: ./.forge/runtime/forge-runtime upload
 ```
 
 Representing GitHub `if:` as an expression AST keeps this distinction explicit.

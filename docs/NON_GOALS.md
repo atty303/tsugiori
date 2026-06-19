@@ -47,6 +47,11 @@ the design surface before the GitHub Actions compiler model has been proven.
 Forge is not initially intended to provide a marketplace, hosted registry, or
 remote catalog of workflow modules.
 
+Cache adapters for compiled runtime binaries are artifact delivery mechanisms,
+not a hosted workflow marketplace. Supporting an OCI registry, S3, or another
+store for runtime artifacts should not imply a remote catalog of workflow
+modules or a Forge-hosted control plane.
+
 ## Not a Full Actions Reimplementation
 
 Forge should not reimplement GitHub's expression evaluator, matrix executor,

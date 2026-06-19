@@ -13,11 +13,13 @@ Do not start runtime implementation until the user explicitly asks for it.
 
 - [ ] Review terminology across docs and settle on consistent names for
   "authoring API", "workflow AST", "expression AST", "step registry", and
-  "runtime binary".
+  "runtime binary", "runtime artifact manifest", and "runtime cache adapter".
 - [ ] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
 - [ ] Add an ADR for the expression AST once the expression model is specific
   enough to choose durable syntax and validation boundaries.
+- [ ] Define the exact stale generated YAML check behavior without adding CI
+  configuration.
 - [ ] Define acceptance criteria for Phase 1 without creating implementation
   files.
 - [ ] Draft a future repository layout proposal for source, tests, examples,
@@ -42,6 +44,10 @@ These are intentionally blocked until implementation starts.
 - [ ] Emit `forge-runtime <subcommand>` for registered logical steps.
 - [ ] Add validation that every generated runtime invocation has a registered
   entrypoint.
+- [ ] Design the runtime artifact manifest and content-addressed key inputs.
+- [ ] Design the runtime cache adapter interface.
+- [ ] Specify how cache miss builds populate the selected runtime artifact
+  store.
 
 ## Future Phase 3 Candidate Tasks
 
