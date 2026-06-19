@@ -7,13 +7,14 @@ to implement every item.
 
 Phase 0: documentation and design.
 
-Do not start runtime implementation until the user explicitly asks for it.
+Do not start task runtime or provider backend implementation until the user
+explicitly asks for it.
 
 ## Ready Documentation Tasks
 
-- [ ] Review terminology across docs and settle on consistent names for the
-  authoring API, core workflow model, backend workflow AST, expression AST,
-  step registry, runtime binary, runtime artifact manifest, and runtime cache
+- [x] Review terminology across docs and settle on consistent names for the
+  pipeline authoring API, provider backend AST, expression AST, task function,
+  task registry, task runtime, task artifact manifest, and task artifact cache
   adapter.
 - [ ] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
@@ -32,7 +33,7 @@ These are intentionally blocked until implementation starts.
 
 - [ ] Create the minimal project manifest only after the runtime/toolchain
   command strategy is selected.
-- [ ] Add the smallest core workflow model and GitHub Actions backend AST
+- [ ] Add the smallest GitHub Actions provider backend AST
   representation.
 - [ ] Add deterministic YAML emission for workflow name, events, one job, and
   basic steps.
@@ -41,14 +42,14 @@ These are intentionally blocked until implementation starts.
 
 ## Future Phase 2 Candidate Tasks
 
-- [ ] Design the step registry API.
-- [ ] Decide how runtime subcommand names are generated and validated.
-- [ ] Emit `forge-runtime <subcommand>` for registered logical steps.
-- [ ] Add validation that every generated runtime invocation has a registered
-  entrypoint.
-- [ ] Design the runtime artifact manifest and content-addressed key inputs.
-- [ ] Design the runtime cache adapter interface.
-- [ ] Specify how cache miss builds populate the selected runtime artifact
+- [ ] Design the task registry API.
+- [ ] Decide how task runtime entrypoint names are generated and validated.
+- [ ] Emit task runtime invocations for task-backed provider steps.
+- [ ] Add validation that every generated task runtime invocation has a
+  registered task entrypoint.
+- [ ] Design the task artifact manifest and content-addressed key inputs.
+- [ ] Design the task artifact cache adapter interface.
+- [ ] Specify how cache miss builds populate the selected task artifact
   store.
 
 ## Future Phase 3 Candidate Tasks

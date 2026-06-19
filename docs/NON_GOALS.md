@@ -15,9 +15,9 @@ control plane, scheduler, runner abstraction, or provider-neutral runtime.
 
 The first target is GitHub Actions YAML generation.
 
-Forge may keep a reusable core model that can support future CI backends, but
-that should not turn into a lowest-common-denominator DSL that hides each
-provider's native workflow semantics.
+Forge may keep shared task runtime contracts and authoring utilities, but it
+should not define a provider-neutral pipeline model that hides each provider's
+native workflow or pipeline semantics.
 
 ## Not a Dagger Clone
 
@@ -32,33 +32,33 @@ Forge should not hide all work inside a single generated step such as:
 
 ```yaml
 - name: Run CI
-  run: forge-runtime ci
+  run: forge ci
 ```
 
 That shape would remove useful job and step boundaries from the CI provider's
-UI. In the GitHub Actions backend, Forge should preserve meaningful logical
-steps as normal Actions steps.
+UI. In the GitHub Actions provider backend, Forge should preserve meaningful
+provider steps as normal Actions steps.
 
 ## Not Initially Implementing Other Backends
 
 Forge is not initially implementing GitLab CI, Kubernetes, Tekton, Argo,
 Buildkite, or self-hosted orchestration.
 
-Those systems may be useful comparison points or future backends, but
+Those systems may be useful comparison points or future provider backends, but
 supporting them would expand the design surface before the GitHub Actions
-compiler model has been proven. Future backend support should layer
-provider-specific DSLs and emitters over the reusable core rather than
-generalizing away provider-specific concepts too early.
+provider backend has been proven. Future provider backend support should add
+provider-native DSLs and emitters rather than generalizing away
+provider-specific concepts too early.
 
 ## Not a Workflow Marketplace
 
 Forge is not initially intended to provide a marketplace, hosted registry, or
 remote catalog of workflow modules.
 
-Cache adapters for compiled runtime binaries are artifact delivery mechanisms,
-not a hosted workflow marketplace. Supporting an OCI registry, S3, or another
-store for runtime artifacts should not imply a remote catalog of workflow
-modules or a Forge-hosted control plane.
+Cache adapters for task artifacts are artifact delivery mechanisms, not a
+hosted workflow marketplace. Supporting an OCI registry, S3, or another store
+for task artifacts should not imply a remote catalog of workflow modules or a
+Forge-hosted control plane.
 
 ## Not a Full Actions Reimplementation
 

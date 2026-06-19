@@ -6,8 +6,9 @@ Accepted as initial direction.
 
 ## Context
 
-Forge is intended to improve authoring and validation for GitHub Actions
-workflows while preserving GitHub Actions as the execution platform.
+Forge is intended to improve authoring and validation for provider-native CI
+pipelines while preserving the selected CI provider as the execution platform.
+The first CI provider target is GitHub Actions.
 
 The project could choose to build a separate CI runtime and have GitHub Actions
 invoke it through a single command. That would create a more controlled runtime
@@ -15,22 +16,24 @@ environment, but it would also discard much of what GitHub Actions already
 provides: job scheduling, matrix expansion, `needs`, permissions,
 environments, secrets, logs, and the web UI's job and step model.
 
-The important early risk is whether a typed authoring model can compile to
-native GitHub Actions YAML without hiding the workflow from GitHub.
+The important early risk is whether a language-native authoring model can
+compile to native GitHub Actions YAML without hiding the workflow from GitHub.
 
 ## Decision
 
-Forge will initially target GitHub Actions-native YAML generation.
+Forge will initially target GitHub Actions-native YAML generation through a
+GitHub Actions provider backend.
 
 Generated workflows should live under `.github/workflows/*.yml` and should use
 normal GitHub Actions constructs for jobs, steps, `if`, `needs`, matrix,
 `workflow_call`, permissions, concurrency, environments, secrets, and outputs.
 
-Step implementation bodies should be moved into compiled Deno runtime
-entrypoints, but each logical step should still appear as a normal GitHub
-Actions step that invokes the runtime with a specific subcommand.
+Task function bodies should not be inlined into YAML. When task functions are
+used with the GitHub Actions provider backend, each task-backed provider step
+should still appear as a normal GitHub Actions step that invokes the task
+runtime with a specific entrypoint.
 
-Generated workflow commit strategy and runtime artifact delivery are refined in
+Generated workflow commit strategy and task artifact delivery are refined in
 ADR 0003.
 
 ## Consequences
@@ -43,11 +46,11 @@ abstract them away. The compiler needs a workflow AST, an expression AST, and a
 YAML emitter that respects GitHub's semantics.
 
 Forge will not initially provide its own scheduler, runner abstraction, hosted
-control plane, or generic CI backend.
+control plane, or generic CI platform.
 
-ADR 0004 refines this by allowing a reusable core model under explicit
-CI-specific backend layers. That does not change the initial GitHub Actions
-target.
+ADR 0004 refines this by using provider-native pipeline authoring and keeping
+the task runtime independently usable. That does not change the initial
+GitHub Actions target.
 
 ## Trade-Offs
 

@@ -18,11 +18,13 @@ Context:
   confirm.
 
 Constraints:
-- Preserve GitHub Actions-native orchestration for the GitHub Actions backend.
-- Keep reusable core concepts separate from CI-specific backend concepts.
+- Preserve GitHub Actions-native orchestration for the GitHub Actions provider
+  backend.
+- Do not introduce a provider-neutral pipeline model that erases
+  provider-native concepts.
 - Do not collapse workflow behavior into one opaque runtime command.
 - Treat generated workflow YAML as committed review output.
-- Treat runtime binary caches as adapter-backed artifact delivery.
+- Treat task artifact caches as adapter-backed artifact delivery.
 - Keep unimplemented behavior described as proposed or intended.
 
 Done when:
@@ -42,8 +44,8 @@ package manifests, generated workflows, or CI configuration.
 Done when:
 - The requested documentation is updated.
 - Related docs stay consistent.
-- Any durable change to generated YAML, backend boundaries, or runtime artifact
-  handling has an ADR.
+- Any durable change to generated YAML, provider backend boundaries, or task
+  artifact handling has an ADR.
 - You confirm no implementation scaffolding was added.
 ```
 
@@ -59,13 +61,13 @@ Context:
 <why the decision is being considered>
 
 Constraints:
-- Forge's first backend targets GitHub Actions-native YAML generation.
+- Forge's first provider backend targets GitHub Actions-native YAML generation.
 - GitHub Actions remains the orchestration platform for the GitHub Actions
-  backend.
-- Reusable core concepts should stay separate from CI-specific backend
-  concepts.
+  provider backend.
+- Forge should not define a provider-neutral pipeline model that erases
+  provider-native concepts.
 - Generated workflow YAML should remain a committed, reviewable artifact.
-- Runtime binary cache adapters should not hide logical jobs or steps.
+- Task artifact cache adapters should not hide provider-native jobs or steps.
 - The ADR should be concise and sober.
 - Include consequences and trade-offs.
 
@@ -87,8 +89,8 @@ Context:
 
 Constraints:
 - Keep the implementation small and testable.
-- Preserve Actions-native YAML output for the GitHub Actions backend.
-- Keep provider-specific workflow concepts in backend-specific layers.
+- Preserve Actions-native YAML output for the GitHub Actions provider backend.
+- Keep provider-native pipeline concepts in provider backend layers.
 - Represent GitHub Actions expressions as an expression AST.
 - Add or update tests for behavior touched by the change.
 - Update docs only where behavior or commands actually changed.

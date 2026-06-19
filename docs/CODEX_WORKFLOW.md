@@ -37,6 +37,7 @@ Use these starting points instead of reading every file.
 
 - `README.md`
 - `docs/CONCEPT.md`
+- `docs/GLOSSARY.md`
 - `docs/NON_GOALS.md`
 - `docs/COMPARISONS.md`
 - relevant ADRs
@@ -44,6 +45,7 @@ Use these starting points instead of reading every file.
 ### Architecture Change
 
 - `docs/ARCHITECTURE.md`
+- `docs/GLOSSARY.md`
 - `docs/ROADMAP.md`
 - relevant ADRs
 - `docs/CONCEPT.md`
@@ -75,7 +77,7 @@ For documentation-only changes:
 - generated examples remain GitHub Actions-native
 - generated workflow YAML remains described as committed review output, not as
   runtime-generated orchestration
-- runtime cache adapters remain artifact delivery mechanisms, not hidden
+- task artifact cache adapters remain artifact delivery mechanisms, not hidden
   schedulers
 - no package manifests, source files, dependencies, or CI files were added by
   accident
@@ -84,7 +86,8 @@ For future implementation changes:
 
 - the change fits the current roadmap phase or the task explicitly changes the
   phase order
-- tests cover the compiler/runtime behavior touched by the change
+- tests cover the provider backend or task runtime behavior touched by the
+  change
 - generated YAML remains readable and Actions-native
 - relevant docs and ADRs are updated
 - `AGENTS.md` lists real verification commands once they exist
@@ -95,7 +98,7 @@ Create or update an ADR when a change:
 
 - changes the execution model
 - changes the initial runtime choice
-- changes how generated workflow YAML or runtime artifacts are produced,
+- changes how generated workflow YAML or task artifacts are produced,
   committed, restored, or cached
 - changes the AST or expression model in a durable way
 - adds a new target platform

@@ -1,11 +1,11 @@
 # Forge
 
-Forge is a proposed CI workflow compiler and typed runtime authoring tool.
+Forge is a proposed CI pipeline authoring tool and task runtime.
 
-The first intended target is GitHub Actions. Forge is intended to let users
-define both GitHub Actions workflow structure and step implementation
-entrypoints in TypeScript/Deno code, then export native
-`.github/workflows/*.yml` files.
+The first intended CI provider is GitHub Actions. Forge is intended to let
+users define GitHub Actions workflow structure in TypeScript/Deno code, export
+native `.github/workflows/*.yml` files, and optionally author task functions
+that CI provider steps can execute through a prepared task artifact.
 
 Forge is currently in the design phase. There is no runtime implementation,
 authoring API, compiler, package manifest, or CI setup yet.
@@ -13,67 +13,73 @@ authoring API, compiler, package manifest, or CI setup yet.
 ## Problem
 
 GitHub Actions YAML is the execution interface, but it is not a strong
-authoring interface for larger workflows. As workflows grow, authors often need:
+authoring interface for larger pipelines. As pipelines grow, authors often
+need:
 
 - reusable typed structure
-- clearer workflow composition
-- step implementations that can share ordinary language tooling
-- validation before a workflow reaches GitHub
+- clearer pipeline composition
+- task implementations that can share ordinary language tooling
+- validation before generated workflow YAML reaches GitHub
 - generated YAML that is still understandable in the GitHub web UI
 
-For the initial backend, Forge explores a middle ground: use TypeScript/Deno as
-the authoring language, but keep GitHub Actions as the orchestration and
-execution platform.
+For the initial provider backend, Forge explores a middle ground: use
+TypeScript/Deno as the authoring language, but keep GitHub Actions as the
+orchestration and execution platform.
 
 ## Initial Direction
 
-Forge is intended to compile language-native workflow definitions into
-provider-native CI configuration. The initial compiler target is
-Actions-native YAML.
+Forge is intended to compile language-native pipeline definitions into
+provider-native CI configuration. The initial provider backend targets
+GitHub Actions-native YAML.
 
-The reusable core should model only the parts that are actually shared across
-CI providers: workflow identity, job graph shape, logical step entrypoints,
-runtime artifact selection, and dispatch to a prepared binary artifact.
-Provider-specific workflow details should live in backend-specific DSL and
-compiler layers. For example, the GitHub Actions backend owns Actions events,
-permissions, expression syntax, `uses` steps, workflow file layout, and YAML
-emission. A future GitLab CI backend would need its own native concepts rather
-than pretending those details are the same.
-
-Users should choose the CI backend they are authoring for. Forge should not
-promise transparent portability between CI providers, because each provider has
-different workflow semantics.
+Forge should not define a lowest-common-denominator pipeline model. Users
+should choose the CI provider they are authoring for, and Forge should preserve
+that provider's native concepts. For GitHub Actions, the provider backend owns
+Actions events, workflows, jobs, steps, permissions, expression syntax, `uses`
+steps, workflow file layout, and YAML emission. A future GitLab CI provider
+backend would need its own native concepts rather than pretending those details
+are the same.
 
 The generated workflow should still expose jobs and steps normally in GitHub
 Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,
 `permissions`, `concurrency`, `environment`, `secrets`, and outputs should
 remain GitHub Actions concepts.
 
-Step bodies are not intended to be inlined into YAML. Each logical step should
-compile to a normal GitHub Actions step that invokes the same compiled Deno
-runtime binary with a different subcommand.
+Task functions are independent from pipeline authoring. A repository can use
+Forge to generate provider-native workflow YAML without task functions, or use
+the task runtime from handwritten CI configuration. When used together, a
+GitHub Actions provider step can invoke a Forge task through the task runtime.
 
-The workflow source is intended to be the source of truth, while generated
+The pipeline source is intended to be the source of truth, while generated
 `.github/workflows/*.yml` files are committed review artifacts. A local git hook
-may compile workflow source before commit, but CI should eventually verify that
+may compile pipeline source before commit, but CI should eventually verify that
 committed generated YAML is not stale.
 
-The compiled runtime binary is intended to be a content-addressed artifact
-derived from workflow source, step source, dependency state, target platform,
-and Forge version. Generated jobs should make that binary available through an
-explicit preparation step, then each logical Forge step should run the prepared
-binary without fetching or building Forge-managed step code again. Runtime
-artifact storage should be adapter-backed so implementations such as
-`actions/cache`, GCR or another OCI registry, and S3 can be substituted.
+The task runtime is intended to prepare task functions as a content-addressed
+task artifact derived from task source, dependency state, target platform, and
+Forge version. Provider steps should make that artifact available through
+explicit preparation work, then invoke task runtime entrypoints without
+fetching or building Forge-managed task code again. Task artifact storage
+should be adapter-backed so implementations such as `actions/cache`, GCR or
+another OCI registry, and S3 can be substituted.
 
 ## Intended Authoring Style
 
 This is illustrative only. The API shown here is not implemented.
 
 ```ts
-import { expr, workflow } from "forge";
+import { pipeline, expr } from "@forge/core/github-actions";
+import { task } from "@forge/core/task";
 
-const ci = workflow("ci", {
+const testTask = task("test", async (ctx) => {
+  await ctx.command("deno", ["test", "-A"]).run();
+});
+
+const uploadTestReport = task("upload-test-report", async (ctx) => {
+  await ctx.command("deno", ["task", "coverage:upload"]).run();
+});
+
+const ci = pipeline("ci", {
   on: {
     pull_request: {},
     push: { branches: ["main"] },
@@ -99,9 +105,9 @@ test.uses("Setup Deno", "denoland/setup-deno@v2", {
   },
 });
 
-test.step("Test", "test");
+test.step("Test", testTask);
 
-test.step("Upload test report", "upload-test-report", {
+test.step("Upload test report", uploadTestReport, {
   if: expr.always().and(expr.failure()),
 });
 
@@ -139,15 +145,15 @@ jobs:
         with:
           deno-version: ${{ matrix.deno }}
 
-      - name: Prepare Forge runtime
-        run: forge runtime prepare --manifest .forge/runtime.json
+      - name: Prepare Forge task artifact
+        run: forge task prepare --manifest .forge/tasks.json
 
       - name: Test
-        run: ./.forge/runtime/forge-runtime test
+        run: ./.forge/task-runtime test
 
       - name: Upload test report
         if: ${{ always() && failure() }}
-        run: ./.forge/runtime/forge-runtime upload-test-report
+        run: ./.forge/task-runtime upload-test-report
 ```
 
 ## Status
@@ -168,6 +174,8 @@ Codex:
 - `docs/TASKS.md`: AI-friendly task queue
 - `docs/PROMPTS.md`: reusable prompts for planning, ADRs, implementation, and
   review
+- `docs/GLOSSARY.md`: current design vocabulary for pipelines, providers,
+  tasks, and artifacts
 - `docs/REPOSITORY_LAYOUT.md`: proposed future source, package, test, fixture,
   and example layout
 - `.agents/skills/forge-design-review/SKILL.md`: repo-local review skill for

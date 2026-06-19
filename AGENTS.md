@@ -10,31 +10,37 @@ explicitly asks for implementation work.
 
 ## Project Direction
 
-Forge is a proposed CI workflow compiler and typed runtime authoring tool.
-Its first compiler target is GitHub Actions.
+Forge is a proposed CI pipeline authoring tool and task runtime.
+Its first CI provider target is GitHub Actions.
 
 Preserve these constraints in every change:
 
-- The GitHub Actions backend compiles to standard `.github/workflows/*.yml`.
+- The GitHub Actions provider backend compiles to standard
+  `.github/workflows/*.yml`.
 - GitHub Actions remains the orchestration and execution platform for the
-  GitHub Actions backend.
+  GitHub Actions provider backend.
 - Jobs and steps must remain visible as normal GitHub Actions concepts in the
-  GitHub Actions backend.
-- Step bodies should not be inlined into generated CI configuration.
-- In the GitHub Actions backend, each logical Forge step should compile to a
-  normal Actions step that invokes a compiled Deno runtime binary with a
-  distinct subcommand.
+  GitHub Actions provider backend.
+- Forge should not define a provider-neutral pipeline model that erases
+  provider-native concepts.
+- Use `pipeline` as Forge's general CI definition term, while preserving
+  GitHub Actions `workflow`, `job`, and `step` as provider-native terms.
+- Task functions are independent from pipeline authoring and may be used
+  without generated pipeline YAML.
+- Task function bodies should not be inlined into generated CI configuration.
+- In the GitHub Actions provider backend, a task-backed Forge step should
+  compile to a normal Actions step that invokes the task runtime with a
+  distinct entrypoint.
 - Generated GitHub Actions workflow YAML is intended to be committed to the
   repository, with local hooks as a convenience and CI checks as the durable
   stale-output guard.
-- The compiled runtime binary is intended to be a content-addressed artifact
-  that can be restored or populated through a pluggable cache adapter.
+- The task artifact is intended to be content-addressed and restored or
+  populated through a pluggable cache adapter.
 - Forge must not become a Dagger/Earthly-style opaque external CI runtime where
   the selected CI provider only calls one command.
-- Keep reusable core concepts separate from CI-specific DSL and compiler
-  layers. Future backends such as GitLab CI should be explicit backend layers
-  over the core model, not a lowest-common-denominator API that erases each CI
-  provider's native workflow concepts.
+- Future provider backends such as GitLab CI should be explicit provider-native
+  modules and compiler layers, not a lowest-common-denominator API that erases
+  each CI provider's native concepts.
 
 ## Context Map
 
@@ -46,6 +52,8 @@ Read the smallest relevant set before editing:
   distinction
 - `docs/NON_GOALS.md`: boundaries that should not drift
 - `docs/COMPARISONS.md`: conceptual comparisons with adjacent tools
+- `docs/GLOSSARY.md`: current design vocabulary for pipelines, providers,
+  tasks, and artifacts
 - `docs/ROADMAP.md`: implementation sequence and risk ordering
 - `docs/EXAMPLE.md`: illustrative authoring and generated YAML shape
 - `docs/REPOSITORY_LAYOUT.md`: proposed future source, package, test,
@@ -71,7 +79,7 @@ When implementation begins:
 
 - Follow the phase order in `docs/ROADMAP.md` unless the user explicitly
   changes it.
-- Start with the smallest core model, GitHub Actions AST, and YAML emitter
+- Start with the smallest GitHub Actions provider backend AST and YAML emitter
   slice that can be tested.
 - Keep GitHub Actions expressions as an expression AST; do not model GitHub
   runtime `if:` with host-language conditionals.

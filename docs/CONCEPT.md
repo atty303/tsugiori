@@ -1,20 +1,26 @@
 # Concept
 
-Forge is proposed as a CI workflow compiler with language-native step
-implementation. Its first target is GitHub Actions-native workflow generation.
+Forge is proposed as a CI pipeline authoring tool with an optional task
+runtime. Its first CI provider target is GitHub Actions-native workflow
+generation.
 
-The initial GitHub Actions backend has two linked goals:
+Forge has two related but independent goals:
 
-- let authors describe GitHub Actions workflow structure in typed
+- let authors describe provider-native CI pipeline structure in
   TypeScript/Deno code
-- let authors implement logical step entrypoints in ordinary Deno code, then
-  invoke those entrypoints from generated GitHub Actions steps
+- let authors implement task functions in ordinary Deno code, prepare them as
+  task artifacts, and invoke them from CI provider steps
+
+These goals work well together, but neither should require the other. A
+repository may use Forge to generate GitHub Actions workflow YAML without task
+functions. Another repository may keep handwritten workflow YAML and still use
+Forge's task runtime for richer task implementations.
 
 ## Actions-Native Orchestration
 
 Forge should not replace GitHub Actions as the execution platform.
 
-The workflow graph should remain visible to GitHub Actions. Jobs, steps,
+The GitHub Actions workflow graph should remain visible to GitHub Actions. Jobs, steps,
 dependencies, matrices, permissions, environments, secrets, outputs, and
 conditional execution should compile to normal GitHub Actions YAML.
 
@@ -33,78 +39,81 @@ scheduler.
 Generated workflow YAML is intended to be committed to the repository. The
 authoring source remains the source of truth, but the emitted YAML should be a
 reviewable artifact that GitHub Actions can load directly from the pushed
-commit. A local git hook can compile the workflow source before commit, and CI
+commit. A local git hook can compile the pipeline source before commit, and CI
 should eventually be able to fail when generated YAML is stale.
 
-## Core Model and CI Backends
+## Pipelines and CI Providers
 
-Forge should distinguish reusable core concepts from CI-specific workflow
-semantics.
+Forge uses `pipeline` as its general term for CI definitions authored with
+Forge. CI provider-native terms remain provider-specific. For GitHub Actions,
+the native output concept is still a workflow, and generated files still live
+under `.github/workflows/*.yml`.
 
-The core model should stay limited to concepts that can plausibly be shared by
-multiple CI providers:
+Forge should not define a provider-neutral pipeline model with shared jobs,
+steps, matrices, dependencies, and expressions. CI providers differ in their
+native concepts, and a portable pipeline model would erase too much provider
+expressiveness.
 
-- workflow identity
-- jobs and job dependencies
-- logical steps that dispatch to registered runtime entrypoints
-- runtime artifact manifests
-- cache adapter contracts for prepared runtime binaries
+Users should choose the CI provider they are authoring for. Each provider
+backend should expose provider-native authoring modules, define
+provider-native intermediate representations, validate provider-native
+concepts, and emit provider-native configuration.
 
-Provider-specific concepts should be modeled in explicit backend layers. The
-GitHub Actions backend owns Actions events, runner labels, `uses` steps,
-permissions, environments, `workflow_call`, expression syntax, generated file
-paths, and YAML emission. A future GitLab CI backend could reuse the core
-runtime and logical step model, but it would need its own DSL surface and
-compiler rules for GitLab-native jobs, stages, rules, variables, artifacts, and
-cache behavior.
+The GitHub Actions provider backend owns Actions events, workflows, jobs,
+steps, runner labels, `uses` steps, permissions, environments, `workflow_call`,
+expression syntax, generated file paths, and YAML emission. A future GitLab CI
+provider backend would need its own DSL surface and compiler rules for
+GitLab-native pipelines, stages, rules, variables, artifacts, and cache
+behavior.
 
 This keeps Forge from becoming either a GitHub-only runtime model or a
-lowest-common-denominator CI abstraction. Users should select the backend they
-are authoring for, and Forge should preserve that provider's native job and
-step visibility.
+lowest-common-denominator CI abstraction. Users should select the CI provider
+they are authoring for, and Forge should preserve that provider's native job
+and step visibility.
 
-## Language-Native Step Implementation
+## Task Functions and Task Runtime
 
 GitHub Actions YAML is useful for orchestration, but it is a limited medium for
-non-trivial step logic. Shell fragments and inline scripts can become difficult
-to type-check, share, refactor, and test.
+non-trivial CI work. Shell fragments, inline scripts, and committed JavaScript
+bundles can become difficult to type-check, share, refactor, and test.
 
-Forge's proposed step model moves implementation bodies into Deno code while
-keeping each logical step as a normal Actions step. The generated YAML should
-invoke the same compiled runtime binary with different subcommands, for example:
+Forge's proposed task model moves task implementation bodies into Deno code
+while keeping provider steps visible. A GitHub Actions provider backend may
+emit normal Actions steps that invoke the task runtime with different
+entrypoints, for example:
 
 ```yaml
 - name: Test
-  run: ./.forge/runtime/forge-runtime test
+  run: ./.forge/task-runtime test
 
 - name: Build
-  run: ./.forge/runtime/forge-runtime build
+  run: ./.forge/task-runtime build
 ```
 
-The runtime binary is responsible for dispatching to the registered step
-entrypoint. GitHub Actions remains responsible for ordering, condition
-evaluation, matrix expansion, secrets injection, environment protection, and
-other workflow behavior.
+The task runtime is responsible for dispatching to registered task functions.
+GitHub Actions remains responsible for ordering, condition evaluation, matrix
+expansion, secrets injection, environment protection, and other workflow
+behavior.
 
-The runtime binary should be prepared before logical Forge steps run. Once
-prepared, each generated logical step should invoke the binary directly and
-should not fetch or build Forge-managed step implementation code again. This
-does not prevent a user-authored step from intentionally running commands that
+The task artifact should be prepared before task-backed provider steps run.
+Once prepared, each task-backed provider step should invoke the task runtime
+directly and should not fetch or build Forge-managed task code again. This does
+not prevent a user-authored task from intentionally running commands that
 perform their own network or dependency work.
 
-Runtime binary storage and retrieval should be abstracted behind cache
-adapters. The same compiler/runtime model should be able to use `actions/cache`,
+Task artifact storage and retrieval should be abstracted behind cache
+adapters. The same task runtime model should be able to use `actions/cache`,
 GCR or another OCI registry, S3, or another compatible store without changing
-the logical workflow shape.
+the provider-native pipeline shape.
 
 ## Boundary
 
 Forge's core design boundary is:
 
 - The selected CI provider owns orchestration.
-- Forge owns authoring, validation, YAML emission, runtime artifact selection,
-  and step implementation dispatch.
-- The GitHub Actions backend must preserve GitHub Actions-native workflow
+- Forge owns pipeline authoring, validation, provider-native configuration
+  emission, task artifact selection, and task runtime dispatch.
+- The GitHub Actions provider backend must preserve GitHub Actions-native workflow
   semantics.
 
 This boundary is intended to avoid both extremes:

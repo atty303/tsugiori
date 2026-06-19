@@ -7,9 +7,10 @@ corresponding implementation phase begins.
 
 ## Goals
 
-- keep workflow authoring imports pure, side-effect-free, and dependency-light
+- keep pipeline and task authoring imports pure, side-effect-free, and
+  dependency-light
 - separate authoring types and builders from compiler execution
-- keep provider-neutral core concepts distinct from provider-specific modules
+- keep provider pipeline authoring and task authoring internally distinct
   without forcing separate packages before there is a practical benefit
 - provide stable homes for source, tests, examples, generated fixtures, and
   future CLI entrypoints
@@ -34,40 +35,40 @@ units before the project needs them.
 
 ## `packages/core`
 
-`packages/core` is the pure package that workflow authors import from workflow
+`packages/core` is the pure package that pipeline and task authors import from
 definition files.
 
 It should avoid filesystem access, process execution, network access, package
 installation, YAML writing, and compiler side effects. Its job is to construct
 structured data that compiler packages can consume later.
 
-The package may contain both provider-neutral modules and backend-specific
-modules, as long as the module boundaries stay explicit:
+The package may contain both provider pipeline modules and task modules, as
+long as the module boundaries stay explicit:
 
 ```text
 packages/core/
   src/
-    core/
     github-actions/
+    task/
 ```
 
-The provider-neutral modules should hold only concepts that can plausibly be
-shared across CI backends, such as workflow identity, job graph shape, logical
-step references, runtime artifact contracts, and cache adapter contracts.
+The GitHub Actions modules should own provider-native authoring concepts such
+as workflows, events, jobs, steps, runner labels, permissions, `uses` steps,
+expression builders, `workflow_call`, and GitHub Actions workflow AST
+construction.
 
-The GitHub Actions modules should own Actions-specific authoring concepts such
-as events, runner labels, permissions, `uses` steps, expression builders,
-`workflow_call`, and GitHub Actions workflow AST construction.
+The task modules should own task functions, task registry construction, and
+shared task runtime contract types that must remain pure at authoring time.
 
 Authoring imports should use subpaths so the backend boundary remains visible:
 
 ```ts
-import { workflow, expr } from "@forge/core/github-actions";
-import type { Workflow } from "@forge/core";
+import { pipeline, expr } from "@forge/core/github-actions";
+import { task } from "@forge/core/task";
 ```
 
 The root `@forge/core` export should stay small and should not re-export every
-backend DSL by default.
+provider DSL by default.
 
 ## `packages/compiler`
 
@@ -76,8 +77,8 @@ generated artifacts.
 
 It should own:
 
-- loading and evaluating workflow authoring source
-- converting pure authoring data into backend ASTs when needed
+- loading and evaluating pipeline authoring source
+- converting pure authoring data into provider backend ASTs when needed
 - deterministic GitHub Actions YAML emission
 - planned `forge generate` behavior
 - planned `forge generate --check` stale-output behavior
@@ -117,9 +118,9 @@ Later tests should cover:
 
 - GitHub Actions expression emission
 - validation behavior
-- step registry and runtime subcommand alignment
-- runtime artifact manifest generation
-- cache adapter contract behavior
+- task registry and task runtime entrypoint alignment
+- task artifact manifest generation
+- task artifact cache adapter contract behavior
 
 ## Fixtures
 
@@ -135,9 +136,9 @@ until implementation reaches the dogfooding phase.
 `examples` should hold illustrative Forge authoring source and generated YAML
 pairs once implementation can produce them.
 
-Examples should remain GitHub Actions-native for the initial backend. They
-should not imply that Forge has implemented future backends, hosted services,
-or provider-neutral portability before those features exist.
+Examples should remain GitHub Actions-native for the initial provider backend.
+They should not imply that Forge has implemented future provider backends,
+hosted services, or provider-neutral portability before those features exist.
 
 ## Deferred Decisions
 

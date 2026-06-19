@@ -6,27 +6,28 @@ generated YAML, but no API or compiler has been implemented yet.
 ## Hypothetical Authoring File
 
 ```ts
-import { expr, runtime, workflow } from "forge";
+import { pipeline, expr } from "@forge/core/github-actions";
+import { task } from "@forge/core/task";
 
-const ci = workflow("ci", {
+const testTask = task("test", async (ctx) => {
+  await ctx.command("deno", ["test", "-A"]).run();
+});
+
+const buildTask = task("build", async (ctx) => {
+  await ctx.command("deno", ["task", "build"]).run();
+});
+
+const uploadCoverageTask = task("upload-coverage", async (ctx) => {
+  await ctx.command("deno", ["task", "coverage:upload"]).run();
+});
+
+const ci = pipeline("ci", {
   on: {
     pull_request: {},
     push: {
       branches: ["main"],
     },
   },
-});
-
-runtime.step("test", async (ctx) => {
-  await ctx.command("deno", ["test", "-A"]).run();
-});
-
-runtime.step("build", async (ctx) => {
-  await ctx.command("deno", ["task", "build"]).run();
-});
-
-runtime.step("upload-coverage", async (ctx) => {
-  await ctx.command("deno", ["task", "coverage:upload"]).run();
 });
 
 const test = ci.job("test", {
@@ -47,7 +48,7 @@ test.uses("Setup Deno", "denoland/setup-deno@v2", {
     "deno-version": expr.matrix("deno"),
   },
 });
-test.step("Test", "test");
+test.step("Test", testTask);
 
 const build = ci.job("build", {
   runsOn: "ubuntu-latest",
@@ -58,8 +59,8 @@ const build = ci.job("build", {
 });
 
 build.uses("Checkout", "actions/checkout@v4");
-build.step("Build", "build");
-build.step("Upload coverage", "upload-coverage", {
+build.step("Build", buildTask);
+build.step("Upload coverage", uploadCoverageTask, {
   if: expr.github("ref").eq("refs/heads/main").and(expr.success()),
 });
 
@@ -95,11 +96,11 @@ jobs:
         with:
           deno-version: ${{ matrix.deno }}
 
-      - name: Prepare Forge runtime
-        run: forge runtime prepare --manifest .forge/runtime.json
+      - name: Prepare Forge task artifact
+        run: forge task prepare --manifest .forge/tasks.json
 
       - name: Test
-        run: ./.forge/runtime/forge-runtime test
+        run: ./.forge/task-runtime test
 
   build:
     runs-on: ubuntu-latest
@@ -116,25 +117,25 @@ jobs:
         with:
           deno-version: 2.x
 
-      - name: Prepare Forge runtime
-        run: forge runtime prepare --manifest .forge/runtime.json
+      - name: Prepare Forge task artifact
+        run: forge task prepare --manifest .forge/tasks.json
 
       - name: Build
-        run: ./.forge/runtime/forge-runtime build
+        run: ./.forge/task-runtime build
 
       - name: Upload coverage
         if: ${{ github.ref == 'refs/heads/main' && success() }}
-        run: ./.forge/runtime/forge-runtime upload-coverage
+        run: ./.forge/task-runtime upload-coverage
 ```
 
 ## Intended Properties
 
 - `test` and `build` remain separate GitHub Actions jobs.
-- Each logical Forge step becomes a normal GitHub Actions step.
+- Each task-backed Forge step becomes a normal GitHub Actions step.
 - GitHub Actions still evaluates `needs`, matrix expansion, and `if:`.
-- Step implementation bodies live in Deno code rather than inline YAML.
+- Task function bodies live in Deno code rather than inline YAML.
 - The generated YAML is intended to be committed and reviewed.
-- A visible preparation step makes the compiled runtime binary available.
-- The same prepared runtime binary dispatches different subcommands.
-- Runtime artifact storage is intended to be replaceable through cache
+- A visible preparation step makes the task artifact available.
+- The task runtime dispatches different task entrypoints.
+- Task artifact storage is intended to be replaceable through cache
   adapters.

@@ -9,14 +9,13 @@ dates.
 - document non-goals
 - write comparison notes
 - record early architectural decisions
-- record the boundary between reusable core concepts and CI-specific backend
-  layers
+- record the boundary between provider-native pipeline authoring and the task
+  runtime
 - avoid runtime implementation until the compiler shape is clear
 
-## Phase 1: Minimal AST and YAML Emitter
+## Phase 1: Minimal GitHub Actions Provider Backend
 
-- define a small core workflow model
-- define the initial GitHub Actions backend AST
+- define the initial GitHub Actions provider backend AST
 - support workflow name, events, jobs, and basic steps
 - emit deterministic GitHub Actions YAML
 - keep generated YAML reviewable
@@ -25,13 +24,10 @@ dates.
 
 Acceptance criteria for Phase 1:
 
-- the core workflow model is limited to workflow identity, jobs, job
-  dependencies, and the minimal backend handoff needed by the GitHub Actions
-  emitter
-- the GitHub Actions backend AST can represent workflow name, events, jobs,
-  runner selection, job dependencies, and basic provider-native steps
+- the GitHub Actions provider backend AST can represent workflow name, events,
+  jobs, runner selection, job dependencies, and basic provider-native steps
 - basic steps in Phase 1 mean GitHub Actions `uses` and `run` steps represented
-  directly in the backend AST
+  directly in the provider backend AST
 - the YAML emitter produces deterministic `.github/workflows/*.yml` output for
   that subset, with stable ordering and reviewable formatting
 - generated YAML stale-check behavior is specified before implementation starts
@@ -40,20 +36,21 @@ Acceptance criteria for Phase 1:
 
 Out of scope for Phase 1:
 
-- the Forge step registry
-- generated `forge-runtime <subcommand>` invocations for logical Forge steps
-- runtime artifact manifests and runtime cache adapters
+- task functions and the task registry
+- generated task runtime invocations for task-backed provider steps
+- task artifact manifests and task artifact cache adapters
 - GitHub Actions expression AST support beyond preserving literal scalar values
 - `workflow_call` contracts and reusable workflow validation
 
-## Phase 2: Step Registry and Generated Runtime Invocation
+## Phase 2: Task Runtime and Task-Backed Provider Steps
 
-- introduce a registry for logical step entrypoints
-- emit normal Actions steps that call `forge-runtime <subcommand>`
-- ensure generated YAML and runtime dispatch names stay aligned
-- decide the runtime artifact key and manifest shape
-- add explicit runtime preparation steps before logical Forge steps
-- define the initial runtime cache adapter, likely starting with
+- introduce a task registry for task functions
+- define how task runtime entrypoint names are generated and validated
+- emit normal Actions steps that invoke the task runtime for task-backed steps
+- ensure generated YAML and task registry names stay aligned
+- decide the task artifact key and manifest shape
+- add explicit task artifact preparation steps before task-backed provider steps
+- define the initial task artifact cache adapter, likely starting with
   `actions/cache`
 - keep later adapters such as OCI registries and S3 behind the same artifact
   contract
@@ -74,28 +71,29 @@ Out of scope for Phase 1:
 - validate caller and callee contracts where practical
 - emit native `workflow_call` YAML
 
-## Phase 5: Runtime Command Execution Helpers
+## Phase 5: Task Command Execution Helpers
 
 - provide Deno helpers for subprocess execution through `Deno.Command`
 - define conventions for logging, environment access, working directories, and
   exit codes
-- keep helpers thin enough that GitHub Actions remains the runtime authority
+- keep helpers thin enough that GitHub Actions remains the CI runtime authority
 
 ## Phase 6: Validation, Testing, and Dogfooding
 
-- validate workflow structure before emission
+- validate GitHub Actions workflow structure before emission
 - add snapshot or golden tests for generated YAML
 - add tests for expression emission
 - dogfood Forge on its own repository only after the generated workflow shape is
   stable
 - document migration and failure modes discovered through use
 
-## Later: Additional CI Backends
+## Later: Additional CI Provider Backends
 
-- evaluate another backend, such as GitLab CI, only after the GitHub Actions
-  backend proves the core compiler and runtime artifact model
-- reuse the core workflow model, step registry, runtime artifact manifest, and
-  cache adapter contract where they fit
-- add backend-specific DSL, validation, expression handling, and emitters
-  instead of forcing new providers through GitHub Actions concepts
+- evaluate another provider backend, such as GitLab CI, only after the
+  GitHub Actions provider backend and task runtime integration are proven
+- reuse task functions, the task registry, task artifacts, and task artifact
+  cache adapters where they fit
+- add provider-native DSL, validation, expression handling, and emitters
+  instead of forcing new providers through GitHub Actions concepts or a
+  provider-neutral pipeline model
 - preserve native job and step visibility for the selected CI provider
