@@ -16,7 +16,7 @@ explicitly asks for it.
   pipeline authoring API, provider backend AST, expression AST, task function,
   task registry, task runtime, task artifact manifest, and task artifact cache
   adapter.
-- [ ] Expand `docs/COMPARISONS.md` only where conceptual differences are still
+- [x] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
 - [ ] Add an ADR for the expression AST once the expression model is specific
   enough to choose durable syntax and validation boundaries.
