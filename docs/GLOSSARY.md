@@ -79,15 +79,19 @@ The prepared output used by CI provider steps to execute registered task
 functions.
 
 The initial implementation direction uses Deno and may produce a binary
-artifact, but the term is intentionally broader than binary so future bundle or
-WebAssembly forms remain possible.
+artifact, but the term is intentionally broader than binary so future bundle,
+OCI image, or WebAssembly forms remain possible. An OCI image may itself be the
+task artifact.
 
-## Task Artifact Manifest
+## Task Artifact Metadata and Manifest
 
 Metadata that connects provider configuration to the expected task artifact.
 
-It should describe the artifact key, target platform, task runtime invocation
-form, registered task entrypoints, and cache adapter details.
+A manifest file is one possible representation of this metadata, but it is not
+required to be a separate artifact. The metadata should describe the artifact
+key, target platform, task runtime invocation form, registered task
+entrypoints, and cache adapter details when those details need to be
+materialized.
 
 ## Task Artifact Cache Adapter
 

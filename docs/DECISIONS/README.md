@@ -17,6 +17,10 @@ the project direction. Do not use ADRs for routine wording changes.
   through cache adapters.
 - `0004-pipelines-providers-and-task-runtime.md`: the project uses provider-native
   pipeline authoring and keeps the task runtime independently usable.
+- `0005-task-artifact-lifecycle.md`: pipeline generation and task artifact
+  preparation are separate responsibilities, task-owned artifact metadata is
+  not required to be a separate manifest artifact, and cache misses build and
+  populate the selected adapter.
 
 ## Format
 

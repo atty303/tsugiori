@@ -162,27 +162,35 @@ distinct entrypoint:
 ```
 
 The initial direction is to build the task runtime with Deno. The resulting
-task artifact may be a binary, a bundle, WebAssembly, or another prepared
-runtime form in the future. The design should not depend on the artifact always
-being a native binary.
+task artifact may be a binary, a bundle, an OCI image, WebAssembly, or another
+prepared runtime form in the future. The design should not depend on the
+artifact always being a native binary.
 
 ### Task Artifact
 
 The task artifact is the prepared output used by CI provider steps to execute
-registered task functions.
+registered task functions. An OCI image may itself be the task artifact; the
+design should not require wrapping it in a second project-specific artifact.
 
 It should be addressed by a stable artifact key derived from the inputs that
 affect task runtime behavior, such as registered task source, dependency state,
-target platform, and tool version. When those inputs change, the key changes
-and the artifact should be rebuilt or restored from the matching cache entry.
+target platform, tool version, and artifact form. When those inputs change,
+the key changes and the artifact should be rebuilt or restored from the
+matching cache entry.
 
-### Task Artifact Manifest
+### Task Artifact Metadata and Manifest
 
-The task artifact manifest is proposed metadata connecting generated provider
-configuration to the task artifact it expects.
+Task artifact metadata connects provider configuration to the task artifact it
+expects.
 
-It should record enough information for provider steps to prepare the correct
-task artifact before task-backed provider steps run:
+A manifest file is one possible representation of this metadata, but the design
+should not require a separate manifest artifact. Metadata may be derived,
+embedded in the prepared task artifact, or represented in another
+task-runtime-owned form.
+
+If materialized as a manifest, it should record enough information for
+provider steps to prepare the correct task artifact before task-backed provider
+steps run:
 
 - artifact key
 - target platform
@@ -190,11 +198,12 @@ task artifact before task-backed provider steps run:
 - registered task entrypoints
 - cache adapter selection and adapter-specific reference data
 
-The manifest should not become a scheduler. It should describe how to obtain
-the artifact that ordinary CI provider steps will invoke.
+Task artifact metadata should not become a scheduler. It should describe how to
+obtain the artifact that ordinary CI provider steps will invoke.
 
 Provider backends should emit preparation steps using provider-native
-configuration shape when they integrate with the task runtime.
+configuration shape when they integrate with the task runtime. They may
+reference task-owned metadata, but they should not own its shape.
 
 ### Task Artifact Cache Adapter
 
@@ -206,6 +215,11 @@ small artifact contract rather than on one storage provider.
 Candidate adapters include
 `actions/cache`, GCR or another OCI registry, S3, and local development cache
 storage.
+
+Task artifact preparation should first try to restore the content-addressed
+artifact through the selected adapter. On a cache miss, it should build the
+artifact and populate the selected adapter before later provider steps invoke
+task runtime entrypoints.
 
 The adapter boundary should preserve visible provider-native steps. In the
 GitHub Actions provider backend, a generated job may contain explicit
@@ -230,6 +244,12 @@ Task artifact preparation is related but separate. It collects registered task
 functions and prepares the task artifact used by provider steps. This can be
 used with generated pipeline configuration or with handwritten provider
 configuration.
+
+The planned `tsugiori generate` command should generate provider-native
+pipeline configuration. The planned `tsugiori task prepare` command should
+restore, build, and populate task artifacts. A future convenience command may
+compose those operations, but the underlying responsibilities should remain
+separate.
 
 For normal repository work, this compile step is intended to happen before
 commit, commonly through a git hook. The generated YAML is then committed and

@@ -55,13 +55,14 @@ The pipeline source is intended to be the source of truth, while generated
 may compile pipeline source before commit, but CI should eventually verify that
 committed generated YAML is not stale.
 
-Task artifact preparation is intended to produce a content-addressed task
-artifact derived from task source, dependency state, target platform, and tool
-version. Provider steps should make that artifact available through explicit
-preparation work, then invoke task runtime entrypoints without fetching or
-building managed task code again. Task artifact storage should be
-adapter-backed so implementations such as `actions/cache`, GCR or another OCI
-registry, and S3 can be substituted.
+Task artifact preparation is intended to produce or restore a
+content-addressed task artifact derived from task source, dependency state,
+target platform, tool version, and artifact form. The artifact may be a
+prepared runtime form such as an OCI image. Provider steps should make that
+artifact available through explicit preparation work, then invoke task runtime
+entrypoints without fetching or building managed task code again. Task artifact
+storage should be adapter-backed so implementations such as `actions/cache`,
+GCR or another OCI registry, and S3 can be substituted.
 
 ## Intended Authoring Style
 
@@ -146,7 +147,7 @@ jobs:
           deno-version: ${{ matrix.deno }}
 
       - name: Prepare task artifact
-        run: tsugiori task prepare --manifest .tsugiori/tasks.json
+        run: tsugiori task prepare
 
       - name: Test
         run: ./.tsugiori/task-runtime test

@@ -14,11 +14,11 @@ explicitly asks for it.
 
 - [x] Review terminology across docs and settle on consistent names for the
   pipeline authoring API, provider backend AST, expression AST, task function,
-  task registry, task runtime, task artifact manifest, and task artifact cache
-  adapter.
+  task registry, task runtime, task artifact metadata or manifest, and task
+  artifact cache adapter.
 - [x] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
-- [ ] Clarify the task artifact lifecycle before implementation, including
+- [x] Clarify the task artifact lifecycle before implementation, including
   command boundaries, cache restore and population, manifest ownership, and how
   task runtime-only usage works without pipeline generation.
 - [x] Define the exact stale generated YAML check behavior without adding CI
@@ -48,7 +48,8 @@ These are intentionally blocked until implementation starts.
 - [ ] Emit task runtime invocations for task-backed provider steps.
 - [ ] Add validation that every generated task runtime invocation has a
   registered task entrypoint.
-- [ ] Design the task artifact manifest and content-addressed key inputs.
+- [ ] Design the task artifact metadata or manifest representation and
+  content-addressed key inputs.
 - [ ] Design the task artifact cache adapter interface.
 - [ ] Specify how cache miss builds populate the selected task artifact
   store.

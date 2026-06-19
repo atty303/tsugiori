@@ -97,7 +97,7 @@ jobs:
           deno-version: ${{ matrix.deno }}
 
       - name: Prepare task artifact
-        run: tsugiori task prepare --manifest .tsugiori/tasks.json
+        run: tsugiori task prepare
 
       - name: Test
         run: ./.tsugiori/task-runtime test
@@ -118,7 +118,7 @@ jobs:
           deno-version: 2.x
 
       - name: Prepare task artifact
-        run: tsugiori task prepare --manifest .tsugiori/tasks.json
+        run: tsugiori task prepare
 
       - name: Build
         run: ./.tsugiori/task-runtime build
@@ -139,3 +139,5 @@ jobs:
 - The task runtime dispatches different task entrypoints.
 - Task artifact storage is intended to be replaceable through cache
   adapters.
+- The exact task artifact metadata or manifest representation is intentionally
+  unspecified here.

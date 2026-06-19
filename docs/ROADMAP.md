@@ -40,20 +40,21 @@ Out of scope for Phase 1:
 
 - task functions and the task registry
 - generated task runtime invocations for task-backed provider steps
-- task artifact manifests and task artifact cache adapters
+- task artifact metadata, manifest representation, and task artifact cache
+  adapters
 - GitHub Actions expression AST support beyond preserving literal scalar values
 - `workflow_call` contracts and reusable workflow validation
 
 ## Phase 2: Task Runtime and Task-Backed Provider Steps
 
-- define the task artifact lifecycle independently from pipeline generation
-- decide whether pipeline compilation and task artifact preparation are exposed
-  through one command, separate commands, or a composed command
+- preserve separate command responsibilities for pipeline generation and task
+  artifact preparation
 - introduce a task registry for task functions
 - define how task runtime entrypoint names are generated and validated
 - emit normal Actions steps that invoke the task runtime for task-backed steps
 - ensure generated provider configuration and task registry names stay aligned
-- decide the task artifact key and manifest shape
+- decide the exact task artifact key inputs and any metadata or manifest
+  representation
 - add explicit task artifact preparation steps before task-backed provider steps
 - define the initial task artifact cache adapter, likely starting with
   `actions/cache`

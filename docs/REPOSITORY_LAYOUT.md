@@ -101,8 +101,8 @@ It should own:
 - validating task registry and task entrypoint names
 - building or bundling task artifacts
 - restoring and populating task artifacts through cache adapters
-- reading and writing task artifact manifests when implementation defines their
-  shape
+- reading and writing task artifact metadata or manifests when implementation
+  defines their shape
 - dispatching task runtime entrypoints inside CI provider steps
 
 The task runtime package may depend on `packages/core`. `packages/core` should
@@ -143,7 +143,7 @@ Later tests should cover:
 - GitHub Actions expression emission
 - validation behavior
 - task registry and task runtime entrypoint alignment
-- task artifact manifest generation
+- task artifact metadata or manifest generation
 - task artifact cache adapter contract behavior
 
 ## Fixtures
@@ -175,7 +175,7 @@ The implementation phase still needs to decide:
 - formatting and linting commands
 - fixture update workflow
 - whether packages become independent publishable units
-- exact task artifact manifest and cache adapter module layout
+- exact task artifact metadata, manifest, and cache adapter module layout
 
 Those decisions should be made when implementation begins and the toolchain
 commands are known.
