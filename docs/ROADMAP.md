@@ -103,7 +103,8 @@ remain future work.
 Status: dogfooding of the implemented Phase 2 vertical slice has started before
 the later expression and reusable-workflow phases. This intentionally validates
 the current bootstrap, artifact preparation, and task dispatch boundaries on a
-GitHub-hosted runner before expanding the workflow surface.
+GitHub-hosted runner before expanding the workflow surface. The initial
+`ubuntu-24.04` push and pull request runs completed successfully.
 
 - extend validation to the provider-native structures added after the Phase 1
   subset

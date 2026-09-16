@@ -134,9 +134,8 @@ Phase 1 stale-output checking and later provider-native GitHub Actions concepts
 remain in progress. The initial Phase 2 vertical slice implements inline task
 authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, and task dispatch. It has local compiled-binary E2E
-coverage. A generated repository workflow is ready for GitHub-hosted runner
-validation; that live validation remains pending until the workflow branch is
-pushed.
+coverage. The generated repository workflow has run successfully for both the
+push and pull request events on a GitHub-hosted `ubuntu-24.04` runner.
 
 ## Codex-Driven Development
 

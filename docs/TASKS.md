@@ -66,7 +66,7 @@ remain incomplete.
 
 ## Dogfooding Tasks
 
-- [ ] Validate the generated repository workflow on a GitHub-hosted
+- [x] Validate the generated repository workflow on a GitHub-hosted
   `ubuntu-24.04` runner, including source bootstrap, a cold task artifact build,
   and task dispatch through `mise run test`.
 - [ ] Replace the temporary generate-and-diff stale guard after native
