@@ -1,0 +1,43 @@
+export const snapshot = {};
+
+snapshot[`emits canonical GitHub Actions YAML 1`] = `
+name: CI
+on:
+  pull_request: {}
+  push: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Build
+        run: deno task build
+  deploy:
+    runs-on:
+      group: production-runners
+      labels:
+        - self-hosted
+        - linux
+        - x64
+    needs:
+      - build
+      - test
+    steps:
+      - name: Deploy
+        run: ./deploy
+  test:
+    runs-on:
+      - SELF-HOSTED
+      - linux
+      - x64
+    needs:
+      - build
+    steps:
+      - name: Test
+        run: deno test
+      - run: |-
+          echo first
+          echo second
+
+`;

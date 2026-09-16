@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Check formatting, lint, and types"
+set -euo pipefail
+
+if (( $# == 0 )); then
+  exec hk check --all
+fi
+
+exec hk check "$@"

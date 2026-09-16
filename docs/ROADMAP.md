@@ -17,12 +17,16 @@ dates.
 
 ## Phase 1: Minimal GitHub Actions Provider Backend
 
+Status: in progress. The internal AST, validation, deterministic emitter, and
+focused tests are implemented. Pipeline source loading, generation commands,
+and stale-output checking are not implemented.
+
 - define the initial GitHub Actions provider backend AST
 - support workflow name, events, jobs, and basic steps
 - emit deterministic GitHub Actions YAML
 - keep generated YAML reviewable
 - define how committed generated YAML is checked for staleness
-- add focused tests around YAML emission when implementation begins
+- add focused tests around YAML emission
 
 Acceptance criteria for Phase 1:
 
@@ -33,8 +37,8 @@ Acceptance criteria for Phase 1:
 - the YAML emitter produces deterministic `.github/workflows/*.yml` output for
   that subset, with stable ordering and reviewable formatting
 - generated YAML stale-check behavior is specified before implementation starts
-- focused tests are planned for deterministic emission and stale-output
-  detection when implementation begins
+- focused tests cover deterministic emission, and stale-output detection tests
+  accompany the future generation command slice
 
 Out of scope for Phase 1:
 
@@ -88,8 +92,10 @@ Out of scope for Phase 1:
 
 ## Phase 6: Validation, Testing, and Dogfooding
 
-- validate GitHub Actions workflow structure before emission
-- add snapshot or golden tests for generated YAML
+- extend validation to the provider-native structures added after the Phase 1
+  subset
+- extend snapshot or golden coverage as expressions, generation commands, and
+  other provider-native structures are added
 - add tests for expression emission
 - dogfood the tool in this repository only after the generated workflow shape is
   stable

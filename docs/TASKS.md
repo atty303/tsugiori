@@ -5,10 +5,10 @@ to implement every item.
 
 ## Current Phase
 
-Phase 0: documentation and design.
+Phase 1: minimal GitHub Actions provider backend.
 
-Do not start task runtime or provider backend implementation until the user
-explicitly asks for it.
+The initial internal AST, validation, and deterministic YAML emitter slice is
+implemented. Keep task runtime work in Phase 2.
 
 ## Ready Documentation Tasks
 
@@ -28,18 +28,20 @@ explicitly asks for it.
 - [x] Draft a future repository layout proposal for source, tests, examples,
   and generated fixtures.
 
-## Future Phase 1 Candidate Tasks
+## Phase 1 Tasks
 
-These are intentionally blocked until implementation starts.
-
-- [ ] Create the minimal project manifest only after the provider backend and
+- [x] Create the minimal project manifest after the provider backend and
   task runtime toolchain command strategy is selected.
-- [ ] Add the smallest GitHub Actions provider backend AST
+- [x] Add the smallest GitHub Actions provider backend AST
   representation.
-- [ ] Add deterministic YAML emission for workflow name, events, one job, and
+- [x] Add deterministic YAML emission for workflow name, events, jobs, and
   basic steps.
-- [ ] Add golden tests for generated YAML.
-- [ ] Document the first real build/test commands in `AGENTS.md`.
+- [x] Add snapshot tests for generated YAML and focused validation tests.
+- [x] Document the first real check/fix/test commands in `AGENTS.md`.
+- [ ] Add pipeline source loading and `generate` only after its input contract
+  is selected.
+- [ ] Add stale-output checking and focused missing, extra, and changed output
+  tests with the generation command slice.
 
 ## Future Phase 2 Candidate Tasks
 

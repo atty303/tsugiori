@@ -2,11 +2,12 @@
 
 ## Repository State
 
-The project is currently in the design phase.
+The project is in Phase 1 implementation. The repository contains an internal
+GitHub Actions AST, validation, and deterministic YAML emission, but no public
+authoring API, CLI, task runtime, generated repository workflow, or CI setup.
 
-Do not add runtime code, source directories, package manifests, dependency
-files, generated GitHub workflows, or CI configuration unless the user
-explicitly asks for implementation work.
+Do not add later-phase runtime code, generated GitHub workflows, or CI
+configuration unless the user explicitly asks for that implementation work.
 
 ## Project Direction
 
@@ -73,9 +74,7 @@ Read the smallest relevant set before editing:
 - Update or add an ADR when changing a durable architectural decision.
 - Keep comparisons conceptual, not promotional.
 
-## Future Implementation Rules
-
-When implementation begins:
+## Implementation Rules
 
 - Follow the phase order in `docs/ROADMAP.md` unless the user explicitly
   changes it.
@@ -83,23 +82,32 @@ When implementation begins:
   slice that can be tested.
 - Keep GitHub Actions expressions as an expression AST; do not model GitHub
   runtime `if:` with host-language conditionals.
-- Add tests for compiler output, expression emission, and validation behavior.
-- Update this file with real build, test, lint, and format commands once they
-  exist.
+- Add tests for compiler output, expression emission, and validation behavior
+  as those capabilities are implemented.
 
 ## Verification
 
-Current repository verification is documentation-only:
+Use the repository-managed toolchain and standard task entrypoints:
 
 ```bash
-find . -maxdepth 4 -type f | sort
+mise install
 ```
 
-Before finishing a documentation change, confirm that no implementation files
-or dependency manifests were added unintentionally.
+```bash
+mise run check
+```
 
-When code is introduced, replace this section with the actual commands required
-to validate the project.
+```bash
+mise run fix
+```
+
+```bash
+mise run test
+```
+
+`mise run check` and `mise run fix` accept optional file paths. Use
+`mise exec -- deno task test:update` only when intentionally updating committed
+snapshots, and review the snapshot diff before committing it.
 
 ## Codex Working Expectations
 

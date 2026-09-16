@@ -1,9 +1,9 @@
 # Repository Layout Proposal
 
-This document proposes a future repository layout for implementation work. It
-is not an implemented structure. Do not create these directories, package
-manifests, generated workflows, fixtures, or CI configuration until the
-corresponding implementation phase begins.
+This document describes the intended repository layout as implementation
+progresses. Phase 1 currently uses `packages/compiler` and top-level `tests`.
+The other proposed packages and directories should be created only when their
+implementation phase begins.
 
 ## Goals
 
@@ -138,6 +138,10 @@ Initial Phase 1 tests should focus on:
 - stale-output detection behavior for missing, extra, and changed generated
   files
 
+The current tests use Deno's committed snapshots for complete emitted YAML and
+explicit assertions for validation diagnostics. Stale-output tests remain
+deferred with the generation command slice.
+
 Later tests should cover:
 
 - GitHub Actions expression emission
@@ -149,7 +153,7 @@ Later tests should cover:
 ## Fixtures
 
 `tests/fixtures` should hold small, explicit source and expected-output
-fixtures used by tests.
+fixtures when a test is clearer as a fixture than as a committed snapshot.
 
 Generated workflow fixtures should be checked in only as test expectations or
 illustrative examples. They should not be wired into this repository's own CI
@@ -166,16 +170,12 @@ provider-neutral portability before those features exist.
 
 ## Deferred Decisions
 
-The implementation phase still needs to decide:
+Later implementation phases still need to decide:
 
-- the exact Deno workspace or package manifest shape
 - public package names
 - export maps for subpath imports
-- test runner commands
-- formatting and linting commands
-- fixture update workflow
 - whether packages become independent publishable units
 - exact task artifact metadata, manifest, and cache adapter module layout
 
-Those decisions should be made when implementation begins and the toolchain
-commands are known.
+Those decisions should be made when their consumers and toolchain requirements
+are known.

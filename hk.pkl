@@ -1,0 +1,13 @@
+amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pkl"
+
+import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
+
+steps {
+  ["deno-fmt"] = Builtins.deno
+  ["deno-lint"] {
+    glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
+    check = "deno lint {{files}}"
+  }
+  ["deno-check"] = Builtins.deno_check
+  ["hk-test"] = Builtins.hk_test
+}

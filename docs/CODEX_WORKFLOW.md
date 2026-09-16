@@ -57,7 +57,7 @@ Use these starting points instead of reading every file.
 - `docs/ARCHITECTURE.md`
 - `docs/DECISIONS/0002-deno-as-initial-runtime.md`
 
-### Future Implementation Change
+### Implementation Change
 
 - `AGENTS.md`
 - `docs/ROADMAP.md`
@@ -65,8 +65,8 @@ Use these starting points instead of reading every file.
 - relevant ADRs
 - `docs/TASKS.md`
 
-Implementation is intentionally not started yet. Use this pack only after the
-user explicitly asks for code.
+Use this pack for changes to the current compiler slice or for explicitly
+requested later-phase implementation.
 
 ## Definition of Done
 
@@ -82,7 +82,7 @@ For documentation-only changes:
 - no package manifests, source files, dependencies, or CI files were added by
   accident
 
-For future implementation changes:
+For implementation changes:
 
 - the change fits the current roadmap phase or the task explicitly changes the
   phase order

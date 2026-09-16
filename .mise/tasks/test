@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+#MISE description="Run all repository checks and tests"
+set -euo pipefail
+
+hk check --all
+deno task test

@@ -7,8 +7,10 @@ users define GitHub Actions workflow structure in TypeScript/Deno code, export
 native `.github/workflows/*.yml` files, and optionally author task functions
 that CI provider steps can execute through a prepared task artifact.
 
-Tsugiori is currently in the design phase. There is no runtime implementation,
-authoring API, compiler, package manifest, or CI setup yet.
+Tsugiori is in early Phase 1 implementation. The repository contains an
+internal GitHub Actions AST, validation, and deterministic YAML emitter. There
+is no public authoring API, CLI, task runtime, generated repository workflow,
+or CI setup yet.
 
 ## Problem
 
@@ -159,11 +161,14 @@ jobs:
 
 ## Status
 
-Design phase only.
+Phase 1 implementation is in progress.
 
-Current repository contents are documentation and lightweight scaffolding for
-future implementation. No dependencies, runtime code, generated workflows, or
-source files have been added.
+The implemented slice accepts an internal AST for unconditional `push` and
+`pull_request` events, jobs, runner selection, dependencies, and basic `uses`
+and `run` steps. It validates the supported structure and emits canonical,
+GitHub Actions-native YAML. The current API is internal and is exercised
+directly by tests; pipeline source loading, file generation, stale checks, and
+the task runtime remain unimplemented.
 
 ## Codex-Driven Development
 

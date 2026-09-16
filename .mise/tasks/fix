@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#MISE description="Apply automatic formatting and lint fixes"
+set -euo pipefail
+
+if (( $# == 0 )); then
+  exec hk fix --all
+fi
+
+exec hk fix "$@"

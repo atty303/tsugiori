@@ -1,0 +1,363 @@
+import type { Job, RunnerSelection, Workflow } from "./ast.ts";
+
+const validatedWorkflowBrand: unique symbol = Symbol("ValidatedWorkflow");
+
+export type ValidatedWorkflow = Workflow & {
+  readonly [validatedWorkflowBrand]: true;
+};
+
+export type DiagnosticCode =
+  | "workflow.name.empty"
+  | "workflow.events.empty"
+  | "workflow.events.duplicate"
+  | "workflow.jobs.empty"
+  | "job.id.invalid"
+  | "job.id.duplicate"
+  | "job.needs.duplicate"
+  | "job.needs.unknown"
+  | "job.needs.self"
+  | "job.needs.cycle"
+  | "job.runs-on.group.empty"
+  | "job.runs-on.labels.empty"
+  | "job.runs-on.labels.duplicate"
+  | "job.steps.empty"
+  | "step.name.empty"
+  | "step.uses.empty"
+  | "step.run.empty";
+
+export type DiagnosticPath = readonly (string | number)[];
+
+export type Diagnostic = Readonly<{
+  code: DiagnosticCode;
+  path: DiagnosticPath;
+  message: string;
+}>;
+
+export type ValidationResult =
+  | Readonly<{ ok: true; value: ValidatedWorkflow }>
+  | Readonly<{ ok: false; diagnostics: readonly Diagnostic[] }>;
+
+const JOB_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+
+export function validateWorkflow(workflow: Workflow): ValidationResult {
+  const diagnostics: Diagnostic[] = [];
+
+  if (isBlank(workflow.name)) {
+    diagnostics.push(diagnostic(
+      "workflow.name.empty",
+      ["name"],
+      "Workflow name must not be empty.",
+    ));
+  }
+
+  if (workflow.events.length === 0) {
+    diagnostics.push(diagnostic(
+      "workflow.events.empty",
+      ["events"],
+      "Workflow must declare at least one event.",
+    ));
+  }
+  validateDuplicates(
+    workflow.events,
+    ["events"],
+    "workflow.events.duplicate",
+    "Workflow event",
+    diagnostics,
+  );
+
+  if (workflow.jobs.length === 0) {
+    diagnostics.push(diagnostic(
+      "workflow.jobs.empty",
+      ["jobs"],
+      "Workflow must declare at least one job.",
+    ));
+  }
+
+  const jobsById = new Map<string, { job: Job; index: number }>();
+  workflow.jobs.forEach((job, jobIndex) => {
+    const jobPath = ["jobs", jobIndex] as const;
+
+    if (!JOB_ID_PATTERN.test(job.id)) {
+      diagnostics.push(diagnostic(
+        "job.id.invalid",
+        [...jobPath, "id"],
+        `Job ID ${
+          JSON.stringify(job.id)
+        } must start with a letter or underscore and contain only letters, digits, hyphens, or underscores.`,
+      ));
+    }
+
+    const existing = jobsById.get(job.id);
+    if (existing === undefined) {
+      jobsById.set(job.id, { job, index: jobIndex });
+    } else {
+      diagnostics.push(diagnostic(
+        "job.id.duplicate",
+        [...jobPath, "id"],
+        `Job ID ${
+          JSON.stringify(job.id)
+        } duplicates jobs[${existing.index}].id.`,
+      ));
+    }
+
+    validateRunnerSelection(job.runsOn, [...jobPath, "runsOn"], diagnostics);
+
+    validateDuplicates(
+      job.needs,
+      [...jobPath, "needs"],
+      "job.needs.duplicate",
+      "Job dependency",
+      diagnostics,
+    );
+
+    if (job.steps.length === 0) {
+      diagnostics.push(diagnostic(
+        "job.steps.empty",
+        [...jobPath, "steps"],
+        `Job ${JSON.stringify(job.id)} must declare at least one step.`,
+      ));
+    }
+
+    job.steps.forEach((step, stepIndex) => {
+      const stepPath = [...jobPath, "steps", stepIndex] as const;
+      if (step.name !== undefined && isBlank(step.name)) {
+        diagnostics.push(diagnostic(
+          "step.name.empty",
+          [...stepPath, "name"],
+          "Step name must not be empty when provided.",
+        ));
+      }
+      if (step.type === "uses" && isBlank(step.uses)) {
+        diagnostics.push(diagnostic(
+          "step.uses.empty",
+          [...stepPath, "uses"],
+          "Action reference must not be empty.",
+        ));
+      }
+      if (step.type === "run" && isBlank(step.run)) {
+        diagnostics.push(diagnostic(
+          "step.run.empty",
+          [...stepPath, "run"],
+          "Run command must not be empty.",
+        ));
+      }
+    });
+  });
+
+  validateJobReferences(workflow, jobsById, diagnostics);
+  validateDependencyCycles(jobsById, diagnostics);
+
+  if (diagnostics.length > 0) {
+    return { ok: false, diagnostics };
+  }
+
+  return { ok: true, value: workflow as ValidatedWorkflow };
+}
+
+function validateRunnerSelection(
+  selection: RunnerSelection,
+  path: DiagnosticPath,
+  diagnostics: Diagnostic[],
+): void {
+  if (selection.type === "group" && isBlank(selection.group)) {
+    diagnostics.push(diagnostic(
+      "job.runs-on.group.empty",
+      [...path, "group"],
+      "Runner group must not be empty.",
+    ));
+  }
+
+  if (selection.labels === undefined) {
+    return;
+  }
+
+  if (selection.labels.length === 0) {
+    diagnostics.push(diagnostic(
+      "job.runs-on.labels.empty",
+      [...path, "labels"],
+      "Runner labels must not be empty when provided.",
+    ));
+  }
+
+  selection.labels.forEach((label, labelIndex) => {
+    if (isBlank(label)) {
+      diagnostics.push(diagnostic(
+        "job.runs-on.labels.empty",
+        [...path, "labels", labelIndex],
+        "Runner label must not be empty.",
+      ));
+    }
+  });
+
+  validateDuplicates(
+    selection.labels,
+    [...path, "labels"],
+    "job.runs-on.labels.duplicate",
+    "Runner label",
+    diagnostics,
+    runnerLabelKey,
+  );
+}
+
+function validateJobReferences(
+  workflow: Workflow,
+  jobsById: ReadonlyMap<string, { job: Job; index: number }>,
+  diagnostics: Diagnostic[],
+): void {
+  workflow.jobs.forEach((job, jobIndex) => {
+    job.needs.forEach((dependency, dependencyIndex) => {
+      const path = ["jobs", jobIndex, "needs", dependencyIndex] as const;
+      if (dependency === job.id) {
+        diagnostics.push(diagnostic(
+          "job.needs.self",
+          path,
+          `Job ${JSON.stringify(job.id)} cannot depend on itself.`,
+        ));
+      } else if (!jobsById.has(dependency)) {
+        diagnostics.push(diagnostic(
+          "job.needs.unknown",
+          path,
+          `Job dependency ${JSON.stringify(dependency)} does not exist.`,
+        ));
+      }
+    });
+  });
+}
+
+function validateDependencyCycles(
+  jobsById: ReadonlyMap<string, { job: Job; index: number }>,
+  diagnostics: Diagnostic[],
+): void {
+  let nextIndex = 0;
+  const indexes = new Map<string, number>();
+  const lowLinks = new Map<string, number>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
+  const components: string[][] = [];
+
+  const visit = (jobId: string): void => {
+    indexes.set(jobId, nextIndex);
+    lowLinks.set(jobId, nextIndex);
+    nextIndex += 1;
+    stack.push(jobId);
+    onStack.add(jobId);
+
+    const entry = jobsById.get(jobId);
+    if (entry === undefined) {
+      return;
+    }
+
+    for (const dependency of [...entry.job.needs].sort(compareText)) {
+      if (dependency === jobId || !jobsById.has(dependency)) {
+        continue;
+      }
+      if (!indexes.has(dependency)) {
+        visit(dependency);
+        lowLinks.set(
+          jobId,
+          Math.min(required(lowLinks, jobId), required(lowLinks, dependency)),
+        );
+      } else if (onStack.has(dependency)) {
+        lowLinks.set(
+          jobId,
+          Math.min(required(lowLinks, jobId), required(indexes, dependency)),
+        );
+      }
+    }
+
+    if (required(lowLinks, jobId) !== required(indexes, jobId)) {
+      return;
+    }
+
+    const component: string[] = [];
+    while (stack.length > 0) {
+      const member = stack.pop();
+      if (member === undefined) {
+        break;
+      }
+      onStack.delete(member);
+      component.push(member);
+      if (member === jobId) {
+        break;
+      }
+    }
+    components.push(component);
+  };
+
+  for (const jobId of [...jobsById.keys()].sort(compareText)) {
+    if (!indexes.has(jobId)) {
+      visit(jobId);
+    }
+  }
+
+  for (const component of components) {
+    if (component.length < 2) {
+      continue;
+    }
+    const sortedIds = component.sort(compareText);
+    const first = jobsById.get(sortedIds[0]);
+    if (first === undefined) {
+      continue;
+    }
+    diagnostics.push(diagnostic(
+      "job.needs.cycle",
+      ["jobs", first.index, "needs"],
+      `Job dependency cycle includes jobs: ${sortedIds.join(", ")}.`,
+    ));
+  }
+}
+
+function validateDuplicates<T extends string>(
+  values: readonly T[],
+  path: DiagnosticPath,
+  code: DiagnosticCode,
+  label: string,
+  diagnostics: Diagnostic[],
+  keyOf: (value: T) => string = (value) => value,
+): void {
+  const firstIndexes = new Map<string, number>();
+  values.forEach((value, index) => {
+    const key = keyOf(value);
+    const firstIndex = firstIndexes.get(key);
+    if (firstIndex === undefined) {
+      firstIndexes.set(key, index);
+      return;
+    }
+    diagnostics.push(diagnostic(
+      code,
+      [...path, index],
+      `${label} ${JSON.stringify(value)} duplicates index ${firstIndex}.`,
+    ));
+  });
+}
+
+function required(
+  values: ReadonlyMap<string, number>,
+  key: string,
+): number {
+  const value = values.get(key);
+  if (value === undefined) {
+    throw new Error(`Missing graph state for ${JSON.stringify(key)}.`);
+  }
+  return value;
+}
+
+function diagnostic(
+  code: DiagnosticCode,
+  path: DiagnosticPath,
+  message: string,
+): Diagnostic {
+  return { code, path, message };
+}
+
+function isBlank(value: string): boolean {
+  return value.trim().length === 0;
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function runnerLabelKey(label: string): string {
+  return label.toLowerCase();
+}

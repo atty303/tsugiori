@@ -101,8 +101,9 @@ emit GitLab-native configuration rather than GitHub Actions YAML.
 
 ### Generated YAML Stale Check
 
-When implementation begins, the compiler should distinguish generation from stale
-output checking.
+When generation commands are implemented, the compiler should distinguish
+generation from stale output checking. The current compiler slice only
+validates an internal AST and emits YAML in memory.
 
 The planned `tsugiori generate` command should run the pipeline authoring source
 and write the generated GitHub Actions workflow files to their configured
@@ -113,8 +114,8 @@ logic without modifying files. It should compare the generated output with the
 committed workflow files and exit with a non-zero status when any generated file
 is missing, extra, or different from the expected output.
 
-Check mode should be suitable for CI, but this repository should not add
-generated workflow files or CI configuration until implementation work begins.
+Check mode should be suitable for CI, but this repository should not add its
+own generated workflow files or CI configuration until the dogfooding phase.
 The check should report which generated files are stale, while leaving the
 source tree unchanged so authors can run normal generation locally and review
 the resulting diff.
