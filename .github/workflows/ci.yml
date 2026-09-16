@@ -23,7 +23,26 @@ jobs:
           tsugiori generate --config ./.github/tsugiori.ts
           git diff --exit-code -- .github/workflows
           test -z "$(git ls-files --others --exclude-standard -- .github/workflows)"
+      - name: Resolve task artifact
+        id: tsugiori-task-artifact
+        run: 'tsugiori github-actions task cache-key --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+      - name: Restore task artifact cache
+        id: tsugiori-task-cache-restore
+        continue-on-error: true
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: '${{ steps.tsugiori-task-artifact.outputs.cache-path }}'
+          restore-keys: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-'
       - name: Prepare task artifact
-        run: 'tsugiori task prepare --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+        id: tsugiori-task-prepare
+        run: 'tsugiori github-actions task prepare --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'' --expected-key ''${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'''
+      - name: Save task artifact cache
+        if: steps.tsugiori-task-prepare.outputs.cache-write-required == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}'
+          path: '${{ steps.tsugiori-task-artifact.outputs.cache-path }}'
       - name: Run repository checks and tests
         run: ./.tsugiori/task-runtime ci/test/task-1

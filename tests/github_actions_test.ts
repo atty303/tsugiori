@@ -19,7 +19,14 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
         },
         needs: ["build"],
         steps: [
-          { type: "run", name: "Test", run: "deno test" },
+          {
+            type: "run",
+            name: "Test",
+            id: "test-step",
+            if: "github.ref == 'refs/heads/main'",
+            continueOnError: true,
+            run: "deno test",
+          },
           { type: "run", run: "echo first\necho second" },
         ],
       },
@@ -220,6 +227,45 @@ Deno.test("rejects invalid permissions and action input values", () => {
       {
         code: "step.with.value.invalid",
         path: ["jobs", 0, "steps", 0, "with", "infinite"],
+      },
+    ],
+  );
+});
+
+Deno.test("rejects invalid and duplicate step metadata", () => {
+  const result = validateWorkflow({
+    name: "Invalid steps",
+    events: ["push"],
+    jobs: [{
+      id: "test",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      steps: [
+        { type: "run", id: "invalid id", if: " ", run: "true" },
+        {
+          type: "run",
+          id: "duplicate",
+          continueOnError: "yes",
+          run: "true",
+        },
+        { type: "run", id: "duplicate", run: "true" },
+      ],
+    }],
+  } as unknown as Workflow);
+
+  assert(!result.ok);
+  assertEquals(
+    result.diagnostics.map(({ code, path }) => ({ code, path })),
+    [
+      { code: "step.id.invalid", path: ["jobs", 0, "steps", 0, "id"] },
+      { code: "step.if.empty", path: ["jobs", 0, "steps", 0, "if"] },
+      {
+        code: "step.continue-on-error.invalid",
+        path: ["jobs", 0, "steps", 1, "continueOnError"],
+      },
+      {
+        code: "step.id.duplicate",
+        path: ["jobs", 0, "steps", 2, "id"],
       },
     ],
   );

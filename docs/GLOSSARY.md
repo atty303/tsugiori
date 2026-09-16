@@ -43,20 +43,21 @@ The provider backend's structured representation of a GitHub Actions workflow.
 It should model GitHub Actions concepts directly and preserve enough structure
 for validation and deterministic YAML emission.
 
-## GitHub Actions Expression AST
+## GitHub Actions Expression
 
-The structured representation of GitHub Actions expressions such as
-`matrix.deno`, `github.ref == 'refs/heads/main'`, and `always() && failure()`.
+A GitHub Actions runtime value such as `matrix.deno`,
+`github.ref == 'refs/heads/main'`, or `always() && failure()`.
 
-GitHub Actions expressions are CI runtime values. They should not be evaluated
-as host-language conditionals during pipeline generation.
+These expressions must not be evaluated as host-language conditionals during
+pipeline generation. A future public API may offer structured expressions, but
+it should retain an explicit raw escape hatch.
 
 ## Task Function
 
 Code authored to perform CI work.
 
-The initial API defines task functions inline through `job.task`. Standalone
-task authoring for handwritten provider configuration remains planned.
+The initial API defines task functions inline through `job.task`. Handwritten
+workflow integration remains a future provider-specific decision.
 
 ## Task Registry
 
@@ -92,9 +93,9 @@ key, target platform, task runtime invocation form, registered entrypoints,
 binary checksum, and tool/runtime versions. Other artifact forms are not
 required to use a separate manifest.
 
-## Task Artifact Cache Adapter
+## Task Artifact Delivery
 
-The storage and retrieval boundary for task artifacts.
-
-The adapter is an artifact delivery mechanism. It should not become a scheduler
-or hide provider-native jobs and steps.
+The provider-owned mechanism that makes a task artifact available to task-backed
+steps. The GitHub Actions backend uses visible, generational `actions/cache`
+steps and a content-addressed local entry. No generic remote adapter is part of
+the current contract.

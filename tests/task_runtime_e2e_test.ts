@@ -88,30 +88,42 @@ export default defineTsugiori({ pipelines: [ci] });
       const workflow = await Deno.readTextFile(
         resolve(fixture, ".github/workflows/ci.yml"),
       );
+      assertStringIncludes(workflow, "name: Resolve task artifact");
+      assertStringIncludes(workflow, "name: Restore task artifact cache");
       assertStringIncludes(workflow, "name: Prepare task artifact");
+      assertStringIncludes(workflow, "name: Save task artifact cache");
+      assertStringIncludes(workflow, "actions/cache/restore@");
+      assertStringIncludes(workflow, "actions/cache/save@");
       assertStringIncludes(
         workflow,
         "run: ./.tsugiori/task-runtime ci/test/task-1",
       );
       const expectedLayout = workflow.match(/ci\/test=sha256:[0-9a-f]+/)?.[0];
       assert(expectedLayout !== undefined);
+      const githubOutput = resolve(fixture, "github-output");
 
       await Deno.writeTextFile(
         resolve(fixture, "tsugiori.ts"),
         configSource.replace('task("Test"', 'task("Changed"'),
       );
+      await Deno.writeTextFile(githubOutput, "");
       const stale = await run(
         cli,
         [
+          "github-actions",
           "task",
-          "prepare",
+          "cache-key",
           "--config",
           "./tsugiori.ts",
           "--expect-layout",
           expectedLayout,
         ],
         fixture,
-        { ...environment, RUNNER_DEBUG: "1" },
+        {
+          ...environment,
+          GITHUB_OUTPUT: githubOutput,
+          RUNNER_DEBUG: "1",
+        },
       );
       assertEquals(stale.code, 1);
       assertStringIncludes(stale.stderr, "task layout is stale");
@@ -123,39 +135,85 @@ export default defineTsugiori({ pipelines: [ci] });
       );
       await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
 
+      await Deno.writeTextFile(githubOutput, "");
+      const resolvedArtifact = await run(
+        cli,
+        [
+          "github-actions",
+          "task",
+          "cache-key",
+          "--config",
+          "./tsugiori.ts",
+          "--expect-layout",
+          expectedLayout,
+        ],
+        fixture,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
+      );
+      assertEquals(resolvedArtifact.code, 0, resolvedArtifact.stderr);
+      const firstOutputs = parseGitHubOutputs(
+        await Deno.readTextFile(githubOutput),
+      );
+      const artifactKey = firstOutputs["artifact-key"];
+      assert(artifactKey !== undefined);
+      assertEquals(
+        firstOutputs["cache-path"],
+        `.tsugiori/cache/artifacts/${artifactKey}`,
+      );
+
+      await Deno.writeTextFile(githubOutput, "");
       const firstPrepare = await run(
         cli,
         [
+          "github-actions",
           "task",
           "prepare",
           "--config",
           "./tsugiori.ts",
           "--expect-layout",
           expectedLayout,
+          "--expected-key",
+          artifactKey,
         ],
         fixture,
-        environment,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(firstPrepare.code, 0, firstPrepare.stderr);
       assertStringIncludes(firstPrepare.stdout, "cache miss");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "true",
+      );
 
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime"));
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime.json"));
+      await Deno.writeTextFile(githubOutput, "");
       const secondPrepare = await run(
         cli,
         [
+          "github-actions",
           "task",
           "prepare",
           "--config",
           "./tsugiori.ts",
           "--expect-layout",
           expectedLayout,
+          "--expected-key",
+          artifactKey,
         ],
         fixture,
-        environment,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(secondPrepare.code, 0, secondPrepare.stderr);
       assertStringIncludes(secondPrepare.stdout, "cache hit");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "false",
+      );
 
       await Deno.writeTextFile(
         resolve(fixture, "deno.base.json"),
@@ -167,21 +225,85 @@ export default defineTsugiori({ pipelines: [ci] });
           )
         }\n`,
       );
-      const configurationChanged = await run(
+      await Deno.writeTextFile(githubOutput, "");
+      const keyChangedDuringPreparation = await run(
         cli,
         [
+          "github-actions",
           "task",
           "prepare",
           "--config",
           "./tsugiori.ts",
           "--expect-layout",
           expectedLayout,
+          "--expected-key",
+          artifactKey,
         ],
         fixture,
-        environment,
+        {
+          ...environment,
+          GITHUB_OUTPUT: githubOutput,
+          RUNNER_DEBUG: "1",
+        },
+      );
+      assertEquals(keyChangedDuringPreparation.code, 1);
+      assertStringIncludes(
+        keyChangedDuringPreparation.stderr,
+        "inputs changed after the cache key was resolved",
+      );
+      assertEquals(
+        diagnosticRecord(keyChangedDuringPreparation.stderr)?.operations.at(-1)
+          ?.errorType,
+        "artifact_key_mismatch",
+      );
+
+      await Deno.writeTextFile(githubOutput, "");
+      const changedArtifact = await run(
+        cli,
+        [
+          "github-actions",
+          "task",
+          "cache-key",
+          "--config",
+          "./tsugiori.ts",
+          "--expect-layout",
+          expectedLayout,
+        ],
+        fixture,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
+      );
+      assertEquals(changedArtifact.code, 0, changedArtifact.stderr);
+      const changedArtifactKey = parseGitHubOutputs(
+        await Deno.readTextFile(githubOutput),
+      )["artifact-key"];
+      assert(changedArtifactKey !== undefined);
+      assert(changedArtifactKey !== artifactKey);
+
+      await Deno.writeTextFile(githubOutput, "");
+      const configurationChanged = await run(
+        cli,
+        [
+          "github-actions",
+          "task",
+          "prepare",
+          "--config",
+          "./tsugiori.ts",
+          "--expect-layout",
+          expectedLayout,
+          "--expected-key",
+          changedArtifactKey,
+        ],
+        fixture,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(configurationChanged.code, 0, configurationChanged.stderr);
       assertStringIncludes(configurationChanged.stdout, "cache miss");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "true",
+      );
 
       const materializedManifest = JSON.parse(
         await Deno.readTextFile(
@@ -197,21 +319,81 @@ export default defineTsugiori({ pipelines: [ci] });
       );
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime"));
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime.json"));
+      await Deno.writeTextFile(githubOutput, "");
       const recovered = await run(
         cli,
         [
+          "github-actions",
           "task",
           "prepare",
           "--config",
           "./tsugiori.ts",
           "--expect-layout",
           expectedLayout,
+          "--expected-key",
+          changedArtifactKey,
         ],
         fixture,
-        environment,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(recovered.code, 0, recovered.stderr);
       assertStringIncludes(recovered.stdout, "cache miss");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "true",
+      );
+
+      await Deno.chmod(
+        resolve(
+          fixture,
+          `.tsugiori/cache/artifacts/${changedArtifactKey}/task-runtime`,
+        ),
+        0o000,
+      );
+      await Deno.remove(resolve(fixture, ".tsugiori/task-runtime"));
+      await Deno.remove(resolve(fixture, ".tsugiori/task-runtime.json"));
+      await Deno.writeTextFile(githubOutput, "");
+      const unreadableEntry = await run(
+        cli,
+        [
+          "github-actions",
+          "task",
+          "prepare",
+          "--config",
+          "./tsugiori.ts",
+          "--expect-layout",
+          expectedLayout,
+          "--expected-key",
+          changedArtifactKey,
+        ],
+        fixture,
+        {
+          ...environment,
+          GITHUB_OUTPUT: githubOutput,
+          RUNNER_DEBUG: "1",
+        },
+      );
+      assertEquals(unreadableEntry.code, 0, unreadableEntry.stderr);
+      assertStringIncludes(unreadableEntry.stdout, "cache miss");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "true",
+      );
+      assertEquals(
+        diagnosticRecord(unreadableEntry.stderr)?.operations.filter(
+          (operation) => operation.name === "cache.restore",
+        ),
+        [{
+          name: "cache.restore",
+          status: "error",
+          errorType: "cache_restore_failed",
+          attributes: { artifactKey: changedArtifactKey },
+        }],
+      );
 
       const runtime = resolve(fixture, ".tsugiori/task-runtime");
       const executed = await run(
@@ -349,6 +531,15 @@ function diagnosticRecords(stderr: string): readonly DiagnosticRecord[] {
     records.push(JSON.parse(line) as DiagnosticRecord);
   }
   return records;
+}
+
+function parseGitHubOutputs(content: string): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    content.trim().split("\n").filter((line) => line.length > 0).map((line) => {
+      const separator = line.indexOf("=");
+      return [line.slice(0, separator), line.slice(separator + 1)];
+    }),
+  );
 }
 
 async function copyDirectory(

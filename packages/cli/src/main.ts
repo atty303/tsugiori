@@ -8,6 +8,7 @@ import {
 } from "../../task-runtime/src/diagnostics.ts";
 import {
   prepareTaskArtifact,
+  resolveTaskArtifact,
   type ToolIdentity,
 } from "../../task-runtime/src/prepare.ts";
 
@@ -61,10 +62,31 @@ export async function main(
       return 0;
     }
 
-    if (
-      parsed.command.length === 2 && parsed.command[0] === "task" &&
-      parsed.command[1] === "prepare"
-    ) {
+    if (isGitHubActionsTaskCommand(parsed, "cache-key")) {
+      const configArgument = requiredOption(parsed.options, "config");
+      const loaded = await loadConfig(configArgument);
+      recorder.operation({ name: "source.load", status: "success" });
+      const plan = await resolveTaskArtifact({
+        rootDirectory: loaded.rootDirectory,
+        configPath: loaded.absolutePath,
+        configArgument: loaded.argument,
+        config: loaded.config,
+        expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
+        target: parsed.options.target,
+        tool,
+        recorder,
+      });
+      await writeGitHubOutputs({
+        "artifact-key": plan.artifactKey,
+        "cache-path": `.tsugiori/cache/artifacts/${plan.artifactKey}`,
+      });
+      recorder.operation({ name: "github.output", status: "success" });
+      await recorder.finish("success");
+      console.log("Resolved task artifact cache key.");
+      return 0;
+    }
+
+    if (isGitHubActionsTaskCommand(parsed, "prepare")) {
       const configArgument = requiredOption(parsed.options, "config");
       const loaded = await loadConfig(configArgument);
       recorder.operation({ name: "source.load", status: "success" });
@@ -74,6 +96,7 @@ export async function main(
         configArgument: loaded.argument,
         config: loaded.config,
         expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
+        expectedArtifactKey: requiredOption(parsed.options, "expectedKey"),
         target: parsed.options.target,
         tool,
         recorder,
@@ -86,6 +109,10 @@ export async function main(
           cache: result.cache,
         },
       });
+      await writeGitHubOutputs({
+        "cache-write-required": result.cacheWriteRequired ? "true" : "false",
+      });
+      recorder.operation({ name: "github.output", status: "success" });
       await recorder.finish("success");
       console.log(
         `Task artifact ready at ./.tsugiori/task-runtime (cache ${result.cache}).`,
@@ -95,7 +122,7 @@ export async function main(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: tsugiori generate --config <file> | tsugiori task prepare --config <file> [--expect-layout <job=fingerprint>] [--target <target>]",
+      "Usage: tsugiori generate --config <file>",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -139,7 +166,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
       rawName !== "config" && rawName !== "expect-layout" &&
-      rawName !== "target"
+      rawName !== "expected-key" && rawName !== "target"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",
@@ -164,6 +191,45 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     }
   }
   return { command, options, multipleOptions };
+}
+
+function isGitHubActionsTaskCommand(
+  parsed: ParsedArguments,
+  operation: "cache-key" | "prepare",
+): boolean {
+  return parsed.command.length === 3 &&
+    parsed.command[0] === "github-actions" &&
+    parsed.command[1] === "task" && parsed.command[2] === operation;
+}
+
+async function writeGitHubOutputs(
+  outputs: Readonly<Record<string, string>>,
+): Promise<void> {
+  const path = Deno.env.get("GITHUB_OUTPUT");
+  if (path === undefined || path.length === 0) {
+    throw new TaskRuntimeError(
+      "github_output_unavailable",
+      "GitHub Actions did not provide GITHUB_OUTPUT.",
+    );
+  }
+  const lines = Object.entries(outputs).map(([name, value]) => {
+    if (!/^[a-z][a-z0-9-]*$/.test(name) || /[\r\n]/.test(value)) {
+      throw new TaskRuntimeError(
+        "github_output_invalid",
+        "The GitHub Actions output is invalid.",
+      );
+    }
+    return `${name}=${value}\n`;
+  });
+  try {
+    await Deno.writeTextFile(path, lines.join(""), { append: true });
+  } catch (error) {
+    throw new TaskRuntimeError(
+      "github_output_write_failed",
+      "Failed to write GitHub Actions step outputs.",
+      { cause: error },
+    );
+  }
 }
 
 function requiredOption(

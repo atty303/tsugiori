@@ -11,6 +11,16 @@ import {
 } from "./github_actions/validation.ts";
 
 const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
+const ARTIFACT_STEP_ID = "tsugiori-task-artifact";
+const PREPARE_STEP_ID = "tsugiori-task-prepare";
+const ARTIFACT_KEY_EXPRESSION =
+  `\${{ steps.${ARTIFACT_STEP_ID}.outputs.artifact-key }}`;
+const CACHE_PATH_EXPRESSION =
+  `\${{ steps.${ARTIFACT_STEP_ID}.outputs.cache-path }}`;
+const CACHE_KEY =
+  `tsugiori-task-${ARTIFACT_KEY_EXPRESSION}-\${{ github.run_id }}-\${{ github.run_attempt }}`;
+const CACHE_RESTORE_PREFIX = `tsugiori-task-${ARTIFACT_KEY_EXPRESSION}-`;
 
 export type RegisteredTask = Readonly<{
   entrypoint: string;
@@ -107,14 +117,10 @@ export async function lowerConfig(
 
         taskOrdinal += 1;
         if (!preparationEmitted) {
-          steps.push({
-            type: "run",
-            name: "Prepare task artifact",
-            run: preparationCommand(
-              configArgument,
-              `${layoutKey}=${fingerprint}`,
-            ),
-          });
+          steps.push(...preparationSteps(
+            configArgument,
+            `${layoutKey}=${fingerprint}`,
+          ));
           preparationEmitted = true;
         }
         const entrypoint = `${layoutKey}/task-${taskOrdinal}`;
@@ -212,16 +218,61 @@ async function layoutFingerprint(
   return `sha256:${toHex(new Uint8Array(digest))}`;
 }
 
-function preparationCommand(
+function preparationSteps(
   configArgument: string,
   expectedLayout: string,
-): string {
-  return [
-    "tsugiori task prepare --config",
+): readonly Step[] {
+  const commonArguments = [
+    "--config",
     quotePosix(configArgument),
     "--expect-layout",
     quotePosix(expectedLayout),
-  ].join(" ");
+  ];
+  return [
+    {
+      type: "run",
+      name: "Resolve task artifact",
+      id: ARTIFACT_STEP_ID,
+      run: [
+        "tsugiori github-actions task cache-key",
+        ...commonArguments,
+      ].join(" "),
+    },
+    {
+      type: "uses",
+      name: "Restore task artifact cache",
+      id: "tsugiori-task-cache-restore",
+      continueOnError: true,
+      uses: `actions/cache/restore@${ACTIONS_CACHE_COMMIT}`,
+      with: {
+        path: CACHE_PATH_EXPRESSION,
+        key: CACHE_KEY,
+        "restore-keys": CACHE_RESTORE_PREFIX,
+      },
+    },
+    {
+      type: "run",
+      name: "Prepare task artifact",
+      id: PREPARE_STEP_ID,
+      run: [
+        "tsugiori github-actions task prepare",
+        ...commonArguments,
+        "--expected-key",
+        quotePosix(ARTIFACT_KEY_EXPRESSION),
+      ].join(" "),
+    },
+    {
+      type: "uses",
+      name: "Save task artifact cache",
+      if: `steps.${PREPARE_STEP_ID}.outputs.cache-write-required == 'true'`,
+      continueOnError: true,
+      uses: `actions/cache/save@${ACTIONS_CACHE_COMMIT}`,
+      with: {
+        path: CACHE_PATH_EXPRESSION,
+        key: CACHE_KEY,
+      },
+    },
+  ];
 }
 
 function quotePosix(value: string): string {

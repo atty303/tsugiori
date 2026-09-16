@@ -24,7 +24,8 @@ Constraints:
   provider-native concepts.
 - Do not collapse workflow behavior into one opaque runtime command.
 - Treat generated workflow YAML as committed review output.
-- Treat task artifact caches as adapter-backed artifact delivery.
+- Treat task artifact delivery as provider-owned until a second concrete
+  backend justifies a shared abstraction.
 - Keep unimplemented behavior described as proposed or intended.
 
 Done when:
@@ -67,7 +68,7 @@ Constraints:
 - The project should not define a provider-neutral pipeline model that erases
   provider-native concepts.
 - Generated workflow YAML should remain a committed, reviewable artifact.
-- Task artifact cache adapters should not hide provider-native jobs or steps.
+- Task artifact delivery should not hide provider-native jobs or steps.
 - The ADR should be concise and sober.
 - Include consequences and trade-offs.
 
@@ -91,7 +92,8 @@ Constraints:
 - Keep the implementation small and testable.
 - Preserve Actions-native YAML output for the GitHub Actions provider backend.
 - Keep provider-native pipeline concepts in provider backend layers.
-- Represent GitHub Actions expressions as an expression AST.
+- Keep GitHub runtime expressions distinct from host-language conditionals and
+  retain an explicit raw expression escape hatch.
 - Add or update tests for behavior touched by the change.
 - Update docs only where behavior or commands actually changed.
 

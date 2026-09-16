@@ -10,7 +10,7 @@ is to clarify boundaries, not to rank tools.
 | Raw GitHub Actions YAML | YAML | GitHub Actions | Native | Language-native pipeline source emits committed YAML, with optional task runtime integration. |
 | Reusable workflows | YAML | GitHub Actions | Native across called workflows | Generated YAML may later model `workflow_call` contracts in code. |
 | Composite actions | YAML plus scripts | GitHub Actions action runner | Often grouped inside the composite action | Provider steps stay visible while those steps may invoke task runtime entrypoints. |
-| github-actions-workflow-ts | TypeScript | GitHub Actions | Native | Task functions and the task runtime can be used with or without pipeline generation. |
+| github-actions-workflow-ts | TypeScript | GitHub Actions | Native | Task-backed steps use a provider-owned preparation lifecycle in generated workflows. |
 | github-workflows-kt | Kotlin | GitHub Actions | Native | The initial language/runtime choice is TypeScript/Deno with optional task runtime integration. |
 | Dagger | Programmatic CI/build runtime | Dagger engine | Usually mediated through CI steps | GitHub Actions orchestration should not be replaced with an external runtime. |
 | Earthly | Earthfile build definitions | Earthly engine | Usually mediated through CI steps | Workflow structure should not be hidden inside a separate build runtime. |
@@ -79,8 +79,8 @@ logical CI structure.
 
 The initial direction is to keep provider steps visible while allowing a step
 to invoke a task runtime entrypoint for its implementation. The task
-artifact may be restored through a cache adapter, but that artifact delivery
-mechanism should not hide the provider steps.
+artifact may be restored through provider-owned cache delivery, but that
+delivery mechanism should not hide the provider steps.
 
 Composite actions are a packaging and reuse mechanism in GitHub Actions. Task
 functions are proposed as authored task implementations that can be wired into
@@ -102,9 +102,10 @@ artifact is treated as a cacheable artifact addressed by its inputs.
 The compiler should still emit native GitHub Actions YAML rather than introduce a
 separate scheduler.
 
-The task runtime should also remain independently usable. That makes the
-project more than a workflow-generation library, but it does not make the task
-runtime the owner of CI orchestration.
+The task runtime remains a distinct implementation boundary, but the current
+preparation lifecycle is owned by generated GitHub Actions workflows.
+Handwritten workflow integration may be designed later for the provider rather
+than preserving the internal preparation commands.
 
 ## github-workflows-kt
 

@@ -77,8 +77,8 @@ For documentation-only changes:
 - generated examples remain GitHub Actions-native
 - generated workflow YAML remains described as committed review output, not as
   runtime-generated orchestration
-- task artifact cache adapters remain artifact delivery mechanisms, not hidden
-  schedulers
+- task artifact delivery remains provider-owned and does not become a hidden
+  scheduler
 - no package manifests, source files, dependencies, or CI files were added by
   accident
 

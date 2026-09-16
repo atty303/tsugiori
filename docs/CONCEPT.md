@@ -105,10 +105,11 @@ The task artifact may take different prepared runtime forms. An OCI image may
 itself be the task artifact; the design should not require an additional
 project-specific artifact beside it.
 
-Task artifact storage and retrieval should be abstracted behind cache
-adapters. The same task runtime model should be able to use `actions/cache`,
-GCR or another OCI registry, S3, or another compatible store without changing
-the provider-native pipeline shape.
+Task artifact delivery belongs to the provider integration. The implemented
+GitHub Actions backend emits visible `actions/cache` restore and save steps.
+Future OCI registry, S3, or provider integrations should start with their
+native delivery model; a shared abstraction should be extracted only from
+concrete common requirements.
 
 ## Boundary
 

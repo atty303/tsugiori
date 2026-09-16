@@ -9,6 +9,12 @@ export type WorkflowPermissions = Readonly<{
 export type ActionInput = string | number | boolean;
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 
+export type StepMetadata = Readonly<{
+  id?: string;
+  if?: string;
+  continueOnError?: boolean;
+}>;
+
 export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 
 export type LabelRunnerSelection = Readonly<{
@@ -24,18 +30,22 @@ export type GroupRunnerSelection = Readonly<{
 
 export type RunnerSelection = LabelRunnerSelection | GroupRunnerSelection;
 
-export type UsesStep = Readonly<{
-  type: "uses";
-  name?: string;
-  uses: string;
-  with?: ActionInputs;
-}>;
+export type UsesStep =
+  & StepMetadata
+  & Readonly<{
+    type: "uses";
+    name?: string;
+    uses: string;
+    with?: ActionInputs;
+  }>;
 
-export type RunStep = Readonly<{
-  type: "run";
-  name?: string;
-  run: string;
-}>;
+export type RunStep =
+  & StepMetadata
+  & Readonly<{
+    type: "run";
+    name?: string;
+    run: string;
+  }>;
 
 export type Step = UsesStep | RunStep;
 

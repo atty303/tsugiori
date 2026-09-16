@@ -10,10 +10,11 @@ that CI provider steps can execute through a prepared task artifact.
 Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
 load a TypeScript authoring module, generate deterministic workflow YAML,
 prepare a content-addressed Deno task binary through a repository-local cache,
+restore and save those cache entries through generated `actions/cache` steps,
 and dispatch inline task functions. The repository now uses a generated
 workflow to exercise that slice on GitHub Actions. Native stale-output check
-mode, broader GitHub Actions syntax, and remote cache adapters are not
-implemented yet.
+mode, broader GitHub Actions syntax, and other artifact delivery backends are
+not implemented yet.
 
 ## Problem
 
@@ -50,10 +51,10 @@ Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,
 `permissions`, `concurrency`, `environment`, `secrets`, and outputs should
 remain GitHub Actions concepts.
 
-The design keeps task functions independent from pipeline authoring. The
-implemented slice supports inline task-backed pipeline steps; a future
-standalone registry will expose the task runtime to handwritten CI
-configuration without requiring generated workflow YAML.
+The implemented slice supports inline task-backed pipeline steps. Handwritten
+workflow integration remains a future provider-specific decision; the current
+preparation commands are generated implementation details rather than a public
+cross-provider contract.
 
 The pipeline source is intended to be the source of truth, while generated
 `.github/workflows/*.yml` files are committed review artifacts. A local git hook
@@ -66,8 +67,9 @@ target platform, tool version, and artifact form. The artifact may be a
 prepared runtime form such as an OCI image. Provider steps should make that
 artifact available through explicit preparation work, then invoke task runtime
 entrypoints without fetching or building managed task code again. Task artifact
-storage should be adapter-backed so implementations such as `actions/cache`,
-GCR or another OCI registry, and S3 can be substituted.
+delivery is provider-owned. The GitHub Actions backend emits visible
+`actions/cache` restore and save steps. A shared delivery abstraction should be
+extracted only after another backend such as an OCI registry or S3 requires it.
 
 ## Initial Authoring API
 
@@ -112,9 +114,10 @@ mise run build
 ./dist/tsugiori generate --config ./tsugiori.ts
 ```
 
-The generated job keeps setup steps visible, inserts one task-artifact
-preparation step immediately before the first task-backed step, and emits each
-task as a separate invocation such as
+The generated job keeps setup steps visible, resolves the artifact key, restores
+the newest matching `actions/cache` generation, prepares and validates the
+artifact, and conditionally saves a new generation before the first task-backed
+step. Each task remains a separate invocation such as
 `./.tsugiori/task-runtime ci/test/task-1`. The preparation step contains a
 job-layout fingerprint so stale task ordering fails before dispatch.
 
@@ -133,9 +136,10 @@ diagnostic files.
 Phase 1 stale-output checking and later provider-native GitHub Actions concepts
 remain in progress. The initial Phase 2 vertical slice implements inline task
 authoring, task registry lowering, local artifact preparation and caching,
-manifest verification, and task dispatch. It has local compiled-binary E2E
-coverage. The generated repository workflow has run successfully for both the
-push and pull request events on a GitHub-hosted `ubuntu-24.04` runner.
+manifest verification, generated `actions/cache` delivery, and task dispatch.
+It has local compiled-binary E2E coverage. The earlier local-cache workflow ran
+successfully for push and pull request events on a GitHub-hosted
+`ubuntu-24.04` runner; the new remote-cache path still requires a live run.
 
 ## Codex-Driven Development
 
