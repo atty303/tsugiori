@@ -25,6 +25,10 @@ export type DiagnosticCode =
   | "job.runs-on.labels.duplicate"
   | "job.steps.empty"
   | "step.name.empty"
+  | "step.id.invalid"
+  | "step.id.duplicate"
+  | "step.if.empty"
+  | "step.continue-on-error.invalid"
   | "step.uses.empty"
   | "step.with.invalid"
   | "step.with.key.empty"
@@ -44,6 +48,7 @@ export type ValidationResult =
   | Readonly<{ ok: false; diagnostics: readonly Diagnostic[] }>;
 
 const JOB_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
+const STEP_ID_PATTERN = JOB_ID_PATTERN;
 
 export function validateWorkflow(workflow: Workflow): ValidationResult {
   const diagnostics: Diagnostic[] = [];
@@ -126,6 +131,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       ));
     }
 
+    const stepIds = new Map<string, number>();
     job.steps.forEach((step, stepIndex) => {
       const stepPath = [...jobPath, "steps", stepIndex] as const;
       if (step.name !== undefined && isBlank(step.name)) {
@@ -133,6 +139,44 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
           "step.name.empty",
           [...stepPath, "name"],
           "Step name must not be empty when provided.",
+        ));
+      }
+      if (step.id !== undefined) {
+        if (!STEP_ID_PATTERN.test(step.id)) {
+          diagnostics.push(diagnostic(
+            "step.id.invalid",
+            [...stepPath, "id"],
+            `Step ID ${JSON.stringify(step.id)} is invalid.`,
+          ));
+        }
+        const existing = stepIds.get(step.id);
+        if (existing === undefined) {
+          stepIds.set(step.id, stepIndex);
+        } else {
+          diagnostics.push(diagnostic(
+            "step.id.duplicate",
+            [...stepPath, "id"],
+            `Step ID ${
+              JSON.stringify(step.id)
+            } duplicates steps[${existing}].id.`,
+          ));
+        }
+      }
+      if (step.if !== undefined && isBlank(step.if)) {
+        diagnostics.push(diagnostic(
+          "step.if.empty",
+          [...stepPath, "if"],
+          "Step condition must not be empty when provided.",
+        ));
+      }
+      if (
+        step.continueOnError !== undefined &&
+        typeof step.continueOnError !== "boolean"
+      ) {
+        diagnostics.push(diagnostic(
+          "step.continue-on-error.invalid",
+          [...stepPath, "continueOnError"],
+          "Step continue-on-error must be a boolean when provided.",
         ));
       }
       if (step.type === "uses" && isBlank(step.uses)) {

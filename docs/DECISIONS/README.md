@@ -14,19 +14,26 @@ the project direction. Do not use ADRs for routine wording changes.
   task runtime.
 - `0003-generated-workflows-and-task-artifacts.md`: generated workflow YAML
   is committed, while task artifacts are content-addressed artifacts delivered
-  through cache adapters.
+  through cache adapters. The remote-delivery abstraction is refined by 0008.
 - `0004-pipelines-providers-and-task-runtime.md`: the project uses provider-native
-  pipeline authoring and keeps the task runtime independently usable.
+  pipeline authoring and originally proposed an independently usable task
+  runtime command contract. The implemented preparation ownership is refined
+  by 0008.
 - `0005-task-artifact-lifecycle.md`: pipeline generation and task artifact
   preparation are separate responsibilities, task-owned artifact metadata is
   not required to be a separate manifest artifact, and cache misses build and
-  populate the selected adapter.
+  populate the selected adapter. Provider-specific command ownership is refined
+  by 0008.
 - `0006-inline-task-runtime-slice.md`: inline task-backed steps lower to visible
   provider steps, use job-layout fingerprints, and execute through one
-  content-addressed Deno binary with a repository-local cache adapter.
+  content-addressed Deno binary with a repository-local cache adapter. Remote
+  delivery is refined by 0008.
 - `0007-debug-diagnostics.md`: structured diagnostics are emitted as one JSON
   line to standard error only when the GitHub Actions runner debug mode is
   enabled; diagnostic files are not retained.
+- `0008-github-actions-task-artifact-cache.md`: the GitHub Actions backend owns
+  visible generational `actions/cache` delivery without introducing a generic
+  remote cache adapter or a public prepare-command contract.
 
 ## Format
 

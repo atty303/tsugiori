@@ -58,8 +58,8 @@ workflows, events, jobs, steps, runner labels, permissions, `uses` steps,
 expression builders, `workflow_call`, and GitHub Actions workflow AST
 construction.
 
-The task modules currently own task function and task context types. A future
-standalone task registry should remain pure at authoring time.
+The task modules currently own task function and task context types. Any future
+handwritten-workflow interface should remain pure at authoring time.
 
 Authoring imports should use subpaths so the backend boundary remains visible:
 
@@ -100,15 +100,15 @@ It should own:
 - loading registered task functions from pure authoring data
 - validating task registry and task entrypoint names
 - building or bundling task artifacts
-- restoring and populating task artifacts through cache adapters
+- validating, building, and materializing local task artifact entries
 - reading and writing task artifact metadata or manifests when implementation
   defines their shape
 - dispatching task runtime entrypoints inside CI provider steps
 
 The task runtime package may depend on `packages/core`. `packages/core` should
-not depend on `packages/task-runtime`. The task runtime package should
-eventually be usable without pipeline generation so handwritten provider
-configuration can invoke managed tasks.
+not depend on `packages/task-runtime`. A future handwritten workflow interface,
+if needed, should be designed for its provider rather than preserving current
+internal preparation commands.
 
 ## `packages/cli`
 
@@ -118,15 +118,18 @@ runtime capabilities.
 Implemented commands include:
 
 - `tsugiori generate`
-- `tsugiori task prepare`
+
+The compiler also emits GitHub Actions-specific internal commands for artifact
+key resolution and preparation. They are not a public cross-provider CLI
+contract.
 
 The planned `tsugiori generate --check` command remains unimplemented.
 
 Command parsing, user-facing diagnostics, and process exit handling belong here.
 GitHub Actions workflow AST modeling, YAML emission, and stale-check comparison
-logic should remain in `packages/compiler`. Task artifact preparation, cache
-adapter behavior, and task runtime dispatch should remain in
-`packages/task-runtime`.
+logic should remain in `packages/compiler`. Task artifact key calculation,
+validation, building, local storage, and runtime dispatch should remain in
+`packages/task-runtime`; provider orchestration belongs to its compiler backend.
 
 ## Tests
 
@@ -148,7 +151,7 @@ Later tests should cover:
 
 - GitHub Actions expression emission
 - validation behavior
-- task artifact cache adapter contract behavior
+- provider-specific task artifact delivery behavior
 
 ## Fixtures
 
@@ -175,7 +178,7 @@ Later implementation phases still need to decide:
 - public package names
 - export maps for subpath imports
 - whether packages become independent publishable units
-- remote cache adapter module layout
+- whether a second artifact delivery backend reveals a useful shared interface
 
 Those decisions should be made when their consumers and toolchain requirements
 are known.

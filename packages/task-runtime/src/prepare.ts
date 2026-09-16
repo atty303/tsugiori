@@ -24,6 +24,7 @@ export type PrepareOptions = Readonly<{
   configArgument: string;
   config: TsugioriConfig;
   expectedLayouts: readonly string[];
+  expectedArtifactKey?: string;
   target?: string;
   tool: ToolIdentity;
   recorder: DiagnosticRecorder;
@@ -32,12 +33,20 @@ export type PrepareOptions = Readonly<{
 export type PrepareResult = Readonly<{
   artifactKey: string;
   cache: "hit" | "miss";
+  cacheWriteRequired: boolean;
   manifest: TaskArtifactManifest;
 }>;
 
-export async function prepareTaskArtifact(
+export type TaskArtifactPlan = Readonly<{
+  artifactKey: string;
+  denoVersion: string;
+  target: string;
+  entrypoints: readonly string[];
+}>;
+
+export async function resolveTaskArtifact(
   options: PrepareOptions,
-): Promise<PrepareResult> {
+): Promise<TaskArtifactPlan> {
   const lowered = await lowerConfig(options.config, options.configArgument);
   validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
@@ -61,19 +70,36 @@ export async function prepareTaskArtifact(
       "Windows task artifacts are not supported by the initial invocation contract.",
     );
   }
+  const entrypoints = lowered.tasks.map((task) => task.entrypoint);
   const artifactKey = await computeArtifactKey({
     rootDirectory: options.rootDirectory,
     configPath: options.configPath,
     denoVersion,
     target,
     tool: options.tool,
-    entrypoints: lowered.tasks.map((task) => task.entrypoint),
+    entrypoints,
   });
   options.recorder.operation({
     name: "artifact.key",
     status: "success",
     attributes: { artifactKey, target },
   });
+  return { artifactKey, denoVersion, target, entrypoints };
+}
+
+export async function prepareTaskArtifact(
+  options: PrepareOptions,
+): Promise<PrepareResult> {
+  const plan = await resolveTaskArtifact(options);
+  if (
+    options.expectedArtifactKey !== undefined &&
+    options.expectedArtifactKey !== plan.artifactKey
+  ) {
+    throw new TaskRuntimeError(
+      "artifact_key_mismatch",
+      "The task artifact inputs changed after the cache key was resolved.",
+    );
+  }
 
   const tsugioriDirectory = resolve(options.rootDirectory, ".tsugiori");
   const cache = new LocalTaskArtifactCache(
@@ -86,10 +112,25 @@ export async function prepareTaskArtifact(
   const restoredDirectory = resolve(workDirectory, "restored");
   await Deno.mkdir(workDirectory, { recursive: true });
   try {
-    const restore = await cache.restore(artifactKey, restoredDirectory);
+    let restore: "hit" | "miss" | "failed";
+    try {
+      restore = await cache.restore(plan.artifactKey, restoredDirectory);
+    } catch {
+      options.recorder.operation({
+        name: "cache.restore",
+        status: "error",
+        errorType: "cache_restore_failed",
+        attributes: { artifactKey: plan.artifactKey },
+      });
+      await removeIfPresent(restoredDirectory);
+      restore = "failed";
+    }
     if (restore === "hit") {
       try {
-        const manifest = await validateArtifact(restoredDirectory, artifactKey);
+        const manifest = await validateArtifact(
+          restoredDirectory,
+          plan.artifactKey,
+        );
         await materializeArtifact(
           restoredDirectory,
           tsugioriDirectory,
@@ -98,23 +139,28 @@ export async function prepareTaskArtifact(
         options.recorder.operation({
           name: "cache.restore",
           status: "success",
-          attributes: { result: "hit", artifactKey },
+          attributes: { result: "hit", artifactKey: plan.artifactKey },
         });
-        return { artifactKey, cache: "hit", manifest };
+        return {
+          artifactKey: plan.artifactKey,
+          cache: "hit",
+          cacheWriteRequired: false,
+          manifest,
+        };
       } catch {
         options.recorder.operation({
           name: "cache.restore",
           status: "error",
           errorType: "cache_corrupt",
-          attributes: { artifactKey },
+          attributes: { artifactKey: plan.artifactKey },
         });
         await removeIfPresent(restoredDirectory);
       }
-    } else {
+    } else if (restore === "miss") {
       options.recorder.operation({
         name: "cache.restore",
         status: "success",
-        attributes: { result: "miss", artifactKey },
+        attributes: { result: "miss", artifactKey: plan.artifactKey },
       });
     }
 
@@ -122,23 +168,25 @@ export async function prepareTaskArtifact(
     const manifest = await buildArtifact({
       ...options,
       outputDirectory: builtDirectory,
-      artifactKey,
-      denoVersion,
-      target,
-      entrypoints: lowered.tasks.map((task) => task.entrypoint),
+      artifactKey: plan.artifactKey,
+      denoVersion: plan.denoVersion,
+      target: plan.target,
+      entrypoints: plan.entrypoints,
     });
     options.recorder.operation({
       name: "artifact.build",
       status: "success",
-      attributes: { artifactKey, target },
+      attributes: { artifactKey: plan.artifactKey, target: plan.target },
     });
 
+    let cacheWriteRequired = false;
     try {
-      await cache.store(artifactKey, builtDirectory);
+      await cache.store(plan.artifactKey, builtDirectory);
+      cacheWriteRequired = true;
       options.recorder.operation({
         name: "cache.store",
         status: "success",
-        attributes: { artifactKey },
+        attributes: { artifactKey: plan.artifactKey },
       });
     } catch (error) {
       console.error(
@@ -148,12 +196,17 @@ export async function prepareTaskArtifact(
         name: "cache.store",
         status: "error",
         errorType: "cache_store_failed",
-        attributes: { artifactKey },
+        attributes: { artifactKey: plan.artifactKey },
       });
     }
 
     await materializeArtifact(builtDirectory, tsugioriDirectory, manifest);
-    return { artifactKey, cache: "miss", manifest };
+    return {
+      artifactKey: plan.artifactKey,
+      cache: "miss",
+      cacheWriteRequired,
+      manifest,
+    };
   } finally {
     await removeIfPresent(workDirectory);
   }

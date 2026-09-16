@@ -40,6 +40,9 @@ jobs:
       - build
     steps:
       - name: Test
+        id: test-step
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: deno test
       - run: |-
           echo first

@@ -64,10 +64,11 @@ Future provider backends should define their own provider-native
 representations rather than forcing their semantics through the GitHub Actions
 workflow AST.
 
-### GitHub Actions Expression AST
+### GitHub Actions Expressions
 
-GitHub Actions expressions should be represented as an expression AST, not as
-plain strings and not as host-language conditionals.
+GitHub Actions runtime expressions must remain distinct from host-language
+conditionals. Compiler-owned generated steps may emit raw expressions when the
+compiler controls the complete value.
 
 Examples include:
 
@@ -76,8 +77,10 @@ Examples include:
 - `always() && failure()`
 - `needs.build.outputs.artifact-name`
 
-The expression AST should support validation, escaping, interpolation, and YAML
-emission into `${{ ... }}` syntax.
+A future public expression API may provide structured expressions for
+validation, escaping, interpolation, and YAML emission into `${{ ... }}`
+syntax. It should also provide an explicit escape hatch for expressions the
+structured API does not model.
 
 Future provider backends may need different expression models or no direct
 equivalent. Those differences should be represented in each provider backend.
@@ -205,27 +208,28 @@ Provider backends should emit preparation steps using provider-native
 configuration shape when they integrate with the task runtime. They may
 reference task-owned metadata, but they should not own its shape.
 
-### Task Artifact Cache Adapter
+### Task Artifact Delivery
 
-The task artifact cache adapter abstracts storage and retrieval of prepared
-task artifacts.
+The implemented GitHub Actions backend owns task artifact delivery. It emits
+visible steps that resolve the artifact key, restore the newest matching
+`actions/cache` generation, validate or build the local entry, and save a new
+generation only after a build or corrupt-entry recovery.
 
-The task runtime tooling and generated preparation steps should depend on a
-small artifact contract rather than on one storage provider.
-The implemented adapter stores artifacts under
-`.tsugiori/cache/artifacts/<key>/`. Future candidates include `actions/cache`,
-GCR or another OCI registry, and S3.
+The local content-addressed entry is
+`.tsugiori/cache/artifacts/<artifact-key>/`. GitHub cache transport keys append
+`github.run_id` and `github.run_attempt`; restore uses the artifact-key prefix
+so an immutable corrupt entry can be superseded by a newer generation.
 
-Task artifact preparation should first try to restore the content-addressed
-artifact through the selected adapter. On a cache miss, it should build the
-artifact and populate the selected adapter before later provider steps invoke
-task runtime entrypoints.
+Restore and save failures are best-effort when a valid artifact can be built
+locally. Restored binaries are not used until their expected artifact key,
+manifest, and checksum have been validated. The checksum detects corruption;
+GitHub's cache scope and write authorization remain the authenticity boundary.
 
-The adapter boundary should preserve visible provider-native steps. In the
-GitHub Actions provider backend, a generated job may contain explicit
-preparation steps that restore or build the task artifact, but task-backed
-provider steps should still appear as their own normal Actions steps that
-invoke the task runtime with distinct entrypoints.
+No provider-neutral remote cache adapter is defined by this slice. A future
+OCI registry, S3 integration, or second provider should begin with its native
+delivery model. Shared interfaces should be extracted from concrete common
+requirements rather than forcing provider steps into the local filesystem
+interface.
 
 ## Compile Time and GitHub Runtime Time
 
@@ -241,14 +245,14 @@ provider-native configuration. At compile time, the compiler can validate
 structure, emit YAML, and fail early on unsupported pipeline shapes.
 
 Task artifact preparation is related but separate. It collects registered task
-functions and prepares the task artifact used by provider steps. This can be
-used with generated pipeline configuration or with handwritten provider
-configuration.
+functions and prepares the task artifact used by provider steps. In the
+implemented slice, the GitHub Actions backend owns this lifecycle and emits
+provider-specific internal commands and step outputs. Those commands are not a
+public handwritten-workflow contract.
 
 `tsugiori generate` generates provider-native pipeline configuration.
-`tsugiori task prepare` restores, builds, and populates task artifacts. A
-future convenience command may compose those operations, but the underlying
-responsibilities remain separate.
+Handwritten workflow integration may be designed later as a provider-specific
+interface.
 
 For normal repository work, this compile step is intended to happen before
 commit, commonly through a git hook. The generated YAML is then committed and
@@ -259,17 +263,16 @@ At that point, GitHub evaluates contexts, expands matrices, applies `if`
 conditions, resolves `needs`, handles secrets, enforces environments, and runs
 steps.
 
-Generated or handwritten jobs may also prepare a task artifact at GitHub
-runtime time by restoring it from a cache adapter or building it on a cache
-miss. That preparation should be visible as ordinary setup work. It should not
-move workflow orchestration into the tool or collapse provider steps into one
-opaque command.
+Generated jobs prepare a task artifact at GitHub runtime time by restoring it
+through `actions/cache` or building it on a cache miss. That preparation is
+visible as ordinary setup work. It does not move workflow orchestration into
+the tool or collapse provider steps into one opaque command.
 
 These phases have different information available. For example, matrix values,
 `github` context values, secrets, and previous job outputs are GitHub runtime
 values. They are not generally known when the compiler emits YAML.
 
-## Why `if:` Is an Expression AST
+## Host Conditions and GitHub Runtime Expressions
 
 A host-language `if` controls what the compiler emits:
 
@@ -299,7 +302,8 @@ That condition must be preserved in the generated YAML:
   run: ./.tsugiori/task-runtime upload
 ```
 
-Representing GitHub `if:` as an expression AST keeps this distinction explicit.
-It prevents accidental evaluation in the host language, allows the compiler to
-emit valid GitHub expression syntax, and makes it possible to validate
-references such as `matrix`, `github`, `needs`, `inputs`, and `secrets`.
+The compiler must preserve this distinction regardless of representation.
+Structured expressions can validate references such as `matrix`, `github`,
+`needs`, `inputs`, and `secrets`, while an explicit raw escape hatch is needed
+for syntax the structured API does not model. Compiler-owned provider steps may
+emit known raw expressions directly.

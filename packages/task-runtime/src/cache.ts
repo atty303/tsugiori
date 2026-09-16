@@ -1,11 +1,6 @@
 export type CacheRestoreResult = "hit" | "miss";
 
-export interface TaskArtifactCacheAdapter {
-  restore(key: string, destination: string): Promise<CacheRestoreResult>;
-  store(key: string, source: string): Promise<void>;
-}
-
-export class LocalTaskArtifactCache implements TaskArtifactCacheAdapter {
+export class LocalTaskArtifactCache {
   readonly #root: string;
 
   constructor(root: string) {

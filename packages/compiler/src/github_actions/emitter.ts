@@ -68,6 +68,15 @@ function emitStep(step: Step): Record<string, unknown> {
   if (step.name !== undefined) {
     emitted.name = step.name;
   }
+  if (step.id !== undefined) {
+    emitted.id = step.id;
+  }
+  if (step.if !== undefined) {
+    emitted.if = step.if;
+  }
+  if (step.continueOnError !== undefined) {
+    emitted["continue-on-error"] = step.continueOnError;
+  }
   if (step.type === "uses") {
     emitted.uses = step.uses;
     if (step.with !== undefined) {

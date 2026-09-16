@@ -9,20 +9,20 @@ Phase 2: initial task runtime integration.
 
 The minimal provider backend, public authoring subset, source loading,
 generation command, inline task lowering, local artifact preparation, and task
-dispatch are implemented. Stale-output check mode and remote cache integration
-remain incomplete.
+dispatch are implemented. Generated `actions/cache` delivery is implemented;
+stale-output check mode and live remote-cache validation remain incomplete.
 
 ## Ready Documentation Tasks
 
 - [x] Review terminology across docs and settle on consistent names for the
-  pipeline authoring API, provider backend AST, expression AST, task function,
+  pipeline authoring API, provider backend AST, expression model, task function,
   task registry, task runtime, task artifact metadata or manifest, and task
-  artifact cache adapter.
+  artifact delivery.
 - [x] Expand `docs/COMPARISONS.md` only where conceptual differences are still
   ambiguous.
-- [x] Clarify the task artifact lifecycle before implementation, including
-  command boundaries, cache restore and population, manifest ownership, and how
-  task runtime-only usage works without pipeline generation.
+- [x] Clarify the initial task artifact lifecycle before implementation,
+  including command boundaries, cache restore and population, and manifest
+  ownership.
 - [x] Define the exact stale generated YAML check behavior without adding CI
   configuration.
 - [x] Define acceptance criteria for Phase 1 without creating implementation
@@ -54,13 +54,17 @@ remain incomplete.
   registered task entrypoint.
 - [x] Design the task artifact metadata or manifest representation and
   content-addressed key inputs.
-- [x] Design the task artifact cache adapter interface.
+- [x] Exercise the initial artifact storage boundary with a repository-local
+  cache.
 - [x] Specify how cache miss builds populate the selected task artifact
   store.
-- [ ] Add standalone task-registry authoring without pipeline generation.
+- [ ] Decide whether handwritten workflow integration needs a provider-specific
+  public interface.
 - [ ] Replace the initial all-permissions task artifact with an explicit
   permission contract.
-- [ ] Add a remote cache adapter and validate it on a GitHub-hosted runner.
+- [x] Add generated `actions/cache` restore and save steps with immutable cache
+  recovery generations.
+- [ ] Validate the `actions/cache` path on a GitHub-hosted runner.
 - [ ] Define Windows task artifact invocation before emitting task-backed
   steps for Windows runners.
 
@@ -74,11 +78,11 @@ remain incomplete.
 
 ## Future Phase 3 Candidate Tasks
 
-- [ ] Draft the expression AST data model after the provider backend and task
+- [ ] Draft a structured expression model after the provider backend and task
   runtime boundaries have been exercised enough to justify detailed syntax and
   validation choices.
-- [ ] Add an ADR for the expression AST once the expression model is specific
-  enough to choose durable syntax and validation boundaries.
+- [ ] Define the public raw expression escape hatch together with any
+  structured expression API.
 - [ ] Add expression emission for contexts, literals, function calls, equality,
   boolean operators, and property access.
 - [ ] Add tests showing the difference between host-language `if` and GitHub

@@ -68,8 +68,26 @@ jobs:
         uses: actions/checkout@v4
       - name: Verify tools
         run: deno --version && command -v tsugiori
+      - name: Resolve task artifact
+        id: tsugiori-task-artifact
+        run: tsugiori github-actions task cache-key --config './tsugiori.ts' --expect-layout 'ci/build=sha256:<digest>'
+      - name: Restore task artifact cache
+        continue-on-error: true
+        uses: actions/cache/restore@<commit-sha>
+        with:
+          path: ${{ steps.tsugiori-task-artifact.outputs.cache-path }}
+          key: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-
       - name: Prepare task artifact
-        run: tsugiori task prepare --config './tsugiori.ts' --expect-layout 'ci/build=sha256:<digest>'
+        id: tsugiori-task-prepare
+        run: tsugiori github-actions task prepare --config './tsugiori.ts' --expect-layout 'ci/build=sha256:<digest>' --expected-key '${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'
+      - name: Save task artifact cache
+        if: steps.tsugiori-task-prepare.outputs.cache-write-required == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@<commit-sha>
+        with:
+          path: ${{ steps.tsugiori-task-artifact.outputs.cache-path }}
+          key: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Build
         run: ./.tsugiori/task-runtime ci/build/task-1
   test:
@@ -79,8 +97,26 @@ jobs:
         uses: actions/checkout@v4
       - name: Verify tools
         run: deno --version && command -v tsugiori
+      - name: Resolve task artifact
+        id: tsugiori-task-artifact
+        run: tsugiori github-actions task cache-key --config './tsugiori.ts' --expect-layout 'ci/test=sha256:<digest>'
+      - name: Restore task artifact cache
+        continue-on-error: true
+        uses: actions/cache/restore@<commit-sha>
+        with:
+          path: ${{ steps.tsugiori-task-artifact.outputs.cache-path }}
+          key: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-
       - name: Prepare task artifact
-        run: tsugiori task prepare --config './tsugiori.ts' --expect-layout 'ci/test=sha256:<digest>'
+        id: tsugiori-task-prepare
+        run: tsugiori github-actions task prepare --config './tsugiori.ts' --expect-layout 'ci/test=sha256:<digest>' --expected-key '${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'
+      - name: Save task artifact cache
+        if: steps.tsugiori-task-prepare.outputs.cache-write-required == 'true'
+        continue-on-error: true
+        uses: actions/cache/save@<commit-sha>
+        with:
+          path: ${{ steps.tsugiori-task-artifact.outputs.cache-path }}
+          key: tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Test
         run: ./.tsugiori/task-runtime ci/test/task-1
 ```
@@ -92,8 +128,9 @@ jobs:
 - GitHub Actions still evaluates `needs` and step ordering.
 - Task function bodies live in Deno code rather than inline YAML.
 - The generated YAML is committed and reviewed.
-- A visible preparation step makes the task artifact available.
+- Visible restore, preparation, and conditional save steps make the task
+  artifact available.
 - The task runtime dispatches readable, job-scoped task entrypoints.
 - Job-layout fingerprints reject stale task order before dispatch.
-- The initial repository-local cache uses a runtime-owned JSON manifest and
-  remains behind the cache adapter boundary.
+- The local content-addressed entry uses a runtime-owned JSON manifest and is
+  delivered through generational `actions/cache` entries.

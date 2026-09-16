@@ -53,12 +53,13 @@ Out of scope for Phase 1:
 
 Status: initial vertical slice implemented. Inline task-backed steps, readable
 runtime entrypoints, job-layout validation, one Deno binary artifact,
-repository-local caching, runtime-owned manifests, and compiled-binary E2E
-coverage are implemented. Standalone task authoring and remote cache adapters
-remain future work.
+repository-local caching, generated `actions/cache` delivery, runtime-owned
+manifests, and compiled-binary E2E coverage are implemented. Live validation
+of the remote-cache path and handwritten workflow integration remain future
+work.
 
-- preserve separate command responsibilities for pipeline generation and task
-  artifact preparation
+- keep pipeline generation separate from the provider-owned runtime preparation
+  lifecycle
 - introduce a task registry for task functions
 - define how task runtime entrypoint names are generated and validated
 - emit normal Actions steps that invoke the task runtime for task-backed steps
@@ -66,18 +67,20 @@ remain future work.
 - decide the exact task artifact key inputs and any metadata or manifest
   representation
 - add explicit task artifact preparation steps before task-backed provider steps
-- define the initial task artifact cache adapter, starting with a
-  repository-local implementation
-- add an `actions/cache` adapter after the artifact contract has been exercised
-  on a GitHub-hosted runner
-- keep later adapters such as OCI registries and S3 behind the same artifact
-  contract
+- retain a repository-local content-addressed artifact entry
+- emit generational `actions/cache` restore and save steps in the GitHub
+  Actions backend
+- validate the remote-cache path on a GitHub-hosted runner
+- defer a common delivery abstraction until a second concrete backend such as
+  an OCI registry or S3 integration requires one
 
 ## Phase 3: Expression DSL
 
 - defer detailed expression AST design until the provider backend and task
   runtime boundaries have stabilized enough to justify durable syntax choices
-- model GitHub Actions expressions as an expression AST
+- evaluate a structured GitHub Actions expression model without requiring it
+  for every expression
+- include an explicit raw expression escape hatch
 - support contexts such as `github`, `matrix`, `needs`, `inputs`, `secrets`,
   and `steps`
 - emit `${{ ... }}` syntax safely
@@ -119,8 +122,8 @@ GitHub-hosted runner before expanding the workflow surface. The initial
 
 - evaluate another provider backend, such as GitLab CI, only after the
   GitHub Actions provider backend and task runtime integration are proven
-- reuse task functions, the task registry, task artifacts, and task artifact
-  cache adapters where they fit
+- reuse task functions, the task registry, and task artifacts where they fit;
+  extract delivery abstractions only from concrete provider implementations
 - add provider-native DSL, validation, expression handling, and emitters
   instead of forcing new providers through GitHub Actions concepts or a
   provider-neutral pipeline model

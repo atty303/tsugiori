@@ -41,16 +41,33 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertEquals(lowered.pipelines.length, 1);
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  assertStringIncludes(yaml, "name: Resolve task artifact");
+  assertStringIncludes(yaml, "name: Restore task artifact cache");
   assertStringIncludes(yaml, "name: Prepare task artifact");
+  assertStringIncludes(yaml, "name: Save task artifact cache");
   assertStringIncludes(yaml, "permissions:\n  contents: read");
   assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
     yaml,
-    "tsugiori task prepare --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
+    "tsugiori github-actions task cache-key --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
+  );
+  assertStringIncludes(
+    yaml,
+    "uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+  );
+  assertStringIncludes(
+    yaml,
+    "tsugiori github-actions task prepare --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
+  );
+  assertStringIncludes(
+    yaml,
+    "uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
   );
   assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-1");
   assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-2");
   assertEquals(yaml.match(/name: Prepare task artifact/g)?.length, 1);
+  assertEquals(yaml.match(/name: Restore task artifact cache/g)?.length, 1);
+  assertEquals(yaml.match(/name: Save task artifact cache/g)?.length, 1);
 });
 
 Deno.test("duplicate pipeline outputs fail before generation", async () => {
