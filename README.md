@@ -10,9 +10,10 @@ that CI provider steps can execute through a prepared task artifact.
 Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
 load a TypeScript authoring module, generate deterministic workflow YAML,
 prepare a content-addressed Deno task binary through a repository-local cache,
-and dispatch inline task functions. Stale-output check mode, broader GitHub
-Actions syntax, remote cache adapters, generated repository workflow, and CI
-setup are not implemented yet.
+and dispatch inline task functions. The repository now uses a generated
+workflow to exercise that slice on GitHub Actions. Native stale-output check
+mode, broader GitHub Actions syntax, and remote cache adapters are not
+implemented yet.
 
 ## Problem
 
@@ -76,13 +77,16 @@ import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["pull_request", "push"],
+  permissions: { contents: "read" },
 });
 
 const test = ci.job("test", {
-  runsOn: "ubuntu-latest",
+  runsOn: "ubuntu-24.04",
 });
 
-test.uses("Checkout", "actions/checkout@v4");
+test.uses("Checkout", "actions/checkout@<commit-sha>", {
+  "persist-credentials": false,
+});
 test.run("Verify tools", "deno --version && command -v tsugiori");
 test.task("Test", async (ctx) => {
   ctx.logger.info(`Running tests in ${ctx.cwd}`);
@@ -119,8 +123,10 @@ top-level code must only construct deterministic definitions; task work belongs
 inside `job.task` functions. The generated invocation currently targets POSIX
 runners.
 
-Runtime diagnostics are retained as bounded JSON records under
-`.tsugiori/diagnostics/`. Set `TSUGIORI_DIAGNOSTICS=off` to disable recording.
+When GitHub Actions debug logging is enabled and exposes `RUNNER_DEBUG=1`, each
+CLI or task-runtime invocation writes one bounded JSON diagnostic record to
+standard error. Normal runs do not emit structured diagnostics or retain
+diagnostic files.
 
 ## Status
 
@@ -128,7 +134,9 @@ Phase 1 stale-output checking and later provider-native GitHub Actions concepts
 remain in progress. The initial Phase 2 vertical slice implements inline task
 authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, and task dispatch. It has local compiled-binary E2E
-coverage but has not been run on a GitHub-hosted runner.
+coverage. A generated repository workflow is ready for GitHub-hosted runner
+validation; that live validation remains pending until the workflow branch is
+pushed.
 
 ## Codex-Driven Development
 

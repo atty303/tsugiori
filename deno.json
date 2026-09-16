@@ -8,6 +8,6 @@
   },
   "tasks": {
     "test": "deno test -A",
-    "test:update": "deno test --update-snapshots"
+    "test:update": "deno test -A --update-snapshots"
   }
 }

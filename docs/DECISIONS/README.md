@@ -24,6 +24,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0006-inline-task-runtime-slice.md`: inline task-backed steps lower to visible
   provider steps, use job-layout fingerprints, and execute through one
   content-addressed Deno binary with a repository-local cache adapter.
+- `0007-debug-diagnostics.md`: structured diagnostics are emitted as one JSON
+  line to standard error only when the GitHub Actions runner debug mode is
+  enabled; diagnostic files are not retained.
 
 ## Format
 

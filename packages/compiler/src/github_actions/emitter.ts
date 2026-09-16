@@ -1,5 +1,11 @@
 import { stringify } from "@std/yaml";
-import type { Job, RunnerSelection, Step } from "./ast.ts";
+import type {
+  ActionInputs,
+  Job,
+  RunnerSelection,
+  Step,
+  WorkflowPermissions,
+} from "./ast.ts";
 import type { ValidatedWorkflow } from "./validation.ts";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
@@ -18,6 +24,9 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
     {
       name: workflow.name,
       on: events,
+      ...(workflow.permissions === undefined
+        ? {}
+        : { permissions: emitPermissions(workflow.permissions) }),
       jobs,
     },
     {
@@ -54,17 +63,36 @@ function emitRunnerSelection(selection: RunnerSelection): unknown {
   return emitted;
 }
 
-function emitStep(step: Step): Record<string, string> {
-  const emitted: Record<string, string> = {};
+function emitStep(step: Step): Record<string, unknown> {
+  const emitted: Record<string, unknown> = {};
   if (step.name !== undefined) {
     emitted.name = step.name;
   }
   if (step.type === "uses") {
     emitted.uses = step.uses;
+    if (step.with !== undefined) {
+      emitted.with = emitActionInputs(step.with);
+    }
   } else {
     emitted.run = step.run;
   }
   return emitted;
+}
+
+function emitPermissions(
+  permissions: WorkflowPermissions,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(permissions).sort(([left], [right]) =>
+      compareText(left, right)
+    ),
+  );
+}
+
+function emitActionInputs(inputs: ActionInputs): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(inputs).sort(([left], [right]) => compareText(left, right)),
+  );
 }
 
 function sortRunnerLabels(labels: readonly string[]): string[] {

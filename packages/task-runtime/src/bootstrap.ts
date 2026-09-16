@@ -4,9 +4,7 @@ export function createTaskRuntimeBootstrap(
   configUrl: string,
   manifest: Omit<TaskArtifactManifest, "binarySha256">,
 ): string {
-  return `import config from ${JSON.stringify(configUrl)};
-
-type Status = "error" | "success";
+  return `type Status = "error" | "success";
 type TaskFunction = (context: {
   cwd: string;
   logger: {
@@ -19,16 +17,21 @@ type RuntimeStep = { type: string; task?: TaskFunction };
 type RuntimeJob = { id: string; steps?: RuntimeStep[] };
 type RuntimePipeline = { id: string; jobs?: RuntimeJob[] };
 type RuntimeConfig = { kind?: unknown; pipelines?: unknown };
-type RecordedEntry = { path: string; status: Status; endedAt: string };
-
 const manifest = ${JSON.stringify(manifest)};
 const runId = crypto.randomUUID();
 const startedAt = new Date().toISOString();
+const diagnosticsEnabled = Deno.env.get("RUNNER_DEBUG") === "1";
 const entrypoint = Deno.args[0];
 let status: Status = "success";
 let errorType: string | undefined;
+let fallbackErrorType = "config_load_failed";
+const typedErrorTypes = new WeakMap<object, string>();
+const getTypedErrorType = typedErrorTypes.get.bind(typedErrorTypes);
+const setTypedErrorType = typedErrorTypes.set.bind(typedErrorTypes);
+const RuntimeError = Error;
 
 try {
+  const config = (await import(${JSON.stringify(configUrl)})).default;
   if (entrypoint === undefined) {
     throw typedError("entrypoint_missing", "A task entrypoint is required.");
   }
@@ -40,6 +43,7 @@ try {
       \`Unknown task entrypoint \${JSON.stringify(entrypoint)}.\`,
     );
   }
+  fallbackErrorType = "task_failed";
   await task({
     cwd: Deno.cwd(),
     logger: {
@@ -50,15 +54,11 @@ try {
   });
 } catch (error) {
   status = "error";
-  errorType = errorTypeFrom(
-    error,
-    entrypoint === undefined ? "runtime_error" : "task_failed",
-  );
+  errorType = errorTypeFrom(error, fallbackErrorType);
   console.error(error instanceof Error ? error.stack ?? error.message : String(error));
-  console.error(\`tsugiori diagnostic run: \${runId}\`);
   Deno.exitCode = 1;
 } finally {
-  await recordDiagnostic({ status, errorType, entrypoint });
+  emitDiagnostic({ status, errorType, entrypoint });
 }
 
 function collectTasks(root: unknown): Map<string, TaskFunction> {
@@ -89,26 +89,24 @@ function collectTasks(root: unknown): Map<string, TaskFunction> {
   return tasks;
 }
 
-function typedError(errorType: string, message: string): Error & { errorType: string } {
-  const error = new Error(message) as Error & { errorType: string };
-  error.errorType = errorType;
+function typedError(errorType: string, message: string): Error {
+  const error = new RuntimeError(message);
+  setTypedErrorType(error, errorType);
   return error;
 }
 
 function errorTypeFrom(error: unknown, fallback: string): string {
   if (typeof error !== "object" || error === null) return fallback;
-  const candidate = error as { errorType?: unknown };
-  return typeof candidate.errorType === "string" ? candidate.errorType : fallback;
+  return getTypedErrorType(error) ?? fallback;
 }
 
-async function recordDiagnostic(input: {
+function emitDiagnostic(input: {
   status: Status;
   errorType: string | undefined;
   entrypoint: string | undefined;
-}): Promise<void> {
+}): void {
   const { status, errorType, entrypoint } = input;
-  if (Deno.env.get("TSUGIORI_DIAGNOSTICS") === "off") return;
-  const directory = \`\${Deno.cwd()}/.tsugiori/diagnostics\`;
+  if (!diagnosticsEnabled) return;
   const operation = {
     name: "task.dispatch",
     status,
@@ -132,43 +130,7 @@ async function recordDiagnostic(input: {
     },
     operations: [operation],
   };
-  try {
-    await Deno.mkdir(directory, { recursive: true });
-    const path = \`\${directory}/\${runId}.json\`;
-    await Deno.writeTextFile(\`\${path}.tmp\`, \`\${JSON.stringify(record, null, 2)}\\n\`);
-    await Deno.rename(\`\${path}.tmp\`, path);
-    await enforceRetention(directory, 20);
-  } catch (error) {
-    console.error(\`warning: diagnostic recording failed for run \${runId}: \${error instanceof Error ? error.message : String(error)}\`);
-  }
-}
-
-async function enforceRetention(directory: string, maximum: number): Promise<void> {
-  const entries: RecordedEntry[] = [];
-  for await (const entry of Deno.readDir(directory)) {
-    if (!entry.isFile || !entry.name.endsWith(".json")) continue;
-    const path = \`\${directory}/\${entry.name}\`;
-    try {
-      const parsed = JSON.parse(await Deno.readTextFile(path)) as {
-        status?: unknown;
-        endedAt?: unknown;
-      };
-      entries.push({
-        path,
-        status: parsed.status === "error" ? "error" : "success",
-        endedAt: typeof parsed.endedAt === "string" ? parsed.endedAt : "",
-      });
-    } catch {
-      // Preserve files that are not valid recorder output.
-    }
-  }
-  entries.sort((left, right) =>
-    Number(left.status === "error") - Number(right.status === "error") ||
-    left.endedAt.localeCompare(right.endedAt)
-  );
-  for (const entry of entries.slice(0, Math.max(0, entries.length - maximum))) {
-    await Deno.remove(entry.path);
-  }
+  console.error(JSON.stringify(record));
 }
 `;
 }

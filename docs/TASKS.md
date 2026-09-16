@@ -64,6 +64,14 @@ remain incomplete.
 - [ ] Define Windows task artifact invocation before emitting task-backed
   steps for Windows runners.
 
+## Dogfooding Tasks
+
+- [ ] Validate the generated repository workflow on a GitHub-hosted
+  `ubuntu-24.04` runner, including source bootstrap, a cold task artifact build,
+  and task dispatch through `mise run test`.
+- [ ] Replace the temporary generate-and-diff stale guard after native
+  stale-output check mode is implemented.
+
 ## Future Phase 3 Candidate Tasks
 
 - [ ] Draft the expression AST data model after the provider backend and task

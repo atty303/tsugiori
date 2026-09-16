@@ -2,10 +2,20 @@ import type { TaskFunction } from "../task/mod.ts";
 
 export type PipelineEvent = "pull_request" | "push";
 
+export type PermissionLevel = "none" | "read" | "write";
+
+export type WorkflowPermissions = Readonly<{
+  contents?: PermissionLevel;
+}>;
+
+export type ActionInput = string | number | boolean;
+export type ActionInputs = Readonly<Record<string, ActionInput>>;
+
 export type AuthoringUsesStep = Readonly<{
   type: "uses";
   name: string;
   uses: string;
+  with?: ActionInputs;
 }>;
 
 export type AuthoringRunStep = Readonly<{
@@ -37,6 +47,7 @@ export type AuthoringPipeline = Readonly<{
   name: string;
   output: string;
   events: readonly PipelineEvent[];
+  permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
 }>;
 
@@ -49,6 +60,7 @@ export type PipelineOptions = Readonly<{
   name?: string;
   output: string;
   events: readonly PipelineEvent[];
+  permissions?: WorkflowPermissions;
 }>;
 
 export type JobOptions = Readonly<{
@@ -66,8 +78,15 @@ export class JobBuilder {
     this.#options = options;
   }
 
-  uses(name: string, uses: string): this {
-    this.#steps.push({ type: "uses", name, uses });
+  uses(name: string, uses: string, withInputs?: ActionInputs): this {
+    this.#steps.push({
+      type: "uses",
+      name,
+      uses,
+      ...(withInputs === undefined
+        ? {}
+        : { with: copyActionInputs(withInputs) }),
+    });
     return this;
   }
 
@@ -121,8 +140,53 @@ export class PipelineBuilder {
       name: this.#options.name ?? this.#id,
       output: this.#options.output,
       events: Object.freeze([...this.#options.events]),
+      ...(this.#options.permissions === undefined
+        ? {}
+        : { permissions: copyPermissions(this.#options.permissions) }),
       jobs: Object.freeze(this.#jobs.map((job) => job.build())),
     });
+  }
+}
+
+function copyPermissions(
+  permissions: WorkflowPermissions,
+): WorkflowPermissions {
+  assertPlainRecord(permissions, "Workflow permissions");
+  for (const [key, value] of Object.entries(permissions)) {
+    if (key !== "contents") {
+      throw new TypeError(
+        `Workflow permission ${JSON.stringify(key)} is not supported.`,
+      );
+    }
+    if (value !== "none" && value !== "read" && value !== "write") {
+      throw new TypeError("Workflow permission must be none, read, or write.");
+    }
+  }
+  return Object.freeze({ ...permissions });
+}
+
+function copyActionInputs(inputs: ActionInputs): ActionInputs {
+  assertPlainRecord(inputs, "Action inputs");
+  for (const value of Object.values(inputs)) {
+    if (
+      typeof value !== "string" && typeof value !== "boolean" &&
+      !(typeof value === "number" && Number.isFinite(value))
+    ) {
+      throw new TypeError(
+        "Action input must be a string, boolean, or finite number.",
+      );
+    }
+  }
+  return Object.freeze({ ...inputs });
+}
+
+function assertPlainRecord(value: unknown, label: string): void {
+  if (
+    typeof value !== "object" || value === null || Array.isArray(value) ||
+    (Object.getPrototypeOf(value) !== Object.prototype &&
+      Object.getPrototypeOf(value) !== null)
+  ) {
+    throw new TypeError(`${label} must be an object.`);
   }
 }
 

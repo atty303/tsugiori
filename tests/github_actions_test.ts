@@ -9,6 +9,7 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
   const workflow: Workflow = {
     name: "CI",
     events: ["push", "pull_request"],
+    permissions: { contents: "read" },
     jobs: [
       {
         id: "test",
@@ -41,6 +42,7 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
             type: "uses",
             name: "Checkout",
             uses: "actions/checkout@v6",
+            with: { "persist-credentials": false, "fetch-depth": 1 },
           },
           { type: "run", name: "Build", run: "deno task build" },
         ],
@@ -96,7 +98,7 @@ Deno.test("reports structural validation diagnostics", () => {
         id: "1invalid",
         runsOn: { type: "group", group: " " },
         needs: ["1invalid"],
-        steps: [{ type: "uses", name: " ", uses: " " }],
+        steps: [{ type: "uses", name: " ", uses: " ", with: { " ": true } }],
       },
     ],
   } as unknown as Workflow;
@@ -131,6 +133,10 @@ Deno.test("reports structural validation diagnostics", () => {
       {
         code: "step.uses.empty",
         path: ["jobs", 1, "steps", 0, "uses"],
+      },
+      {
+        code: "step.with.key.empty",
+        path: ["jobs", 1, "steps", 0, "with", " "],
       },
       {
         code: "job.needs.unknown",
@@ -172,6 +178,50 @@ Deno.test("reports each cyclic dependency component", () => {
       path: ["jobs", 3, "needs"],
       message: "Job dependency cycle includes jobs: alpha, beta, gamma.",
     }],
+  );
+});
+
+Deno.test("rejects invalid permissions and action input values", () => {
+  const result = validateWorkflow({
+    name: "Invalid values",
+    events: ["push"],
+    permissions: { contents: "admin", actions: "read" },
+    jobs: [{
+      id: "test",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      steps: [{
+        type: "uses",
+        uses: "actions/checkout@v7",
+        with: {
+          nested: { value: true },
+          infinite: Number.POSITIVE_INFINITY,
+        },
+      }],
+    }],
+  } as unknown as Workflow);
+
+  assert(!result.ok);
+  assertEquals(
+    result.diagnostics.map(({ code, path }) => ({ code, path })),
+    [
+      {
+        code: "workflow.permissions.value.invalid",
+        path: ["permissions", "contents"],
+      },
+      {
+        code: "workflow.permissions.key.unsupported",
+        path: ["permissions", "actions"],
+      },
+      {
+        code: "step.with.value.invalid",
+        path: ["jobs", 0, "steps", 0, "with", "nested"],
+      },
+      {
+        code: "step.with.value.invalid",
+        path: ["jobs", 0, "steps", 0, "with", "infinite"],
+      },
+    ],
   );
 });
 
