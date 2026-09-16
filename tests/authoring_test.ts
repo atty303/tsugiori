@@ -1,4 +1,9 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
 import {
   AuthoringValidationError,
@@ -15,9 +20,12 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   const ci = pipeline("ci", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
+    permissions: { contents: "read" },
   });
   const test = ci.job("test", { runsOn: "ubuntu-latest" });
-  test.uses("Checkout", "actions/checkout@v4");
+  test.uses("Checkout", "actions/checkout@v4", {
+    "persist-credentials": false,
+  });
   test.task("Test", () => {});
   test.run("Inspect", "echo inspected");
   test.task("Report", async () => {});
@@ -34,6 +42,8 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertEquals(lowered.pipelines.length, 1);
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
   assertStringIncludes(yaml, "name: Prepare task artifact");
+  assertStringIncludes(yaml, "permissions:\n  contents: read");
+  assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
     yaml,
     "tsugiori task prepare --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
@@ -77,6 +87,37 @@ Deno.test("task-backed steps reject Windows runners", async () => {
     () => lowerConfig(defineTsugiori({ pipelines: [ci] }), "./tsugiori.ts"),
     AuthoringValidationError,
     "unsupported Windows runner",
+  );
+});
+
+Deno.test("builders reject runtime-invalid provider-native values", () => {
+  const ci = pipeline("ci", {
+    output: ".github/workflows/ci.yml",
+    events: ["push"],
+    permissions: [] as never,
+  });
+  ci.job("test", { runsOn: "ubuntu-latest" }).run("Test", "true");
+  assertThrows(
+    () => defineTsugiori({ pipelines: [ci] }),
+    TypeError,
+    "Workflow permissions must be an object.",
+  );
+
+  const job = pipeline("other", {
+    output: ".github/workflows/other.yml",
+    events: ["push"],
+  }).job("test", { runsOn: "ubuntu-latest" });
+  assertThrows(
+    () =>
+      job.uses(
+        "Checkout",
+        "actions/checkout@v7",
+        new (class Inputs {
+          token = "value";
+        })() as never,
+      ),
+    TypeError,
+    "Action inputs must be an object.",
   );
 });
 
@@ -134,6 +175,98 @@ Deno.test("malformed Deno configuration is a source loading failure", async () =
       SourceLoadError,
       "Failed to load Deno configuration",
     );
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("source loading preserves invalid provider-native values for validation", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
+  try {
+    await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
+    await Deno.writeTextFile(
+      `${root}/tsugiori.ts`,
+      `export default {
+  kind: "tsugiori.config",
+  pipelines: [{
+    id: "ci",
+    name: "ci",
+    output: ".github/workflows/ci.yml",
+    events: ["push"],
+    permissions: [],
+    jobs: [{
+      id: "test",
+      runsOn: "ubuntu-latest",
+      needs: [],
+      steps: [{
+        type: "uses",
+        name: "Checkout",
+        uses: "actions/checkout@v7",
+        with: { token: undefined },
+      }],
+    }],
+  }],
+};
+`,
+    );
+    const loaded = await loadConfig("./tsugiori.ts", root);
+    const error = await assertRejects(
+      () => lowerConfig(loaded.config, loaded.argument),
+      AuthoringValidationError,
+      "Workflow permissions must be an object.",
+    );
+    assertStringIncludes(error.message, "Action input must be a string");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("source loading does not let JSON-unsafe provider values bypass validation", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
+  try {
+    await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
+    await Deno.writeTextFile(
+      `${root}/tsugiori.ts`,
+      `export default {
+  kind: "tsugiori.config",
+  pipelines: [{
+    id: "ci",
+    name: "ci",
+    output: ".github/workflows/ci.yml",
+    events: ["push"],
+    permissions: {
+      contents: () => "write",
+      toJSON: () => ({}),
+    },
+    jobs: [{
+      id: "test",
+      runsOn: "ubuntu-latest",
+      needs: [],
+      steps: [{
+        type: "uses",
+        name: "Checkout",
+        uses: "actions/checkout@v7",
+        with: {
+          token: Symbol("private"),
+          toJSON: () => ({}),
+        },
+      }],
+    }],
+  }],
+};
+`,
+    );
+    const loaded = await loadConfig("./tsugiori.ts", root);
+    const error = await assertRejects(
+      () => lowerConfig(loaded.config, loaded.argument),
+      AuthoringValidationError,
+      "Workflow permission must be",
+    );
+    assertStringIncludes(
+      error.message,
+      'Workflow permission "toJSON" is not supported.',
+    );
+    assertStringIncludes(error.message, "Action input must be a string");
   } finally {
     await Deno.remove(root, { recursive: true });
   }

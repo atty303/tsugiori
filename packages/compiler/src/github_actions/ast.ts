@@ -1,5 +1,14 @@
 export type WorkflowEvent = "pull_request" | "push";
 
+export type PermissionLevel = "none" | "read" | "write";
+
+export type WorkflowPermissions = Readonly<{
+  contents?: PermissionLevel;
+}>;
+
+export type ActionInput = string | number | boolean;
+export type ActionInputs = Readonly<Record<string, ActionInput>>;
+
 export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 
 export type LabelRunnerSelection = Readonly<{
@@ -19,6 +28,7 @@ export type UsesStep = Readonly<{
   type: "uses";
   name?: string;
   uses: string;
+  with?: ActionInputs;
 }>;
 
 export type RunStep = Readonly<{
@@ -39,5 +49,6 @@ export type Job = Readonly<{
 export type Workflow = Readonly<{
   name: string;
   events: readonly WorkflowEvent[];
+  permissions?: WorkflowPermissions;
   jobs: readonly Job[];
 }>;

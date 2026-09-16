@@ -1,0 +1,29 @@
+name: ci
+on:
+  pull_request: {}
+  push: {}
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Install toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+      - name: Build Tsugiori
+        run: |-
+          mise run build
+          echo "$PWD/dist" >> "$GITHUB_PATH"
+      - name: Check generated workflow
+        run: |-
+          tsugiori generate --config ./.github/tsugiori.ts
+          git diff --exit-code -- .github/workflows
+          test -z "$(git ls-files --others --exclude-standard -- .github/workflows)"
+      - name: Prepare task artifact
+        run: 'tsugiori task prepare --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+      - name: Run repository checks and tests
+        run: ./.tsugiori/task-runtime ci/test/task-1

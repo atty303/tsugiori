@@ -1,4 +1,3 @@
-import { resolve } from "node:path";
 import { generateFiles } from "../../compiler/src/generator.ts";
 import { loadConfig } from "../../compiler/src/source.ts";
 import { writeGeneratedFiles } from "../../compiler/src/write.ts";
@@ -28,8 +27,7 @@ export async function main(
     const recorder = new DiagnosticRecorder(
       "unknown",
       tool.version,
-      resolve(Deno.cwd(), ".tsugiori/diagnostics"),
-      diagnosticsEnabled(undefined),
+      diagnosticsEnabled(),
     );
     recorder.operation({
       name: "argument.parse",
@@ -38,15 +36,13 @@ export async function main(
     });
     await recorder.finish("error");
     console.error(error instanceof Error ? error.message : String(error));
-    console.error(`tsugiori diagnostic run: ${recorder.runId}`);
     return 1;
   }
   const commandName = parsed.command.join(".") || "unknown";
   const recorder = new DiagnosticRecorder(
     commandName,
     tool.version,
-    resolve(Deno.cwd(), ".tsugiori/diagnostics"),
-    diagnosticsEnabled(parsed.options.diagnostics),
+    diagnosticsEnabled(),
   );
   try {
     if (parsed.command.length === 1 && parsed.command[0] === "generate") {
@@ -110,7 +106,6 @@ export async function main(
     });
     await recorder.finish("error");
     console.error(error instanceof Error ? error.message : String(error));
-    console.error(`tsugiori diagnostic run: ${recorder.runId}`);
     return 1;
   }
 }
@@ -143,8 +138,8 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const equals = argument.indexOf("=");
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
-      rawName !== "config" && rawName !== "diagnostics" &&
-      rawName !== "expect-layout" && rawName !== "target"
+      rawName !== "config" && rawName !== "expect-layout" &&
+      rawName !== "target"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",

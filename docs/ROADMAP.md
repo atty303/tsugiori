@@ -100,13 +100,19 @@ remain future work.
 
 ## Phase 6: Validation, Testing, and Dogfooding
 
+Status: dogfooding of the implemented Phase 2 vertical slice has started before
+the later expression and reusable-workflow phases. This intentionally validates
+the current bootstrap, artifact preparation, and task dispatch boundaries on a
+GitHub-hosted runner before expanding the workflow surface. The initial
+`ubuntu-24.04` push and pull request runs completed successfully.
+
 - extend validation to the provider-native structures added after the Phase 1
   subset
 - extend snapshot or golden coverage as expressions, generation commands, and
   other provider-native structures are added
 - add tests for expression emission
-- dogfood the tool in this repository only after the generated workflow shape is
-  stable
+- dogfood the current vertical slice in this repository while keeping later
+  workflow syntax out of the initial CI
 - document migration and failure modes discovered through use
 
 ## Later: Additional CI Provider Backends

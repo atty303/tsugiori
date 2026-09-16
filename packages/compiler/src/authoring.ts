@@ -92,7 +92,12 @@ export async function lowerConfig(
       let preparationEmitted = false;
       for (const step of job.steps) {
         if (step.type === "uses") {
-          steps.push({ type: "uses", name: step.name, uses: step.uses });
+          steps.push({
+            type: "uses",
+            name: step.name,
+            uses: step.uses,
+            ...(step.with === undefined ? {} : { with: step.with }),
+          });
           continue;
         }
         if (step.type === "run") {
@@ -138,6 +143,9 @@ export async function lowerConfig(
     const workflow: Workflow = {
       name: pipeline.name,
       events: pipeline.events,
+      ...(pipeline.permissions === undefined
+        ? {}
+        : { permissions: pipeline.permissions }),
       jobs,
     };
     const validation = validateWorkflow(workflow);

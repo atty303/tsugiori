@@ -10,6 +10,9 @@ export type DiagnosticCode =
   | "workflow.name.empty"
   | "workflow.events.empty"
   | "workflow.events.duplicate"
+  | "workflow.permissions.invalid"
+  | "workflow.permissions.key.unsupported"
+  | "workflow.permissions.value.invalid"
   | "workflow.jobs.empty"
   | "job.id.invalid"
   | "job.id.duplicate"
@@ -23,6 +26,9 @@ export type DiagnosticCode =
   | "job.steps.empty"
   | "step.name.empty"
   | "step.uses.empty"
+  | "step.with.invalid"
+  | "step.with.key.empty"
+  | "step.with.value.invalid"
   | "step.run.empty";
 
 export type DiagnosticPath = readonly (string | number)[];
@@ -64,6 +70,8 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     "Workflow event",
     diagnostics,
   );
+
+  validatePermissions(workflow.permissions, diagnostics);
 
   if (workflow.jobs.length === 0) {
     diagnostics.push(diagnostic(
@@ -134,6 +142,32 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
           "Action reference must not be empty.",
         ));
       }
+      if (step.type === "uses" && step.with !== undefined) {
+        if (!isPlainRecord(step.with)) {
+          diagnostics.push(diagnostic(
+            "step.with.invalid",
+            [...stepPath, "with"],
+            "Action inputs must be an object.",
+          ));
+          return;
+        }
+        Object.entries(step.with).forEach(([key, value]) => {
+          if (isBlank(key)) {
+            diagnostics.push(diagnostic(
+              "step.with.key.empty",
+              [...stepPath, "with", key],
+              "Action input name must not be empty.",
+            ));
+          }
+          if (!isActionInput(value)) {
+            diagnostics.push(diagnostic(
+              "step.with.value.invalid",
+              [...stepPath, "with", key],
+              "Action input must be a string, boolean, or finite number.",
+            ));
+          }
+        });
+      }
       if (step.type === "run" && isBlank(step.run)) {
         diagnostics.push(diagnostic(
           "step.run.empty",
@@ -152,6 +186,49 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
   }
 
   return { ok: true, value: workflow as ValidatedWorkflow };
+}
+
+function validatePermissions(
+  permissions: Workflow["permissions"],
+  diagnostics: Diagnostic[],
+): void {
+  if (permissions === undefined) return;
+  if (!isPlainRecord(permissions)) {
+    diagnostics.push(diagnostic(
+      "workflow.permissions.invalid",
+      ["permissions"],
+      "Workflow permissions must be an object.",
+    ));
+    return;
+  }
+  Object.entries(permissions).forEach(([key, value]) => {
+    if (key !== "contents") {
+      diagnostics.push(diagnostic(
+        "workflow.permissions.key.unsupported",
+        ["permissions", key],
+        `Workflow permission ${JSON.stringify(key)} is not supported.`,
+      ));
+    }
+    if (value !== "none" && value !== "read" && value !== "write") {
+      diagnostics.push(diagnostic(
+        "workflow.permissions.value.invalid",
+        ["permissions", key],
+        "Workflow permission must be none, read, or write.",
+      ));
+    }
+  });
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null &&
+    !Array.isArray(value) &&
+    (Object.getPrototypeOf(value) === Object.prototype ||
+      Object.getPrototypeOf(value) === null);
+}
+
+function isActionInput(value: unknown): boolean {
+  return typeof value === "string" || typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value));
 }
 
 function validateRunnerSelection(

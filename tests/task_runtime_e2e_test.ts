@@ -42,10 +42,26 @@ const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["push"],
 });
+try {
+  Deno.statSync("fail-config");
+  throw new Error("config-load-private");
+} catch (error) {
+  if (!(error instanceof Deno.errors.NotFound)) throw error;
+}
 const test = ci.job("test", { runsOn: "ubuntu-latest" });
 test.run("Setup", "echo setup");
 test.task("Test", async (ctx) => {
   ctx.logger.info("task-log-private");
+  if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
+    Object.defineProperty(WeakMap.prototype, "get", {
+      value: () => "task-error-type-private",
+    });
+    const error = new Error("task-failure-private") as Error & {
+      errorType: string;
+    };
+    error.errorType = "task-error-type-private";
+    throw error;
+  }
   await Deno.writeTextFile("task-result.txt", ctx.cwd);
 });
 
@@ -55,10 +71,12 @@ export default defineTsugiori({ pipelines: [ci] });
 
       const cli = resolve(fixture, "bin/tsugiori");
       await buildCli(cli);
-      const environment = {
+      const environment: Record<string, string> = {
         ...Deno.env.toObject(),
         PATH: `${resolve(fixture, "bin")}:${Deno.env.get("PATH") ?? ""}`,
       };
+      delete environment.RUNNER_DEBUG;
+      assertEquals(environment.RUNNER_DEBUG, undefined);
 
       const generated = await run(
         cli,
@@ -93,10 +111,16 @@ export default defineTsugiori({ pipelines: [ci] });
           expectedLayout,
         ],
         fixture,
-        environment,
+        { ...environment, RUNNER_DEBUG: "1" },
       );
       assertEquals(stale.code, 1);
       assertStringIncludes(stale.stderr, "task layout is stale");
+      const staleRecord = diagnosticRecord(stale.stderr);
+      assert(staleRecord !== undefined);
+      assertEquals(
+        staleRecord.operations.at(-1)?.errorType,
+        "registry_layout_mismatch",
+      );
       await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
 
       const firstPrepare = await run(
@@ -198,61 +222,83 @@ export default defineTsugiori({ pipelines: [ci] });
       );
       assertEquals(executed.code, 0, executed.stderr);
       assertStringIncludes(executed.stdout, "task-log-private");
+      assertEquals(diagnosticRecord(executed.stderr), undefined);
       assertEquals(
         await Deno.readTextFile(resolve(fixture, "task-result.txt")),
         await Deno.realPath(fixture),
       );
 
-      const recordsBeforeOptOut = await diagnosticRecords(fixture);
-      assert(recordsBeforeOptOut.length >= 4);
-      assert(
-        recordsBeforeOptOut.every((record) =>
-          !record.includes("task-log-private")
-        ),
-      );
-      const optedOut = await run(
+      const debugged = await run(
         runtime,
         ["ci/test/task-1"],
         fixture,
-        { ...environment, TSUGIORI_DIAGNOSTICS: "off" },
+        { ...environment, RUNNER_DEBUG: "1" },
       );
-      assertEquals(optedOut.code, 0, optedOut.stderr);
+      assertEquals(debugged.code, 0, debugged.stderr);
+      const debugRecord = diagnosticRecord(debugged.stderr);
+      assert(debugRecord !== undefined);
       assertEquals(
-        (await diagnosticRecords(fixture)).length,
-        recordsBeforeOptOut.length,
+        debugRecord.operations[0],
+        {
+          name: "task.dispatch",
+          status: "success",
+          attributes: { entrypoint: "ci/test/task-1" },
+        },
       );
+      assertEquals(debugRecord.status, "success");
+      assertEquals(debugRecord.completeness, "complete");
+      assertEquals(debugged.stderr.includes("task-log-private"), false);
+
+      const taskFailure = await run(
+        runtime,
+        ["ci/test/task-1"],
+        fixture,
+        {
+          ...environment,
+          RUNNER_DEBUG: "1",
+          TSUGIORI_TASK_FAILURE: "1",
+        },
+      );
+      assertEquals(taskFailure.code, 1);
+      assertStringIncludes(taskFailure.stderr, "task-failure-private");
+      const taskFailureRecord = diagnosticRecord(taskFailure.stderr);
+      assert(taskFailureRecord !== undefined);
+      assertEquals(taskFailureRecord.operations[0].errorType, "task_failed");
+      assertEquals(
+        taskFailure.stderr.includes("task-error-type-private"),
+        false,
+      );
+
+      await Deno.writeTextFile(resolve(fixture, "fail-config"), "fail\n");
+      const configFailure = await run(
+        runtime,
+        ["ci/test/task-1"],
+        fixture,
+        { ...environment, RUNNER_DEBUG: "1" },
+      );
+      assertEquals(configFailure.code, 1);
+      assertStringIncludes(configFailure.stderr, "config-load-private");
+      const configFailureRecords = diagnosticRecords(configFailure.stderr);
+      assertEquals(configFailureRecords.length, 1);
+      assertEquals(
+        configFailureRecords[0].operations[0].errorType,
+        "config_load_failed",
+      );
+      await Deno.remove(resolve(fixture, "fail-config"));
 
       const unknown = await run(
         runtime,
         ["ci/test/task-99"],
         fixture,
-        environment,
+        { ...environment, RUNNER_DEBUG: "1" },
       );
       assertEquals(unknown.code, 1);
       assertStringIncludes(unknown.stderr, "Unknown task entrypoint");
-      assert(
-        (await diagnosticRecords(fixture)).some((record) =>
-          record.includes('"errorType": "entrypoint_not_found"')
-        ),
-      );
-
-      await Deno.remove(resolve(fixture, ".tsugiori/diagnostics"), {
-        recursive: true,
-      });
-      await Deno.writeTextFile(
-        resolve(fixture, ".tsugiori/diagnostics"),
-        "recording unavailable",
-      );
-      const recordingFailure = await run(
-        runtime,
-        ["ci/test/task-1"],
-        fixture,
-        environment,
-      );
-      assertEquals(recordingFailure.code, 0);
-      assertStringIncludes(
-        recordingFailure.stderr,
-        "warning: diagnostic recording failed",
+      const unknownRecord = diagnosticRecord(unknown.stderr);
+      assert(unknownRecord !== undefined);
+      assertEquals(
+        unknownRecord.operations[0].errorType,
+        "entrypoint_not_found",
       );
     } finally {
       await Deno.remove(fixture, { recursive: true });
@@ -270,6 +316,7 @@ async function run(
     args: [...args],
     cwd,
     env: { ...env },
+    clearEnv: true,
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -280,13 +327,26 @@ async function run(
   };
 }
 
-async function diagnosticRecords(root: string): Promise<readonly string[]> {
-  const directory = resolve(root, ".tsugiori/diagnostics");
-  const records: string[] = [];
-  for await (const entry of Deno.readDir(directory)) {
-    if (entry.isFile && entry.name.endsWith(".json")) {
-      records.push(await Deno.readTextFile(resolve(directory, entry.name)));
-    }
+type DiagnosticRecord = Readonly<{
+  status: "error" | "success";
+  completeness: "complete" | "partial";
+  operations: readonly Readonly<{
+    name: string;
+    status: "error" | "success";
+    errorType?: string;
+    attributes?: Readonly<Record<string, string>>;
+  }>[];
+}>;
+
+function diagnosticRecord(stderr: string): DiagnosticRecord | undefined {
+  return diagnosticRecords(stderr)[0];
+}
+
+function diagnosticRecords(stderr: string): readonly DiagnosticRecord[] {
+  const records: DiagnosticRecord[] = [];
+  for (const line of stderr.split("\n")) {
+    if (!line.startsWith('{"schemaVersion":1,')) continue;
+    records.push(JSON.parse(line) as DiagnosticRecord);
   }
   return records;
 }

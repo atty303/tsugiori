@@ -7,6 +7,23 @@ const config = loaded.default;
 if (config?.kind !== "tsugiori.config" || !Array.isArray(config.pipelines)) {
   throw new Error("The configuration default export must be created by defineTsugiori().");
 }
+const isPlainRecord = (value) => typeof value === "object" && value !== null &&
+  !Array.isArray(value) &&
+  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
+const encodeScalarRecord = (value) => {
+  if (!isPlainRecord(value)) return null;
+  const keys = Reflect.ownKeys(value);
+  if (keys.some((key) => typeof key !== "string")) return null;
+  const encoded = Object.create(null);
+  for (const key of keys) {
+    const item = value[key];
+    encoded[key] = typeof item === "string" || typeof item === "boolean" ||
+        (typeof item === "number" && Number.isFinite(item))
+      ? item
+      : null;
+  }
+  return encoded;
+};
 const serializable = {
   kind: config.kind,
   pipelines: config.pipelines.map((pipeline) => ({
@@ -14,17 +31,34 @@ const serializable = {
     name: pipeline.name,
     output: pipeline.output,
     events: pipeline.events,
+    ...(pipeline.permissions === undefined ? {} : {
+      permissions: encodeScalarRecord(pipeline.permissions),
+    }),
     jobs: pipeline.jobs.map((job) => ({
       id: job.id,
       runsOn: job.runsOn,
       needs: job.needs,
-      steps: job.steps.map((step) => step.type === "task"
-        ? { type: step.type, name: step.name, task: null }
-        : step),
+      steps: job.steps.map((step) => {
+        if (step.type === "task") return { type: step.type, name: step.name, task: null };
+        if (step.type === "uses" && step.with !== undefined) {
+          return {
+            type: step.type,
+            name: step.name,
+            uses: step.uses,
+            with: encodeScalarRecord(step.with),
+          };
+        }
+        return step.type === "uses"
+          ? { type: step.type, name: step.name, uses: step.uses }
+          : { type: step.type, name: step.name, run: step.run };
+      }),
     })),
   })),
 };
-await Deno.writeTextFile(outputPath, JSON.stringify(serializable));
+await Deno.writeTextFile(
+  outputPath,
+  JSON.stringify(serializable),
+);
 `;
 
 export type LoadedConfig = Readonly<{
