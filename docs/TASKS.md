@@ -10,7 +10,9 @@ Phase 2: initial task runtime integration.
 The minimal provider backend, public authoring subset, source loading,
 generation command, inline task lowering, local artifact preparation, and task
 dispatch are implemented. Generated `actions/cache` delivery is implemented;
-stale-output check mode and live remote-cache validation remain incomplete.
+the public authoring subset uses immutable typestate facades and has an internal
+GitHub expression scope catalog. Stale-output check mode and live remote-cache
+validation remain incomplete.
 
 ## Ready Documentation Tasks
 

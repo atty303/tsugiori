@@ -13,14 +13,8 @@ import {
 const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
 const ARTIFACT_STEP_ID = "tsugiori-task-artifact";
+const CACHE_RESTORE_STEP_ID = "tsugiori-task-cache-restore";
 const PREPARE_STEP_ID = "tsugiori-task-prepare";
-const ARTIFACT_KEY_EXPRESSION =
-  `\${{ steps.${ARTIFACT_STEP_ID}.outputs.artifact-key }}`;
-const CACHE_PATH_EXPRESSION =
-  `\${{ steps.${ARTIFACT_STEP_ID}.outputs.cache-path }}`;
-const CACHE_KEY =
-  `tsugiori-task-${ARTIFACT_KEY_EXPRESSION}-\${{ github.run_id }}-\${{ github.run_attempt }}`;
-const CACHE_RESTORE_PREFIX = `tsugiori-task-${ARTIFACT_KEY_EXPRESSION}-`;
 
 export type RegisteredTask = Readonly<{
   entrypoint: string;
@@ -77,6 +71,9 @@ export async function lowerConfig(
 
     for (const job of pipeline.jobs) {
       const steps: Step[] = [];
+      const usedStepIds = new Set(
+        job.steps.flatMap((step) => step.id === undefined ? [] : [step.id]),
+      );
       const taskNames = job.steps
         .filter((step) => step.type === "task")
         .map((step) => step.name);
@@ -105,13 +102,19 @@ export async function lowerConfig(
           steps.push({
             type: "uses",
             name: step.name,
+            ...(step.id === undefined ? {} : { id: step.id }),
             uses: step.uses,
             ...(step.with === undefined ? {} : { with: step.with }),
           });
           continue;
         }
         if (step.type === "run") {
-          steps.push({ type: "run", name: step.name, run: step.run });
+          steps.push({
+            type: "run",
+            name: step.name,
+            ...(step.id === undefined ? {} : { id: step.id }),
+            run: step.run,
+          });
           continue;
         }
 
@@ -120,6 +123,7 @@ export async function lowerConfig(
           steps.push(...preparationSteps(
             configArgument,
             `${layoutKey}=${fingerprint}`,
+            usedStepIds,
           ));
           preparationEmitted = true;
         }
@@ -134,6 +138,7 @@ export async function lowerConfig(
         steps.push({
           type: "run",
           name: step.name,
+          ...(step.id === undefined ? {} : { id: step.id }),
           run: `./.tsugiori/task-runtime ${entrypoint}`,
         });
       }
@@ -221,7 +226,21 @@ async function layoutFingerprint(
 function preparationSteps(
   configArgument: string,
   expectedLayout: string,
+  usedStepIds: Set<string>,
 ): readonly Step[] {
+  const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
+  const cacheRestoreStepId = allocateStepId(
+    CACHE_RESTORE_STEP_ID,
+    usedStepIds,
+  );
+  const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
+  const artifactKeyExpression =
+    `\${{ steps.${artifactStepId}.outputs.artifact-key }}`;
+  const cachePathExpression =
+    `\${{ steps.${artifactStepId}.outputs.cache-path }}`;
+  const cacheKey =
+    `tsugiori-task-${artifactKeyExpression}-\${{ github.run_id }}-\${{ github.run_attempt }}`;
+  const cacheRestorePrefix = `tsugiori-task-${artifactKeyExpression}-`;
   const commonArguments = [
     "--config",
     quotePosix(configArgument),
@@ -232,7 +251,7 @@ function preparationSteps(
     {
       type: "run",
       name: "Resolve task artifact",
-      id: ARTIFACT_STEP_ID,
+      id: artifactStepId,
       run: [
         "tsugiori github-actions task cache-key",
         ...commonArguments,
@@ -241,38 +260,49 @@ function preparationSteps(
     {
       type: "uses",
       name: "Restore task artifact cache",
-      id: "tsugiori-task-cache-restore",
+      id: cacheRestoreStepId,
       continueOnError: true,
       uses: `actions/cache/restore@${ACTIONS_CACHE_COMMIT}`,
       with: {
-        path: CACHE_PATH_EXPRESSION,
-        key: CACHE_KEY,
-        "restore-keys": CACHE_RESTORE_PREFIX,
+        path: cachePathExpression,
+        key: cacheKey,
+        "restore-keys": cacheRestorePrefix,
       },
     },
     {
       type: "run",
       name: "Prepare task artifact",
-      id: PREPARE_STEP_ID,
+      id: prepareStepId,
       run: [
         "tsugiori github-actions task prepare",
         ...commonArguments,
         "--expected-key",
-        quotePosix(ARTIFACT_KEY_EXPRESSION),
+        quotePosix(artifactKeyExpression),
       ].join(" "),
     },
     {
       type: "uses",
       name: "Save task artifact cache",
-      if: `steps.${PREPARE_STEP_ID}.outputs.cache-write-required == 'true'`,
+      if: `steps.${prepareStepId}.outputs.cache-write-required == 'true'`,
       continueOnError: true,
       uses: `actions/cache/save@${ACTIONS_CACHE_COMMIT}`,
       with: {
-        path: CACHE_PATH_EXPRESSION,
-        key: CACHE_KEY,
+        path: cachePathExpression,
+        key: cacheKey,
       },
     },
   ];
+}
+
+function allocateStepId(base: string, used: Set<string>): string {
+  let candidate = base;
+  let suffix = 2;
+  while (used.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  used.add(candidate);
+  return candidate;
 }
 
 function quotePosix(value: string): string {

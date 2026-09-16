@@ -74,32 +74,52 @@ extracted only after another backend such as an OCI registry or S3 requires it.
 ## Initial Authoring API
 
 ```ts
-import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
+import {
+  actionInput,
+  defineAction,
+  defineTsugiori,
+  pipeline,
+} from "@tsugiori/core/github-actions";
+
+const checkout = defineAction({
+  uses: "actions/checkout@<commit-sha>",
+  inputs: {
+    "persist-credentials": actionInput.boolean(),
+  },
+  outputs: [],
+});
 
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["pull_request", "push"],
   permissions: { contents: "read" },
-});
-
-const test = ci.job("test", {
-  runsOn: "ubuntu-24.04",
-});
-
-test.uses("Checkout", "actions/checkout@<commit-sha>", {
-  "persist-credentials": false,
-});
-test.run("Verify tools", "deno --version && command -v tsugiori");
-test.task("Test", async (ctx) => {
-  ctx.logger.info(`Running tests in ${ctx.cwd}`);
-  const command = new Deno.Command("deno", {
-    args: ["test", "-A"],
-    stdout: "inherit",
-    stderr: "inherit",
-  });
-  const result = await command.output();
-  if (!result.success) throw new Error(`Tests failed with ${result.code}.`);
-});
+}).job("test", ({ job }) =>
+  job
+    .runsOn("ubuntu-24.04")
+    .uses({
+      name: "Checkout",
+      uses: checkout({ "persist-credentials": false }),
+    })
+    .run({
+      name: "Verify tools",
+      run: "deno --version && command -v tsugiori",
+    })
+    .task({
+      name: "Test",
+      task: async (ctx) => {
+        ctx.logger.info(`Running tests in ${ctx.cwd}`);
+        const command = new Deno.Command("deno", {
+          args: ["test", "-A"],
+          stdout: "inherit",
+          stderr: "inherit",
+        });
+        const result = await command.output();
+        if (!result.success) {
+          throw new Error(`Tests failed with ${result.code}.`);
+        }
+      },
+    })
+);
 
 export default defineTsugiori({ pipelines: [ci] });
 ```

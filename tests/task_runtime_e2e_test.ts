@@ -38,7 +38,7 @@ Deno.test({
       const configSource =
         `import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
 
-const ci = pipeline("ci", {
+const base = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["push"],
 });
@@ -48,22 +48,28 @@ try {
 } catch (error) {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
-const test = ci.job("test", { runsOn: "ubuntu-latest" });
-test.run("Setup", "echo setup");
-test.task("Test", async (ctx) => {
-  ctx.logger.info("task-log-private");
-  if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
-    Object.defineProperty(WeakMap.prototype, "get", {
-      value: () => "task-error-type-private",
-    });
-    const error = new Error("task-failure-private") as Error & {
-      errorType: string;
-    };
-    error.errorType = "task-error-type-private";
-    throw error;
-  }
-  await Deno.writeTextFile("task-result.txt", ctx.cwd);
-});
+const ci = base.job("test", ({ job }) =>
+  job
+    .runsOn("ubuntu-latest")
+    .run({ name: "Setup", run: "echo setup" })
+    .task({
+      name: "Test",
+      task: async (ctx) => {
+        ctx.logger.info("task-log-private");
+        if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
+          Object.defineProperty(WeakMap.prototype, "get", {
+            value: () => "task-error-type-private",
+          });
+          const error = new Error("task-failure-private") as Error & {
+            errorType: string;
+          };
+          error.errorType = "task-error-type-private";
+          throw error;
+        }
+        await Deno.writeTextFile("task-result.txt", ctx.cwd);
+      },
+    })
+);
 
 export default defineTsugiori({ pipelines: [ci] });
 `;
@@ -104,7 +110,7 @@ export default defineTsugiori({ pipelines: [ci] });
 
       await Deno.writeTextFile(
         resolve(fixture, "tsugiori.ts"),
-        configSource.replace('task("Test"', 'task("Changed"'),
+        configSource.replace('name: "Test"', 'name: "Changed"'),
       );
       await Deno.writeTextFile(githubOutput, "");
       const stale = await run(

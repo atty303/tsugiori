@@ -18,8 +18,10 @@ dates.
 ## Phase 1: Minimal GitHub Actions Provider Backend
 
 Status: in progress. The internal AST, validation, deterministic emitter,
-public authoring source loading, `generate` command, and focused tests are
-implemented. Stale-output checking is not implemented.
+immutable typestate authoring, public authoring source loading, `generate`
+command, and focused tests are implemented. A provider scope catalog records
+future expression availability, but the public expression DSL remains
+unimplemented. Stale-output checking is not implemented.
 
 - define the initial GitHub Actions provider backend AST
 - support workflow name, events, jobs, and basic steps

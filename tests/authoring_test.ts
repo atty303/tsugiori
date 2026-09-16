@@ -1,10 +1,17 @@
 import {
+  assert,
   assertEquals,
   assertRejects,
   assertStringIncludes,
   assertThrows,
 } from "@std/assert";
-import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
+import {
+  actionInput,
+  defineAction,
+  defineTsugiori,
+  pipeline,
+  rawAction,
+} from "@tsugiori/core/github-actions";
 import {
   AuthoringValidationError,
   lowerConfig,
@@ -17,18 +24,27 @@ import {
 import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
 
 Deno.test("task-backed steps lower to visible preparation and runtime steps", async () => {
+  const checkout = defineAction({
+    uses: "actions/checkout@v4",
+    inputs: {
+      "persist-credentials": actionInput.boolean(),
+    },
+    outputs: [],
+  });
   const ci = pipeline("ci", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
     permissions: { contents: "read" },
-  });
-  const test = ci.job("test", { runsOn: "ubuntu-latest" });
-  test.uses("Checkout", "actions/checkout@v4", {
-    "persist-credentials": false,
-  });
-  test.task("Test", () => {});
-  test.run("Inspect", "echo inspected");
-  test.task("Report", async () => {});
+  }).job("test", ({ job }) =>
+    job
+      .runsOn("ubuntu-latest")
+      .uses({
+        name: "Checkout",
+        uses: checkout({ "persist-credentials": false }),
+      })
+      .task({ name: "Test", task: () => {} })
+      .run({ name: "Inspect", run: "echo inspected" })
+      .task({ name: "Report", task: async () => {} }));
 
   const lowered = await lowerConfig(
     defineTsugiori({ pipelines: [ci] }),
@@ -74,13 +90,17 @@ Deno.test("duplicate pipeline outputs fail before generation", async () => {
   const first = pipeline("first", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
-  });
-  first.job("first", { runsOn: "ubuntu-latest" }).run("Run", "true");
+  }).job(
+    "first",
+    ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
+  );
   const second = pipeline("second", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
-  });
-  second.job("second", { runsOn: "ubuntu-latest" }).run("Run", "true");
+  }).job(
+    "second",
+    ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
+  );
 
   await assertRejects(
     () =>
@@ -97,8 +117,11 @@ Deno.test("task-backed steps reject Windows runners", async () => {
   const ci = pipeline("ci", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
-  });
-  ci.job("test", { runsOn: "windows-latest" }).task("Test", () => {});
+  }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("windows-latest").task({ name: "Test", task: () => {} }),
+  );
 
   await assertRejects(
     () => lowerConfig(defineTsugiori({ pipelines: [ci] }), "./tsugiori.ts"),
@@ -107,27 +130,146 @@ Deno.test("task-backed steps reject Windows runners", async () => {
   );
 });
 
-Deno.test("builders reject runtime-invalid provider-native values", () => {
+Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
   const ci = pipeline("ci", {
     output: ".github/workflows/ci.yml",
     events: ["push"],
-    permissions: [] as never,
+  }).job("test", ({ job }) =>
+    job
+      .runsOn("ubuntu-latest")
+      .run({
+        id: "tsugiori-task-artifact",
+        name: "Authored",
+        run: "true",
+      })
+      .task({ name: "Task", task: () => {} }));
+
+  const lowered = await lowerConfig(
+    defineTsugiori({ pipelines: [ci] }),
+    "./tsugiori.ts",
+  );
+  const steps = lowered.pipelines[0].workflow.jobs[0].steps;
+  assertEquals(steps.map((step) => step.id).filter(Boolean), [
+    "tsugiori-task-artifact",
+    "tsugiori-task-artifact-2",
+    "tsugiori-task-cache-restore",
+    "tsugiori-task-prepare",
+  ]);
+  const prepareStep = steps.find((step) =>
+    step.name === "Prepare task artifact"
+  );
+  assert(prepareStep?.type === "run");
+  assertStringIncludes(
+    prepareStep.run,
+    "steps.tsugiori-task-artifact-2.outputs.artifact-key",
+  );
+});
+
+Deno.test("pipeline states are immutable and dependencies use prior job references", async () => {
+  const base = pipeline("ci", {
+    output: ".github/workflows/ci.yml",
+    events: ["push"],
   });
-  ci.job("test", { runsOn: "ubuntu-latest" }).run("Test", "true");
+  const testOnly = base.job("test", ({ job }) =>
+    job
+      .runsOn("ubuntu-latest")
+      .run({ id: "verify", name: "Verify", run: "true" }));
+  const complete = testOnly.job("build", ({ job, jobs }) =>
+    job
+      .needs(jobs.test)
+      .runsOn("ubuntu-latest")
+      .run({ name: "Build", run: "true" }));
+
+  const first = await lowerConfig(
+    defineTsugiori({ pipelines: [testOnly] }),
+    "./tsugiori.ts",
+  );
+  const second = await lowerConfig(
+    defineTsugiori({ pipelines: [complete] }),
+    "./tsugiori.ts",
+  );
+
+  assertEquals(first.pipelines[0].workflow.jobs.map((job) => job.id), ["test"]);
+  assertEquals(second.pipelines[0].workflow.jobs.map((job) => job.id), [
+    "test",
+    "build",
+  ]);
+  assertEquals(second.pipelines[0].workflow.jobs[1].needs, ["test"]);
+  assertEquals(second.pipelines[0].workflow.jobs[0].steps[0].id, "verify");
+});
+
+Deno.test("typed actions validate declared inputs at runtime", () => {
+  const action = defineAction({
+    uses: "owner/action@revision",
+    inputs: {
+      required: actionInput.string({ required: true }),
+      count: actionInput.number(),
+    },
+    outputs: ["result"],
+  });
+
   assertThrows(
-    () => defineTsugiori({ pipelines: [ci] }),
+    () => action({} as never),
+    TypeError,
+    'Required action input "required" is missing.',
+  );
+  assertThrows(
+    () => action({ required: "value", count: Infinity }),
+    TypeError,
+    'Action input "count" must be finite.',
+  );
+  assertThrows(
+    () => action({ required: "value", extra: true } as never),
+    TypeError,
+    'Action input "extra" is not declared.',
+  );
+  assertThrows(
+    () =>
+      defineAction({
+        uses: "owner/action@revision",
+        inputs: {},
+        outputs: ["bad output"],
+      }),
+    TypeError,
+    "Action output names must start with a letter or underscore",
+  );
+
+  const ci = pipeline("ci", {
+    output: ".github/workflows/ci.yml",
+    events: ["push"],
+  }).job("action-output", ({ job }) => {
+    const invoked = job.runsOn("ubuntu-latest").uses({
+      id: "action",
+      name: "Action",
+      uses: action({ required: "value" }),
+    });
+    assertEquals(
+      invoked.steps.action.outputs.result,
+      "${{ steps.action.outputs.result }}",
+    );
+    return invoked;
+  });
+  assertEquals(
+    defineTsugiori({ pipelines: [ci] }).pipelines[0].jobs[0].id,
+    "action-output",
+  );
+});
+
+Deno.test("authoring rejects runtime-invalid provider-native values", () => {
+  assertThrows(
+    () =>
+      pipeline("ci", {
+        output: ".github/workflows/ci.yml",
+        events: ["push"],
+        permissions: [] as never,
+      }),
     TypeError,
     "Workflow permissions must be an object.",
   );
 
-  const job = pipeline("other", {
-    output: ".github/workflows/other.yml",
-    events: ["push"],
-  }).job("test", { runsOn: "ubuntu-latest" });
   assertThrows(
     () =>
-      job.uses(
-        "Checkout",
+      rawAction(
         "actions/checkout@v7",
         new (class Inputs {
           token = "value";

@@ -5,44 +5,68 @@ This example uses the implemented initial authoring and task-runtime subset.
 ## Authoring File
 
 ```ts
-import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
+import {
+  defineAction,
+  defineTsugiori,
+  pipeline,
+} from "@tsugiori/core/github-actions";
+
+const checkout = defineAction({
+  uses: "actions/checkout@v4",
+  inputs: {},
+  outputs: [],
+});
 
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["pull_request", "push"],
-});
-
-const test = ci.job("test", {
-  runsOn: "ubuntu-latest",
-});
-
-test.uses("Checkout", "actions/checkout@v4");
-test.run("Verify tools", "deno --version && command -v tsugiori");
-test.task("Test", async (ctx) => {
-  ctx.logger.info(`Running tests in ${ctx.cwd}`);
-  const result = await new Deno.Command("deno", {
-    args: ["test", "-A"],
-    stdout: "inherit",
-    stderr: "inherit",
-  }).output();
-  if (!result.success) throw new Error(`Tests failed with ${result.code}.`);
-});
-
-const build = ci.job("build", {
-  runsOn: "ubuntu-latest",
-  needs: [test],
-});
-
-build.uses("Checkout", "actions/checkout@v4");
-build.run("Verify tools", "deno --version && command -v tsugiori");
-build.task("Build", async () => {
-  const result = await new Deno.Command("deno", {
-    args: ["task", "build"],
-    stdout: "inherit",
-    stderr: "inherit",
-  }).output();
-  if (!result.success) throw new Error(`Build failed with ${result.code}.`);
-});
+})
+  .job("test", ({ job }) =>
+    job
+      .runsOn("ubuntu-latest")
+      .uses({ name: "Checkout", uses: checkout({}) })
+      .run({
+        name: "Verify tools",
+        run: "deno --version && command -v tsugiori",
+      })
+      .task({
+        name: "Test",
+        task: async (ctx) => {
+          ctx.logger.info(`Running tests in ${ctx.cwd}`);
+          const result = await new Deno.Command("deno", {
+            args: ["test", "-A"],
+            stdout: "inherit",
+            stderr: "inherit",
+          }).output();
+          if (!result.success) {
+            throw new Error(`Tests failed with ${result.code}.`);
+          }
+        },
+      })
+  )
+  .job("build", ({ job, jobs }) =>
+    job
+      .needs(jobs.test)
+      .runsOn("ubuntu-latest")
+      .uses({ name: "Checkout", uses: checkout({}) })
+      .run({
+        name: "Verify tools",
+        run: "deno --version && command -v tsugiori",
+      })
+      .task({
+        name: "Build",
+        task: async () => {
+          const result = await new Deno.Command("deno", {
+            args: ["task", "build"],
+            stdout: "inherit",
+            stderr: "inherit",
+          }).output();
+          if (!result.success) {
+            throw new Error(`Build failed with ${result.code}.`);
+          }
+        },
+      })
+  );
 
 export default defineTsugiori({ pipelines: [ci] });
 ```

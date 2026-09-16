@@ -34,6 +34,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0008-github-actions-task-artifact-cache.md`: the GitHub Actions backend owns
   visible generational `actions/cache` delivery without introducing a generic
   remote cache adapter or a public prepare-command contract.
+- `0009-immutable-typestate-authoring.md`: GitHub Actions authoring uses
+  immutable typestate facades, topologically declared jobs, typed action
+  contracts, and a workflow-key-specific expression scope catalog.
 
 ## Format
 

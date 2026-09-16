@@ -134,8 +134,11 @@ requiring pipeline generation.
 In GitHub Actions authoring, a task-backed step is explicit:
 
 ```ts
-job.task("Test", async (ctx) => {
-  ctx.logger.info(`Running in ${ctx.cwd}`);
+job.task({
+  name: "Test",
+  task: async (ctx) => {
+    ctx.logger.info(`Running in ${ctx.cwd}`);
+  },
 });
 ```
 
@@ -277,9 +280,10 @@ values. They are not generally known when the compiler emits YAML.
 A host-language `if` controls what the compiler emits:
 
 ```ts
-if (includeUploadStep) {
-  job.task("Upload", uploadTask);
-}
+const tested = job.task({ name: "Test", task: testTask });
+const completed = includeUploadStep
+  ? tested.task({ name: "Upload", task: uploadTask })
+  : tested;
 ```
 
 That kind of condition is evaluated at compile time. If the condition is false,
@@ -289,8 +293,10 @@ A GitHub Actions `if:` controls whether an existing job or step runs inside
 GitHub Actions:
 
 ```ts
-job.task("Upload", uploadTask, {
-  if: expr.always().and(expr.failure()),
+job.task({
+  name: "Upload",
+  if: ({ always, failure }) => always().and(failure()),
+  task: uploadTask,
 });
 ```
 

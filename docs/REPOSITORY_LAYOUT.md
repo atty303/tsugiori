@@ -9,7 +9,8 @@ directories should be created only when their implementation phase begins.
 
 - keep pipeline and task authoring imports pure, side-effect-free, and
   dependency-light
-- separate authoring types and builders from compiler execution
+- separate authoring types and immutable typestate facades from compiler
+  execution
 - keep provider pipeline authoring and task authoring internally distinct
   without forcing separate packages before there is a practical benefit
 - provide stable homes for source, tests, examples, generated fixtures, and
