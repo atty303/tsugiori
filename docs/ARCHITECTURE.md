@@ -1,17 +1,18 @@
 # Architecture
 
-This document describes the proposed architecture. It is not an implemented
-system.
+This document describes both the implemented initial slices and proposed later
+components. Statements that use "should", "planned", or "future" remain
+design direction rather than implementation claims.
 
-## Proposed Components
+## Components
 
 ### Core Package
 
-`@tsugiori/core` is the pure package imported by pipeline and task authors.
+`@tsugiori/core` is the implemented pure package imported by pipeline and task
+authors.
 
-It may contain both provider pipeline authoring modules and task authoring
-modules. Those modules should stay internally separate, but they do not need to
-be separate packages before the project has a practical reason to split them.
+It contains separate GitHub Actions and task modules without making them
+independent release units.
 
 The package should avoid filesystem access, process execution, network access,
 package installation, YAML writing, and compiler side effects. Its job is to
@@ -101,12 +102,10 @@ emit GitLab-native configuration rather than GitHub Actions YAML.
 
 ### Generated YAML Stale Check
 
-When generation commands are implemented, the compiler should distinguish
-generation from stale output checking. The current compiler slice only
-validates an internal AST and emits YAML in memory.
+The compiler distinguishes generation from the planned stale output check.
 
-The planned `tsugiori generate` command should run the pipeline authoring source
-and write the generated GitHub Actions workflow files to their configured
+The implemented `tsugiori generate` command runs the pipeline authoring source
+and writes generated GitHub Actions workflow files to their configured
 `.github/workflows/*.yml` paths.
 
 The planned `tsugiori generate --check` command should run the same generation
@@ -125,14 +124,16 @@ the resulting diff.
 A task function is code authored in the same language family as the pipeline
 definition and intended to run as CI work.
 
-Task functions are separate from provider pipeline authoring. A repository may
-use task functions from handwritten provider configuration, and a provider
-backend may also emit provider steps that invoke task functions.
+The implemented slice accepts task functions inline in GitHub Actions
+authoring. A future standalone registry will expose the same runtime without
+requiring pipeline generation.
 
-In GitHub Actions authoring, a task can be passed to a provider-native step:
+In GitHub Actions authoring, a task-backed step is explicit:
 
 ```ts
-job.step("Test", testTask);
+job.task("Test", async (ctx) => {
+  ctx.logger.info(`Running in ${ctx.cwd}`);
+});
 ```
 
 The generated GitHub Actions YAML should still contain a normal visible step.
@@ -140,11 +141,12 @@ The task implementation body should not be inlined into YAML.
 
 ### Task Registry
 
-The task registry maps task identifiers to implementation functions.
+The task registry maps generated task entrypoints to implementation functions.
 
-The registry should be available to task artifact preparation and to provider
-backends that emit task-backed provider steps, so generated configuration and
-task runtime dispatch stay aligned.
+The initial entrypoint form is `<pipeline-id>/<job-id>/task-<ordinal>`, where
+the ordinal counts only task-backed steps in that job. Generated preparation
+steps carry a job-layout fingerprint so reordered task steps fail before
+dispatch.
 
 ### Task Runtime
 
@@ -156,16 +158,16 @@ distinct entrypoint:
 
 ```yaml
 - name: Test
-  run: ./.tsugiori/task-runtime test
+  run: ./.tsugiori/task-runtime ci/test/task-1
 
 - name: Build
-  run: ./.tsugiori/task-runtime build
+  run: ./.tsugiori/task-runtime ci/build/task-1
 ```
 
-The initial direction is to build the task runtime with Deno. The resulting
-task artifact may be a binary, a bundle, an OCI image, WebAssembly, or another
-prepared runtime form in the future. The design should not depend on the
-artifact always being a native binary.
+The initial runtime is a Deno-compiled binary containing all inline tasks from
+one authoring root. It is compiled with `-A`, inherits the invocation working
+directory, and treats a thrown or rejected task as a failed provider step.
+Other artifact forms remain possible behind the artifact contract.
 
 ### Task Artifact
 
@@ -184,20 +186,17 @@ matching cache entry.
 Task artifact metadata connects provider configuration to the task artifact it
 expects.
 
-A manifest file is one possible representation of this metadata, but the design
-should not require a separate manifest artifact. Metadata may be derived,
-embedded in the prepared task artifact, or represented in another
-task-runtime-owned form.
+The initial local artifact uses a runtime-owned JSON sidecar in the same cache
+entry as the binary. The broader design does not require every artifact form to
+use a separate manifest.
 
-If materialized as a manifest, it should record enough information for
-provider steps to prepare the correct task artifact before task-backed provider
-steps run:
+The initial manifest records:
 
 - artifact key
 - target platform
 - task runtime path or invocation form
 - registered task entrypoints
-- cache adapter selection and adapter-specific reference data
+- binary checksum and tool/runtime versions
 
 Task artifact metadata should not become a scheduler. It should describe how to
 obtain the artifact that ordinary CI provider steps will invoke.
@@ -213,9 +212,9 @@ task artifacts.
 
 The task runtime tooling and generated preparation steps should depend on a
 small artifact contract rather than on one storage provider.
-Candidate adapters include
-`actions/cache`, GCR or another OCI registry, S3, and local development cache
-storage.
+The implemented adapter stores artifacts under
+`.tsugiori/cache/artifacts/<key>/`. Future candidates include `actions/cache`,
+GCR or another OCI registry, and S3.
 
 Task artifact preparation should first try to restore the content-addressed
 artifact through the selected adapter. On a cache miss, it should build the
@@ -246,11 +245,10 @@ functions and prepares the task artifact used by provider steps. This can be
 used with generated pipeline configuration or with handwritten provider
 configuration.
 
-The planned `tsugiori generate` command should generate provider-native
-pipeline configuration. The planned `tsugiori task prepare` command should
-restore, build, and populate task artifacts. A future convenience command may
-compose those operations, but the underlying responsibilities should remain
-separate.
+`tsugiori generate` generates provider-native pipeline configuration.
+`tsugiori task prepare` restores, builds, and populates task artifacts. A
+future convenience command may compose those operations, but the underlying
+responsibilities remain separate.
 
 For normal repository work, this compile step is intended to happen before
 commit, commonly through a git hook. The generated YAML is then committed and
@@ -277,7 +275,7 @@ A host-language `if` controls what the compiler emits:
 
 ```ts
 if (includeUploadStep) {
-  job.step("Upload", uploadTask);
+  job.task("Upload", uploadTask);
 }
 ```
 
@@ -288,7 +286,7 @@ A GitHub Actions `if:` controls whether an existing job or step runs inside
 GitHub Actions:
 
 ```ts
-job.step("Upload", uploadTask, {
+job.task("Upload", uploadTask, {
   if: expr.always().and(expr.failure()),
 });
 ```

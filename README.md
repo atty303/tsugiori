@@ -7,10 +7,12 @@ users define GitHub Actions workflow structure in TypeScript/Deno code, export
 native `.github/workflows/*.yml` files, and optionally author task functions
 that CI provider steps can execute through a prepared task artifact.
 
-Tsugiori is in early Phase 1 implementation. The repository contains an
-internal GitHub Actions AST, validation, and deterministic YAML emitter. There
-is no public authoring API, CLI, task runtime, generated repository workflow,
-or CI setup yet.
+Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
+load a TypeScript authoring module, generate deterministic workflow YAML,
+prepare a content-addressed Deno task binary through a repository-local cache,
+and dispatch inline task functions. Stale-output check mode, broader GitHub
+Actions syntax, remote cache adapters, generated repository workflow, and CI
+setup are not implemented yet.
 
 ## Problem
 
@@ -47,10 +49,10 @@ Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,
 `permissions`, `concurrency`, `environment`, `secrets`, and outputs should
 remain GitHub Actions concepts.
 
-Task functions are independent from pipeline authoring. A repository can use
-the compiler to generate provider-native workflow YAML without task functions,
-or use the task runtime from handwritten CI configuration. When used together,
-a GitHub Actions provider step can invoke a task through the task runtime.
+The design keeps task functions independent from pipeline authoring. The
+implemented slice supports inline task-backed pipeline steps; a future
+standalone registry will expose the task runtime to handwritten CI
+configuration without requiring generated workflow YAML.
 
 The pipeline source is intended to be the source of truth, while generated
 `.github/workflows/*.yml` files are committed review artifacts. A local git hook
@@ -66,109 +68,67 @@ entrypoints without fetching or building managed task code again. Task artifact
 storage should be adapter-backed so implementations such as `actions/cache`,
 GCR or another OCI registry, and S3 can be substituted.
 
-## Intended Authoring Style
-
-This is illustrative only. The API shown here is not implemented.
+## Initial Authoring API
 
 ```ts
-import { pipeline, expr } from "@tsugiori/core/github-actions";
-import { task } from "@tsugiori/core/task";
-
-const testTask = task("test", async (ctx) => {
-  await ctx.command("deno", ["test", "-A"]).run();
-});
-
-const uploadTestReport = task("upload-test-report", async (ctx) => {
-  await ctx.command("deno", ["task", "coverage:upload"]).run();
-});
+import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
 
 const ci = pipeline("ci", {
-  on: {
-    pull_request: {},
-    push: { branches: ["main"] },
-  },
+  output: ".github/workflows/ci.yml",
+  events: ["pull_request", "push"],
 });
 
 const test = ci.job("test", {
   runsOn: "ubuntu-latest",
-  permissions: {
-    contents: "read",
-  },
-  strategy: {
-    matrix: {
-      deno: ["2.x"],
-    },
-  },
 });
 
 test.uses("Checkout", "actions/checkout@v4");
-test.uses("Setup Deno", "denoland/setup-deno@v2", {
-  with: {
-    "deno-version": expr.matrix("deno"),
-  },
+test.run("Verify tools", "deno --version && command -v tsugiori");
+test.task("Test", async (ctx) => {
+  ctx.logger.info(`Running tests in ${ctx.cwd}`);
+  const command = new Deno.Command("deno", {
+    args: ["test", "-A"],
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  const result = await command.output();
+  if (!result.success) throw new Error(`Tests failed with ${result.code}.`);
 });
 
-test.step("Test", testTask);
-
-test.step("Upload test report", uploadTestReport, {
-  if: expr.always().and(expr.failure()),
-});
-
-ci.export(".github/workflows/ci.yml");
+export default defineTsugiori({ pipelines: [ci] });
 ```
 
-## Intended Generated YAML
+Build the current-host CLI and generate the configured workflow:
 
-This is also illustrative. The exact layout is not specified yet.
-
-```yaml
-name: ci
-
-on:
-  pull_request: {}
-  push:
-    branches:
-      - main
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      matrix:
-        deno:
-          - 2.x
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Deno
-        uses: denoland/setup-deno@v2
-        with:
-          deno-version: ${{ matrix.deno }}
-
-      - name: Prepare task artifact
-        run: tsugiori task prepare
-
-      - name: Test
-        run: ./.tsugiori/task-runtime test
-
-      - name: Upload test report
-        if: ${{ always() && failure() }}
-        run: ./.tsugiori/task-runtime upload-test-report
+```bash
+mise run build
 ```
+
+```bash
+./dist/tsugiori generate --config ./tsugiori.ts
+```
+
+The generated job keeps setup steps visible, inserts one task-artifact
+preparation step immediately before the first task-backed step, and emits each
+task as a separate invocation such as
+`./.tsugiori/task-runtime ci/test/task-1`. The preparation step contains a
+job-layout fingerprint so stale task ordering fails before dispatch.
+
+The initial task artifact is compiled with Deno `-A`. Authoring module
+top-level code must only construct deterministic definitions; task work belongs
+inside `job.task` functions. The generated invocation currently targets POSIX
+runners.
+
+Runtime diagnostics are retained as bounded JSON records under
+`.tsugiori/diagnostics/`. Set `TSUGIORI_DIAGNOSTICS=off` to disable recording.
 
 ## Status
 
-Phase 1 implementation is in progress.
-
-The implemented slice accepts an internal AST for unconditional `push` and
-`pull_request` events, jobs, runner selection, dependencies, and basic `uses`
-and `run` steps. It validates the supported structure and emits canonical,
-GitHub Actions-native YAML. The current API is internal and is exercised
-directly by tests; pipeline source loading, file generation, stale checks, and
-the task runtime remain unimplemented.
+Phase 1 stale-output checking and later provider-native GitHub Actions concepts
+remain in progress. The initial Phase 2 vertical slice implements inline task
+authoring, task registry lowering, local artifact preparation and caching,
+manifest verification, and task dispatch. It has local compiled-binary E2E
+coverage but has not been run on a GitHub-hosted runner.
 
 ## Codex-Driven Development
 

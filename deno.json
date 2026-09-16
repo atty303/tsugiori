@@ -1,10 +1,13 @@
 {
   "imports": {
+    "@tsugiori/core": "./packages/core/src/mod.ts",
+    "@tsugiori/core/github-actions": "./packages/core/src/github_actions/mod.ts",
+    "@tsugiori/core/task": "./packages/core/src/task/mod.ts",
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },
   "tasks": {
-    "test": "deno test",
+    "test": "deno test -A",
     "test:update": "deno test --update-snapshots"
   }
 }

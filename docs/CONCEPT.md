@@ -84,10 +84,10 @@ entrypoints, for example:
 
 ```yaml
 - name: Test
-  run: ./.tsugiori/task-runtime test
+  run: ./.tsugiori/task-runtime ci/test/task-1
 
 - name: Build
-  run: ./.tsugiori/task-runtime build
+  run: ./.tsugiori/task-runtime ci/build/task-1
 ```
 
 The task runtime is responsible for dispatching to registered task functions.

@@ -1,9 +1,9 @@
 # Repository Layout Proposal
 
 This document describes the intended repository layout as implementation
-progresses. Phase 1 currently uses `packages/compiler` and top-level `tests`.
-The other proposed packages and directories should be created only when their
-implementation phase begins.
+progresses. The current slices use `packages/core`, `packages/compiler`,
+`packages/task-runtime`, `packages/cli`, and top-level `tests`. Other proposed
+directories should be created only when their implementation phase begins.
 
 ## Goals
 
@@ -14,8 +14,8 @@ implementation phase begins.
   without forcing separate packages before there is a practical benefit
 - provide stable homes for source, tests, examples, generated fixtures, and
   future CLI entrypoints
-- preserve the GitHub Actions-native backend direction described in the
-  roadmap and ADRs
+- preserve the GitHub Actions-native backend direction described in the roadmap
+  and ADRs
 
 ## Proposed Top-Level Shape
 
@@ -43,8 +43,8 @@ It should avoid filesystem access, process execution, network access, package
 installation, YAML writing, and compiler side effects. Its job is to construct
 structured data that compiler and task runtime packages can consume later.
 
-The package may contain both provider pipeline modules and task modules, as
-long as the module boundaries stay explicit:
+The package may contain both provider pipeline modules and task modules, as long
+as the module boundaries stay explicit:
 
 ```text
 packages/core/
@@ -53,23 +53,23 @@ packages/core/
     task/
 ```
 
-The GitHub Actions modules should own provider-native authoring concepts such
-as workflows, events, jobs, steps, runner labels, permissions, `uses` steps,
+The GitHub Actions modules should own provider-native authoring concepts such as
+workflows, events, jobs, steps, runner labels, permissions, `uses` steps,
 expression builders, `workflow_call`, and GitHub Actions workflow AST
 construction.
 
-The task modules should own task functions, task registry construction, and
-shared task runtime contract types that must remain pure at authoring time.
+The task modules currently own task function and task context types. A future
+standalone task registry should remain pure at authoring time.
 
 Authoring imports should use subpaths so the backend boundary remains visible:
 
 ```ts
-import { pipeline, expr } from "@tsugiori/core/github-actions";
-import { task } from "@tsugiori/core/task";
+import { pipeline } from "@tsugiori/core/github-actions";
+import type { TaskFunction } from "@tsugiori/core/task";
 ```
 
-The root `@tsugiori/core` export should stay small and should not re-export every
-provider DSL by default.
+The root `@tsugiori/core` export should stay small and should not re-export
+every provider DSL by default.
 
 ## `packages/compiler`
 
@@ -81,7 +81,7 @@ It should own:
 - loading and evaluating pipeline authoring source
 - converting pure authoring data into provider backend ASTs when needed
 - deterministic GitHub Actions YAML emission
-- planned `tsugiori generate` behavior
+- implemented `tsugiori generate` behavior
 - planned `tsugiori generate --check` stale-output behavior
 - writing generated files when running in generation mode
 - reporting stale generated files without mutating the tree when running in
@@ -106,54 +106,54 @@ It should own:
 - dispatching task runtime entrypoints inside CI provider steps
 
 The task runtime package may depend on `packages/core`. `packages/core` should
-not depend on `packages/task-runtime`. The task runtime package should remain
-usable without pipeline generation so handwritten provider configuration can
-still invoke managed tasks.
+not depend on `packages/task-runtime`. The task runtime package should
+eventually be usable without pipeline generation so handwritten provider
+configuration can invoke managed tasks.
 
 ## `packages/cli`
 
-`packages/cli` should stay a thin command-line entrypoint over compiler and
-task runtime capabilities.
+`packages/cli` should stay a thin command-line entrypoint over compiler and task
+runtime capabilities.
 
-Planned commands include:
+Implemented commands include:
 
 - `tsugiori generate`
-- `tsugiori generate --check`
 - `tsugiori task prepare`
 
-Command parsing, user-facing diagnostics, and process exit handling belong
-here. GitHub Actions workflow AST modeling, YAML emission, and stale-check
-comparison logic should remain in `packages/compiler`. Task artifact
-preparation, cache adapter behavior, and task runtime dispatch should remain in
+The planned `tsugiori generate --check` command remains unimplemented.
+
+Command parsing, user-facing diagnostics, and process exit handling belong here.
+GitHub Actions workflow AST modeling, YAML emission, and stale-check comparison
+logic should remain in `packages/compiler`. Task artifact preparation, cache
+adapter behavior, and task runtime dispatch should remain in
 `packages/task-runtime`.
 
 ## Tests
 
 Tests should be organized around behavior rather than package internals.
 
-Initial Phase 1 tests should focus on:
+Tests currently cover:
 
 - deterministic YAML emission for the minimal GitHub Actions AST subset
 - stable ordering and formatting of emitted workflow files
-- stale-output detection behavior for missing, extra, and changed generated
-  files
+- authoring-to-provider lowering for inline tasks
+- compiled CLI generation, local cache miss and hit, corrupt-entry recovery,
+  runtime dispatch, and diagnostic recording behavior
 
-The current tests use Deno's committed snapshots for complete emitted YAML and
-explicit assertions for validation diagnostics. Stale-output tests remain
-deferred with the generation command slice.
+The current tests use Deno's committed snapshots for the backend emitter and a
+temporary-repository E2E test for the compiled CLI and task artifact.
+Stale-output tests remain deferred until `generate --check` is implemented.
 
 Later tests should cover:
 
 - GitHub Actions expression emission
 - validation behavior
-- task registry and task runtime entrypoint alignment
-- task artifact metadata or manifest generation
 - task artifact cache adapter contract behavior
 
 ## Fixtures
 
-`tests/fixtures` should hold small, explicit source and expected-output
-fixtures when a test is clearer as a fixture than as a committed snapshot.
+`tests/fixtures` should hold small, explicit source and expected-output fixtures
+when a test is clearer as a fixture than as a committed snapshot.
 
 Generated workflow fixtures should be checked in only as test expectations or
 illustrative examples. They should not be wired into this repository's own CI
@@ -161,8 +161,8 @@ until implementation reaches the dogfooding phase.
 
 ## Examples
 
-`examples` should hold illustrative authoring source and generated YAML
-pairs once implementation can produce them.
+`examples` should hold illustrative authoring source and generated YAML pairs
+once implementation can produce them.
 
 Examples should remain GitHub Actions-native for the initial provider backend.
 They should not imply support for future provider backends, hosted services, or
@@ -175,7 +175,7 @@ Later implementation phases still need to decide:
 - public package names
 - export maps for subpath imports
 - whether packages become independent publishable units
-- exact task artifact metadata, manifest, and cache adapter module layout
+- remote cache adapter module layout
 
 Those decisions should be made when their consumers and toolchain requirements
 are known.

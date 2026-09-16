@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+#MISE description="Build the current-host Tsugiori CLI binary"
+set -euo pipefail
+
+exec deno run -A packages/cli/src/build.ts --output dist/tsugiori

@@ -21,6 +21,9 @@ the project direction. Do not use ADRs for routine wording changes.
   preparation are separate responsibilities, task-owned artifact metadata is
   not required to be a separate manifest artifact, and cache misses build and
   populate the selected adapter.
+- `0006-inline-task-runtime-slice.md`: inline task-backed steps lower to visible
+  provider steps, use job-layout fingerprints, and execute through one
+  content-addressed Deno binary with a repository-local cache adapter.
 
 ## Format
 

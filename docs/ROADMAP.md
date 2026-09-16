@@ -17,9 +17,9 @@ dates.
 
 ## Phase 1: Minimal GitHub Actions Provider Backend
 
-Status: in progress. The internal AST, validation, deterministic emitter, and
-focused tests are implemented. Pipeline source loading, generation commands,
-and stale-output checking are not implemented.
+Status: in progress. The internal AST, validation, deterministic emitter,
+public authoring source loading, `generate` command, and focused tests are
+implemented. Stale-output checking is not implemented.
 
 - define the initial GitHub Actions provider backend AST
 - support workflow name, events, jobs, and basic steps
@@ -37,8 +37,8 @@ Acceptance criteria for Phase 1:
 - the YAML emitter produces deterministic `.github/workflows/*.yml` output for
   that subset, with stable ordering and reviewable formatting
 - generated YAML stale-check behavior is specified before implementation starts
-- focused tests cover deterministic emission, and stale-output detection tests
-  accompany the future generation command slice
+- focused tests cover deterministic emission; stale-output detection tests are
+  required with the future check-mode slice
 
 Out of scope for Phase 1:
 
@@ -51,6 +51,12 @@ Out of scope for Phase 1:
 
 ## Phase 2: Task Runtime and Task-Backed Provider Steps
 
+Status: initial vertical slice implemented. Inline task-backed steps, readable
+runtime entrypoints, job-layout validation, one Deno binary artifact,
+repository-local caching, runtime-owned manifests, and compiled-binary E2E
+coverage are implemented. Standalone task authoring and remote cache adapters
+remain future work.
+
 - preserve separate command responsibilities for pipeline generation and task
   artifact preparation
 - introduce a task registry for task functions
@@ -60,8 +66,10 @@ Out of scope for Phase 1:
 - decide the exact task artifact key inputs and any metadata or manifest
   representation
 - add explicit task artifact preparation steps before task-backed provider steps
-- define the initial task artifact cache adapter, likely starting with
-  `actions/cache`
+- define the initial task artifact cache adapter, starting with a
+  repository-local implementation
+- add an `actions/cache` adapter after the artifact contract has been exercised
+  on a GitHub-hosted runner
 - keep later adapters such as OCI registries and S3 behind the same artifact
   contract
 

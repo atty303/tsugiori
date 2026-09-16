@@ -5,10 +5,12 @@ to implement every item.
 
 ## Current Phase
 
-Phase 1: minimal GitHub Actions provider backend.
+Phase 2: initial task runtime integration.
 
-The initial internal AST, validation, and deterministic YAML emitter slice is
-implemented. Keep task runtime work in Phase 2.
+The minimal provider backend, public authoring subset, source loading,
+generation command, inline task lowering, local artifact preparation, and task
+dispatch are implemented. Stale-output check mode and remote cache integration
+remain incomplete.
 
 ## Ready Documentation Tasks
 
@@ -38,23 +40,29 @@ implemented. Keep task runtime work in Phase 2.
   basic steps.
 - [x] Add snapshot tests for generated YAML and focused validation tests.
 - [x] Document the first real check/fix/test commands in `AGENTS.md`.
-- [ ] Add pipeline source loading and `generate` only after its input contract
+- [x] Add pipeline source loading and `generate` only after its input contract
   is selected.
 - [ ] Add stale-output checking and focused missing, extra, and changed output
-  tests with the generation command slice.
+  tests as the remaining generation check-mode slice.
 
-## Future Phase 2 Candidate Tasks
+## Phase 2 Tasks
 
-- [ ] Design the task registry API.
-- [ ] Decide how task runtime entrypoint names are generated and validated.
-- [ ] Emit task runtime invocations for task-backed provider steps.
-- [ ] Add validation that every generated task runtime invocation has a
+- [x] Design the inline task registry API.
+- [x] Decide how task runtime entrypoint names are generated and validated.
+- [x] Emit task runtime invocations for task-backed provider steps.
+- [x] Add validation that every generated task runtime invocation has a
   registered task entrypoint.
-- [ ] Design the task artifact metadata or manifest representation and
+- [x] Design the task artifact metadata or manifest representation and
   content-addressed key inputs.
-- [ ] Design the task artifact cache adapter interface.
-- [ ] Specify how cache miss builds populate the selected task artifact
+- [x] Design the task artifact cache adapter interface.
+- [x] Specify how cache miss builds populate the selected task artifact
   store.
+- [ ] Add standalone task-registry authoring without pipeline generation.
+- [ ] Replace the initial all-permissions task artifact with an explicit
+  permission contract.
+- [ ] Add a remote cache adapter and validate it on a GitHub-hosted runner.
+- [ ] Define Windows task artifact invocation before emitting task-backed
+  steps for Windows runners.
 
 ## Future Phase 3 Candidate Tasks
 

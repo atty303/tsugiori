@@ -1,7 +1,7 @@
 # Glossary
 
-This glossary records the current design vocabulary. It describes intended
-concepts, not implemented APIs.
+This glossary records the current design vocabulary. Some terms have an initial
+implemented API, while later-phase terms remain intended concepts.
 
 ## Pipeline
 
@@ -55,13 +55,13 @@ as host-language conditionals during pipeline generation.
 
 Code authored to perform CI work.
 
-A task function is separate from provider pipeline authoring. It can be used
-from a generated provider step or from handwritten provider configuration that
-invokes the task runtime.
+The initial API defines task functions inline through `job.task`. Standalone
+task authoring for handwritten provider configuration remains planned.
 
 ## Task Registry
 
-The mapping from task identifiers to task functions.
+The mapping from task entrypoints to task functions. The initial entrypoint is
+the pipeline ID, job ID, and task-backed-step ordinal joined as a readable path.
 
 The task registry lets task artifact preparation and provider backend emission
 agree on the task runtime entrypoints that will exist.
@@ -78,20 +78,19 @@ remaining visible as normal provider steps.
 The prepared output used by CI provider steps to execute registered task
 functions.
 
-The initial implementation direction uses Deno and may produce a binary
-artifact, but the term is intentionally broader than binary so future bundle,
-OCI image, or WebAssembly forms remain possible. An OCI image may itself be the
-task artifact.
+The initial implementation uses Deno to produce one binary for all tasks in an
+authoring root, but the term is intentionally broader than binary so future
+bundle, OCI image, or WebAssembly forms remain possible. An OCI image may
+itself be the task artifact.
 
 ## Task Artifact Metadata and Manifest
 
 Metadata that connects provider configuration to the expected task artifact.
 
-A manifest file is one possible representation of this metadata, but it is not
-required to be a separate artifact. The metadata should describe the artifact
-key, target platform, task runtime invocation form, registered task
-entrypoints, and cache adapter details when those details need to be
-materialized.
+The initial local cache entry includes a JSON sidecar manifest with the artifact
+key, target platform, task runtime invocation form, registered entrypoints,
+binary checksum, and tool/runtime versions. Other artifact forms are not
+required to use a separate manifest.
 
 ## Task Artifact Cache Adapter
 

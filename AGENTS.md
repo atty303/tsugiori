@@ -2,9 +2,12 @@
 
 ## Repository State
 
-The project is in Phase 1 implementation. The repository contains an internal
-GitHub Actions AST, validation, and deterministic YAML emission, but no public
-authoring API, CLI, task runtime, generated repository workflow, or CI setup.
+The project has an initial Phase 2 vertical slice. The repository contains a
+public minimal GitHub Actions authoring API, source loading, deterministic YAML
+generation, inline task lowering, a compiled Deno task runtime, a
+repository-local artifact cache, and compiled-binary E2E coverage. It does not
+contain stale-output check mode, expression AST support, remote cache adapters,
+a generated repository workflow, or CI setup.
 
 Do not add later-phase runtime code, generated GitHub workflows, or CI
 configuration unless the user explicitly asks for that implementation work.
