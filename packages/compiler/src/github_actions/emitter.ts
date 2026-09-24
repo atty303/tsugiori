@@ -1,4 +1,4 @@
-import { stringify } from "@std/yaml";
+import { parse, stringify } from "@std/yaml";
 import type {
   ActionInputs,
   Job,
@@ -7,6 +7,8 @@ import type {
   WorkflowPermissions,
 } from "./ast.ts";
 import type { ValidatedWorkflow } from "./validation.ts";
+
+const RUN_PLACEHOLDER = "tsugiori-run-placeholder";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
@@ -21,12 +23,13 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
           : {},
       ]),
   );
+  const orderedJobs = jobsByDependencyLayer(workflow.jobs);
   const jobs = Object.fromEntries(
-    jobsByDependencyLayer(workflow.jobs)
+    orderedJobs
       .map((job) => [job.id, emitJob(job)]),
   );
 
-  return stringify(
+  const yaml = stringify(
     {
       name: workflow.name,
       on: events,
@@ -46,6 +49,82 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       useAnchors: false,
     },
   );
+  return formatWorkflowYaml(yaml, orderedJobs);
+}
+
+function formatWorkflowYaml(yaml: string, jobs: readonly Job[]): string {
+  const runs = jobs.flatMap((job) =>
+    job.steps.flatMap((step, index) =>
+      step.type === "run" ? [{ value: step.run, job: job.id, step: index }] : []
+    )
+  );
+  const lines: string[] = [];
+  let inJobs = false;
+  let seenJob = false;
+  let seenStep = false;
+  let inSteps = false;
+  let runIndex = 0;
+
+  for (const line of yaml.split("\n")) {
+    if (line === "jobs:") {
+      inJobs = true;
+    } else if (inJobs && /^ {2}\S.*:$/.test(line)) {
+      if (seenJob && lines.at(-1) !== "") lines.push("");
+      seenJob = true;
+      seenStep = false;
+      inSteps = false;
+    } else if (line === "    steps:") {
+      inSteps = true;
+    } else if (inSteps && /^ {6}-(?: |$)/.test(line)) {
+      if (seenStep && lines.at(-1) !== "") lines.push("");
+      seenStep = true;
+    }
+
+    if (inSteps && /^(?: {6}- | {8})run: /.test(line)) {
+      const run = runs[runIndex++];
+      if (run === undefined) {
+        throw new Error("YAML output contains an unexpected run command.");
+      }
+      if (!line.endsWith(`run: ${RUN_PLACEHOLDER}`)) {
+        throw new Error("YAML output contains an unexpected run value.");
+      }
+      const block = literalRunBlock(run.value);
+      try {
+        const parsed = parse([
+          `run: ${block.header}`,
+          ...block.lines.map((value) => value === "" ? "" : `  ${value}`),
+          "",
+        ].join("\n")) as { run: unknown };
+        if (parsed.run !== run.value) throw new Error("Run value changed.");
+      } catch {
+        throw new Error(
+          `Run command in job ${JSON.stringify(run.job)} step ${
+            run.step + 1
+          } cannot be emitted as a YAML literal block.`,
+        );
+      }
+      lines.push(`${line.slice(0, line.indexOf("run: "))}run: ${block.header}`);
+      lines.push(
+        ...block.lines.map((value) => value === "" ? "" : `          ${value}`),
+      );
+      continue;
+    }
+    lines.push(line);
+  }
+
+  if (runIndex !== runs.length) {
+    throw new Error("YAML output is missing a run command.");
+  }
+  return lines.join("\n");
+}
+
+function literalRunBlock(value: string): { header: string; lines: string[] } {
+  const chomp = value.endsWith("\n\n") ? "+" : value.endsWith("\n") ? "" : "-";
+  const lines = value.split("\n");
+  if (value.endsWith("\n")) lines.pop();
+  const firstContent = lines.find((line) => line.length > 0) ?? "";
+  const indent = /^[ \t]/.test(firstContent) ? "2" : "";
+  return { header: `|${indent}${chomp}`, lines };
 }
 
 function jobsByDependencyLayer(jobs: readonly Job[]): Job[] {
@@ -132,7 +211,7 @@ function emitStep(step: Step): Record<string, unknown> {
       emitted.with = emitActionInputs(step.with);
     }
   } else {
-    emitted.run = step.run;
+    emitted.run = RUN_PLACEHOLDER;
     if (step.workingDirectory !== undefined) {
       emitted["working-directory"] = step.workingDirectory;
     }

@@ -106,7 +106,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task cache-key --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout 'ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -114,14 +114,20 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task prepare --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout 'ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
     "uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
   );
-  assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-1");
-  assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-2");
+  assertStringIncludes(
+    yaml,
+    "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",
+  );
+  assertStringIncludes(
+    yaml,
+    "run: |-\n          ./.tsugiori/task-runtime ci/test/task-2",
+  );
   assertEquals(yaml.match(/name: Prepare task artifact/g)?.length, 1);
   assertEquals(yaml.match(/name: Restore task artifact cache/g)?.length, 1);
   assertEquals(yaml.match(/name: Save task artifact cache/g)?.length, 1);
@@ -470,7 +476,10 @@ Deno.test("direct config preserves task step ID and environment", async () => {
     const yaml = emitWorkflow(lowered.pipelines[0].workflow);
     assertStringIncludes(yaml, "id: plan");
     assertStringIncludes(yaml, "TOKEN: '${{ secrets.TOKEN }}'");
-    assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-1");
+    assertStringIncludes(
+      yaml,
+      "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",
+    );
   } finally {
     await Deno.remove(root, { recursive: true });
   }

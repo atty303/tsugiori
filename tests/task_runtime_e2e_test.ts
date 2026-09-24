@@ -138,13 +138,13 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       assertStringIncludes(workflow, "working-directory: .github");
       assertStringIncludes(
         workflow,
-        "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task cache-key",
+        "deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key",
       );
       assertStringIncludes(workflow, "actions/cache/restore@");
       assertStringIncludes(workflow, "actions/cache/save@");
       assertStringIncludes(
         workflow,
-        "run: ./.tsugiori/task-runtime ci/test/task-1",
+        "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",
       );
       const expectedLayout = workflow.match(/ci\/test=sha256:[0-9a-f]+/)?.[0];
       assert(expectedLayout !== undefined);

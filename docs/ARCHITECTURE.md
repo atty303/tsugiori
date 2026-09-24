@@ -95,6 +95,9 @@ GitHub Actions YAML.
 It should aim for stable output that is easy to review. The emitter should not
 invent an execution model. Its job is to serialize native GitHub Actions
 concepts from the AST into `.github/workflows/*.yml`.
+It emits `run` commands as literal blocks while preserving their exact string
+values, and separates adjacent jobs and steps with blank lines. Commands that
+require YAML character escapes cannot use literal blocks and are rejected.
 
 Generated workflow files are intended to be committed. A local git hook may run
 the compiler before commit, but hook execution should be treated as a

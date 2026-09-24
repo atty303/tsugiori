@@ -16,8 +16,11 @@ jobs:
         with:
           fetch-depth: 1
           persist-credentials: false
+
       - name: Build
-        run: deno task build
+        run: |-
+          deno task build
+
   test:
     runs-on:
       - SELF-HOSTED
@@ -30,10 +33,13 @@ jobs:
         id: test-step
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
-        run: deno test
+        run: |-
+          deno test
+
       - run: |-
           echo first
           echo second
+
   deploy:
     runs-on:
       group: production-runners
@@ -46,6 +52,7 @@ jobs:
       - test
     steps:
       - name: Deploy
-        run: ./deploy
+        run: |-
+          ./deploy
 
 `;

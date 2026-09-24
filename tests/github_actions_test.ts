@@ -1,4 +1,10 @@
-import { assert, assertEquals } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
+import { parse } from "@std/yaml";
 import {
   emitWorkflow,
   validateWorkflow,
@@ -62,6 +68,107 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
   await t.assertSnapshot(emitWorkflow(result.value), {
     serializer: (value) => value,
   });
+});
+
+Deno.test("run blocks and separators preserve command values", () => {
+  const commands = [
+    "echo 'key: value'",
+    "printf x\t| cat",
+    "echo first\necho second",
+    "echo trailing\n",
+    "echo keep\n\n",
+    " echo leading space",
+  ];
+  const result = validateWorkflow({
+    name: "Readable",
+    events: ["push"],
+    jobs: [
+      {
+        id: "first",
+        runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+        needs: [],
+        steps: [
+          { type: "uses", uses: "actions/checkout@v6" },
+          ...commands.slice(0, 5).map((run) => ({ type: "run" as const, run })),
+          { type: "uses", uses: "actions/cache@v4" },
+        ],
+      },
+      {
+        id: "true",
+        runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+        needs: [],
+        steps: [{ type: "run", run: commands[5] }],
+      },
+    ],
+  });
+  assert(result.ok);
+
+  const yaml = emitWorkflow(result.value);
+  const parsed = parse(yaml) as {
+    jobs: Record<string, { steps: Array<{ run?: string }> }>;
+  };
+  assertEquals(
+    ["first", "true"].flatMap((id) =>
+      parsed.jobs[id].steps.flatMap((step) =>
+        step.run === undefined ? [] : [step.run]
+      )
+    ),
+    commands,
+  );
+  assertEquals(
+    [...yaml.matchAll(/^(?: {6}- | {8})run: \|[1-9]?[+-]?$/gm)].length,
+    commands.length,
+  );
+  assertStringIncludes(yaml, "uses: actions/checkout@v6\n\n      - run: |-");
+  assertStringIncludes(yaml, "echo keep\n\n      - uses: actions/cache@v4");
+  assertStringIncludes(yaml, "\n\n  'true':\n");
+});
+
+Deno.test("rejects run commands that require YAML escapes", () => {
+  const result = validateWorkflow({
+    name: "Unsupported",
+    events: ["push"],
+    jobs: [{
+      id: "test",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      steps: [{ type: "run", run: "echo\rvalue" }],
+    }],
+  });
+  assert(result.ok);
+  assertThrows(
+    () => emitWorkflow(result.value),
+    Error,
+    'Run command in job "test" step 1 cannot be emitted as a YAML literal block.',
+  );
+});
+
+Deno.test("matrix run axis does not affect run step formatting", () => {
+  const result = validateWorkflow({
+    name: "Matrix",
+    events: ["push"],
+    jobs: [{
+      id: "test",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      strategy: {
+        matrix: { run: "${{ fromJSON(needs.prepare.outputs.scripts) }}" },
+      },
+      steps: [{ type: "run", run: "echo test" }],
+    }],
+  });
+  assert(result.ok);
+
+  const parsed = parse(emitWorkflow(result.value)) as {
+    jobs: {
+      test: { strategy: { matrix: { run: string } }; steps: [{ run: string }] };
+    };
+  };
+  assertEquals(
+    parsed.jobs.test.strategy.matrix.run,
+    "${{ fromJSON(needs.prepare.outputs.scripts) }}",
+  );
+  assertEquals(parsed.jobs.test.steps[0].run, "echo test");
 });
 
 Deno.test("normalizes semantically unordered input", () => {

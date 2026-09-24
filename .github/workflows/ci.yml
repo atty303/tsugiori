@@ -13,15 +13,21 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+
       - name: Install toolchain
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
+
       - name: Check generated workflow
-        run: 'deno task generate:check'
+        run: |-
+          deno task generate:check
         working-directory: .github
+
       - name: Resolve task artifact
         id: tsugiori-task-artifact
-        run: 'deno run --frozen=true -A ''./tsugiori.ts'' github-actions task cache-key --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+        run: |-
+          deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout 'ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'
         working-directory: .github
+
       - name: Restore task artifact cache
         id: tsugiori-task-cache-restore
         continue-on-error: true
@@ -30,10 +36,13 @@ jobs:
           key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}'
           path: '${{ steps.tsugiori-task-artifact.outputs.cache-path }}'
           restore-keys: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-'
+
       - name: Prepare task artifact
         id: tsugiori-task-prepare
-        run: 'deno run --frozen=true -A ''./tsugiori.ts'' github-actions task prepare --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'' --expected-key ''${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'''
+        run: |-
+          deno run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout 'ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250' --expected-key '${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'
         working-directory: .github
+
       - name: Save task artifact cache
         if: steps.tsugiori-task-prepare.outputs.cache-write-required == 'true'
         continue-on-error: true
@@ -41,5 +50,7 @@ jobs:
         with:
           key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-${{ github.run_id }}-${{ github.run_attempt }}'
           path: '${{ steps.tsugiori-task-artifact.outputs.cache-path }}'
+
       - name: Run repository checks and tests
-        run: ./.tsugiori/task-runtime ci/test/task-1
+        run: |-
+          ./.tsugiori/task-runtime ci/test/task-1
