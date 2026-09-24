@@ -70,7 +70,7 @@ work.
   representation
 - add explicit task artifact preparation steps before task-backed provider steps
 - retain a repository-local source-addressed artifact entry
-- emit generational `actions/cache` restore and save steps in the GitHub
+- emit one `actions/cache` step with a source-addressed key in the GitHub
   Actions backend
 - validate the remote-cache path on a GitHub-hosted runner
 - defer a common delivery abstraction until a second concrete backend such as

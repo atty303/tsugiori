@@ -42,9 +42,8 @@ not separate automatic key inputs. Deno version remains diagnostic manifest
 metadata. Incompatible artifact or
 manifest changes increment the artifact format version.
 
-The GitHub Actions transport key keeps its existing generational shape. It
-embeds the artifact key and does not repeat `cacheVersion` as a separate
-segment.
+The GitHub Actions transport key embeds the artifact key without repeating
+`cacheVersion` as a separate segment. It is stable across workflow runs.
 
 ## Consequences
 

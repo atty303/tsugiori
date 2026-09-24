@@ -99,9 +99,8 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertEquals(lowered.pipelines.length, 1);
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
   assertStringIncludes(yaml, "name: Resolve task artifact");
-  assertStringIncludes(yaml, "name: Restore task artifact cache");
+  assertStringIncludes(yaml, "name: Cache task artifact");
   assertStringIncludes(yaml, "name: Prepare task artifact");
-  assertStringIncludes(yaml, "name: Save task artifact cache");
   assertStringIncludes(yaml, "permissions:\n  contents: read");
   assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
@@ -110,7 +109,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+    "uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
   );
   assertStringIncludes(
     yaml,
@@ -118,8 +117,13 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+    "key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'",
   );
+  assertEquals(yaml.match(/uses: actions\/cache@/g)?.length, 1);
+  assert(!yaml.includes("actions/cache/restore@"));
+  assert(!yaml.includes("actions/cache/save@"));
+  assert(!yaml.includes("github.run_id"));
+  assert(!yaml.includes("github.run_attempt"));
   assertStringIncludes(
     yaml,
     "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",
@@ -129,8 +133,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
     "run: |-\n          ./.tsugiori/task-runtime ci/test/task-2",
   );
   assertEquals(yaml.match(/name: Prepare task artifact/g)?.length, 1);
-  assertEquals(yaml.match(/name: Restore task artifact cache/g)?.length, 1);
-  assertEquals(yaml.match(/name: Save task artifact cache/g)?.length, 1);
+  assertEquals(yaml.match(/name: Cache task artifact/g)?.length, 1);
 });
 
 Deno.test("duplicate pipeline outputs fail before generation", async () => {
@@ -199,7 +202,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
   assertEquals(steps.map((step) => step.id).filter(Boolean), [
     "tsugiori-task-artifact",
     "tsugiori-task-artifact-2",
-    "tsugiori-task-cache-restore",
+    "tsugiori-task-cache",
     "tsugiori-task-prepare",
   ]);
   const prepareStep = steps.find((step) =>

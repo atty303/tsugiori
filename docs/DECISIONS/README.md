@@ -33,8 +33,8 @@ the project direction. Do not use ADRs for routine wording changes.
   line to standard error only when the GitHub Actions runner debug mode is
   enabled; diagnostic files are not retained.
 - `0008-github-actions-task-artifact-cache.md`: the GitHub Actions backend owns
-  visible generational `actions/cache` delivery without introducing a generic
-  remote cache adapter or a public prepare-command contract.
+  visible `actions/cache` delivery with a fixed key, without introducing a
+  generic remote cache adapter or a public prepare-command contract.
 - `0009-immutable-typestate-authoring.md`: GitHub Actions authoring uses
   immutable typestate facades, topologically declared jobs, typed action
   contracts, and a workflow-key-specific expression scope catalog.

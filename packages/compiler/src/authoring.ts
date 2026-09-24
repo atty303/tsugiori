@@ -14,7 +14,7 @@ import {
 const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
 const ARTIFACT_STEP_ID = "tsugiori-task-artifact";
-const CACHE_RESTORE_STEP_ID = "tsugiori-task-cache-restore";
+const CACHE_STEP_ID = "tsugiori-task-cache";
 const PREPARE_STEP_ID = "tsugiori-task-prepare";
 
 export type RegisteredTask = Readonly<{
@@ -268,8 +268,8 @@ function preparationSteps(
   projectDirectory: string,
 ): readonly Step[] {
   const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
-  const cacheRestoreStepId = allocateStepId(
-    CACHE_RESTORE_STEP_ID,
+  const cacheStepId = allocateStepId(
+    CACHE_STEP_ID,
     usedStepIds,
   );
   const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
@@ -277,9 +277,7 @@ function preparationSteps(
     `\${{ steps.${artifactStepId}.outputs.artifact-key }}`;
   const cachePathExpression =
     `\${{ steps.${artifactStepId}.outputs.cache-path }}`;
-  const cacheKey =
-    `tsugiori-task-${artifactKeyExpression}-\${{ github.run_id }}-\${{ github.run_attempt }}`;
-  const cacheRestorePrefix = `tsugiori-task-${artifactKeyExpression}-`;
+  const cacheKey = `tsugiori-task-${artifactKeyExpression}`;
   const configPath = relative(projectDirectory, configArgument);
   const entrypoint = configPath.startsWith(".")
     ? configPath
@@ -300,14 +298,13 @@ function preparationSteps(
     },
     {
       type: "uses",
-      name: "Restore task artifact cache",
-      id: cacheRestoreStepId,
+      name: "Cache task artifact",
+      id: cacheStepId,
       continueOnError: true,
-      uses: `actions/cache/restore@${ACTIONS_CACHE_COMMIT}`,
+      uses: `actions/cache@${ACTIONS_CACHE_COMMIT}`,
       with: {
         path: cachePathExpression,
         key: cacheKey,
-        "restore-keys": cacheRestorePrefix,
       },
     },
     {
@@ -323,17 +320,6 @@ function preparationSteps(
         "--expected-key",
         quotePosix(artifactKeyExpression),
       ].join(" "),
-    },
-    {
-      type: "uses",
-      name: "Save task artifact cache",
-      if: `steps.${prepareStepId}.outputs.cache-write-required == 'true'`,
-      continueOnError: true,
-      uses: `actions/cache/save@${ACTIONS_CACHE_COMMIT}`,
-      with: {
-        path: cachePathExpression,
-        key: cacheKey,
-      },
     },
   ];
 }

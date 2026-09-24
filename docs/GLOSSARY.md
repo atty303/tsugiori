@@ -96,6 +96,6 @@ required to use a separate manifest.
 ## Task Artifact Delivery
 
 The provider-owned mechanism that makes a task artifact available to task-backed
-steps. The GitHub Actions backend uses visible, generational `actions/cache`
-steps and a source-addressed local entry. No generic remote adapter is part of
-the current contract.
+steps. The GitHub Actions backend uses a visible `actions/cache` step with a
+fixed source-addressed key and a source-addressed local entry. No generic remote
+adapter is part of the current contract.

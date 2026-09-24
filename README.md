@@ -10,7 +10,7 @@ that CI provider steps can execute through a prepared task artifact.
 Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
 load a TypeScript authoring module, generate deterministic workflow YAML,
 prepare a source-addressed Deno task binary through a repository-local cache,
-restore and save those cache entries through generated `actions/cache` steps,
+restore and save those cache entries through a generated `actions/cache` step,
 and dispatch inline task functions. The repository now uses a generated
 workflow to exercise that slice on GitHub Actions. Native stale-output check
 mode detects missing, changed, and extra generated workflows. Broader GitHub
@@ -78,7 +78,7 @@ may be a prepared runtime form such as an OCI image. Provider steps should make
 that artifact available through explicit preparation work, then invoke task
 runtime entrypoints without fetching or building managed task code again. Task
 artifact delivery is provider-owned. The GitHub Actions backend emits visible
-`actions/cache` restore and save steps. A shared delivery abstraction should be
+an `actions/cache` step. A shared delivery abstraction should be
 extracted only after another backend such as an OCI registry or S3 requires it.
 
 ## Initial Authoring API
@@ -178,9 +178,10 @@ comment in each generated YAML identifies its owning config; check mode compares
 the current file bytes and reports missing, changed, or extra owned files.
 
 The generated job keeps setup steps visible, resolves the artifact key, restores
-the newest matching `actions/cache` generation, prepares and validates the
-artifact, and conditionally saves a new generation before the first task-backed
-step. Each task remains a separate invocation such as
+the source-addressed artifact through `actions/cache`, and prepares and
+validates it before the first task-backed step. On a cache miss, the action
+saves the prepared entry after the job succeeds. Each task remains a separate
+invocation such as
 `./.tsugiori/task-runtime ci/test/task-1`. The preparation step contains a
 job-layout fingerprint so stale task ordering fails before dispatch.
 
@@ -202,8 +203,8 @@ authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, generated `actions/cache` delivery, and task dispatch.
 It has local config-entrypoint and compiled task-artifact E2E coverage. The earlier local-cache workflow ran
 successfully for push and pull request events on a GitHub-hosted
-`ubuntu-24.04` runner. The generated remote-cache path has also completed a
-cold save followed by a warm restore on a same-revision rerun.
+`ubuntu-24.04` runner. The fixed-key `actions/cache` post-action path has not
+yet been exercised on a GitHub-hosted runner.
 
 ## Codex-Driven Development
 

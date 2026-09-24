@@ -32,7 +32,6 @@ export type PrepareOptions = Readonly<{
 export type PrepareResult = Readonly<{
   artifactKey: string;
   cache: "hit" | "miss";
-  cacheWriteRequired: boolean;
   manifest: TaskArtifactManifest;
 }>;
 
@@ -146,7 +145,6 @@ export async function prepareTaskArtifact(
         return {
           artifactKey: plan.artifactKey,
           cache: "hit",
-          cacheWriteRequired: false,
           manifest,
         };
       } catch {
@@ -181,10 +179,8 @@ export async function prepareTaskArtifact(
       attributes: { artifactKey: plan.artifactKey, target: plan.target },
     });
 
-    let cacheWriteRequired = false;
     try {
       await cache.store(plan.artifactKey, builtDirectory);
-      cacheWriteRequired = true;
       options.recorder.operation({
         name: "cache.store",
         status: "success",
@@ -206,7 +202,6 @@ export async function prepareTaskArtifact(
     return {
       artifactKey: plan.artifactKey,
       cache: "miss",
-      cacheWriteRequired,
       manifest,
     };
   } finally {

@@ -227,17 +227,18 @@ internal run steps use the workflow project as `working-directory`, so Deno
 uses that project's configuration and lockfile for source inspection, module
 graph resolution, and compilation. The consumer task supplies an explicit
 repository root for generated outputs and the local artifact cache. It emits
-visible steps that resolve the artifact key, restore the newest matching
-`actions/cache` generation, validate or build the local entry, and save a new
-generation only after a build or corrupt-entry recovery.
+visible steps that resolve the artifact key, use `actions/cache` to restore the
+entry, and validate or build it. The action saves a new entry after the job
+succeeds when the fixed key was not an exact cache hit.
 
 The local source-addressed entry is
-`.tsugiori/cache/artifacts/<artifact-key>/`. GitHub cache transport keys append
-`github.run_id` and `github.run_attempt`; restore uses the artifact-key prefix
-so an immutable corrupt entry can be superseded by a newer generation.
+`.tsugiori/cache/artifacts/<artifact-key>/`. The GitHub cache transport key is
+`tsugiori-task-<artifact-key>`. The artifact key includes the config-wide
+`cacheVersion`. An immutable corrupt remote entry cannot be overwritten at the
+same key; recovery requires deleting that entry or changing the key.
 
-Restore and save failures are best-effort when a valid artifact can be built
-locally. Restored binaries are not used until their expected artifact key,
+Cache failures are best-effort when a valid artifact can be built locally.
+Restored binaries are not used until their expected artifact key,
 manifest, and checksum have been validated. The checksum detects corruption;
 GitHub's cache scope and write authorization remain the authenticity boundary.
 

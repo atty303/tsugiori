@@ -61,16 +61,17 @@ Run `deno task generate:check` to detect stale output without writing it.
 
 The task-backed job remains a normal GitHub Actions job. Before its task step,
 Tsugiori emits visible steps to resolve the artifact key, restore an
-`actions/cache` entry, prepare the artifact, and save a new cache generation
-when needed. The internal run steps use `.github` as their
-`working-directory` and execute the config file from the project directory:
+`actions/cache` entry, and prepare the artifact. The cache action saves a new
+entry after a successful job on a cache miss. The internal run steps use
+`.github` as their `working-directory` and execute the config file from the
+project directory:
 
 ```yaml
 - name: Resolve task artifact
   id: tsugiori-task-artifact
   run: deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout 'ci/test=sha256:<digest>'
   working-directory: .github
-# Visible cache restore, preparation, and conditional save steps follow.
+# Visible cache and preparation steps follow.
 - name: Test
   run: ./.tsugiori/task-runtime ci/test/task-1
 ```

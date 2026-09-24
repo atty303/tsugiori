@@ -176,10 +176,6 @@ export async function runTsugiori(
           cache: result.cache,
         },
       });
-      await writeGitHubOutputs({
-        "cache-write-required": result.cacheWriteRequired ? "true" : "false",
-      });
-      recorder.operation({ name: "github.output", status: "success" });
       await recorder.finish("success");
       console.log(
         `Task artifact ready at ./.tsugiori/task-runtime (cache ${result.cache}).`,

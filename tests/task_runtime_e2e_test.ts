@@ -132,16 +132,14 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
         workflow,
       );
       assertStringIncludes(workflow, "name: Resolve task artifact");
-      assertStringIncludes(workflow, "name: Restore task artifact cache");
+      assertStringIncludes(workflow, "name: Cache task artifact");
       assertStringIncludes(workflow, "name: Prepare task artifact");
-      assertStringIncludes(workflow, "name: Save task artifact cache");
       assertStringIncludes(workflow, "working-directory: .github");
       assertStringIncludes(
         workflow,
         "deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key",
       );
-      assertStringIncludes(workflow, "actions/cache/restore@");
-      assertStringIncludes(workflow, "actions/cache/save@");
+      assertStringIncludes(workflow, "uses: actions/cache@");
       assertStringIncludes(
         workflow,
         "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",
@@ -241,12 +239,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
       assertEquals(firstPrepare.code, 0, firstPrepare.stderr);
       assertStringIncludes(firstPrepare.stdout, "cache miss");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "true",
-      );
 
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime"));
       await Deno.remove(resolve(fixture, ".tsugiori/task-runtime.json"));
@@ -266,12 +258,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
       assertEquals(secondPrepare.code, 0, secondPrepare.stderr);
       assertStringIncludes(secondPrepare.stdout, "cache hit");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "false",
-      );
 
       await Deno.writeTextFile(
         resolve(fixture, ".github/deno.json"),
@@ -306,12 +292,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
         configurationOnlyChange.stderr,
       );
       assertStringIncludes(configurationOnlyChange.stdout, "cache hit");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "false",
-      );
 
       await Deno.writeTextFile(
         resolve(fixture, ".github/tsugiori.ts"),
@@ -381,12 +361,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
       assertEquals(configurationChanged.code, 0, configurationChanged.stderr);
       assertStringIncludes(configurationChanged.stdout, "cache miss");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "true",
-      );
 
       const materializedManifest = JSON.parse(
         await Deno.readTextFile(
@@ -429,12 +403,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
       assertEquals(recovered.code, 0, recovered.stderr);
       assertStringIncludes(recovered.stdout, "cache miss");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "true",
-      );
 
       await Deno.chmod(
         resolve(
@@ -465,12 +433,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
       assertEquals(unreadableEntry.code, 0, unreadableEntry.stderr);
       assertStringIncludes(unreadableEntry.stdout, "cache miss");
-      assertEquals(
-        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
-          "cache-write-required"
-        ],
-        "true",
-      );
       assertEquals(
         diagnosticRecord(unreadableEntry.stderr)?.operations.filter(
           (operation) => operation.name === "cache.restore",
@@ -839,12 +801,6 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
         { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(prepared.code, 0, prepared.stderr);
-      assertEquals(
-        parseGitHubOutputs(
-          await Deno.readTextFile(githubOutput),
-        )["cache-write-required"],
-        "true",
-      );
       assertEquals(
         (await Deno.stat(resolve(fixture, ".tsugiori/task-runtime"))).isFile,
         true,

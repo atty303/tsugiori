@@ -106,7 +106,7 @@ itself be the task artifact; the design should not require an additional
 project-specific artifact beside it.
 
 Task artifact delivery belongs to the provider integration. The implemented
-GitHub Actions backend emits visible `actions/cache` restore and save steps.
+GitHub Actions backend emits a visible `actions/cache` step.
 Future OCI registry, S3, or provider integrations should start with their
 native delivery model; a shared abstraction should be extracted only from
 concrete common requirements.
