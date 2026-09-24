@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 Deno.test({
   name:
-    "package CLI generates, prepares, caches, and dispatches a task artifact",
+    "config entrypoint generates, prepares, caches, and dispatches a task artifact",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -27,17 +27,25 @@ Deno.test({
       await Deno.writeTextFile(
         resolve(fixture, ".github/deno.json"),
         JSON.stringify({
-          imports: { "@atty303/tsugiori": "workspace:*" },
+          imports: {
+            "@atty303/tsugiori": "workspace:*",
+            "consumer-only": "./consumer-only.ts",
+          },
           tasks: {
-            generate:
-              "deno run --frozen=true -A @atty303/tsugiori/cli generate --config .github/tsugiori.ts --root ..",
+            generate: "deno run --frozen=true -A ./tsugiori.ts generate",
             "generate:check":
-              "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config .github/tsugiori.ts --root ..",
+              "deno run --frozen=true -A ./tsugiori.ts generate --check",
           },
         }),
       );
-      const configSource =
-        `import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+      await Deno.writeTextFile(
+        resolve(fixture, ".github/consumer-only.ts"),
+        "export const consumerMarker = true;\n",
+      );
+      const configSource = `import { consumerMarker } from "consumer-only";
+void consumerMarker;
+import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { runTsugiori } from "@atty303/tsugiori/run";
 
 const base = pipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -72,7 +80,9 @@ const ci = base.job("test", ({ job }) =>
     })
 );
 
-export default defineTsugiori({ pipelines: [ci] });
+const config = defineTsugiori({ pipelines: [ci] });
+export default config;
+if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: import.meta.url, root: new URL("../", import.meta.url) });
 `;
       await Deno.writeTextFile(
         resolve(fixture, ".github/tsugiori.ts"),
@@ -103,8 +113,6 @@ export default defineTsugiori({ pipelines: [ci] });
         [
           "generate",
           "--check",
-          "--config",
-          ".github/tsugiori.ts",
           "--output",
           ".github/workflows/ci.yml",
         ],
@@ -130,7 +138,7 @@ export default defineTsugiori({ pipelines: [ci] });
       assertStringIncludes(workflow, "working-directory: .github");
       assertStringIncludes(
         workflow,
-        "deno run --frozen=true -A @atty303/tsugiori/cli github-actions task cache-key",
+        "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task cache-key",
       );
       assertStringIncludes(workflow, "actions/cache/restore@");
       assertStringIncludes(workflow, "actions/cache/save@");
@@ -150,8 +158,6 @@ export default defineTsugiori({ pipelines: [ci] });
         [
           "generate",
           "--check",
-          "--config",
-          ".github/tsugiori.ts",
           "--output",
           ".github/workflows/ci.yml",
         ],
@@ -173,8 +179,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "cache-key",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
         ],
@@ -204,8 +208,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "cache-key",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
         ],
@@ -229,8 +231,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -256,8 +256,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -278,7 +276,10 @@ export default defineTsugiori({ pipelines: [ci] });
       await Deno.writeTextFile(
         resolve(fixture, ".github/deno.json"),
         JSON.stringify({
-          imports: { "@atty303/tsugiori": "workspace:*" },
+          imports: {
+            "@atty303/tsugiori": "workspace:*",
+            "consumer-only": "./consumer-only.ts",
+          },
           compilerOptions: { strict: true },
         }),
       );
@@ -288,8 +289,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -324,8 +323,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -355,8 +352,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "cache-key",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
         ],
@@ -376,8 +371,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -426,8 +419,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -460,8 +451,6 @@ export default defineTsugiori({ pipelines: [ci] });
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          ".github/tsugiori.ts",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -559,13 +548,22 @@ export default defineTsugiori({ pipelines: [ci] });
       );
       assertEquals(configFailure.code, 1);
       assertStringIncludes(configFailure.stderr, "config-load-private");
-      const configFailureRecords = diagnosticRecords(configFailure.stderr);
-      assertEquals(configFailureRecords.length, 1);
-      assertEquals(
-        configFailureRecords[0].operations[0].errorType,
-        "config_load_failed",
+      assertEquals(diagnosticRecord(configFailure.stderr), undefined);
+      await Deno.writeTextFile(
+        resolve(fixture, ".github/fail-config"),
+        "fail\n",
       );
+      const directConfigFailure = await run(
+        Deno.execPath(),
+        ["run", "--frozen=true", "-A", "./tsugiori.ts", "generate", "--check"],
+        resolve(fixture, ".github"),
+        { ...environment, RUNNER_DEBUG: "1" },
+      );
+      assertEquals(directConfigFailure.code, 1);
+      assertStringIncludes(directConfigFailure.stderr, "config-load-private");
+      assertEquals(diagnosticRecord(directConfigFailure.stderr), undefined);
       await Deno.remove(resolve(fixture, "fail-config"));
+      await Deno.remove(resolve(fixture, ".github/fail-config"));
 
       const unknown = await run(
         runtime,
@@ -618,6 +616,9 @@ Deno.test({
               lock: false,
               imports: {
                 "@atty303/tsugiori/github-actions": coreModule,
+                "@atty303/tsugiori/run": pathToFileURL(
+                  resolve(repositoryRoot, "packages/runner/src/main.ts"),
+                ).href,
                 "@std/yaml": "jsr:@std/yaml@^1.2.0",
               },
             },
@@ -632,6 +633,7 @@ Deno.test({
       );
       const configSource =
         `import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { runTsugiori } from "@atty303/tsugiori/run";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;
@@ -642,21 +644,21 @@ const ci = pipeline("ci", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", task: () => {} })
 );
-export default defineTsugiori({ cacheVersion, pipelines: [ci] });
+const config = defineTsugiori({ cacheVersion, pipelines: [ci] });
+export default config;
+if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: import.meta.url, root: new URL("./", import.meta.url) });
 `;
       await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
 
       const firstDenoDirectory = resolve(fixture, "deno-cache-first");
       const secondDenoDirectory = resolve(fixture, "deno-cache-second");
       const baseline = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         firstDenoDirectory,
       );
 
       remoteSource = 'export const remoteMarker = "second";\n';
       const remoteChanged = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         secondDenoDirectory,
       );
@@ -667,7 +669,6 @@ export default defineTsugiori({ cacheVersion, pipelines: [ci] });
         'export const cacheVersion = 1;\nexport const externalMarker = "second";\n',
       );
       const externalChanged = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         secondDenoDirectory,
       );
@@ -678,7 +679,6 @@ export default defineTsugiori({ cacheVersion, pipelines: [ci] });
         'export const cacheVersion = 2;\nexport const externalMarker = "second";\n',
       );
       const cacheVersionChanged = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         secondDenoDirectory,
       );
@@ -693,7 +693,6 @@ export default defineTsugiori({ cacheVersion, pipelines: [ci] });
         `${configSource}\n// repository-local source edit\n`,
       );
       const localSourceChanged = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         secondDenoDirectory,
       );
@@ -701,7 +700,6 @@ export default defineTsugiori({ cacheVersion, pipelines: [ci] });
 
       await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
       const targetChanged = await resolveSourceArtifactKey(
-        repositoryRoot,
         fixture,
         secondDenoDirectory,
         Deno.build.target === "x86_64-unknown-linux-gnu"
@@ -747,23 +745,34 @@ Deno.test({
       await Deno.writeTextFile(
         resolve(project, "deno.json"),
         JSON.stringify({
-          imports: { "@atty303/tsugiori": "workspace:*" },
+          imports: {
+            "@atty303/tsugiori": "workspace:*",
+            "consumer-only": "./consumer-only.ts",
+          },
           tasks: {
-            generate:
-              "deno run --frozen=true -A @atty303/tsugiori/cli generate --config tsugiori.ts --root ../..",
+            generate: "deno run --frozen=true -A ./tsugiori.ts generate",
             "generate:check":
-              "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config tsugiori.ts --root ../..",
+              "deno run --frozen=true -A ./tsugiori.ts generate --check",
           },
         }),
       );
       await Deno.writeTextFile(
-        resolve(fixture, "tsugiori.ts"),
-        `import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
-export default defineTsugiori({ pipelines: [pipeline("ci", {
+        resolve(project, "consumer-only.ts"),
+        "export const consumerMarker = true;\n",
+      );
+      await Deno.writeTextFile(
+        resolve(project, "tsugiori.ts"),
+        `import { consumerMarker } from "consumer-only";
+void consumerMarker;
+import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { runTsugiori } from "@atty303/tsugiori/run";
+const config = defineTsugiori({ pipelines: [pipeline("ci", {
   output: ".github/workflows/ci.yml", events: ["push"],
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", task: () => {},
-}))] });\n`,
+}))] });
+export default config;
+if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: import.meta.url, root: new URL("../../", import.meta.url) });\n`,
       );
       const environment = Deno.env.toObject();
       const generated = await run(
@@ -784,7 +793,7 @@ export default defineTsugiori({ pipelines: [pipeline("ci", {
         resolve(fixture, ".github/workflows/ci.yml"),
       );
       assertStringIncludes(workflow, "working-directory: ci/pipelines");
-      assertStringIncludes(workflow, "--root ''../..''");
+      assertStringIncludes(workflow, "./tsugiori.ts");
       const expectedLayout = workflow.match(/ci\/test=sha256:[0-9a-f]+/)?.[0];
       assert(expectedLayout !== undefined);
       const githubOutput = resolve(fixture, "github-output");
@@ -795,14 +804,10 @@ export default defineTsugiori({ pipelines: [pipeline("ci", {
           "run",
           "--frozen=true",
           "-A",
-          "@atty303/tsugiori/cli",
+          "./tsugiori.ts",
           "github-actions",
           "task",
           "cache-key",
-          "--config",
-          "tsugiori.ts",
-          "--root",
-          "../..",
           "--expect-layout",
           expectedLayout,
         ],
@@ -821,14 +826,10 @@ export default defineTsugiori({ pipelines: [pipeline("ci", {
           "run",
           "--frozen=true",
           "-A",
-          "@atty303/tsugiori/cli",
+          "./tsugiori.ts",
           "github-actions",
           "task",
           "prepare",
-          "--config",
-          "tsugiori.ts",
-          "--root",
-          "../..",
           "--expect-layout",
           expectedLayout,
           "--expected-key",
@@ -855,7 +856,6 @@ export default defineTsugiori({ pipelines: [pipeline("ci", {
 });
 
 async function resolveSourceArtifactKey(
-  repositoryRoot: string,
   fixture: string,
   denoDirectory: string,
   target?: string,
@@ -868,14 +868,10 @@ async function resolveSourceArtifactKey(
       "run",
       "-A",
       "--frozen=true",
-      resolve(repositoryRoot, "packages/cli/src/main.ts"),
+      "./tsugiori.ts",
       "github-actions",
       "task",
       "cache-key",
-      "--config",
-      "./tsugiori.ts",
-      "--root",
-      ".",
       ...(target === undefined ? [] : ["--target", target]),
     ],
     fixture,
@@ -900,15 +896,7 @@ async function runTsugiori(
 ): Promise<Readonly<{ code: number; stdout: string; stderr: string }>> {
   return await run(
     Deno.execPath(),
-    [
-      "run",
-      "--frozen=true",
-      "-A",
-      "@atty303/tsugiori/cli",
-      ...args,
-      "--root",
-      "..",
-    ],
+    ["run", "--frozen=true", "-A", "./tsugiori.ts", ...args],
     resolve(fixture, ".github"),
     env,
   );

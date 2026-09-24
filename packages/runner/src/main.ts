@@ -1,6 +1,7 @@
 import { generateFiles } from "../../compiler/src/generator.ts";
 import { checkGeneratedFiles } from "../../compiler/src/check.ts";
-import { loadConfig } from "../../compiler/src/source.ts";
+import { configSource } from "../../compiler/src/source.ts";
+import type { TaskFunction, TsugioriConfig } from "../../core/src/mod.ts";
 import { writeGeneratedFiles } from "../../compiler/src/write.ts";
 import { TaskRuntimeError } from "../../task-runtime/src/artifact.ts";
 import {
@@ -13,16 +14,26 @@ import {
   type ToolIdentity,
 } from "../../task-runtime/src/prepare.ts";
 import { TSUGIORI_PACKAGE_VERSION } from "../../core/src/package_identity.ts";
-import { resolve } from "node:path";
 
 const SOURCE_TOOL_IDENTITY: ToolIdentity = {
   version: TSUGIORI_PACKAGE_VERSION,
 };
 
-export async function main(
-  args: readonly string[],
+export type RunOptions = Readonly<{
+  config: TsugioriConfig;
+  configUrl: string | URL;
+  root: string | URL;
+}>;
+
+/** Executes from the consumer's Deno project without importing the config again. */
+export async function runTsugiori(
+  options: RunOptions,
+  args: readonly string[] = Deno.args,
   tool: ToolIdentity = SOURCE_TOOL_IDENTITY,
 ): Promise<number> {
+  if (args.length === 1 && args[0].includes("/")) {
+    return await dispatchTask(options.config, args[0], tool);
+  }
   let parsed: ParsedArguments;
   try {
     parsed = parseArguments(args);
@@ -57,9 +68,11 @@ export async function main(
           "Option --output requires --check.",
         );
       }
-      const configArgument = requiredOption(parsed.options, "config");
-      const rootDirectory = requiredRoot(parsed.options);
-      const loaded = await loadConfig(configArgument, rootDirectory);
+      const loaded = configSource(
+        options.config,
+        options.configUrl,
+        options.root,
+      );
       recorder.operation({ name: "source.load", status: "success" });
       const files = await generateFiles(
         loaded.config,
@@ -109,9 +122,11 @@ export async function main(
     }
 
     if (isGitHubActionsTaskCommand(parsed, "cache-key")) {
-      const configArgument = requiredOption(parsed.options, "config");
-      const rootDirectory = requiredRoot(parsed.options);
-      const loaded = await loadConfig(configArgument, rootDirectory);
+      const loaded = configSource(
+        options.config,
+        options.configUrl,
+        options.root,
+      );
       recorder.operation({ name: "source.load", status: "success" });
       const plan = await resolveTaskArtifact({
         rootDirectory: loaded.rootDirectory,
@@ -135,9 +150,11 @@ export async function main(
     }
 
     if (isGitHubActionsTaskCommand(parsed, "prepare")) {
-      const configArgument = requiredOption(parsed.options, "config");
-      const rootDirectory = requiredRoot(parsed.options);
-      const loaded = await loadConfig(configArgument, rootDirectory);
+      const loaded = configSource(
+        options.config,
+        options.configUrl,
+        options.root,
+      );
       recorder.operation({ name: "source.load", status: "success" });
       const result = await prepareTaskArtifact({
         rootDirectory: loaded.rootDirectory,
@@ -172,7 +189,7 @@ export async function main(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: deno run -A @atty303/tsugiori/cli generate [--check [--output <path>]] --config <file> --root <repository-root>",
+      "Usage: deno run -A <config-file> generate [--check [--output <path>]] | github-actions task cache-key | github-actions task prepare",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -183,6 +200,83 @@ export async function main(
     });
     await recorder.finish("error");
     console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
+async function dispatchTask(
+  config: TsugioriConfig,
+  entrypoint: string,
+  tool: ToolIdentity,
+): Promise<number> {
+  const recorder = new DiagnosticRecorder(
+    "task.dispatch",
+    tool.version,
+    diagnosticsEnabled(),
+  );
+  let errorType = "schema_invalid";
+  try {
+    if (
+      config?.kind !== "tsugiori.config" || !Array.isArray(config.pipelines)
+    ) {
+      throw new TaskRuntimeError(
+        "schema_invalid",
+        "Invalid Tsugiori configuration.",
+      );
+    }
+    let task: TaskFunction | undefined;
+    for (const pipeline of config.pipelines) {
+      for (const job of pipeline.jobs) {
+        let ordinal = 0;
+        for (const step of job.steps) {
+          if (step.type !== "task") continue;
+          ordinal += 1;
+          if (typeof step.task !== "function") {
+            throw new TaskRuntimeError(
+              "schema_invalid",
+              "Task step does not contain a function.",
+            );
+          }
+          if (`${pipeline.id}/${job.id}/task-${ordinal}` === entrypoint) {
+            task = step.task;
+          }
+        }
+      }
+    }
+    if (task === undefined) {
+      errorType = "entrypoint_not_found";
+      throw new TaskRuntimeError(
+        errorType,
+        `Unknown task entrypoint ${JSON.stringify(entrypoint)}.`,
+      );
+    }
+    errorType = "task_failed";
+    await task({
+      cwd: Deno.cwd(),
+      logger: {
+        info: (...values) => console.log(...values),
+        warn: (...values) => console.warn(...values),
+        error: (...values) => console.error(...values),
+      },
+    });
+    recorder.operation({
+      name: "task.dispatch",
+      status: "success",
+      attributes: { entrypoint },
+    });
+    recorder.finish("success");
+    return 0;
+  } catch (error) {
+    recorder.operation({
+      name: "task.dispatch",
+      status: "error",
+      errorType,
+      attributes: { entrypoint },
+    });
+    recorder.finish("error");
+    console.error(
+      error instanceof Error ? error.stack ?? error.message : String(error),
+    );
     return 1;
   }
 }
@@ -215,9 +309,9 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const equals = argument.indexOf("=");
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
-      rawName !== "config" && rawName !== "expect-layout" &&
+      rawName !== "expect-layout" &&
       rawName !== "expected-key" && rawName !== "target" &&
-      rawName !== "check" && rawName !== "output" && rawName !== "root"
+      rawName !== "check" && rawName !== "output"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",
@@ -305,14 +399,4 @@ function requiredOption(
     );
   }
   return value;
-}
-
-function requiredRoot(
-  options: Readonly<Record<string, string | undefined>>,
-): string {
-  return resolve(Deno.cwd(), requiredOption(options, "root"));
-}
-
-if (import.meta.main) {
-  Deno.exitCode = await main(Deno.args);
 }

@@ -1,3 +1,4 @@
+import { runTsugiori } from "@atty303/tsugiori/run";
 import {
   actionInput,
   defineAction,
@@ -53,4 +54,13 @@ const ci = pipeline("ci", {
       },
     }));
 
-export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+const config = defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+export default config;
+
+if (import.meta.main) {
+  Deno.exitCode = await runTsugiori({
+    config,
+    configUrl: import.meta.url,
+    root: new URL("../", import.meta.url),
+  });
+}

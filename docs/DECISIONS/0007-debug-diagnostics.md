@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-The initial CLI and compiled task runtime retained bounded JSON diagnostic
+The initial command runner and compiled task runtime retained bounded JSON diagnostic
 records under `.tsugiori/diagnostics/`. Ephemeral GitHub-hosted runners discard
 those files after a job, while uploading them would require additional workflow
 conditions and artifact handling that are outside the initial dogfooding slice.
@@ -16,10 +16,11 @@ capture task output, environment contents, credentials, or arbitrary user data.
 
 ## Decision
 
-The CLI and compiled task runtime do not retain diagnostic files. When the
+The config entrypoint and compiled task runtime do not retain diagnostic files. When the
 execution environment sets `RUNNER_DEBUG=1`, each invocation emits one compact
 JSON diagnostic record to standard error when it finishes. GitHub Actions sets
-that variable when debug logging is enabled.
+that variable when debug logging is enabled. Import and top-level config errors
+occur before the runner and retain Deno's native error output.
 
 The record keeps the existing allowlisted run, resource, operation, status,
 error type, and low-cardinality attribute fields. Task output and process

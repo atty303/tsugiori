@@ -2,7 +2,7 @@
 
 This document describes the intended repository layout as implementation
 progresses. The current slices use `packages/core`, `packages/compiler`,
-`packages/task-runtime`, `packages/cli`, and top-level `tests`. Other proposed
+`packages/task-runtime`, `packages/runner`, and top-level `tests`. Other proposed
 directories should be created only when their implementation phase begins.
 
 ## Goals
@@ -14,7 +14,7 @@ directories should be created only when their implementation phase begins.
 - keep provider pipeline authoring and task authoring internally distinct
   without forcing separate packages before there is a practical benefit
 - provide stable homes for source, tests, examples, generated fixtures, and
-  future CLI entrypoints
+  future execution entrypoints
 - preserve the GitHub Actions-native backend direction described in the roadmap
   and ADRs
 
@@ -25,7 +25,7 @@ packages/
   core/
   compiler/
   task-runtime/
-  cli/
+  runner/
 tests/
   fixtures/
 examples/
@@ -110,11 +110,11 @@ not depend on `packages/task-runtime`. A future handwritten workflow interface,
 if needed, should be designed for its provider rather than preserving current
 internal preparation commands.
 
-## `packages/cli`
+## `packages/runner`
 
-`packages/cli` is the executable module exported through the same Deno
-package as the authoring API. It stays a thin command-line entrypoint over
-compiler and task runtime capabilities.
+`packages/runner` exports `runTsugiori` through the same Deno package as the
+authoring API. The consumer config file passes its object, file URL, and
+repository root to this function under an explicit `import.meta.main` guard.
 
 Implemented commands include:
 
@@ -127,11 +127,13 @@ contract.
 `deno task generate:check` checks all outputs owned by one config, or one
 workflow when `--output` is specified.
 
-Command parsing, user-facing diagnostics, and process exit handling belong here.
+Command parsing and user-facing diagnostics belong here. The consumer config
+sets the process exit code from the returned result.
 GitHub Actions workflow AST modeling, YAML emission, and stale-check comparison
 logic should remain in `packages/compiler`. Task artifact key calculation,
-validation, building, local storage, and runtime dispatch should remain in
-`packages/task-runtime`; provider orchestration belongs to its compiler backend.
+validation, building, and local storage should remain in
+`packages/task-runtime`; task dispatch belongs to `packages/runner`, and
+provider orchestration belongs to its compiler backend.
 
 ## Tests
 
@@ -142,7 +144,7 @@ Tests currently cover:
 - deterministic YAML emission for the minimal GitHub Actions AST subset
 - stable ordering and formatting of emitted workflow files
 - authoring-to-provider lowering for inline tasks
-- package CLI generation, local cache miss and hit, corrupt-entry recovery,
+- config entrypoint generation, local cache miss and hit, corrupt-entry recovery,
   runtime dispatch, and diagnostic recording behavior
 
 The current tests use Deno's committed snapshots for the backend emitter and temporary-repository E2E tests for Deno task generation and compiled task

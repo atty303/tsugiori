@@ -74,7 +74,7 @@ has covered a cold save and same-revision warm restore on a GitHub-hosted
 ## Dogfooding Tasks
 
 - [x] Validate the generated repository workflow on a GitHub-hosted
-  `ubuntu-24.04` runner, including source bootstrap, a cold task artifact build,
+  `ubuntu-24.04` runner, including config entrypoint, a cold task artifact build,
   and task dispatch through `mise run test`.
 - [x] Replace the temporary generate-and-diff stale guard after native
   stale-output check mode is implemented.

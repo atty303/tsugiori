@@ -1,7 +1,6 @@
 # Example
 
-This example uses `.github` as the workflow project. Other locations work when
-`--root` points from that project to the repository root.
+This example uses `.github` as the workflow project. Other locations work when the config passes the repository root to `runTsugiori`.
 
 ## Workflow project
 
@@ -14,8 +13,8 @@ directory to record its resolution in the lockfile.
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<version>"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A @atty303/tsugiori/cli generate --config .github/tsugiori.ts --root ..",
-    "generate:check": "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config .github/tsugiori.ts --root .."
+    "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
+    "generate:check": "deno run --frozen=true -A ./tsugiori.ts generate --check"
   }
 }
 ```
@@ -24,6 +23,7 @@ directory to record its resolution in the lockfile.
 
 ```ts
 import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { runTsugiori } from "@atty303/tsugiori/run";
 
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -42,7 +42,16 @@ const ci = pipeline("ci", {
       },
     }));
 
-export default defineTsugiori({ pipelines: [ci] });
+const config = defineTsugiori({ pipelines: [ci] });
+export default config;
+
+if (import.meta.main) {
+  Deno.exitCode = await runTsugiori({
+    config,
+    configUrl: import.meta.url,
+    root: new URL("../", import.meta.url),
+  });
+}
 ```
 
 From `.github`, run `deno task generate` and commit the generated workflow.
@@ -54,13 +63,12 @@ The task-backed job remains a normal GitHub Actions job. Before its task step,
 Tsugiori emits visible steps to resolve the artifact key, restore an
 `actions/cache` entry, prepare the artifact, and save a new cache generation
 when needed. The internal run steps use `.github` as their
-`working-directory` and invoke `@atty303/tsugiori/cli` from the project
-configuration:
+`working-directory` and execute the config file from the project directory:
 
 ```yaml
 - name: Resolve task artifact
   id: tsugiori-task-artifact
-  run: deno run --frozen=true -A @atty303/tsugiori/cli github-actions task cache-key --config '.github/tsugiori.ts' --root '..' --expect-layout 'ci/test=sha256:<digest>'
+  run: deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout 'ci/test=sha256:<digest>'
   working-directory: .github
 # Visible cache restore, preparation, and conditional save steps follow.
 - name: Test

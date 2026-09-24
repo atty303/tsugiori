@@ -4,7 +4,6 @@ import type {
   TsugioriConfig,
 } from "../../core/src/mod.ts";
 import { isAbsolute, relative } from "node:path";
-import { TSUGIORI_PACKAGE_NAME } from "../../core/src/package_identity.ts";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {
   type Diagnostic,
@@ -69,7 +68,6 @@ export async function lowerConfig(
       "The workflow project must be inside the repository root.",
     ]);
   }
-  const rootArgument = relative(projectDirectory, ".") || ".";
 
   if (config.kind !== "tsugiori.config") {
     diagnostics.push("Default export must be created by defineTsugiori().");
@@ -145,7 +143,6 @@ export async function lowerConfig(
             `${layoutKey}=${fingerprint}`,
             usedStepIds,
             projectDirectory,
-            rootArgument,
           ));
           preparationEmitted = true;
         }
@@ -269,7 +266,6 @@ function preparationSteps(
   expectedLayout: string,
   usedStepIds: Set<string>,
   projectDirectory: string,
-  rootArgument: string,
 ): readonly Step[] {
   const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
   const cacheRestoreStepId = allocateStepId(
@@ -284,14 +280,11 @@ function preparationSteps(
   const cacheKey =
     `tsugiori-task-${artifactKeyExpression}-\${{ github.run_id }}-\${{ github.run_attempt }}`;
   const cacheRestorePrefix = `tsugiori-task-${artifactKeyExpression}-`;
-  const commonArguments = [
-    "--config",
-    quotePosix(configArgument),
-    "--root",
-    quotePosix(rootArgument),
-    "--expect-layout",
-    quotePosix(expectedLayout),
-  ];
+  const configPath = relative(projectDirectory, configArgument);
+  const entrypoint = configPath.startsWith(".")
+    ? configPath
+    : `./${configPath}`;
+  const commonArguments = ["--expect-layout", quotePosix(expectedLayout)];
   return [
     {
       type: "run",
@@ -299,7 +292,9 @@ function preparationSteps(
       id: artifactStepId,
       workingDirectory: projectDirectory,
       run: [
-        `deno run --frozen=true -A ${TSUGIORI_PACKAGE_NAME}/cli github-actions task cache-key`,
+        `deno run --frozen=true -A ${
+          quotePosix(entrypoint)
+        } github-actions task cache-key`,
         ...commonArguments,
       ].join(" "),
     },
@@ -321,7 +316,9 @@ function preparationSteps(
       id: prepareStepId,
       workingDirectory: projectDirectory,
       run: [
-        `deno run --frozen=true -A ${TSUGIORI_PACKAGE_NAME}/cli github-actions task prepare`,
+        `deno run --frozen=true -A ${
+          quotePosix(entrypoint)
+        } github-actions task prepare`,
         ...commonArguments,
         "--expected-key",
         quotePosix(artifactKeyExpression),

@@ -18,7 +18,7 @@ import {
   lowerConfig,
 } from "../packages/compiler/src/authoring.ts";
 import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
-import { loadConfig } from "../packages/compiler/src/source.ts";
+import { pathToFileURL } from "node:url";
 import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
 
 Deno.test("native deployment fields remain visible in generated Actions YAML", async () => {
@@ -106,7 +106,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A @atty303/tsugiori/cli github-actions task cache-key --config ''./tsugiori.ts'' --root ''.'' --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task cache-key --expect-layout ''ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -114,7 +114,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A @atty303/tsugiori/cli github-actions task prepare --config ''./tsugiori.ts'' --root ''.'' --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A ''./tsugiori.ts'' github-actions task prepare --expect-layout ''ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -365,14 +365,14 @@ Deno.test("normalized duplicate outputs fail before any file is written", async 
   }
 });
 
-Deno.test("source loading preserves invalid provider-native values for validation", async () => {
+Deno.test("direct config preserves invalid provider-native values for validation", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "tsugiori.config",
+  kind: "tsugiori.config", cacheVersion: 1,
   pipelines: [{
     id: "ci",
     name: "ci",
@@ -394,7 +394,11 @@ Deno.test("source loading preserves invalid provider-native values for validatio
 };
 `,
     );
-    const loaded = await loadConfig("./tsugiori.ts", root);
+    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const loaded = {
+      config: (await import(configUrl.href)).default,
+      argument: "./tsugiori.ts",
+    };
     const error = await assertRejects(
       () => lowerConfig(loaded.config, loaded.argument),
       AuthoringValidationError,
@@ -406,7 +410,7 @@ Deno.test("source loading preserves invalid provider-native values for validatio
   }
 });
 
-Deno.test("source loading preserves deployment workflow fields", async () => {
+Deno.test("direct config preserves deployment workflow fields", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-deploy-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
@@ -426,7 +430,11 @@ Deno.test("source loading preserves deployment workflow fields", async () => {
       }]
     };`,
     );
-    const loaded = await loadConfig("./tsugiori.ts", root);
+    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const loaded = {
+      config: (await import(configUrl.href)).default,
+      argument: "./tsugiori.ts",
+    };
     const lowered = await lowerConfig(loaded.config, loaded.argument);
     const yaml = emitWorkflow(lowered.pipelines[0].workflow);
     assertStringIncludes(yaml, "branches:\n      - master");
@@ -437,7 +445,7 @@ Deno.test("source loading preserves deployment workflow fields", async () => {
   }
 });
 
-Deno.test("source loading preserves task step ID and environment", async () => {
+Deno.test("direct config preserves task step ID and environment", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-task-step-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
@@ -453,7 +461,11 @@ Deno.test("source loading preserves task step ID and environment", async () => {
   }]
 };`,
     );
-    const loaded = await loadConfig("./tsugiori.ts", root);
+    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const loaded = {
+      config: (await import(configUrl.href)).default,
+      argument: "./tsugiori.ts",
+    };
     const lowered = await lowerConfig(loaded.config, loaded.argument);
     const yaml = emitWorkflow(lowered.pipelines[0].workflow);
     assertStringIncludes(yaml, "id: plan");
@@ -464,14 +476,14 @@ Deno.test("source loading preserves task step ID and environment", async () => {
   }
 });
 
-Deno.test("source loading does not let JSON-unsafe provider values bypass validation", async () => {
+Deno.test("direct config does not let JSON-unsafe provider values bypass validation", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "tsugiori.config",
+  kind: "tsugiori.config", cacheVersion: 1,
   pipelines: [{
     id: "ci",
     name: "ci",
@@ -499,7 +511,11 @@ Deno.test("source loading does not let JSON-unsafe provider values bypass valida
 };
 `,
     );
-    const loaded = await loadConfig("./tsugiori.ts", root);
+    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const loaded = {
+      config: (await import(configUrl.href)).default,
+      argument: "./tsugiori.ts",
+    };
     const error = await assertRejects(
       () => lowerConfig(loaded.config, loaded.argument),
       AuthoringValidationError,

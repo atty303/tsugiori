@@ -90,6 +90,7 @@ import {
   defineTsugiori,
   pipeline,
 } from "@atty303/tsugiori/github-actions";
+import { runTsugiori } from "@atty303/tsugiori/run";
 
 const checkout = defineAction({
   uses: "actions/checkout@<commit-sha>",
@@ -127,7 +128,16 @@ const ci = pipeline("ci", {
     })
 );
 
-export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+const config = defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+export default config;
+
+if (import.meta.main) {
+  Deno.exitCode = await runTsugiori({
+    config,
+    configUrl: import.meta.url,
+    root: new URL("../", import.meta.url),
+  });
+}
 ```
 
 Task-backed steps also accept an optional `id` for Actions step outputs and an
@@ -144,16 +154,14 @@ Tsugiori dependency, and Deno records its resolution in the consumer lockfile:
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<version>"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A @atty303/tsugiori/cli generate --config .github/tsugiori.ts --root ..",
-    "generate:check": "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config .github/tsugiori.ts --root .."
+    "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
+    "generate:check": "deno run --frozen=true -A ./tsugiori.ts generate --check"
   }
 }
 ```
 
 Run `deno install` in the workflow project to create or update its lockfile.
-The `--config` path is relative to the repository root given by `--root`.
-For a project at `ci/pipelines`, use `--config ci/pipelines/tsugiori.ts` and
-`--root ../..`. From the workflow project, generate the configured workflow:
+The config passes the repository root once to `runTsugiori`; the author chooses how to obtain it. Run the config from the workflow project so Deno uses that project's configuration and lockfile. From the workflow project, generate the configured workflow:
 
 ```bash
 deno task generate
@@ -182,7 +190,7 @@ inside `job.task` functions. The generated invocation currently targets POSIX
 runners.
 
 When GitHub Actions debug logging is enabled and exposes `RUNNER_DEBUG=1`, each
-CLI or task-runtime invocation writes one bounded JSON diagnostic record to
+config entrypoint or task-runtime invocation writes one bounded JSON diagnostic record to
 standard error. Normal runs do not emit structured diagnostics or retain
 diagnostic files.
 
@@ -192,7 +200,7 @@ Later provider-native GitHub Actions concepts remain in progress. The initial
 Phase 2 vertical slice implements stale-output checking, inline task
 authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, generated `actions/cache` delivery, and task dispatch.
-It has local package-CLI and compiled task-artifact E2E coverage. The earlier local-cache workflow ran
+It has local config-entrypoint and compiled task-artifact E2E coverage. The earlier local-cache workflow ran
 successfully for push and pull request events on a GitHub-hosted
 `ubuntu-24.04` runner. The generated remote-cache path has also completed a
 cold save followed by a warm restore on a same-revision rerun.

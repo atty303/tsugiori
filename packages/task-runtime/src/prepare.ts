@@ -8,7 +8,6 @@ import {
   type TaskArtifactManifest,
   TaskRuntimeError,
 } from "./artifact.ts";
-import { createTaskRuntimeBootstrap } from "./bootstrap.ts";
 import { TSUGIORI_PACKAGE_IDENTITY } from "../../core/src/package_identity.ts";
 import { LocalTaskArtifactCache, removeIfPresent } from "./cache.ts";
 import type { DiagnosticRecorder } from "./diagnostics.ts";
@@ -261,24 +260,13 @@ async function buildArtifact(
     invocationPath: "./.tsugiori/task-runtime" as const,
     entrypoints: [...options.entrypoints].sort(),
   };
-  const bootstrap = resolve(options.outputDirectory, "bootstrap.ts");
-  await Deno.writeTextFile(
-    bootstrap,
-    createTaskRuntimeBootstrap(
-      toFileUrl(options.configPath),
-      manifestWithoutChecksum,
-    ),
-  );
-
   const args = ["compile", "-A", "--output", binary];
   if (options.target !== Deno.build.target) {
     args.push("--target", options.target);
   }
-  args.push("--frozen=true");
-  args.push(bootstrap);
+  args.push("--frozen=true", options.configPath);
   await runDeno(args, options.projectDirectory, "artifact_build_failed");
   await Deno.chmod(binary, 0o755);
-  await Deno.remove(bootstrap);
 
   const manifest: TaskArtifactManifest = {
     ...manifestWithoutChecksum,
@@ -413,13 +401,6 @@ async function runDeno(
     );
   }
   return stdout;
-}
-
-function toFileUrl(path: string): string {
-  const normalized = path.split(sep).join("/");
-  return encodeURI(
-    `file://${normalized.startsWith("/") ? "" : "/"}${normalized}`,
-  );
 }
 
 function errorMessage(error: unknown): string {

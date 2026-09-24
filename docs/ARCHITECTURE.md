@@ -9,8 +9,9 @@ design direction rather than implementation claims.
 ### Core Package
 
 `@atty303/tsugiori` is one Deno package. Its root, `github-actions`,
-and `task` exports expose the pure authoring API; its `cli` export is the
-executable module used by consumer tasks and generated GitHub Actions steps.
+and `task` exports expose the pure authoring API; its `run` export accepts the
+config object directly from a consumer config file. Consumer tasks and generated
+GitHub Actions steps execute that file from the workflow project.
 
 It contains separate GitHub Actions and task modules without making them
 independent release units.
@@ -257,7 +258,9 @@ provider-native configuration. At compile time, the compiler can validate
 structure, emit YAML, and fail early on unsupported pipeline shapes.
 
 Task artifact preparation is related but separate. It collects registered task
-functions and prepares the task artifact used by provider steps. In the
+functions and prepares the task artifact used by provider steps. Artifact
+preparation compiles the config file itself from the workflow project. The
+compiled config uses `runTsugiori` to dispatch task entrypoints. In the
 implemented slice, the GitHub Actions backend owns this lifecycle and emits
 provider-specific internal commands and step outputs. Those commands are not a
 public handwritten-workflow contract.
