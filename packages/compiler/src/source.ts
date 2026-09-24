@@ -52,7 +52,7 @@ const serializable = {
       strategy: job.strategy,
       concurrency: job.concurrency,
       steps: job.steps.map((step) => {
-        if (step.type === "task") return { type: step.type, name: step.name, task: null };
+        if (step.type === "task") return { type: step.type, id: step.id, name: step.name, task: null, env: step.env };
         if (step.type === "uses" && step.with !== undefined) {
           return {
             type: step.type,

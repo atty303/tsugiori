@@ -133,6 +133,10 @@ const ci = pipeline("ci", {
 export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
 ```
 
+Task-backed steps also accept an optional `id` for Actions step outputs and an
+`env` record for values available only while that task runs. These fields are
+emitted on the task's visible Actions step.
+
 Build the current-host CLI and generate the configured workflow:
 
 ```bash

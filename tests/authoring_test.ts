@@ -475,6 +475,33 @@ Deno.test("source loading preserves deployment workflow fields", async () => {
   }
 });
 
+Deno.test("source loading preserves task step ID and environment", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-task-step-" });
+  try {
+    await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
+    await Deno.writeTextFile(
+      `${root}/tsugiori.ts`,
+      `export default {
+  kind: "tsugiori.config", cacheVersion: 1,
+  pipelines: [{ id: "ci", name: "CI", output: ".github/workflows/ci.yml",
+    events: ["push"], jobs: [{ id: "test", runsOn: "ubuntu-latest", needs: [],
+      steps: [{ type: "task", id: "plan", name: "Plan", task: () => {},
+        env: { TOKEN: "\${{ secrets.TOKEN }}" } }]
+    }]
+  }]
+};`,
+    );
+    const loaded = await loadConfig("./tsugiori.ts", root);
+    const lowered = await lowerConfig(loaded.config, loaded.argument);
+    const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+    assertStringIncludes(yaml, "id: plan");
+    assertStringIncludes(yaml, "TOKEN: '${{ secrets.TOKEN }}'");
+    assertStringIncludes(yaml, "run: ./.tsugiori/task-runtime ci/test/task-1");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
 Deno.test("source loading does not let JSON-unsafe provider values bypass validation", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
   try {

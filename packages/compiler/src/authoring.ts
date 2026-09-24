@@ -146,6 +146,7 @@ export async function lowerConfig(
           type: "run",
           name: step.name,
           ...(step.id === undefined ? {} : { id: step.id }),
+          ...(step.env === undefined ? {} : { env: step.env }),
           run: `./.tsugiori/task-runtime ${entrypoint}`,
         });
       }

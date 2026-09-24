@@ -54,6 +54,7 @@ export type AuthoringTaskStep = Readonly<{
   id?: string;
   name: string;
   task: TaskFunction;
+  env?: EnvironmentVariables;
 }>;
 export type AuthoringStep =
   | AuthoringUsesStep
@@ -267,7 +268,9 @@ export type RunStepDefinition<Id extends string | undefined = undefined> =
     workingDirectory?: string;
   }>;
 export type TaskStepDefinition<Id extends string | undefined = undefined> =
-  Readonly<{ id?: Id; name: string; task: TaskFunction }>;
+  Readonly<
+    { id?: Id; name: string; task: TaskFunction; env?: EnvironmentVariables }
+  >;
 
 export type JobReference<
   PipelineId extends string = string,
@@ -732,6 +735,9 @@ function taskStep(
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     task: definition.task,
+    ...(definition.env === undefined
+      ? {}
+      : { env: Object.freeze({ ...definition.env }) }),
   });
 }
 function materializeJob(
