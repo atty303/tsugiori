@@ -1,0 +1,84 @@
+Task: Implement single Deno dependency execution for Tsugiori consumers
+Anchor: b7e34cc227b42c30d090aebd3b8f4ef12115b88b
+Base: 9248d3419ae2e19e91c2ec7e9552c0fad1e348df
+Branch: main
+Commits: b7e34cc227b42c30d090aebd3b8f4ef12115b88b implements package exports, consumer tasks, generated steps, artifact identity, tests, dogfood, and docs
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; review; git-task-evidence
+Conditions: local main checkout; Deno via mise; no publish, release, push, or PR; Git metadata writes required sandbox escalation
+Authority: user implementation request, repository AGENTS.md, deno.json, and ADR 0012
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    
+    Tsugiori を consumer の Deno プロジェクトから単一の依存として利用できるようにし、`deno task` による生成と、同じ依存を使う GitHub Actions の生成 step を実装してください。
+    
+    ## 目的
+    
+    - consumer が Tsugiori の依存バージョンを自身の `deno.json` と lockfile で一元管理できるようにする。
+    - Tsugiori による Deno 設定・依存の独自探索と、別途ビルドする CLI バイナリの導入をなくす。
+    
+    ## 成功条件
+    
+    - authoring API と実行用モジュールを一つの Tsugiori 依存から利用できる。
+    - consumer は `deno task` で `generate` と stale-output check を実行できる。
+    - 生成 workflow の内部 step は consumer 専用の追加 task を要求せず、workflow プロジェクトを `working-directory` として同じ `deno.json` と lockfile から Tsugiori を解決する。
+    - workflow プロジェクトは `.github` を推奨例としつつ、別の配置でも動く。consumer の task から明示したリポジトリルートを基準に、生成先と task artifact キャッシュを扱う。
+    - 公開 Tsugiori パッケージの識別子が変わると task artifact キーが変わる。
+    - 設定読み込み、モジュールグラフ取得、task artifact のコンパイルで、consumer の Deno プロジェクト設定が一貫して使われる。
+    - 関連するテスト、dogfood workflow、利用手順、ADR が新しい経路と一致し、リポジトリの標準チェックとテストが通る。
+    
+    ## 決定事項
+    
+    - consumer が Tsugiori の単一依存を管理し、利用者が実行する操作を `deno task` に置く。
+      - 理由: 依存と実行方法の管理を consumer の Deno プロジェクトに集めるため。
+      - 主な棄却案: 別途ビルドした CLI バイナリを PATH に導入する方式は管理経路が重複する。
+    - Tsugiori はパッケージ内の実行用モジュールを提供する。
+      - 理由: consumer ごとに実行用スクリプトを書かずに済むため。
+      - 主な棄却案: consumer が公開 API を呼ぶ専用スクリプトを毎回作る方式は定型コードが増える。
+    - 生成 workflow の内部操作は consumer の追加 task を経由せず、同じ `deno.json` の依存を Deno に解決させる。
+      - 理由: 利用者が直接実行しない task を consumer に定義させず、依存バージョンを重複させないため。
+      - 主な棄却案: 成果物キー計算・準備用の consumer task を追加する方式。
+    - 生成 step は workflow プロジェクトを `working-directory` にする。リポジトリルートは consumer の task から明示する。
+      - 理由: Deno の通常の設定探索を使いつつ、workflow プロジェクトの配置を固定しないため。
+      - 主な棄却案: `.github` 配置の固定、Git ルートの暗黙探索、生成 step ごとの設定パス管理。
+    - task artifact キーには、Tsugiori パッケージ自身が提供する識別子を含める。ローカル参照で識別子を変えずにソースを編集した場合は、必要に応じて既存の `cacheVersion` で無効化する。
+      - 理由: 公開依存の更新を自動反映し、consumer の `deno.json` を Tsugiori が解析しないため。
+      - 主な棄却案: consumer の `deno.json` の解析、Deno の解決済みパッケージ一覧からの Tsugiori バージョン抽出、ローカル編集ごとの自動識別。
+    
+    ## 制約
+    
+    - consumer の `deno.json` / `deno.jsonc` の選択、継承、依存解決を Tsugiori に複製しない。
+    - GitHub Actions の job と step を通常の可視概念として維持し、task function 本体を生成 YAML に埋め込まない。
+    - 既存の生成先、stale-output check、task artifact 配置のリポジトリルート基準を保つ。
+    - パッケージの公開、release、push、PR 作成は行わない。
+    
+    ## 対象外
+    
+    - consumer が実行しない内部操作の `deno task` 定義を要求すること。
+    - GitHub Actions 以外の provider backend の実装。
+    - task artifact の全推移依存を自動的にキャッシュキーへ含めること。
+    
+    ## 未検証の前提
+    
+    - 実行用モジュールを consumer の Deno 依存として参照した場合の、task 内および生成 step 内での設定・lockfile の適用。
+    - workflow プロジェクトの配置を変えた場合の、設定読み込み、`deno info`、`deno compile` の設定選択の一致。
+    - 単一依存から authoring API と実行用モジュールを公開するために必要な既存 import 経路とパッケージ export の変更範囲。
+    
+    ## 実装時の指示
+    
+    - まず `.github` 配置と別ディレクトリ配置の小さな consumer fixture で Deno の実際の解決挙動を確認する。
+    - 既存の `deno.json` 独自探索・`extends` 解析と、別途ビルドする CLI バイナリに依存する dogfood 経路を整理する。
+    - パッケージ識別子はパッケージ側の単一の定義を使い、consumer の設定内容から算出しない。
+    - キャッシュキー契約の変更と実行経路の変更を ADR に記録する。
+    - mainで作業する
+  - A: Verified Deno project resolution in .github and nested fixtures; implemented one package export and CLI module, explicit repository root, generated project working-directory, package identity in artifact keys, and removed binary build and custom Deno config parsing. Updated dogfood workflow, tests, README, architecture, and ADR. Independent review found a project-directory bug; fixed it and obtained clean delta review. mise run test passed 28 tests and dogfood generate:check passed. Committed locally on main without remote writes.
+- U2: 設定ファイルってなに？
+  - A: Explained that tsugiori.ts defines workflow jobs and steps while deno.json defines the Deno project dependency and tasks.
+- U3: そもそもその構成ってdenoで許されてるの？
+  - A: Confirmed the standard layout with Deno 2.9.5 fixtures and official task, config, and workspace documentation; identified that a TypeScript file outside the Deno project may use another config.
+- U4: その構成ってのは、deno.jsonのparentにプロジェクトの.tsを置く構成ね。普通やらないと思うけど、denoが許すならまぁ対応しておいていい
+  - A: Clarified the user meant tsugiori.ts in the parent of the deno.json directory. Tested that Deno permits execution but a parent workspace config can control that file's imports even when --config names the child; proposed excluding this edge layout from the guaranteed dependency contract.
+- U5: エッジケースだから考慮しなくていい
+  - A: Accepted the user's direction to ignore that edge case and left the committed implementation unchanged.
