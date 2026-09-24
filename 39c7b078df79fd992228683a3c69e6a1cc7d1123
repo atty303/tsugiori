@@ -1,0 +1,69 @@
+Task: Use fixed GitHub Actions task artifact cache key
+Anchor: 39c7b078df79fd992228683a3c69e6a1cc7d1123
+Base: b48a8bbeebb4c9f5335626b537053b9c13aa509e
+Branch: codex/readable-generated-yaml
+Commits: 39c7b078df79fd992228683a3c69e6a1cc7d1123 emits one fixed-key actions/cache step and post-action save
+Guidance: AGENTS.md; develop-repository; design-program-observability applicability; design-review; review; git-task-evidence
+Conditions: local branch; no push, release, or deploy; waited for b48a8bb before editing; signed commit after 1Password agent recovery; current fixed-key post path not yet live-validated
+## Evidence
+mise run check passed; mise run test passed 31/31; generated workflow stale check and git diff --check passed. Pinned action.yml has post-if success(); pinned saveImpl skips an exact key hit. Independent review of fixed diff found no actionable issues. GitHub-hosted runner behavior for the new fixed-key path remains unobserved.
+Authority: user implementation request and cacheVersion constraint; repository AGENTS.md; current compiler, task runtime, tests, and ADR 0008
+## Transcript
+- U1: # 実装依頼
+    
+    ## 依頼
+    
+    GitHub Actions の task artifact キャッシュを、固定キーを使う単一の `actions/cache` ステップに変更してください。
+    
+    ## 目的
+    
+    - キャッシュの復元と、ジョブ成功時の保存を `actions/cache` の標準動作に任せ、生成ワークフローを簡素にする。
+    
+    ## 成功条件
+    
+    - 生成ワークフローでは `actions/cache/restore` と `actions/cache/save` の組を使わず、単一の `actions/cache` ステップを使う。
+    - キャッシュキーに `github.run_id` と `github.run_attempt` を含めない。正常な完全一致の復元時は新たに保存しない。
+    - 復元した artifact の既存の検証と、必要な場合の再ビルドが機能する。
+    - 生成ワークフロー、関連テスト、設計記録が新しい動作と一致する。
+    
+    ## 決定事項
+    
+    - キャッシュキーを source-addressed artifact キーに固定する。
+      - 理由: 実行ごとの不要なキャッシュ世代を作らず、正常なエントリを再利用するため。
+      - 主な棄却案: `run_id` と `run_attempt` を加える世代キー。壊れたエントリの自動修復はできるが、キーと保存処理が複雑になる。
+    - `actions/cache` の post action で保存する。
+      - 理由: 単一の標準 action で復元と保存を扱えるため。
+      - 主な棄却案: 準備直後に `actions/cache/save` を明示的に実行する方式。後続ステップが失敗しても保存できるが、その要件は採用しない。
+    - 壊れた保存済みエントリは手動削除またはキー変更で復旧する。
+      - 理由: 固定キーのキャッシュエントリは上書きできないため。
+      - 主な棄却案: 実行ごとの世代キーによる自動修復。
+    
+    ## 制約
+    
+    - GitHub Actions の job と step の可視性を維持する。
+    - キャッシュ利用は best-effort とし、キャッシュサービスの障害で利用可能なローカル artifact を無効にしない。
+    - task artifact の検証を省略しない。
+    
+    ## 対象外
+    
+    - 他の CI provider や共通のキャッシュ配信抽象化。
+    - 壊れた固定キーのキャッシュを自動修復する仕組み。
+    
+    ## 未検証の前提
+    
+    - なし。
+    
+    ## 実装時の指示
+    
+    - 既存の `actions/cache` の pin と post action の動作を実装時に再確認する。
+    - 不要になった生成ステップ、出力、テスト期待値を整理する。
+    - 既存の世代キーによるキャッシュからの移行時に、必要なら `restore-keys` で旧エントリを読み、ジョブ成功後に固定キーへ保存する。
+    - ADR 0008 と関連する説明を、固定キーの復旧方法およびジョブ成功時の保存動作に合わせて更新する。
+    - cacheVersionは維持する
+  - A: Read repository and guidance, found unrelated uncommitted YAML work, fetched code, observed notes ref update rejection, and made no edits.
+- U2: commitを待ってから編集して
+  - A: Waited for the separate commit and confirmed the worktree was still unchanged before pausing.
+- U3: 続けて
+  - A: After b48a8bb, implemented a fixed cache key and single pinned actions/cache action, removed unused output, regenerated CI and updated tests and docs; mise run test passed 31/31, generate:check passed, independent review found no issues; configured signing failed twice.
+- U4: もう一度署名して
+  - A: Retried configured 1Password signing successfully, created 39c7b07, confirmed clean worktree and that local notes descend from remote notes.
