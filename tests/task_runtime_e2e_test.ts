@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildCli } from "../packages/cli/src/build.ts";
 
 Deno.test({
@@ -283,6 +284,43 @@ export default defineTsugiori({ pipelines: [ci] });
         }\n`,
       );
       await Deno.writeTextFile(githubOutput, "");
+      const configurationOnlyChange = await run(
+        cli,
+        [
+          "github-actions",
+          "task",
+          "prepare",
+          "--config",
+          "./tsugiori.ts",
+          "--expect-layout",
+          expectedLayout,
+          "--expected-key",
+          artifactKey,
+        ],
+        fixture,
+        {
+          ...environment,
+          GITHUB_OUTPUT: githubOutput,
+        },
+      );
+      assertEquals(
+        configurationOnlyChange.code,
+        0,
+        configurationOnlyChange.stderr,
+      );
+      assertStringIncludes(configurationOnlyChange.stdout, "cache hit");
+      assertEquals(
+        parseGitHubOutputs(await Deno.readTextFile(githubOutput))[
+          "cache-write-required"
+        ],
+        "false",
+      );
+
+      await Deno.writeTextFile(
+        resolve(fixture, "tsugiori.ts"),
+        configSource.replace("echo setup", "echo changed-setup"),
+      );
+      await Deno.writeTextFile(githubOutput, "");
       const keyChangedDuringPreparation = await run(
         cli,
         [
@@ -366,7 +404,15 @@ export default defineTsugiori({ pipelines: [ci] });
         await Deno.readTextFile(
           resolve(fixture, ".tsugiori/task-runtime.json"),
         ),
-      ) as { artifactKey: string };
+      ) as {
+        artifactKey: string;
+        schemaVersion: number;
+        tsugioriBuildId?: unknown;
+        tsugioriVersion: string;
+      };
+      assertEquals(materializedManifest.schemaVersion, 2);
+      assertEquals(materializedManifest.tsugioriVersion, "0.1.0");
+      assertEquals("tsugioriBuildId" in materializedManifest, false);
       await Deno.writeTextFile(
         resolve(
           fixture,
@@ -544,6 +590,172 @@ export default defineTsugiori({ pipelines: [ci] });
     }
   },
 });
+
+Deno.test({
+  name: "artifact key uses repository-local source and explicit cache version",
+  sanitizeOps: false,
+  sanitizeResources: false,
+  fn: async () => {
+    const repositoryRoot = Deno.cwd();
+    const fixture = await Deno.makeTempDir({ prefix: "tsugiori-key-" });
+    const external = await Deno.makeTempDir({ prefix: "tsugiori-external-" });
+    let remoteSource = 'export const remoteMarker = "first";\n';
+    const server = Deno.serve(
+      { hostname: "127.0.0.1", port: 0, onListen: () => {} },
+      () =>
+        new Response(remoteSource, {
+          headers: { "content-type": "application/typescript" },
+        }),
+    );
+    try {
+      const coreModule = pathToFileURL(
+        resolve(repositoryRoot, "packages/core/src/github_actions/mod.ts"),
+      ).href;
+      const externalModule = resolve(external, "dependency.ts");
+      const externalUrl = pathToFileURL(externalModule).href;
+      const remoteUrl = `http://127.0.0.1:${server.addr.port}/dependency.ts`;
+      await Deno.writeTextFile(
+        resolve(fixture, "deno.json"),
+        `${
+          JSON.stringify(
+            {
+              lock: false,
+              imports: { "@tsugiori/core/github-actions": coreModule },
+            },
+            null,
+            2,
+          )
+        }\n`,
+      );
+      await Deno.writeTextFile(
+        externalModule,
+        'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
+      );
+      const configSource =
+        `import { defineTsugiori, pipeline } from "@tsugiori/core/github-actions";
+import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
+import { remoteMarker } from ${JSON.stringify(remoteUrl)};
+void externalMarker;
+void remoteMarker;
+const ci = pipeline("ci", {
+  output: ".github/workflows/ci.yml",
+  events: ["push"],
+}).job("test", ({ job }) =>
+  job.runsOn("ubuntu-latest").task({ name: "Test", task: () => {} })
+);
+export default defineTsugiori({ cacheVersion, pipelines: [ci] });
+`;
+      await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
+
+      const firstDenoDirectory = resolve(fixture, "deno-cache-first");
+      const secondDenoDirectory = resolve(fixture, "deno-cache-second");
+      const baseline = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        firstDenoDirectory,
+      );
+
+      remoteSource = 'export const remoteMarker = "second";\n';
+      const remoteChanged = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        secondDenoDirectory,
+      );
+      assertEquals(remoteChanged, baseline);
+
+      await Deno.writeTextFile(
+        externalModule,
+        'export const cacheVersion = 1;\nexport const externalMarker = "second";\n',
+      );
+      const externalChanged = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        secondDenoDirectory,
+      );
+      assertEquals(externalChanged, baseline);
+
+      await Deno.writeTextFile(
+        externalModule,
+        'export const cacheVersion = 2;\nexport const externalMarker = "second";\n',
+      );
+      const cacheVersionChanged = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        secondDenoDirectory,
+      );
+      assert(cacheVersionChanged !== baseline);
+
+      await Deno.writeTextFile(
+        externalModule,
+        'export const cacheVersion = 1;\nexport const externalMarker = "second";\n',
+      );
+      await Deno.writeTextFile(
+        resolve(fixture, "tsugiori.ts"),
+        `${configSource}\n// repository-local source edit\n`,
+      );
+      const localSourceChanged = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        secondDenoDirectory,
+      );
+      assert(localSourceChanged !== baseline);
+
+      await Deno.writeTextFile(resolve(fixture, "tsugiori.ts"), configSource);
+      const targetChanged = await resolveSourceArtifactKey(
+        repositoryRoot,
+        fixture,
+        secondDenoDirectory,
+        Deno.build.target === "x86_64-unknown-linux-gnu"
+          ? "aarch64-apple-darwin"
+          : "x86_64-unknown-linux-gnu",
+      );
+      assert(targetChanged !== baseline);
+    } finally {
+      await server.shutdown();
+      await Deno.remove(fixture, { recursive: true });
+      await Deno.remove(external, { recursive: true });
+    }
+  },
+});
+
+async function resolveSourceArtifactKey(
+  repositoryRoot: string,
+  fixture: string,
+  denoDirectory: string,
+  target?: string,
+): Promise<string> {
+  const output = resolve(fixture, `github-output-${crypto.randomUUID()}`);
+  await Deno.writeTextFile(output, "");
+  const result = await run(
+    Deno.execPath(),
+    [
+      "run",
+      "-A",
+      "--config",
+      resolve(repositoryRoot, "deno.json"),
+      "--frozen=true",
+      resolve(repositoryRoot, "packages/cli/src/main.ts"),
+      "github-actions",
+      "task",
+      "cache-key",
+      "--config",
+      "./tsugiori.ts",
+      ...(target === undefined ? [] : ["--target", target]),
+    ],
+    fixture,
+    {
+      ...Deno.env.toObject(),
+      DENO_DIR: denoDirectory,
+      GITHUB_OUTPUT: output,
+    },
+  );
+  assertEquals(result.code, 0, result.stderr);
+  const artifactKey = parseGitHubOutputs(await Deno.readTextFile(output))[
+    "artifact-key"
+  ];
+  assert(artifactKey !== undefined);
+  return artifactKey;
+}
 
 async function run(
   command: string,

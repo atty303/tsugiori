@@ -1,13 +1,12 @@
-export const TASK_ARTIFACT_FORMAT_VERSION = "1";
+export const TASK_ARTIFACT_FORMAT_VERSION = "2";
 
 export type TaskArtifactManifest = Readonly<{
-  schemaVersion: 1;
+  schemaVersion: 2;
   artifactKey: string;
   artifactFormatVersion: string;
   target: string;
   denoVersion: string;
   tsugioriVersion: string;
-  tsugioriBuildId: string;
   invocationPath: "./.tsugiori/task-runtime";
   entrypoints: readonly string[];
   binarySha256: string;
@@ -33,6 +32,23 @@ export async function sha256Bytes(data: Uint8Array): Promise<string> {
 
 export async function sha256File(path: string): Promise<string> {
   return await sha256Bytes(await Deno.readFile(path));
+}
+
+export async function sourceArtifactKey(
+  input: Readonly<{
+    artifactFormatVersion: string;
+    cacheVersion: number;
+    modules: readonly Readonly<{ path: string; sha256: string }>[];
+    target: string;
+  }>,
+): Promise<string> {
+  const canonical = JSON.stringify({
+    artifactFormatVersion: input.artifactFormatVersion,
+    cacheVersion: input.cacheVersion,
+    modules: input.modules,
+    target: input.target,
+  });
+  return `sha256-${await sha256Bytes(new TextEncoder().encode(canonical))}`;
 }
 
 function toHex(bytes: Uint8Array): string {

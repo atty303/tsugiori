@@ -68,7 +68,7 @@ const ci = pipeline("ci", {
       })
   );
 
-export default defineTsugiori({ pipelines: [ci] });
+export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
 ```
 
 ## Generated Shape
@@ -156,5 +156,5 @@ jobs:
   artifact available.
 - The task runtime dispatches readable, job-scoped task entrypoints.
 - Job-layout fingerprints reject stale task order before dispatch.
-- The local content-addressed entry uses a runtime-owned JSON manifest and is
+- The local source-addressed entry uses a runtime-owned JSON manifest and is
   delivered through generational `actions/cache` entries.

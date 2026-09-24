@@ -13,8 +13,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0002-deno-as-initial-runtime.md`: Deno is the initial runtime choice for the
   task runtime.
 - `0003-generated-workflows-and-task-artifacts.md`: generated workflow YAML
-  is committed, while task artifacts are content-addressed artifacts delivered
-  through cache adapters. The remote-delivery abstraction is refined by 0008.
+  is committed, while task artifacts are delivered through cache adapters. The
+  remote-delivery abstraction is refined by 0008, and the original artifact
+  identity is superseded by 0010.
 - `0004-pipelines-providers-and-task-runtime.md`: the project uses provider-native
   pipeline authoring and originally proposed an independently usable task
   runtime command contract. The implemented preparation ownership is refined
@@ -25,9 +26,9 @@ the project direction. Do not use ADRs for routine wording changes.
   populate the selected adapter. Provider-specific command ownership is refined
   by 0008.
 - `0006-inline-task-runtime-slice.md`: inline task-backed steps lower to visible
-  provider steps, use job-layout fingerprints, and execute through one
-  content-addressed Deno binary with a repository-local cache adapter. Remote
-  delivery is refined by 0008.
+  provider steps, use job-layout fingerprints, and execute through one Deno
+  binary with a repository-local cache adapter. Remote delivery is refined by
+  0008, and the artifact-key inputs are superseded by 0010.
 - `0007-debug-diagnostics.md`: structured diagnostics are emitted as one JSON
   line to standard error only when the GitHub Actions runner debug mode is
   enabled; diagnostic files are not retained.
@@ -37,6 +38,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0009-immutable-typestate-authoring.md`: GitHub Actions authoring uses
   immutable typestate facades, topologically declared jobs, typed action
   contracts, and a workflow-key-specific expression scope catalog.
+- `0010-source-addressed-task-artifact-cache.md`: task artifact identity follows
+  repository-local source and explicit compatibility axes, with config-wide
+  `cacheVersion` for author-controlled invalidation.
 
 ## Format
 

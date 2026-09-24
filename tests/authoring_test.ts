@@ -256,6 +256,26 @@ Deno.test("typed actions validate declared inputs at runtime", () => {
 });
 
 Deno.test("authoring rejects runtime-invalid provider-native values", () => {
+  const ci = pipeline("cache-version", {
+    output: ".github/workflows/cache-version.yml",
+    events: ["push"],
+  }).job(
+    "test",
+    ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
+  );
+  assertEquals(defineTsugiori({ pipelines: [ci] }).cacheVersion, 1);
+  assertEquals(
+    defineTsugiori({ cacheVersion: 2, pipelines: [ci] }).cacheVersion,
+    2,
+  );
+  for (const cacheVersion of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    assertThrows(
+      () => defineTsugiori({ cacheVersion, pipelines: [ci] }),
+      TypeError,
+      "Cache version must be a positive safe integer.",
+    );
+  }
+
   assertThrows(
     () =>
       pipeline("ci", {

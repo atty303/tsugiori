@@ -41,9 +41,12 @@ Preserve these constraints in every change:
 - Generated GitHub Actions workflow YAML is intended to be committed to the
   repository, with local hooks as a convenience and CI checks as the durable
   stale-output guard.
-- The task artifact is content-addressed. The GitHub Actions provider backend
-  restores and saves it through visible `actions/cache` steps; common delivery
-  abstractions should be extracted only after another backend requires them.
+- The task artifact is source-addressed. Its automatic identity follows the
+  repository-local source graph and explicit compatibility axes; authors use
+  the config-wide `cacheVersion` for other invalidation needs. The GitHub
+  Actions provider backend restores and saves it through visible `actions/cache`
+  steps; common delivery abstractions should be extracted only after another
+  backend requires them.
 - The project must not become a Dagger/Earthly-style opaque external CI runtime where
   the selected CI provider only calls one command.
 - Future provider backends such as GitLab CI should be explicit provider-native

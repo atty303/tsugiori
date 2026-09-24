@@ -97,5 +97,5 @@ required to use a separate manifest.
 
 The provider-owned mechanism that makes a task artifact available to task-backed
 steps. The GitHub Actions backend uses visible, generational `actions/cache`
-steps and a content-addressed local entry. No generic remote adapter is part of
+steps and a source-addressed local entry. No generic remote adapter is part of
 the current contract.

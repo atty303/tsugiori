@@ -46,6 +46,7 @@ export type AuthoringPipeline = Readonly<{
 }>;
 export type TsugioriConfig = Readonly<{
   kind: "tsugiori.config";
+  cacheVersion: number;
   pipelines: readonly AuthoringPipeline[];
 }>;
 
@@ -459,9 +460,16 @@ export function defineTsugiori<
   const Pipelines extends NonEmptyReadonlyArray<
     NonEmptyPipelineState<string, JobReferences>
   >,
->(input: Readonly<{ pipelines: Pipelines }>): TsugioriConfig {
+>(
+  input: Readonly<{ cacheVersion?: number; pipelines: Pipelines }>,
+): TsugioriConfig {
+  const cacheVersion = input.cacheVersion ?? 1;
+  if (!Number.isSafeInteger(cacheVersion) || cacheVersion <= 0) {
+    throw new TypeError("Cache version must be a positive safe integer.");
+  }
   return Object.freeze({
     kind: "tsugiori.config",
+    cacheVersion,
     pipelines: Object.freeze(
       input.pipelines.map((value) => value[pipelineDefinition]),
     ),

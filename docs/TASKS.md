@@ -55,7 +55,7 @@ validation remains incomplete.
 - [x] Add validation that every generated task runtime invocation has a
   registered task entrypoint.
 - [x] Design the task artifact metadata or manifest representation and
-  content-addressed key inputs.
+  source-addressed key inputs.
 - [x] Exercise the initial artifact storage boundary with a repository-local
   cache.
 - [x] Specify how cache miss builds populate the selected task artifact

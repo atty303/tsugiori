@@ -15,7 +15,6 @@ import {
 
 const SOURCE_TOOL_IDENTITY: ToolIdentity = {
   version: "0.1.0-dev",
-  buildId: "source",
 };
 
 export async function main(

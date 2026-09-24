@@ -181,11 +181,14 @@ The task artifact is the prepared output used by CI provider steps to execute
 registered task functions. An OCI image may itself be the task artifact; the
 design should not require wrapping it in a second project-specific artifact.
 
-It should be addressed by a stable artifact key derived from the inputs that
-affect task runtime behavior, such as registered task source, dependency state,
-target platform, tool version, and artifact form. When those inputs change,
-the key changes and the artifact should be rebuilt or restored from the
-matching cache entry.
+The initial artifact is source-addressed. Its automatic key contains the
+root-relative path and content of every reachable `file:` module inside the
+repository root, plus the target platform, artifact format version, and the
+config-wide `cacheVersion`. Authors increment `cacheVersion` when a remote
+module, repository-external file, lockfile, Deno setting or version, Tsugiori
+version, or another excluded input must invalidate the artifact. This is a
+cache reuse contract, not a claim of complete transitive or bit-for-bit build
+reproducibility.
 
 ### Task Artifact Metadata and Manifest
 
@@ -218,7 +221,7 @@ visible steps that resolve the artifact key, restore the newest matching
 `actions/cache` generation, validate or build the local entry, and save a new
 generation only after a build or corrupt-entry recovery.
 
-The local content-addressed entry is
+The local source-addressed entry is
 `.tsugiori/cache/artifacts/<artifact-key>/`. GitHub cache transport keys append
 `github.run_id` and `github.run_attempt`; restore uses the artifact-key prefix
 so an immutable corrupt entry can be superseded by a newer generation.

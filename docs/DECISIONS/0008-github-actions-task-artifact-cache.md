@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-The repository-local cache established the content-addressed task artifact
+The repository-local cache established the key-addressed task artifact
 layout and validation behavior. GitHub Actions cache delivery does not fit the
 same in-process `restore` and `store` interface: `actions/cache` is provider
 orchestration expressed as workflow steps, with provider-owned scopes, tokens,
@@ -22,7 +22,7 @@ The GitHub Actions backend emits visible steps that resolve the artifact key,
 restore an `actions/cache` entry, prepare and validate the artifact, and save a
 new entry only when preparation built or repaired the local entry.
 
-The content-addressed local entry remains
+The source-addressed local entry remains
 `.tsugiori/cache/artifacts/<artifact-key>/`. The transport key adds
 `github.run_id` and `github.run_attempt` as a generation. Restore uses the
 artifact-key prefix, so the most recent valid generation is preferred and a

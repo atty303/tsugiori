@@ -9,7 +9,7 @@ that CI provider steps can execute through a prepared task artifact.
 
 Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
 load a TypeScript authoring module, generate deterministic workflow YAML,
-prepare a content-addressed Deno task binary through a repository-local cache,
+prepare a source-addressed Deno task binary through a repository-local cache,
 restore and save those cache entries through generated `actions/cache` steps,
 and dispatch inline task functions. The repository now uses a generated
 workflow to exercise that slice on GitHub Actions. Native stale-output check
@@ -61,13 +61,16 @@ The pipeline source is intended to be the source of truth, while generated
 may compile pipeline source before commit. The repository CI checks its own
 workflow with `generate --check --output .github/workflows/ci.yml`.
 
-Task artifact preparation is intended to produce or restore a
-content-addressed task artifact derived from task source, dependency state,
-target platform, tool version, and artifact form. The artifact may be a
-prepared runtime form such as an OCI image. Provider steps should make that
-artifact available through explicit preparation work, then invoke task runtime
-entrypoints without fetching or building managed task code again. Task artifact
-delivery is provider-owned. The GitHub Actions backend emits visible
+Task artifact preparation produces or restores a source-addressed task artifact.
+Its automatic key covers the reachable repository-local `file:` module graph,
+target platform, and artifact format. Authors increment the config-wide
+`cacheVersion` when changes outside that boundary need to invalidate the cache.
+Remote modules, files outside the repository root, lockfiles, Deno configuration
+and versions, and Tsugiori versions are not tracked automatically. The artifact
+may be a prepared runtime form such as an OCI image. Provider steps should make
+that artifact available through explicit preparation work, then invoke task
+runtime entrypoints without fetching or building managed task code again. Task
+artifact delivery is provider-owned. The GitHub Actions backend emits visible
 `actions/cache` restore and save steps. A shared delivery abstraction should be
 extracted only after another backend such as an OCI registry or S3 requires it.
 
@@ -121,7 +124,7 @@ const ci = pipeline("ci", {
     })
 );
 
-export default defineTsugiori({ pipelines: [ci] });
+export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
 ```
 
 Build the current-host CLI and generate the configured workflow:

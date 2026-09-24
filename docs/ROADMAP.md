@@ -69,7 +69,7 @@ work.
 - decide the exact task artifact key inputs and any metadata or manifest
   representation
 - add explicit task artifact preparation steps before task-backed provider steps
-- retain a repository-local content-addressed artifact entry
+- retain a repository-local source-addressed artifact entry
 - emit generational `actions/cache` restore and save steps in the GitHub
   Actions backend
 - validate the remote-cache path on a GitHub-hosted runner

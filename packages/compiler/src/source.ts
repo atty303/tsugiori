@@ -7,6 +7,10 @@ const config = loaded.default;
 if (config?.kind !== "tsugiori.config" || !Array.isArray(config.pipelines)) {
   throw new Error("The configuration default export must be created by defineTsugiori().");
 }
+const cacheVersion = config.cacheVersion ?? 1;
+if (!Number.isSafeInteger(cacheVersion) || cacheVersion <= 0) {
+  throw new TypeError("Cache version must be a positive safe integer.");
+}
 const isPlainRecord = (value) => typeof value === "object" && value !== null &&
   !Array.isArray(value) &&
   (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
@@ -26,6 +30,7 @@ const encodeScalarRecord = (value) => {
 };
 const serializable = {
   kind: config.kind,
+  cacheVersion,
   pipelines: config.pipelines.map((pipeline) => ({
     id: pipeline.id,
     name: pipeline.name,

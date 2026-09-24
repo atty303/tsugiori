@@ -1,10 +1,9 @@
 import type { TsugioriConfig } from "@tsugiori/core";
-import { relative, resolve, sep } from "node:path";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { lowerConfig } from "../../compiler/src/authoring.ts";
-import { localDenoConfigurationSources } from "../../compiler/src/source.ts";
 import {
-  sha256Bytes,
   sha256File,
+  sourceArtifactKey,
   TASK_ARTIFACT_FORMAT_VERSION,
   type TaskArtifactManifest,
   TaskRuntimeError,
@@ -15,7 +14,6 @@ import type { DiagnosticRecorder } from "./diagnostics.ts";
 
 export type ToolIdentity = Readonly<{
   version: string;
-  buildId: string;
 }>;
 
 export type PrepareOptions = Readonly<{
@@ -74,10 +72,8 @@ export async function resolveTaskArtifact(
   const artifactKey = await computeArtifactKey({
     rootDirectory: options.rootDirectory,
     configPath: options.configPath,
-    denoVersion,
     target,
-    tool: options.tool,
-    entrypoints,
+    cacheVersion: options.config.cacheVersion,
   });
   options.recorder.operation({
     name: "artifact.key",
@@ -249,13 +245,12 @@ async function buildArtifact(
   await Deno.mkdir(options.outputDirectory, { recursive: true });
   const binary = resolve(options.outputDirectory, "task-runtime");
   const manifestWithoutChecksum = {
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     artifactKey: options.artifactKey,
     artifactFormatVersion: TASK_ARTIFACT_FORMAT_VERSION,
     target: options.target,
     denoVersion: options.denoVersion,
     tsugioriVersion: options.tool.version,
-    tsugioriBuildId: options.tool.buildId,
     invocationPath: "./.tsugiori/task-runtime" as const,
     entrypoints: [...options.entrypoints].sort(),
   };
@@ -317,7 +312,7 @@ async function validateArtifact(
     await Deno.readTextFile(resolve(directory, "manifest.json")),
   ) as TaskArtifactManifest;
   if (
-    manifest.schemaVersion !== 1 || manifest.artifactKey !== expectedKey ||
+    manifest.schemaVersion !== 2 || manifest.artifactKey !== expectedKey ||
     manifest.artifactFormatVersion !== TASK_ARTIFACT_FORMAT_VERSION
   ) {
     throw new TaskRuntimeError(
@@ -339,10 +334,8 @@ async function computeArtifactKey(
   input: Readonly<{
     rootDirectory: string;
     configPath: string;
-    denoVersion: string;
     target: string;
-    tool: ToolIdentity;
-    entrypoints: readonly string[];
+    cacheVersion: number;
   }>,
 ): Promise<string> {
   const denoConfig = await firstExisting(
@@ -360,49 +353,39 @@ async function computeArtifactKey(
     "module_graph_failed",
   );
   const graph = JSON.parse(output) as {
-    modules?: readonly { local?: string }[];
+    modules?: readonly { local?: string; specifier?: string }[];
   };
-  const localModules = (graph.modules ?? [])
-    .flatMap((module) => module.local === undefined ? [] : [module.local])
-    .sort();
+  const modulePaths = new Map<string, string>();
+  for (const module of graph.modules ?? []) {
+    if (module.local === undefined || !module.specifier?.startsWith("file:")) {
+      continue;
+    }
+    const path = resolve(module.local);
+    const relativePath = relative(input.rootDirectory, path);
+    if (!isRepositoryLocalPath(relativePath)) continue;
+    modulePaths.set(relativePath.split(sep).join("/"), path);
+  }
   const modules = [];
-  for (const path of localModules) {
+  for (
+    const [relativePath, path] of [...modulePaths].sort(([left], [right]) =>
+      left.localeCompare(right)
+    )
+  ) {
     modules.push({
-      path: relative(input.rootDirectory, path).split(sep).join("/"),
+      path: relativePath,
       sha256: await sha256File(path),
     });
   }
-  const lockSha256 = await exists(lockPath) ? await sha256File(lockPath) : null;
-  const denoConfiguration = denoConfig === undefined
-    ? []
-    : await configurationSources(input.rootDirectory, denoConfig);
-  const canonical = JSON.stringify({
+  return await sourceArtifactKey({
     artifactFormatVersion: TASK_ARTIFACT_FORMAT_VERSION,
-    compilePermissions: "all",
-    denoConfiguration,
-    denoVersion: input.denoVersion,
-    entrypoints: [...input.entrypoints].sort(),
-    lockSha256,
+    cacheVersion: input.cacheVersion,
     modules,
     target: input.target,
-    tsugioriBuildId: input.tool.buildId,
-    tsugioriVersion: input.tool.version,
   });
-  return `sha256-${await sha256Bytes(new TextEncoder().encode(canonical))}`;
 }
 
-async function configurationSources(
-  rootDirectory: string,
-  configPath: string,
-): Promise<readonly Readonly<{ path: string; sha256: string }>[]> {
-  return await Promise.all(
-    (await localDenoConfigurationSources(rootDirectory, configPath)).map(
-      async (source) => ({
-        path: source.path,
-        sha256: await sha256Bytes(new TextEncoder().encode(source.content)),
-      }),
-    ),
-  );
+function isRepositoryLocalPath(path: string): boolean {
+  return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
 
 async function readDenoVersion(rootDirectory: string): Promise<string> {

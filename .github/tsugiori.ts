@@ -57,4 +57,4 @@ const ci = pipeline("ci", {
       },
     }));
 
-export default defineTsugiori({ pipelines: [ci] });
+export default defineTsugiori({ cacheVersion: 1, pipelines: [ci] });

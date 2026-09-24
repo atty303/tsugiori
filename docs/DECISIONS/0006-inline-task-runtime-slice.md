@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted.
+Accepted. The artifact-key input paragraph is superseded by 0010.
 
 ## Context
 
