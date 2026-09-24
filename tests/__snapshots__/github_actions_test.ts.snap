@@ -18,19 +18,6 @@ jobs:
           persist-credentials: false
       - name: Build
         run: deno task build
-  deploy:
-    runs-on:
-      group: production-runners
-      labels:
-        - self-hosted
-        - linux
-        - x64
-    needs:
-      - build
-      - test
-    steps:
-      - name: Deploy
-        run: ./deploy
   test:
     runs-on:
       - SELF-HOSTED
@@ -47,5 +34,18 @@ jobs:
       - run: |-
           echo first
           echo second
+  deploy:
+    runs-on:
+      group: production-runners
+      labels:
+        - self-hosted
+        - linux
+        - x64
+    needs:
+      - build
+      - test
+    steps:
+      - name: Deploy
+        run: ./deploy
 
 `;

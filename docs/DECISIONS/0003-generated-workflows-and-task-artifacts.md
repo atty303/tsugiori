@@ -31,6 +31,8 @@ identifies its owning config in a leading comment so checks can distinguish
 extra owned files from handwritten workflows and other configs' output. A check
 can cover all outputs owned by a config or one selected output; the repository
 CI checks its own workflow.
+Jobs in generated YAML are ordered by dependency layer. Within each layer,
+their authoring order is preserved so the committed output remains easy to read.
 
 The task artifact is content-addressed. Its key should be derived from inputs
 that affect task runtime behavior, including registered task source,

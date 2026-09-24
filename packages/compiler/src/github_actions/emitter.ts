@@ -22,8 +22,7 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       ]),
   );
   const jobs = Object.fromEntries(
-    [...workflow.jobs]
-      .sort((left, right) => compareText(left.id, right.id))
+    jobsByDependencyLayer(workflow.jobs)
       .map((job) => [job.id, emitJob(job)]),
   );
 
@@ -47,6 +46,28 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       useAnchors: false,
     },
   );
+}
+
+function jobsByDependencyLayer(jobs: readonly Job[]): Job[] {
+  const ordered: Job[] = [];
+  const emitted = new Set<string>();
+  let remaining = [...jobs];
+
+  while (remaining.length > 0) {
+    const layer = remaining.filter((job) =>
+      job.needs.every((dependency) => emitted.has(dependency))
+    );
+    if (layer.length === 0) {
+      throw new Error(
+        "Validated workflow contains unresolved job dependencies.",
+      );
+    }
+    ordered.push(...layer);
+    for (const job of layer) emitted.add(job.id);
+    remaining = remaining.filter((job) => !emitted.has(job.id));
+  }
+
+  return ordered;
 }
 
 function emitJob(job: Job): Record<string, unknown> {

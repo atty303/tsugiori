@@ -87,6 +87,33 @@ Deno.test("normalizes semantically unordered input", () => {
   assertEquals(emitWorkflow(first.value), emitWorkflow(second.value));
 });
 
+Deno.test("emits jobs by dependency layer in definition order", () => {
+  const result = validateWorkflow({
+    name: "Layered",
+    events: ["push"],
+    jobs: [
+      job("publish", ["build", "verify"]),
+      job("lint", []),
+      job("verify", ["build"]),
+      job("build", []),
+      job("docs", []),
+      job("package", ["build"]),
+    ],
+  });
+
+  assert(result.ok);
+  const jobIds = [...emitWorkflow(result.value).matchAll(/^ {2}([\w-]+):$/gm)]
+    .map((match) => match[1]);
+  assertEquals(jobIds, [
+    "lint",
+    "build",
+    "docs",
+    "verify",
+    "package",
+    "publish",
+  ]);
+});
+
 Deno.test("rejects invalid deployment-specific native fields", () => {
   const result = validateWorkflow({
     name: "Deploy",
