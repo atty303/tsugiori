@@ -1,0 +1,80 @@
+Task: Implement Tsugiori consumer config as sole execution entrypoint
+Anchor: afdfd8e3d4f8cb873bc5bb24a0fb28f8a77ef9e6
+Base: b7e34cc227b42c30d090aebd3b8f4ef12115b88b
+Branch: main
+Commits: afdfd8e3d4f8cb873bc5bb24a0fb28f8a77ef9e6 replaces the config loader and bootstrap with direct config execution and compiled task dispatch
+Guidance: AGENTS.md; develop-repository; investigate-problem; design-program-observability; maintain-agent-guidance; review; git-task-evidence
+Conditions: local main checkout; Tsugiori repository outside initial writable roots; no push, release, or PR; 1Password signing agent failed, so this local commit is unsigned; code fetch succeeded, notes fetch encountered divergent ref
+## Evidence
+mise run test: 28 passed, 0 failed; .github deno task generate:check passed; independent staged-diff review found one README import omission, fixed and delta-reviewed.
+Authority: user implementation request and subsequent corrections; repository AGENTS.md; deno.json; source and tests
+## Transcript
+- U1: # 実装依頼
+    
+    ## 依頼
+    
+    /Users/a13400/src/atty303/tsugiori で、consumer の設定ファイルを Tsugiori の実行入口に変更してください。`generate`、`generate:check`、`github-actions task cache-key`、`github-actions task prepare` を同じ入口から実行できるようにしてください。
+    
+    ## 目的
+    
+    - consumer の Deno プロジェクトが選ぶ設定と lockfile で、すべての Tsugiori 操作を実行できるようにする。
+    - 設定読み込み用の子プロセスによる import map の不一致を解消する。
+    
+    ## 成功条件
+    
+    - 設定ファイルは設定値の default export を維持し、`import.meta.main` のときだけ Tsugiori の実行関数を呼ぶ。
+    - 4種類の操作が設定値を同じプロセス内で受け取る。`inspect.ts` の生成、子 Deno プロセスでの設定読み込み、JSON 経由の受け渡しがなくなる。
+    - 生成 workflow の `cache-key` と `prepare` の step も設定ファイルを実行する。既存の GitHub Actions job・step の可視性、task artifact のコンパイルと実行は維持する。
+    - リポジトリルートは設定ファイルから一度だけ渡す。ルートの求め方を Tsugiori は強制しない。
+    - 設定ファイルの import・トップレベル初期化に失敗した場合は Deno のエラーが表示される。Tsugiori の実行関数に入った後の診断は維持する。
+    - `.github` と別ディレクトリの consumer fixture、設定値の検証、生成結果、task artifact の既存テストを新しい経路で確認し、標準チェックとテストを通す。
+    
+    ## 決定事項
+    
+    - 設定ファイルを全操作の唯一の実行入口にする。
+      - 理由: 設定の評価と依存解決を consumer の Deno プロジェクトに統一するため。
+      - 主な棄却案: 子プロセスへ Deno 設定を渡す修正は、不要になった設定読み込み経路を残す。
+    - 設定ファイルに明示的な `import.meta.main` ガードを置く。
+      - 理由: task runtime が設定ファイルを import するときに実行コマンドを起動しないことを、書き手が確認できるため。
+      - 主な棄却案: 起動判定をヘルパーに隠す方式は実行条件が見えにくい。
+    - 従来の `@atty303/tsugiori/cli --config ...` 経路を廃止する。
+      - 理由: 設定読み込み経路を一つにするため。
+      - 主な棄却案: 旧 CLI の併存は動的な設定読み込みを保守対象として残す。
+    - リポジトリルートは設定ファイルが渡し、パスの取得方法は書き手が選ぶ。Deno プロジェクトの作業ディレクトリは現行契約を維持する。
+      - 理由: ルート指定の重複をなくしつつ、Deno の依存解決方法を変えないため。
+      - 主な棄却案: 各コマンドでの `--root` 指定、および Tsugiori によるルート取得方法の強制。
+    - 設定ファイルの評価中に生じたエラーは Deno の表示に任せる。
+      - 理由: 設定ファイルを単一の入口にするため。
+      - 主な棄却案: 全読み込みエラーの診断 JSON を維持するための別起動ファイル。
+    
+    ## 制約
+    
+    - consumer の `deno.json` / lockfile の選択や継承を Tsugiori 内で再実装しない。
+    - 設定値の不正な provider field が検証をすり抜けないようにする。task 関数本体を生成 YAML に埋め込まない。
+    - push、release、PR 作成は行わない。
+    
+    ## 対象外
+    
+    - /Users/a13400/src/CyberAgentAI/glaze-ops の固定 SHA 更新と consumer 移行。
+    - CI task 実行用のコンパイル済み artifact の廃止。
+    
+    ## 未検証の前提
+    
+    - 設定ファイルを直接実行し、task runtime から import した場合の `import.meta.main` の挙動。
+    - 新しい入口を使う `.github` と別ディレクトリの fixture で、Deno が選ぶ設定・lockfile と、生成 step の作業ディレクトリが一致すること。
+    
+    ## 実装時の指示
+    
+    - 既存の設定ファイルから、設定値・自身のファイル URL・リポジトリルートを実行関数へ渡せる API にする。ルートにはファイル URL などを許容し、その求め方は consumer に委ねる。
+    - Tsugiori 自身の dogfood 設定、`deno task`、生成 workflow、テスト、利用手順、関連 ADR を新しい入口に合わせる。
+  - A: Inspected current source and project guidance; started replacing the child-process config loader with an in-process config runner.
+- U2: いや、設定はts objectだからJSONとかいらないだろ？
+  - A: Confirmed TypeScript config objects are passed directly; no config JSON relay remains. Continued fixture and API changes.
+- U3: AGENTS.mdの変更内容は？
+  - A: Explained the proposed two descriptive AGENTS.md wording edits and that automatic approval review had rejected an unapproved guidance change.
+- U4: その内容なら修正して
+  - A: Applied the two approved AGENTS.md wording edits; corrected the direct config error fixture and continued integration tests.
+- U5: deno compileが設定モジュール自体をcompileした結果がartifactではないのか？
+  - A: Explained the then-current bootstrap artifact design and tested consumer import-map behavior; discovered the separate bootstrap remained a second entrypoint.
+- U6: いや、`runTsugiori`にすべて統合する意図だ。それは単なる漏れだ。別経路を残すとまた問題になるだろ
+  - A: Compiled the config module itself and unified compiled task dispatch in runTsugiori; removed bootstrap, updated tests and docs, passed 28 tests and dogfood check, completed independent review, and committed locally unsigned after 1Password signing failed.
