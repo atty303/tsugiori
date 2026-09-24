@@ -36,6 +36,8 @@ const serializable = {
     name: pipeline.name,
     output: pipeline.output,
     events: pipeline.events,
+    pushBranches: pipeline.pushBranches,
+    concurrency: pipeline.concurrency,
     ...(pipeline.permissions === undefined ? {} : {
       permissions: encodeScalarRecord(pipeline.permissions),
     }),
@@ -43,19 +45,28 @@ const serializable = {
       id: job.id,
       runsOn: job.runsOn,
       needs: job.needs,
+      if: job.if,
+      timeoutMinutes: job.timeoutMinutes,
+      environment: job.environment,
+      outputs: job.outputs,
+      strategy: job.strategy,
+      concurrency: job.concurrency,
       steps: job.steps.map((step) => {
         if (step.type === "task") return { type: step.type, name: step.name, task: null };
         if (step.type === "uses" && step.with !== undefined) {
           return {
             type: step.type,
             name: step.name,
+            id: step.id,
             uses: step.uses,
             with: encodeScalarRecord(step.with),
+            if: step.if,
+            env: step.env,
           };
         }
         return step.type === "uses"
-          ? { type: step.type, name: step.name, uses: step.uses }
-          : { type: step.type, name: step.name, run: step.run };
+          ? { type: step.type, name: step.name, uses: step.uses, id: step.id, if: step.if, env: step.env }
+          : { type: step.type, name: step.name, run: step.run, id: step.id, if: step.if, env: step.env, workingDirectory: step.workingDirectory };
       }),
     })),
   })),

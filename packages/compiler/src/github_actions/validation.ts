@@ -10,6 +10,8 @@ export type DiagnosticCode =
   | "workflow.name.empty"
   | "workflow.events.empty"
   | "workflow.events.duplicate"
+  | "workflow.push-branches.invalid"
+  | "workflow.concurrency.invalid"
   | "workflow.permissions.invalid"
   | "workflow.permissions.key.unsupported"
   | "workflow.permissions.value.invalid"
@@ -24,6 +26,12 @@ export type DiagnosticCode =
   | "job.runs-on.labels.empty"
   | "job.runs-on.labels.duplicate"
   | "job.steps.empty"
+  | "job.if.empty"
+  | "job.timeout.invalid"
+  | "job.environment.empty"
+  | "job.outputs.invalid"
+  | "job.strategy.invalid"
+  | "job.concurrency.invalid"
   | "step.name.empty"
   | "step.id.invalid"
   | "step.id.duplicate"
@@ -33,7 +41,9 @@ export type DiagnosticCode =
   | "step.with.invalid"
   | "step.with.key.empty"
   | "step.with.value.invalid"
-  | "step.run.empty";
+  | "step.run.empty"
+  | "step.env.invalid"
+  | "step.working-directory.empty";
 
 export type DiagnosticPath = readonly (string | number)[];
 
@@ -76,6 +86,31 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     diagnostics,
   );
 
+  if (
+    workflow.pushBranches !== undefined &&
+    (!workflow.events.includes("push") ||
+      !Array.isArray(workflow.pushBranches) ||
+      workflow.pushBranches.length === 0 ||
+      workflow.pushBranches.some((branch) =>
+        typeof branch !== "string" || isBlank(branch)
+      ) ||
+      new Set(workflow.pushBranches).size !== workflow.pushBranches.length)
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "workflow.push-branches.invalid",
+        ["pushBranches"],
+        "Push branches require a push event and nonempty unique branch names.",
+      ),
+    );
+  }
+  validateConcurrency(
+    workflow.concurrency,
+    ["concurrency"],
+    "workflow.concurrency.invalid",
+    diagnostics,
+  );
+
   validatePermissions(workflow.permissions, diagnostics);
 
   if (workflow.jobs.length === 0) {
@@ -114,6 +149,56 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     }
 
     validateRunnerSelection(job.runsOn, [...jobPath, "runsOn"], diagnostics);
+    if (
+      job.if !== undefined &&
+      (typeof job.if !== "string" || isBlank(job.if))
+    ) {
+      diagnostics.push(
+        diagnostic(
+          "job.if.empty",
+          [...jobPath, "if"],
+          "Job condition must not be empty.",
+        ),
+      );
+    }
+    if (
+      job.timeoutMinutes !== undefined &&
+      (!Number.isInteger(job.timeoutMinutes) || job.timeoutMinutes < 1 ||
+        job.timeoutMinutes > 360)
+    ) {
+      diagnostics.push(
+        diagnostic(
+          "job.timeout.invalid",
+          [...jobPath, "timeoutMinutes"],
+          "Job timeout must be an integer from 1 to 360 minutes.",
+        ),
+      );
+    }
+    if (
+      job.environment !== undefined &&
+      (typeof job.environment !== "string" || isBlank(job.environment))
+    ) {
+      diagnostics.push(
+        diagnostic(
+          "job.environment.empty",
+          [...jobPath, "environment"],
+          "Job environment must not be empty.",
+        ),
+      );
+    }
+    validateExpressionMap(
+      job.outputs,
+      [...jobPath, "outputs"],
+      "job.outputs.invalid",
+      diagnostics,
+    );
+    validateStrategy(job.strategy, [...jobPath, "strategy"], diagnostics);
+    validateConcurrency(
+      job.concurrency,
+      [...jobPath, "concurrency"],
+      "job.concurrency.invalid",
+      diagnostics,
+    );
 
     validateDuplicates(
       job.needs,
@@ -219,6 +304,24 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
           "Run command must not be empty.",
         ));
       }
+      validateExpressionMap(
+        step.env,
+        [...stepPath, "env"],
+        "step.env.invalid",
+        diagnostics,
+      );
+      if (
+        step.type === "run" && step.workingDirectory !== undefined &&
+        (typeof step.workingDirectory !== "string" ||
+          isBlank(step.workingDirectory))
+      ) {
+        diagnostics.push(
+          diagnostic("step.working-directory.empty", [
+            ...stepPath,
+            "workingDirectory",
+          ], "Working directory must not be empty."),
+        );
+      }
     });
   });
 
@@ -261,6 +364,76 @@ function validatePermissions(
       ));
     }
   });
+}
+
+function validateConcurrency(
+  value: unknown,
+  path: DiagnosticPath,
+  code: DiagnosticCode,
+  diagnostics: Diagnostic[],
+): void {
+  if (value === undefined) return;
+  if (
+    !isPlainRecord(value) || typeof value.group !== "string" ||
+    isBlank(value.group) || typeof value.cancelInProgress !== "boolean"
+  ) {
+    diagnostics.push(
+      diagnostic(
+        code,
+        path,
+        "Concurrency requires a nonempty group and boolean cancelInProgress.",
+      ),
+    );
+  }
+}
+
+function validateExpressionMap(
+  value: unknown,
+  path: DiagnosticPath,
+  code: DiagnosticCode,
+  diagnostics: Diagnostic[],
+): void {
+  if (value === undefined) return;
+  if (
+    !isPlainRecord(value) ||
+    Object.entries(value).some(([key, entry]) =>
+      isBlank(key) || typeof entry !== "string" || isBlank(entry)
+    )
+  ) {
+    diagnostics.push(
+      diagnostic(
+        code,
+        path,
+        "Map must have nonempty keys and nonempty string values.",
+      ),
+    );
+  }
+}
+
+function validateStrategy(
+  value: unknown,
+  path: DiagnosticPath,
+  diagnostics: Diagnostic[],
+): void {
+  if (value === undefined) return;
+  if (
+    !isPlainRecord(value) ||
+    (value.failFast !== undefined && typeof value.failFast !== "boolean") ||
+    !isPlainRecord(value.matrix) ||
+    Object.entries(value.matrix).some(([key, entry]) =>
+      isBlank(key) || !(typeof entry === "string" && !isBlank(entry) ||
+        Array.isArray(entry) && entry.length > 0 &&
+          entry.every((item) => typeof item === "string" && !isBlank(item)))
+    )
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "job.strategy.invalid",
+        path,
+        "Strategy matrix requires nonempty axes with expression or string-list values.",
+      ),
+    );
+  }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

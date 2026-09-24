@@ -41,6 +41,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0010-source-addressed-task-artifact-cache.md`: task artifact identity follows
   repository-local source and explicit compatibility axes, with config-wide
   `cacheVersion` for author-controlled invalidation.
+- `0011-native-github-actions-deploy-fields.md`: the GitHub Actions backend
+  exposes deployment fields for visible native jobs and steps with raw runtime
+  expressions.
 
 ## Format
 

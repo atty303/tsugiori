@@ -87,6 +87,45 @@ Deno.test("normalizes semantically unordered input", () => {
   assertEquals(emitWorkflow(first.value), emitWorkflow(second.value));
 });
 
+Deno.test("rejects invalid deployment-specific native fields", () => {
+  const result = validateWorkflow({
+    name: "Deploy",
+    events: ["pull_request"],
+    pushBranches: ["master"],
+    concurrency: { group: " ", cancelInProgress: false },
+    jobs: [{
+      id: "deploy",
+      runsOn: { type: "labels", labels: ["ubuntu-24.04"] },
+      needs: [],
+      if: " ",
+      timeoutMinutes: 0,
+      environment: " ",
+      outputs: { result: " " },
+      strategy: { matrix: { env: [] } },
+      concurrency: { group: "app", cancelInProgress: "no" },
+      steps: [{
+        type: "run",
+        run: "true",
+        env: { AWS_REGION: " " },
+        workingDirectory: " ",
+      }],
+    }],
+  } as unknown as Workflow);
+  assert(!result.ok);
+  assertEquals(result.diagnostics.map(({ code }) => code), [
+    "workflow.push-branches.invalid",
+    "workflow.concurrency.invalid",
+    "job.if.empty",
+    "job.timeout.invalid",
+    "job.environment.empty",
+    "job.outputs.invalid",
+    "job.strategy.invalid",
+    "job.concurrency.invalid",
+    "step.env.invalid",
+    "step.working-directory.empty",
+  ]);
+});
+
 Deno.test("reports structural validation diagnostics", () => {
   const workflow = {
     name: " ",

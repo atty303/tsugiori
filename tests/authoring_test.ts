@@ -11,6 +11,7 @@ import {
   defineTsugiori,
   pipeline,
   rawAction,
+  rawExpression,
 } from "@tsugiori/core/github-actions";
 import {
   AuthoringValidationError,
@@ -22,6 +23,49 @@ import {
   SourceLoadError,
 } from "../packages/compiler/src/source.ts";
 import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
+
+Deno.test("native deployment fields remain visible in generated Actions YAML", async () => {
+  const deploy = pipeline("deploy", {
+    output: ".github/workflows/deploy.yml",
+    events: ["push"],
+    pushBranches: ["master"],
+    permissions: { contents: "read" },
+  }).job("deploy-dev", ({ job }) =>
+    job.runsOn("ubuntu-24.04", {
+      if: rawExpression("needs.detect.outputs.selected == 'true'"),
+      timeoutMinutes: 60,
+      environment: "dev",
+      outputs: { result: rawExpression("steps.deploy.outputs.result") },
+      concurrency: {
+        group: "signage-plugin-webview-cz-dev",
+        cancelInProgress: false,
+      },
+    }).run({
+      id: "deploy",
+      name: "Deploy",
+      run: "./scripts/deploy.sh",
+      workingDirectory: "deploy/signage-plugin-webview-cz",
+      env: { AWS_REGION: "ap-northeast-1" },
+    }));
+  const lowered = await lowerConfig(
+    defineTsugiori({ pipelines: [deploy] }),
+    "./tsugiori.ts",
+  );
+  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  for (
+    const field of [
+      "branches:",
+      "master",
+      "timeout-minutes: 60",
+      "environment: dev",
+      "cancel-in-progress: false",
+      "working-directory: deploy/signage-plugin-webview-cz",
+      "AWS_REGION: ap-northeast-1",
+    ]
+  ) assertStringIncludes(yaml, field);
+  assertStringIncludes(yaml, "${{ steps.deploy.outputs.result }}");
+  assertThrows(() => rawExpression("  "), TypeError);
+});
 
 Deno.test("task-backed steps lower to visible preparation and runtime steps", async () => {
   const checkout = defineAction({
@@ -395,6 +439,37 @@ Deno.test("source loading preserves invalid provider-native values for validatio
       "Workflow permissions must be an object.",
     );
     assertStringIncludes(error.message, "Action input must be a string");
+  } finally {
+    await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("source loading preserves deployment workflow fields", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-deploy-" });
+  try {
+    await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
+    await Deno.writeTextFile(
+      `${root}/tsugiori.ts`,
+      `export default {
+      kind: "tsugiori.config", cacheVersion: 1,
+      pipelines: [{ id: "deploy", name: "Deploy", output: ".github/workflows/deploy.yml",
+        events: ["push"], pushBranches: ["master"],
+        jobs: [{ id: "deploy", runsOn: "ubuntu-24.04", needs: [],
+          if: "\${{ github.ref == 'refs/heads/master' }}", timeoutMinutes: 30,
+          environment: "dev", concurrency: {group: "app-dev", cancelInProgress: false},
+          outputs: {result: "\${{ steps.deploy.outputs.result }}"},
+          steps: [{type: "run", id: "deploy", name: "Deploy", run: "./deploy.sh",
+            env: {AWS_REGION: "ap-northeast-1"}, workingDirectory: "scripts"}]
+        }]
+      }]
+    };`,
+    );
+    const loaded = await loadConfig("./tsugiori.ts", root);
+    const lowered = await lowerConfig(loaded.config, loaded.argument);
+    const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+    assertStringIncludes(yaml, "branches:\n      - master");
+    assertStringIncludes(yaml, "cancel-in-progress: false");
+    assertStringIncludes(yaml, "working-directory: scripts");
   } finally {
     await Deno.remove(root, { recursive: true });
   }

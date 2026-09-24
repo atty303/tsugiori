@@ -16,6 +16,12 @@ workflow to exercise that slice on GitHub Actions. Native stale-output check
 mode detects missing, changed, and extra generated workflows. Broader GitHub
 Actions syntax and other artifact delivery backends are not implemented yet.
 
+The GitHub Actions authoring API supports push branch filters, workflow and job
+concurrency, job conditions, timeouts, environments, outputs, matrix strategy,
+and step conditions, environment variables, and working directories.
+`rawExpression()` emits an explicit GitHub runtime expression without evaluating
+it locally. These fields are emitted as normal Actions YAML.
+
 ## Problem
 
 GitHub Actions YAML is the execution interface, but it is not a strong

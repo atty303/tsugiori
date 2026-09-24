@@ -104,6 +104,8 @@ export async function lowerConfig(
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
             uses: step.uses,
+            ...(step.if === undefined ? {} : { if: step.if }),
+            ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.with === undefined ? {} : { with: step.with }),
           });
           continue;
@@ -114,6 +116,11 @@ export async function lowerConfig(
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
             run: step.run,
+            ...(step.if === undefined ? {} : { if: step.if }),
+            ...(step.env === undefined ? {} : { env: step.env }),
+            ...(step.workingDirectory === undefined ? {} : {
+              workingDirectory: step.workingDirectory,
+            }),
           });
           continue;
         }
@@ -147,6 +154,18 @@ export async function lowerConfig(
         id: job.id,
         runsOn: { type: "labels", labels: [job.runsOn] },
         needs: job.needs,
+        ...(job.if === undefined ? {} : { if: job.if }),
+        ...(job.timeoutMinutes === undefined
+          ? {}
+          : { timeoutMinutes: job.timeoutMinutes }),
+        ...(job.environment === undefined
+          ? {}
+          : { environment: job.environment }),
+        ...(job.outputs === undefined ? {} : { outputs: job.outputs }),
+        ...(job.strategy === undefined ? {} : { strategy: job.strategy }),
+        ...(job.concurrency === undefined
+          ? {}
+          : { concurrency: job.concurrency }),
         steps,
       });
     }
@@ -154,6 +173,12 @@ export async function lowerConfig(
     const workflow: Workflow = {
       name: pipeline.name,
       events: pipeline.events,
+      ...(pipeline.pushBranches === undefined
+        ? {}
+        : { pushBranches: pipeline.pushBranches }),
+      ...(pipeline.concurrency === undefined
+        ? {}
+        : { concurrency: pipeline.concurrency }),
       ...(pipeline.permissions === undefined
         ? {}
         : { permissions: pipeline.permissions }),

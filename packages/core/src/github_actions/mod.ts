@@ -5,6 +5,30 @@ export type PermissionLevel = "none" | "read" | "write";
 export type WorkflowPermissions = Readonly<{ contents?: PermissionLevel }>;
 export type ActionInput = string | number | boolean;
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
+export type EnvironmentVariables = Readonly<Record<string, string>>;
+export type Concurrency = Readonly<{
+  group: string;
+  cancelInProgress: boolean;
+}>;
+export type JobOptions = Readonly<{
+  if?: string;
+  timeoutMinutes?: number;
+  environment?: string;
+  outputs?: Readonly<Record<string, string>>;
+  strategy?: Readonly<{
+    failFast?: boolean;
+    matrix: Readonly<Record<string, string | readonly string[]>>;
+  }>;
+  concurrency?: Concurrency;
+}>;
+
+/** Emits an explicit GitHub Actions runtime expression. No interpolation is evaluated by Tsugiori. */
+export function rawExpression(expression: string): string {
+  if (expression.trim().length === 0) {
+    throw new TypeError("GitHub Actions expression must not be empty.");
+  }
+  return `\${{ ${expression} }}`;
+}
 export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 
 export type AuthoringUsesStep = Readonly<{
@@ -13,12 +37,17 @@ export type AuthoringUsesStep = Readonly<{
   name: string;
   uses: string;
   with?: ActionInputs;
+  if?: string;
+  env?: EnvironmentVariables;
 }>;
 export type AuthoringRunStep = Readonly<{
   type: "run";
   id?: string;
   name: string;
   run: string;
+  if?: string;
+  env?: EnvironmentVariables;
+  workingDirectory?: string;
 }>;
 export type AuthoringTaskStep = Readonly<{
   type: "task";
@@ -30,17 +59,21 @@ export type AuthoringStep =
   | AuthoringUsesStep
   | AuthoringRunStep
   | AuthoringTaskStep;
-export type AuthoringJob = Readonly<{
-  id: string;
-  runsOn: string;
-  needs: readonly string[];
-  steps: readonly AuthoringStep[];
-}>;
+export type AuthoringJob =
+  & Readonly<{
+    id: string;
+    runsOn: string;
+    needs: readonly string[];
+    steps: readonly AuthoringStep[];
+  }>
+  & JobOptions;
 export type AuthoringPipeline = Readonly<{
   id: string;
   name: string;
   output: string;
   events: readonly PipelineEvent[];
+  pushBranches?: readonly string[];
+  concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
 }>;
@@ -58,6 +91,8 @@ export type PipelineOptions<
   name?: string;
   output: string;
   events: Events;
+  pushBranches?: readonly string[];
+  concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
 }>;
 
@@ -215,9 +250,22 @@ export function rawAction(
 export type UsesStepDefinition<
   Id extends string | undefined = undefined,
   Outputs extends readonly string[] = readonly string[],
-> = Readonly<{ id?: Id; name: string; uses: ActionInvocation<Outputs> }>;
+> = Readonly<{
+  id?: Id;
+  name: string;
+  uses: ActionInvocation<Outputs>;
+  if?: string;
+  env?: EnvironmentVariables;
+}>;
 export type RunStepDefinition<Id extends string | undefined = undefined> =
-  Readonly<{ id?: Id; name: string; run: string }>;
+  Readonly<{
+    id?: Id;
+    name: string;
+    run: string;
+    if?: string;
+    env?: EnvironmentVariables;
+    workingDirectory?: string;
+  }>;
 export type TaskStepDefinition<Id extends string | undefined = undefined> =
   Readonly<{ id?: Id; name: string; task: TaskFunction }>;
 
@@ -346,7 +394,10 @@ export interface IndependentJobState<
   PipelineId extends string,
   JobId extends string,
 > {
-  runsOn(runner: string): ExecutionJobState<PipelineId, JobId>;
+  runsOn(
+    runner: string,
+    options?: JobOptions,
+  ): ExecutionJobState<PipelineId, JobId>;
 }
 export interface DependentJobState<
   PipelineId extends string,
@@ -419,6 +470,8 @@ type PipelineDraft = Readonly<{
   name: string;
   output: string;
   events: readonly PipelineEvent[];
+  pushBranches?: readonly string[];
+  concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
   references: JobReferences;
@@ -429,6 +482,7 @@ type JobDraft = Readonly<{
   id: string;
   owner: symbol;
   runsOn?: string;
+  options?: JobOptions;
   needs: readonly string[];
   steps: readonly AuthoringStep[];
   references: StepReferences;
@@ -446,6 +500,12 @@ export function pipeline<
     name: options.name ?? id,
     output: options.output,
     events: Object.freeze([...options.events]),
+    ...(options.pushBranches === undefined ? {} : {
+      pushBranches: Object.freeze([...options.pushBranches]),
+    }),
+    ...(options.concurrency === undefined ? {} : {
+      concurrency: Object.freeze({ ...options.concurrency }),
+    }),
     ...(options.permissions === undefined
       ? {}
       : { permissions: copyPermissions(options.permissions) }),
@@ -548,21 +608,24 @@ function createJobStartFacade(
     string,
     JobReferences
   > {
-  const runsOn = (runner: string) =>
-    createExecutionJobFacade(Object.freeze({ ...draft, runsOn: runner }));
+  const runsOn = (runner: string, options?: JobOptions) =>
+    createExecutionJobFacade(
+      Object.freeze({ ...draft, runsOn: runner, options }),
+    );
   const facade = {
     runsOn,
     ...(dependenciesAvailable
       ? {
         needs: (...dependencies: readonly JobReference[]) =>
           Object.freeze({
-            runsOn: (runner: string) =>
+            runsOn: (runner: string, options?: JobOptions) =>
               createExecutionJobFacade(Object.freeze({
                 ...draft,
                 needs: Object.freeze(
                   dependencies.map((dependency) => dependency.id),
                 ),
                 runsOn: runner,
+                options,
               })),
           }),
       }
@@ -635,6 +698,10 @@ function usesStep(
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     uses: definition.uses.uses,
+    ...(definition.if === undefined ? {} : { if: definition.if }),
+    ...(definition.env === undefined
+      ? {}
+      : { env: Object.freeze({ ...definition.env }) }),
     ...(definition.uses.with === undefined
       ? {}
       : { with: copyActionInputs(definition.uses.with) }),
@@ -648,6 +715,13 @@ function runStep(
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     run: definition.run,
+    ...(definition.if === undefined ? {} : { if: definition.if }),
+    ...(definition.env === undefined
+      ? {}
+      : { env: Object.freeze({ ...definition.env }) }),
+    ...(definition.workingDirectory === undefined ? {} : {
+      workingDirectory: definition.workingDirectory,
+    }),
   });
 }
 function taskStep(
@@ -667,6 +741,7 @@ function materializeJob(
     id: draft.id,
     runsOn: draft.runsOn,
     needs: draft.needs,
+    ...draft.options,
     steps: draft.steps,
   });
 }
@@ -676,6 +751,12 @@ function materializePipeline(draft: PipelineDraft): AuthoringPipeline {
     name: draft.name,
     output: draft.output,
     events: draft.events,
+    ...(draft.pushBranches === undefined
+      ? {}
+      : { pushBranches: draft.pushBranches }),
+    ...(draft.concurrency === undefined
+      ? {}
+      : { concurrency: draft.concurrency }),
     ...(draft.permissions === undefined
       ? {}
       : { permissions: draft.permissions }),

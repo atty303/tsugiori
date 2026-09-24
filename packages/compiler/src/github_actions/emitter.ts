@@ -12,7 +12,14 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
     [...workflow.events]
       .sort(compareText)
-      .map((event) => [event, {}]),
+      .map((
+        event,
+      ) => [
+        event,
+        event === "push" && workflow.pushBranches !== undefined
+          ? { branches: [...workflow.pushBranches].sort(compareText) }
+          : {},
+      ]),
   );
   const jobs = Object.fromEntries(
     [...workflow.jobs]
@@ -27,6 +34,9 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       ...(workflow.permissions === undefined
         ? {}
         : { permissions: emitPermissions(workflow.permissions) }),
+      ...(workflow.concurrency === undefined ? {} : {
+        concurrency: emitConcurrency(workflow.concurrency),
+      }),
       jobs,
     },
     {
@@ -45,6 +55,23 @@ function emitJob(job: Job): Record<string, unknown> {
   };
   if (job.needs.length > 0) {
     emitted.needs = [...job.needs].sort(compareText);
+  }
+  if (job.if !== undefined) emitted.if = job.if;
+  if (job.timeoutMinutes !== undefined) {
+    emitted["timeout-minutes"] = job.timeoutMinutes;
+  }
+  if (job.environment !== undefined) emitted.environment = job.environment;
+  if (job.outputs !== undefined) emitted.outputs = sortRecord(job.outputs);
+  if (job.strategy !== undefined) {
+    emitted.strategy = {
+      ...(job.strategy.failFast === undefined
+        ? {}
+        : { "fail-fast": job.strategy.failFast }),
+      matrix: sortRecord(job.strategy.matrix),
+    };
+  }
+  if (job.concurrency !== undefined) {
+    emitted.concurrency = emitConcurrency(job.concurrency);
   }
   emitted.steps = job.steps.map(emitStep);
   return emitted;
@@ -77,6 +104,7 @@ function emitStep(step: Step): Record<string, unknown> {
   if (step.continueOnError !== undefined) {
     emitted["continue-on-error"] = step.continueOnError;
   }
+  if (step.env !== undefined) emitted.env = sortRecord(step.env);
   if (step.type === "uses") {
     emitted.uses = step.uses;
     if (step.with !== undefined) {
@@ -84,8 +112,23 @@ function emitStep(step: Step): Record<string, unknown> {
     }
   } else {
     emitted.run = step.run;
+    if (step.workingDirectory !== undefined) {
+      emitted["working-directory"] = step.workingDirectory;
+    }
   }
   return emitted;
+}
+
+function emitConcurrency(
+  value: { group: string; cancelInProgress: boolean },
+): Record<string, unknown> {
+  return { group: value.group, "cancel-in-progress": value.cancelInProgress };
+}
+
+function sortRecord<T>(record: Readonly<Record<string, T>>): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(record).sort(([left], [right]) => compareText(left, right)),
+  );
 }
 
 function emitPermissions(
