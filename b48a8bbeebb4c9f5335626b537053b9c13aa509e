@@ -1,0 +1,60 @@
+Task: Improve generated GitHub Actions YAML readability
+Anchor: b48a8bbeebb4c9f5335626b537053b9c13aa509e
+Base: afdfd8e3d4f8cb873bc5bb24a0fb28f8a77ef9e6
+Branch: codex/readable-generated-yaml
+Commits: b48a8bbeebb4c9f5335626b537053b9c13aa509e renders run values as literal blocks and separates jobs and steps
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability applicability review; review; git-task-evidence
+Conditions: local branch; no push, release, or deploy; user selected rejection for values that cannot round-trip through a YAML literal block; 1Password signing agent failed, so local commit is unsigned; code and remote notes refs fetched
+## Evidence
+mise run test: 31 passed, 0 failed. Generated workflow stale check and git diff --check passed. The generated ci.yml parsed to the same value as its HEAD predecessor. Independent review found matrix.run misidentification and losslessly representable tab rejection; both were fixed and delta-reviewed with no further findings.
+Authority: user implementation request and exception choice; repository AGENTS.md; current emitter, tests, and architecture documentation
+## Transcript
+- U1: # 実装依頼
+    
+    ## 依頼
+    
+    GitHub Actions の生成 YAML を読みやすくするため、`run` の表記と job・step 間の空行を変更してください。
+    
+    ## 目的
+    
+    - シェルコマンド内のクオートを、YAML のエスケープで二重に見せずに読めるようにする。
+    - 隣り合う job と step を目で追いやすくする。
+    
+    ## 成功条件
+    
+    - すべての `run` がリテラルブロック形式で出力される。
+    - YAML を解析した `run` の値は、変更前と完全に一致する。末尾改行も保持する。
+    - 隣り合う job の間と、隣り合う step の間に、それぞれ空行が一行ある。
+    - job・step の順序と実行上の意味は変わらず、出力は決定的である。
+    - 関連するテスト、スナップショット、生成済みワークフローを更新し、リポジトリの検証を通す。
+    
+    ## 決定事項
+    
+    - すべての `run` をリテラルブロック形式に統一する。
+      - 理由: 表記規則が一つになり、内部のクオートをそのまま読める。
+      - 主な棄却案: クオートが必要な `run` だけを切り替える案。切り替え条件が増えるため。
+    - 隣り合う job と step の間には、常に空行を一行入れる。
+      - 理由: 一定の規則で区切りが見える。
+      - 主な棄却案: 種類や内容に応じて空行を入れる案。追加の判定規則が必要になるため。
+    
+    ## 制約
+    
+    - 実装をできるだけ単純にし、変更を GitHub Actions YAML の出力と関連する検証に絞る。
+    - `run` の内容や末尾改行を変えない。空行がブロック形式の `run` に取り込まれないことを確認する。
+    
+    ## 対象外
+    
+    - 公開 authoring API、job・step の構造や順序、実行方式の変更。
+    - job・step 間以外の空行規則の変更。
+    
+    ## 未検証の前提
+    
+    - なし。
+    
+    ## 実装時の指示
+    
+    - 現在の `@std/yaml` は `run` フィールドだけの表記を指定できないため、その制約を踏まえて変更範囲の小さい方法を選ぶ。
+    - 一行のコマンド、内部にクオートを含むコマンド、複数行のコマンド、末尾改行を含むコマンドで、解析後の値と空行の位置を確認する。
+  - A: Inspected repository guidance and source; changed the GitHub Actions emitter, generated workflow, tests, snapshot, and architecture note. Verified parsed run values and generated CI equivalence; fixed two independent-review findings; passed 31 tests and stale check; committed locally unsigned after the signing agent failed.
+- U2: 明確なエラーとして拒否する（推奨）
+  - A: Applied the selected exception for run strings that cannot be represented losslessly as literal blocks; kept representable tab characters and verified this with a regression test and independent delta review.
