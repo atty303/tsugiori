@@ -25,8 +25,12 @@ Pipeline source is the source of truth, and generated
 
 A local git hook may run the compiler before commit so pipeline source changes
 update generated YAML early. Hooks are convenience tooling, not the only
-correctness boundary. A future check mode should compare committed YAML with
-compiler output and fail when generated YAML is stale.
+correctness boundary. Check mode compares current workflow files byte for byte
+with compiler output and fails when generated YAML is stale. Generated YAML
+identifies its owning config in a leading comment so checks can distinguish
+extra owned files from handwritten workflows and other configs' output. A check
+can cover all outputs owned by a config or one selected output; the repository
+CI checks its own workflow.
 
 The task artifact is content-addressed. Its key should be derived from inputs
 that affect task runtime behavior, including registered task source,

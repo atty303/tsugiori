@@ -11,8 +11,8 @@ The minimal provider backend, public authoring subset, source loading,
 generation command, inline task lowering, local artifact preparation, and task
 dispatch are implemented. Generated `actions/cache` delivery is implemented;
 the public authoring subset uses immutable typestate facades and has an internal
-GitHub expression scope catalog. Stale-output check mode and live remote-cache
-validation remain incomplete.
+GitHub expression scope catalog and stale-output check mode. Live remote-cache
+validation remains incomplete.
 
 ## Ready Documentation Tasks
 
@@ -44,7 +44,7 @@ validation remain incomplete.
 - [x] Document the first real check/fix/test commands in `AGENTS.md`.
 - [x] Add pipeline source loading and `generate` only after its input contract
   is selected.
-- [ ] Add stale-output checking and focused missing, extra, and changed output
+- [x] Add stale-output checking and focused missing, extra, and changed output
   tests as the remaining generation check-mode slice.
 
 ## Phase 2 Tasks
@@ -75,7 +75,7 @@ validation remain incomplete.
 - [x] Validate the generated repository workflow on a GitHub-hosted
   `ubuntu-24.04` runner, including source bootstrap, a cold task artifact build,
   and task dispatch through `mise run test`.
-- [ ] Replace the temporary generate-and-diff stale guard after native
+- [x] Replace the temporary generate-and-diff stale guard after native
   stale-output check mode is implemented.
 
 ## Future Phase 3 Candidate Tasks

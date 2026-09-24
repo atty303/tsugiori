@@ -40,9 +40,8 @@ const ci = pipeline("ci", {
     })
     .run({
       name: "Check generated workflow",
-      run: "tsugiori generate --config ./.github/tsugiori.ts\n" +
-        "git diff --exit-code -- .github/workflows\n" +
-        'test -z "$(git ls-files --others --exclude-standard -- .github/workflows)"',
+      run:
+        "tsugiori generate --check --config ./.github/tsugiori.ts --output .github/workflows/ci.yml",
     })
     .task({
       name: "Run repository checks and tests",

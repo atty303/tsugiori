@@ -12,6 +12,19 @@ export async function writeGeneratedFiles(
   rootDirectory: string,
   files: readonly GeneratedFile[],
 ): Promise<void> {
+  const destinations = resolveGeneratedDestinations(rootDirectory, files);
+  for (const { file, output } of destinations) {
+    await Deno.mkdir(dirname(output), { recursive: true });
+    const temporary = `${output}.tmp-${crypto.randomUUID()}`;
+    await Deno.writeTextFile(temporary, file.content);
+    await Deno.rename(temporary, output);
+  }
+}
+
+export function resolveGeneratedDestinations(
+  rootDirectory: string,
+  files: readonly GeneratedFile[],
+): readonly Readonly<{ file: GeneratedFile; output: string }>[] {
   const workflowRoot = resolve(rootDirectory, ".github/workflows");
   const destinations = files.map((file) => ({
     file,
@@ -35,10 +48,5 @@ export async function writeGeneratedFiles(
     }
     seen.add(output);
   }
-  for (const { file, output } of destinations) {
-    await Deno.mkdir(dirname(output), { recursive: true });
-    const temporary = `${output}.tmp-${crypto.randomUUID()}`;
-    await Deno.writeTextFile(temporary, file.content);
-    await Deno.rename(temporary, output);
-  }
+  return destinations;
 }

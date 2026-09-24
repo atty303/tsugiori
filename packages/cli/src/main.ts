@@ -1,4 +1,5 @@
 import { generateFiles } from "../../compiler/src/generator.ts";
+import { checkGeneratedFiles } from "../../compiler/src/check.ts";
 import { loadConfig } from "../../compiler/src/source.ts";
 import { writeGeneratedFiles } from "../../compiler/src/write.ts";
 import { TaskRuntimeError } from "../../task-runtime/src/artifact.ts";
@@ -47,10 +48,49 @@ export async function main(
   );
   try {
     if (parsed.command.length === 1 && parsed.command[0] === "generate") {
+      if (
+        parsed.options.output !== undefined && parsed.options.check !== "true"
+      ) {
+        throw new TaskRuntimeError(
+          "usage_invalid",
+          "Option --output requires --check.",
+        );
+      }
       const configArgument = requiredOption(parsed.options, "config");
       const loaded = await loadConfig(configArgument);
       recorder.operation({ name: "source.load", status: "success" });
       const files = await generateFiles(loaded.config, loaded.argument);
+      if (parsed.options.check === "true") {
+        const stale = await checkGeneratedFiles(
+          loaded.rootDirectory,
+          loaded.argument,
+          files,
+          parsed.options.output,
+        );
+        if (stale.length > 0) {
+          for (const file of stale) {
+            console.error(`${file.reason}: ${file.path}`);
+          }
+          recorder.operation({
+            name: "workflow.check",
+            status: "error",
+            errorType: "workflow_stale",
+            attributes: { fileCount: stale.length },
+          });
+          await recorder.finish("error");
+          return 1;
+        }
+        recorder.operation({
+          name: "workflow.check",
+          status: "success",
+          attributes: {
+            fileCount: parsed.options.output === undefined ? files.length : 1,
+          },
+        });
+        await recorder.finish("success");
+        console.log("Generated workflow files are up to date.");
+        return 0;
+      }
       await writeGeneratedFiles(loaded.rootDirectory, files);
       recorder.operation({
         name: "workflow.generate",
@@ -122,7 +162,7 @@ export async function main(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: tsugiori generate --config <file>",
+      "Usage: tsugiori generate [--check [--output <path>]] --config <file>",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -166,7 +206,8 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
       rawName !== "config" && rawName !== "expect-layout" &&
-      rawName !== "expected-key" && rawName !== "target"
+      rawName !== "expected-key" && rawName !== "target" &&
+      rawName !== "check" && rawName !== "output"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",
@@ -177,6 +218,16 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       /-([a-z])/g,
       (_, letter: string) => letter.toUpperCase(),
     );
+    if (name === "check") {
+      if (equals >= 0) {
+        throw new TaskRuntimeError(
+          "usage_invalid",
+          "Option --check takes no value.",
+        );
+      }
+      options.check = "true";
+      continue;
+    }
     const value = equals >= 0 ? argument.slice(equals + 1) : args[++index];
     if (value === undefined || value.startsWith("--")) {
       throw new TaskRuntimeError(

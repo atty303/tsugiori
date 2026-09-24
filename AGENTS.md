@@ -5,11 +5,11 @@
 The project has an initial Phase 2 vertical slice. The repository contains a
 public minimal GitHub Actions authoring API, source loading, deterministic YAML
 generation, inline task lowering, a compiled Deno task runtime, a
-repository-local artifact cache, generated `actions/cache` delivery steps, and
-compiled-binary E2E coverage. It does not contain native stale-output check
-mode, a public expression DSL, or a second artifact delivery backend. The repository CI is authored in `.github/tsugiori.ts`, emitted to
-`.github/workflows/ci.yml`, and uses generation followed by `git diff` as its
-initial stale-output guard.
+repository-local artifact cache, generated `actions/cache` delivery steps,
+native stale-output check mode, and compiled-binary E2E coverage. It does not
+contain a public expression DSL or a second artifact delivery backend. The
+repository CI is authored in `.github/tsugiori.ts`, emitted to
+`.github/workflows/ci.yml`, and checks that workflow with `generate --check`.
 
 Do not add later-phase runtime code, generated GitHub workflows, or CI
 configuration unless the user explicitly asks for that implementation work.

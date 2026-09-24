@@ -13,8 +13,8 @@ prepare a content-addressed Deno task binary through a repository-local cache,
 restore and save those cache entries through generated `actions/cache` steps,
 and dispatch inline task functions. The repository now uses a generated
 workflow to exercise that slice on GitHub Actions. Native stale-output check
-mode, broader GitHub Actions syntax, and other artifact delivery backends are
-not implemented yet.
+mode detects missing, changed, and extra generated workflows. Broader GitHub
+Actions syntax and other artifact delivery backends are not implemented yet.
 
 ## Problem
 
@@ -58,8 +58,8 @@ cross-provider contract.
 
 The pipeline source is intended to be the source of truth, while generated
 `.github/workflows/*.yml` files are committed review artifacts. A local git hook
-may compile pipeline source before commit, but CI should eventually verify that
-committed generated YAML is not stale.
+may compile pipeline source before commit. The repository CI checks its own
+workflow with `generate --check --output .github/workflows/ci.yml`.
 
 Task artifact preparation is intended to produce or restore a
 content-addressed task artifact derived from task source, dependency state,
@@ -134,6 +134,16 @@ mise run build
 ./dist/tsugiori generate --config ./tsugiori.ts
 ```
 
+Check all workflows owned by the config without changing workflow files:
+
+```bash
+./dist/tsugiori generate --check --config ./tsugiori.ts
+```
+
+Add `--output .github/workflows/ci.yml` to check only one workflow. A leading
+comment in each generated YAML identifies its owning config; check mode compares
+the current file bytes and reports missing, changed, or extra owned files.
+
 The generated job keeps setup steps visible, resolves the artifact key, restores
 the newest matching `actions/cache` generation, prepares and validates the
 artifact, and conditionally saves a new generation before the first task-backed
@@ -153,8 +163,8 @@ diagnostic files.
 
 ## Status
 
-Phase 1 stale-output checking and later provider-native GitHub Actions concepts
-remain in progress. The initial Phase 2 vertical slice implements inline task
+Later provider-native GitHub Actions concepts remain in progress. The initial
+Phase 2 vertical slice implements stale-output checking, inline task
 authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, generated `actions/cache` delivery, and task dispatch.
 It has local compiled-binary E2E coverage. The earlier local-cache workflow ran

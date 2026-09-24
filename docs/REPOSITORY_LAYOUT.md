@@ -83,7 +83,7 @@ It should own:
 - converting pure authoring data into provider backend ASTs when needed
 - deterministic GitHub Actions YAML emission
 - implemented `tsugiori generate` behavior
-- planned `tsugiori generate --check` stale-output behavior
+- `tsugiori generate --check` stale-output behavior
 - writing generated files when running in generation mode
 - reporting stale generated files without mutating the tree when running in
   check mode
@@ -124,7 +124,8 @@ The compiler also emits GitHub Actions-specific internal commands for artifact
 key resolution and preparation. They are not a public cross-provider CLI
 contract.
 
-The planned `tsugiori generate --check` command remains unimplemented.
+`tsugiori generate --check` checks all outputs owned by one config, or one
+workflow when `--output` is specified.
 
 Command parsing, user-facing diagnostics, and process exit handling belong here.
 GitHub Actions workflow AST modeling, YAML emission, and stale-check comparison
@@ -146,7 +147,7 @@ Tests currently cover:
 
 The current tests use Deno's committed snapshots for the backend emitter and a
 temporary-repository E2E test for the compiled CLI and task artifact.
-Stale-output tests remain deferred until `generate --check` is implemented.
+Stale-output tests cover scoped and all-output comparisons.
 
 Later tests should cover:
 
