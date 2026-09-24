@@ -40,6 +40,7 @@ export async function sourceArtifactKey(
     cacheVersion: number;
     modules: readonly Readonly<{ path: string; sha256: string }>[];
     target: string;
+    tsugioriPackage: string;
   }>,
 ): Promise<string> {
   const canonical = JSON.stringify({
@@ -47,6 +48,7 @@ export async function sourceArtifactKey(
     cacheVersion: input.cacheVersion,
     modules: input.modules,
     target: input.target,
+    tsugioriPackage: input.tsugioriPackage,
   });
   return `sha256-${await sha256Bytes(new TextEncoder().encode(canonical))}`;
 }

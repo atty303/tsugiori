@@ -12,9 +12,11 @@ import {
   resolveTaskArtifact,
   type ToolIdentity,
 } from "../../task-runtime/src/prepare.ts";
+import { TSUGIORI_PACKAGE_VERSION } from "../../core/src/package_identity.ts";
+import { resolve } from "node:path";
 
 const SOURCE_TOOL_IDENTITY: ToolIdentity = {
-  version: "0.1.0-dev",
+  version: TSUGIORI_PACKAGE_VERSION,
 };
 
 export async function main(
@@ -56,9 +58,14 @@ export async function main(
         );
       }
       const configArgument = requiredOption(parsed.options, "config");
-      const loaded = await loadConfig(configArgument);
+      const rootDirectory = requiredRoot(parsed.options);
+      const loaded = await loadConfig(configArgument, rootDirectory);
       recorder.operation({ name: "source.load", status: "success" });
-      const files = await generateFiles(loaded.config, loaded.argument);
+      const files = await generateFiles(
+        loaded.config,
+        loaded.argument,
+        loaded.projectArgument,
+      );
       if (parsed.options.check === "true") {
         const stale = await checkGeneratedFiles(
           loaded.rootDirectory,
@@ -103,10 +110,12 @@ export async function main(
 
     if (isGitHubActionsTaskCommand(parsed, "cache-key")) {
       const configArgument = requiredOption(parsed.options, "config");
-      const loaded = await loadConfig(configArgument);
+      const rootDirectory = requiredRoot(parsed.options);
+      const loaded = await loadConfig(configArgument, rootDirectory);
       recorder.operation({ name: "source.load", status: "success" });
       const plan = await resolveTaskArtifact({
         rootDirectory: loaded.rootDirectory,
+        projectDirectory: Deno.cwd(),
         configPath: loaded.absolutePath,
         configArgument: loaded.argument,
         config: loaded.config,
@@ -127,10 +136,12 @@ export async function main(
 
     if (isGitHubActionsTaskCommand(parsed, "prepare")) {
       const configArgument = requiredOption(parsed.options, "config");
-      const loaded = await loadConfig(configArgument);
+      const rootDirectory = requiredRoot(parsed.options);
+      const loaded = await loadConfig(configArgument, rootDirectory);
       recorder.operation({ name: "source.load", status: "success" });
       const result = await prepareTaskArtifact({
         rootDirectory: loaded.rootDirectory,
+        projectDirectory: Deno.cwd(),
         configPath: loaded.absolutePath,
         configArgument: loaded.argument,
         config: loaded.config,
@@ -161,7 +172,7 @@ export async function main(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: tsugiori generate [--check [--output <path>]] --config <file>",
+      "Usage: deno run -A @atty303/tsugiori/cli generate [--check [--output <path>]] --config <file> --root <repository-root>",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -206,7 +217,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     if (
       rawName !== "config" && rawName !== "expect-layout" &&
       rawName !== "expected-key" && rawName !== "target" &&
-      rawName !== "check" && rawName !== "output"
+      rawName !== "check" && rawName !== "output" && rawName !== "root"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",
@@ -294,6 +305,12 @@ function requiredOption(
     );
   }
   return value;
+}
+
+function requiredRoot(
+  options: Readonly<Record<string, string | undefined>>,
+): string {
+  return resolve(Deno.cwd(), requiredOption(options, "root"));
 }
 
 if (import.meta.main) {

@@ -3,7 +3,8 @@
 ## Status
 
 Accepted. This supersedes the artifact-key input decision in 0006 and any
-earlier transitive content-identity claims that conflict with it.
+earlier transitive content-identity claims that conflict with it. The Tsugiori
+package identifier is added to the key by 0012.
 
 ## Context
 
@@ -28,6 +29,7 @@ only:
   inside the repository root
 - the target platform
 - the artifact format version
+- the Tsugiori package identifier (added by 0012)
 - the config-wide `cacheVersion`
 
 `defineTsugiori` accepts an optional positive safe integer `cacheVersion` whose
@@ -35,9 +37,9 @@ default is `1`. Authors increment it when an excluded input must invalidate the
 cache.
 
 Remote modules, repository-external local modules, lockfiles, Deno
-configuration and version, Tsugiori version, compile permissions, and the
-entrypoint list are not separate automatic key inputs. Tsugiori version and
-Deno version remain diagnostic manifest metadata. Incompatible artifact or
+configuration and version, compile permissions, and the entrypoint list are
+not separate automatic key inputs. Deno version remains diagnostic manifest
+metadata. Incompatible artifact or
 manifest changes increment the artifact format version.
 
 The GitHub Actions transport key keeps its existing generational shape. It

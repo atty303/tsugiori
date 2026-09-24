@@ -1,5 +1,5 @@
-import type { TsugioriConfig } from "@tsugiori/core";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import type { TsugioriConfig } from "../../core/src/mod.ts";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 const INSPECTOR_SOURCE = `const [configUrl, outputPath] = Deno.args;
 const loaded = await import(configUrl);
@@ -81,12 +81,8 @@ export type LoadedConfig = Readonly<{
   config: TsugioriConfig;
   absolutePath: string;
   argument: string;
+  projectArgument: string;
   rootDirectory: string;
-}>;
-
-export type DenoConfigurationSource = Readonly<{
-  path: string;
-  content: string;
 }>;
 
 export class SourceLoadError extends Error {
@@ -113,14 +109,6 @@ export async function loadConfig(
     );
   }
 
-  const denoConfig = await firstExisting(
-    resolve(rootDirectory, "deno.json"),
-    resolve(rootDirectory, "deno.jsonc"),
-  );
-  if (denoConfig !== undefined) {
-    await localDenoConfigurationSources(rootDirectory, denoConfig);
-  }
-
   const temporary = resolve(
     rootDirectory,
     `.tsugiori/load/${crypto.randomUUID()}`,
@@ -136,14 +124,11 @@ export async function loadConfig(
       `--allow-write=${output}`,
       "--allow-import",
     ];
-    if (denoConfig !== undefined) args.push("--config", denoConfig);
-    if (await exists(resolve(rootDirectory, "deno.lock"))) {
-      args.push("--frozen=true");
-    }
+    args.push("--frozen=true");
     args.push(inspector, toFileUrl(absolutePath), output);
     const result = await new Deno.Command("deno", {
       args,
-      cwd: rootDirectory,
+      cwd: Deno.cwd(),
       stdout: "piped",
       stderr: "piped",
     }).output();
@@ -162,138 +147,12 @@ export async function loadConfig(
       config,
       absolutePath,
       argument: `./${relativePath.split(sep).join("/")}`,
+      projectArgument:
+        relative(rootDirectory, Deno.cwd()).split(sep).join("/") || ".",
       rootDirectory,
     };
   } finally {
     await Deno.remove(temporary, { recursive: true });
-  }
-}
-
-export async function localDenoConfigurationSources(
-  rootDirectory: string,
-  configPath: string,
-): Promise<readonly DenoConfigurationSource[]> {
-  const sources: DenoConfigurationSource[] = [];
-  const visited = new Set<string>();
-
-  async function visit(path: string): Promise<void> {
-    const absolute = resolve(path);
-    if (visited.has(absolute)) return;
-    visited.add(absolute);
-    try {
-      const content = await Deno.readTextFile(absolute);
-      sources.push({
-        path: relative(rootDirectory, absolute).split(sep).join("/"),
-        content,
-      });
-      const parsed = JSON.parse(
-        stripJsonCommentsAndTrailingCommas(content),
-      ) as { extends?: unknown };
-      const extended = typeof parsed.extends === "string"
-        ? [parsed.extends]
-        : Array.isArray(parsed.extends) &&
-            parsed.extends.every((value) => typeof value === "string")
-        ? parsed.extends as string[]
-        : [];
-      for (const specifier of extended) {
-        if (/^[a-z][a-z0-9+.-]*:/i.test(specifier)) {
-          throw new SourceLoadError(
-            `Deno configuration extends must use local paths: ${specifier}`,
-          );
-        }
-        await visit(resolve(dirname(absolute), specifier));
-      }
-    } catch (error) {
-      if (error instanceof SourceLoadError) throw error;
-      throw new SourceLoadError(
-        `Failed to load Deno configuration ${
-          JSON.stringify(relative(rootDirectory, absolute))
-        }: ${error instanceof Error ? error.message : String(error)}`,
-        { cause: error },
-      );
-    }
-  }
-
-  await visit(configPath);
-  return sources.sort((left, right) => left.path.localeCompare(right.path));
-}
-
-function stripJsonCommentsAndTrailingCommas(source: string): string {
-  let output = "";
-  let inString = false;
-  let escaped = false;
-  let lineComment = false;
-  let blockComment = false;
-  for (let index = 0; index < source.length; index += 1) {
-    const current = source[index];
-    const next = source[index + 1];
-    if (lineComment) {
-      if (current === "\n") {
-        lineComment = false;
-        output += current;
-      }
-      continue;
-    }
-    if (blockComment) {
-      if (current === "*" && next === "/") {
-        blockComment = false;
-        index += 1;
-      }
-      continue;
-    }
-    if (!inString && current === "/" && next === "/") {
-      lineComment = true;
-      index += 1;
-      continue;
-    }
-    if (!inString && current === "/" && next === "*") {
-      blockComment = true;
-      index += 1;
-      continue;
-    }
-    output += current;
-    if (inString && current === "\\" && !escaped) {
-      escaped = true;
-      continue;
-    }
-    if (current === '"' && !escaped) inString = !inString;
-    escaped = false;
-  }
-  let withoutTrailingCommas = "";
-  inString = false;
-  escaped = false;
-  for (let index = 0; index < output.length; index += 1) {
-    const current = output[index];
-    if (!inString && current === ",") {
-      let lookahead = index + 1;
-      while (/\s/.test(output[lookahead] ?? "")) lookahead += 1;
-      if (output[lookahead] === "}" || output[lookahead] === "]") continue;
-    }
-    withoutTrailingCommas += current;
-    if (inString && current === "\\" && !escaped) {
-      escaped = true;
-      continue;
-    }
-    if (current === '"' && !escaped) inString = !inString;
-    escaped = false;
-  }
-  return withoutTrailingCommas;
-}
-
-async function firstExisting(
-  ...paths: readonly string[]
-): Promise<string | undefined> {
-  for (const path of paths) if (await exists(path)) return path;
-  return undefined;
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return false;
-    throw error;
   }
 }
 

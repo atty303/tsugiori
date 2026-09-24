@@ -1,8 +1,14 @@
 {
+  "name": "@atty303/tsugiori",
+  "version": "0.1.0",
+  "workspace": [".github"],
+  "exports": {
+    ".": "./packages/core/src/mod.ts",
+    "./github-actions": "./packages/core/src/github_actions/mod.ts",
+    "./task": "./packages/core/src/task/mod.ts",
+    "./cli": "./packages/cli/src/main.ts"
+  },
   "imports": {
-    "@tsugiori/core": "./packages/core/src/mod.ts",
-    "@tsugiori/core/github-actions": "./packages/core/src/github_actions/mod.ts",
-    "@tsugiori/core/task": "./packages/core/src/task/mod.ts",
     "@std/assert": "jsr:@std/assert@^1.0.19",
     "@std/yaml": "jsr:@std/yaml@^1.2.0"
   },

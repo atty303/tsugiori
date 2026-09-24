@@ -1,0 +1,9 @@
+{
+  "imports": {
+    "@atty303/tsugiori": "workspace:*"
+  },
+  "tasks": {
+    "generate": "deno run --frozen=true -A @atty303/tsugiori/cli generate --config .github/tsugiori.ts --root ..",
+    "generate:check": "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config .github/tsugiori.ts --root .."
+  }
+}

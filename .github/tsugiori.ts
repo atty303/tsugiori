@@ -3,7 +3,7 @@ import {
   defineAction,
   defineTsugiori,
   pipeline,
-} from "@tsugiori/core/github-actions";
+} from "@atty303/tsugiori/github-actions";
 
 const checkout = defineAction({
   uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
@@ -35,13 +35,9 @@ const ci = pipeline("ci", {
       uses: mise({}),
     })
     .run({
-      name: "Build Tsugiori",
-      run: 'mise run build\necho "$PWD/dist" >> "$GITHUB_PATH"',
-    })
-    .run({
       name: "Check generated workflow",
-      run:
-        "tsugiori generate --check --config ./.github/tsugiori.ts --output .github/workflows/ci.yml",
+      run: "deno task generate:check",
+      workingDirectory: ".github",
     })
     .task({
       name: "Run repository checks and tests",

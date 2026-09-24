@@ -15,15 +15,13 @@ jobs:
           persist-credentials: false
       - name: Install toolchain
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
-      - name: Build Tsugiori
-        run: |-
-          mise run build
-          echo "$PWD/dist" >> "$GITHUB_PATH"
       - name: Check generated workflow
-        run: tsugiori generate --check --config ./.github/tsugiori.ts --output .github/workflows/ci.yml
+        run: 'deno task generate:check'
+        working-directory: .github
       - name: Resolve task artifact
         id: tsugiori-task-artifact
-        run: 'tsugiori github-actions task cache-key --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+        run: 'deno run --frozen=true -A @atty303/tsugiori/cli github-actions task cache-key --config ''./.github/tsugiori.ts'' --root ''..'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'''
+        working-directory: .github
       - name: Restore task artifact cache
         id: tsugiori-task-cache-restore
         continue-on-error: true
@@ -34,7 +32,8 @@ jobs:
           restore-keys: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}-'
       - name: Prepare task artifact
         id: tsugiori-task-prepare
-        run: 'tsugiori github-actions task prepare --config ''./.github/tsugiori.ts'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'' --expected-key ''${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'''
+        run: 'deno run --frozen=true -A @atty303/tsugiori/cli github-actions task prepare --config ''./.github/tsugiori.ts'' --root ''..'' --expect-layout ''ci/test=sha256:1dafa7f348880a8f50b63c470f297e430c30c25546dffdce1a7e7ab6bbc19250'' --expected-key ''${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'''
+        working-directory: .github
       - name: Save task artifact cache
         if: steps.tsugiori-task-prepare.outputs.cache-write-required == 'true'
         continue-on-error: true

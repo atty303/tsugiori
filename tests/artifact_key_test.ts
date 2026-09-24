@@ -10,6 +10,7 @@ Deno.test("source artifact key changes only across explicit identity axes", asyn
     cacheVersion: 1,
     modules: [{ path: ".github/tsugiori.ts", sha256: "local-source" }],
     target: "aarch64-apple-darwin",
+    tsugioriPackage: "@atty303/tsugiori@0.1.0",
   } as const;
   const key = await sourceArtifactKey(baseline);
 
@@ -34,6 +35,13 @@ Deno.test("source artifact key changes only across explicit identity axes", asyn
   );
   assertNotEquals(
     await sourceArtifactKey({ ...baseline, artifactFormatVersion: "next" }),
+    key,
+  );
+  assertNotEquals(
+    await sourceArtifactKey({
+      ...baseline,
+      tsugioriPackage: "@atty303/tsugiori@0.1.1",
+    }),
     key,
   );
 });

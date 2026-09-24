@@ -1,4 +1,4 @@
-import type { TsugioriConfig } from "@tsugiori/core";
+import type { TsugioriConfig } from "../../core/src/mod.ts";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { lowerConfig } from "../../compiler/src/authoring.ts";
 import {
@@ -9,6 +9,7 @@ import {
   TaskRuntimeError,
 } from "./artifact.ts";
 import { createTaskRuntimeBootstrap } from "./bootstrap.ts";
+import { TSUGIORI_PACKAGE_IDENTITY } from "../../core/src/package_identity.ts";
 import { LocalTaskArtifactCache, removeIfPresent } from "./cache.ts";
 import type { DiagnosticRecorder } from "./diagnostics.ts";
 
@@ -18,6 +19,7 @@ export type ToolIdentity = Readonly<{
 
 export type PrepareOptions = Readonly<{
   rootDirectory: string;
+  projectDirectory: string;
   configPath: string;
   configArgument: string;
   config: TsugioriConfig;
@@ -45,7 +47,11 @@ export type TaskArtifactPlan = Readonly<{
 export async function resolveTaskArtifact(
   options: PrepareOptions,
 ): Promise<TaskArtifactPlan> {
-  const lowered = await lowerConfig(options.config, options.configArgument);
+  const lowered = await lowerConfig(
+    options.config,
+    options.configArgument,
+    relative(options.rootDirectory, options.projectDirectory),
+  );
   validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
     name: "task.registry",
@@ -71,6 +77,7 @@ export async function resolveTaskArtifact(
   const entrypoints = lowered.tasks.map((task) => task.entrypoint);
   const artifactKey = await computeArtifactKey({
     rootDirectory: options.rootDirectory,
+    projectDirectory: options.projectDirectory,
     configPath: options.configPath,
     target,
     cacheVersion: options.config.cacheVersion,
@@ -225,7 +232,7 @@ function validateExpectedLayouts(
     if (current.get(key) !== fingerprint) {
       throw new TaskRuntimeError(
         "registry_layout_mismatch",
-        `Generated workflow task layout is stale for ${key}. Run tsugiori generate.`,
+        `Generated workflow task layout is stale for ${key}. Run the consumer's generate task.`,
       );
     }
   }
@@ -267,16 +274,9 @@ async function buildArtifact(
   if (options.target !== Deno.build.target) {
     args.push("--target", options.target);
   }
-  const denoConfig = await firstExisting(
-    resolve(options.rootDirectory, "deno.json"),
-    resolve(options.rootDirectory, "deno.jsonc"),
-  );
-  if (denoConfig !== undefined) args.push("--config", denoConfig);
-  if (await exists(resolve(options.rootDirectory, "deno.lock"))) {
-    args.push("--frozen=true");
-  }
+  args.push("--frozen=true");
   args.push(bootstrap);
-  await runDeno(args, options.rootDirectory, "artifact_build_failed");
+  await runDeno(args, options.projectDirectory, "artifact_build_failed");
   await Deno.chmod(binary, 0o755);
   await Deno.remove(bootstrap);
 
@@ -333,23 +333,16 @@ async function validateArtifact(
 async function computeArtifactKey(
   input: Readonly<{
     rootDirectory: string;
+    projectDirectory: string;
     configPath: string;
     target: string;
     cacheVersion: number;
   }>,
 ): Promise<string> {
-  const denoConfig = await firstExisting(
-    resolve(input.rootDirectory, "deno.json"),
-    resolve(input.rootDirectory, "deno.jsonc"),
-  );
-  const args = ["info", "--json"];
-  if (denoConfig !== undefined) args.push("--config", denoConfig);
-  const lockPath = resolve(input.rootDirectory, "deno.lock");
-  if (await exists(lockPath)) args.push("--frozen=true");
-  args.push(input.configPath);
+  const args = ["info", "--json", "--frozen=true", input.configPath];
   const output = await runDeno(
     args,
-    input.rootDirectory,
+    input.projectDirectory,
     "module_graph_failed",
   );
   const graph = JSON.parse(output) as {
@@ -381,6 +374,7 @@ async function computeArtifactKey(
     cacheVersion: input.cacheVersion,
     modules,
     target: input.target,
+    tsugioriPackage: TSUGIORI_PACKAGE_IDENTITY,
   });
 }
 
@@ -419,23 +413,6 @@ async function runDeno(
     );
   }
   return stdout;
-}
-
-async function firstExisting(
-  ...paths: readonly string[]
-): Promise<string | undefined> {
-  for (const path of paths) if (await exists(path)) return path;
-  return undefined;
-}
-
-async function exists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return false;
-    throw error;
-  }
 }
 
 function toFileUrl(path: string): string {

@@ -2,7 +2,9 @@ import type {
   AuthoringPipeline,
   TaskFunction,
   TsugioriConfig,
-} from "@tsugiori/core";
+} from "../../core/src/mod.ts";
+import { isAbsolute, relative } from "node:path";
+import { TSUGIORI_PACKAGE_NAME } from "../../core/src/package_identity.ts";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {
   type Diagnostic,
@@ -50,6 +52,7 @@ export class AuthoringValidationError extends Error {
 export async function lowerConfig(
   config: TsugioriConfig,
   configArgument: string,
+  projectArgument = ".",
 ): Promise<LoweredConfig> {
   const diagnostics: string[] = [];
   const tasks: RegisteredTask[] = [];
@@ -57,6 +60,16 @@ export async function lowerConfig(
   const pipelineIds = new Set<string>();
   const outputs = new Set<string>();
   const loweredPipelines: LoweredPipeline[] = [];
+  const projectDirectory = projectArgument.replace(/^\.\//, "") || ".";
+  if (
+    projectDirectory === ".." || /^\.\.[\\/]/.test(projectDirectory) ||
+    isAbsolute(projectDirectory)
+  ) {
+    throw new AuthoringValidationError([
+      "The workflow project must be inside the repository root.",
+    ]);
+  }
+  const rootArgument = relative(projectDirectory, ".") || ".";
 
   if (config.kind !== "tsugiori.config") {
     diagnostics.push("Default export must be created by defineTsugiori().");
@@ -131,6 +144,8 @@ export async function lowerConfig(
             configArgument,
             `${layoutKey}=${fingerprint}`,
             usedStepIds,
+            projectDirectory,
+            rootArgument,
           ));
           preparationEmitted = true;
         }
@@ -253,6 +268,8 @@ function preparationSteps(
   configArgument: string,
   expectedLayout: string,
   usedStepIds: Set<string>,
+  projectDirectory: string,
+  rootArgument: string,
 ): readonly Step[] {
   const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
   const cacheRestoreStepId = allocateStepId(
@@ -270,6 +287,8 @@ function preparationSteps(
   const commonArguments = [
     "--config",
     quotePosix(configArgument),
+    "--root",
+    quotePosix(rootArgument),
     "--expect-layout",
     quotePosix(expectedLayout),
   ];
@@ -278,8 +297,9 @@ function preparationSteps(
       type: "run",
       name: "Resolve task artifact",
       id: artifactStepId,
+      workingDirectory: projectDirectory,
       run: [
-        "tsugiori github-actions task cache-key",
+        `deno run --frozen=true -A ${TSUGIORI_PACKAGE_NAME}/cli github-actions task cache-key`,
         ...commonArguments,
       ].join(" "),
     },
@@ -299,8 +319,9 @@ function preparationSteps(
       type: "run",
       name: "Prepare task artifact",
       id: prepareStepId,
+      workingDirectory: projectDirectory,
       run: [
-        "tsugiori github-actions task prepare",
+        `deno run --frozen=true -A ${TSUGIORI_PACKAGE_NAME}/cli github-actions task prepare`,
         ...commonArguments,
         "--expected-key",
         quotePosix(artifactKeyExpression),

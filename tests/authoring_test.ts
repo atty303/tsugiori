@@ -12,16 +12,13 @@ import {
   pipeline,
   rawAction,
   rawExpression,
-} from "@tsugiori/core/github-actions";
+} from "@atty303/tsugiori/github-actions";
 import {
   AuthoringValidationError,
   lowerConfig,
 } from "../packages/compiler/src/authoring.ts";
 import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
-import {
-  loadConfig,
-  SourceLoadError,
-} from "../packages/compiler/src/source.ts";
+import { loadConfig } from "../packages/compiler/src/source.ts";
 import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
 
 Deno.test("native deployment fields remain visible in generated Actions YAML", async () => {
@@ -109,7 +106,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, "persist-credentials: false");
   assertStringIncludes(
     yaml,
-    "tsugiori github-actions task cache-key --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A @atty303/tsugiori/cli github-actions task cache-key --config ''./tsugiori.ts'' --root ''.'' --expect-layout ''ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -117,7 +114,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "tsugiori github-actions task prepare --config ''./tsugiori.ts'' --expect-layout ''ci/test=sha256:",
+    "deno run --frozen=true -A @atty303/tsugiori/cli github-actions task prepare --config ''./tsugiori.ts'' --root ''.'' --expect-layout ''ci/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -362,41 +359,6 @@ Deno.test("normalized duplicate outputs fail before any file is written", async 
     await assertRejects(
       () => Deno.stat(`${root}/.github/workflows/ci.yml`),
       Deno.errors.NotFound,
-    );
-  } finally {
-    await Deno.remove(root, { recursive: true });
-  }
-});
-
-Deno.test("remote Deno configuration inheritance fails before source inspection", async () => {
-  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
-  try {
-    await Deno.writeTextFile(
-      `${root}/deno.json`,
-      `${JSON.stringify({ extends: "https://example.invalid/deno.json" })}\n`,
-    );
-    await Deno.writeTextFile(
-      `${root}/tsugiori.ts`,
-      'throw new Error("source inspection started");\n',
-    );
-    await assertRejects(
-      () => loadConfig("./tsugiori.ts", root),
-      SourceLoadError,
-      "extends must use local paths",
-    );
-  } finally {
-    await Deno.remove(root, { recursive: true });
-  }
-});
-
-Deno.test("malformed Deno configuration is a source loading failure", async () => {
-  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
-  try {
-    await Deno.writeTextFile(`${root}/deno.json`, "{ invalid\n");
-    await assertRejects(
-      () => loadConfig("./tsugiori.ts", root),
-      SourceLoadError,
-      "Failed to load Deno configuration",
     );
   } finally {
     await Deno.remove(root, { recursive: true });

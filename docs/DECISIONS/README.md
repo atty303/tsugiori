@@ -44,6 +44,9 @@ the project direction. Do not use ADRs for routine wording changes.
 - `0011-native-github-actions-deploy-fields.md`: the GitHub Actions backend
   exposes deployment fields for visible native jobs and steps with raw runtime
   expressions.
+- `0012-single-deno-package-execution.md`: one consumer Deno dependency owns
+  authoring and execution, generated steps use the workflow project's Deno
+  configuration, and the package identifier participates in artifact keys.
 
 ## Format
 

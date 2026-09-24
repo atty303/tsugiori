@@ -72,7 +72,8 @@ Its automatic key covers the reachable repository-local `file:` module graph,
 target platform, and artifact format. Authors increment the config-wide
 `cacheVersion` when changes outside that boundary need to invalidate the cache.
 Remote modules, files outside the repository root, lockfiles, Deno configuration
-and versions, and Tsugiori versions are not tracked automatically. The artifact
+and versions are not tracked automatically. The Tsugiori package
+identifier is tracked automatically. The artifact
 may be a prepared runtime form such as an OCI image. Provider steps should make
 that artifact available through explicit preparation work, then invoke task
 runtime entrypoints without fetching or building managed task code again. Task
@@ -88,7 +89,7 @@ import {
   defineAction,
   defineTsugiori,
   pipeline,
-} from "@tsugiori/core/github-actions";
+} from "@atty303/tsugiori/github-actions";
 
 const checkout = defineAction({
   uses: "actions/checkout@<commit-sha>",
@@ -108,10 +109,6 @@ const ci = pipeline("ci", {
     .uses({
       name: "Checkout",
       uses: checkout({ "persist-credentials": false }),
-    })
-    .run({
-      name: "Verify tools",
-      run: "deno --version && command -v tsugiori",
     })
     .task({
       name: "Test",
@@ -137,20 +134,35 @@ Task-backed steps also accept an optional `id` for Actions step outputs and an
 `env` record for values available only while that task runs. These fields are
 emitted on the task's visible Actions step.
 
-Build the current-host CLI and generate the configured workflow:
+Give the workflow project its own `deno.json`. `.github` is the recommended
+location; any directory inside the repository works. The import is the single
+Tsugiori dependency, and Deno records its resolution in the consumer lockfile:
 
-```bash
-mise run build
+```json
+{
+  "imports": {
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@<version>"
+  },
+  "tasks": {
+    "generate": "deno run --frozen=true -A @atty303/tsugiori/cli generate --config .github/tsugiori.ts --root ..",
+    "generate:check": "deno run --frozen=true -A @atty303/tsugiori/cli generate --check --config .github/tsugiori.ts --root .."
+  }
+}
 ```
 
+Run `deno install` in the workflow project to create or update its lockfile.
+The `--config` path is relative to the repository root given by `--root`.
+For a project at `ci/pipelines`, use `--config ci/pipelines/tsugiori.ts` and
+`--root ../..`. From the workflow project, generate the configured workflow:
+
 ```bash
-./dist/tsugiori generate --config ./tsugiori.ts
+deno task generate
 ```
 
 Check all workflows owned by the config without changing workflow files:
 
 ```bash
-./dist/tsugiori generate --check --config ./tsugiori.ts
+deno task generate:check
 ```
 
 Add `--output .github/workflows/ci.yml` to check only one workflow. A leading
@@ -180,7 +192,7 @@ Later provider-native GitHub Actions concepts remain in progress. The initial
 Phase 2 vertical slice implements stale-output checking, inline task
 authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, generated `actions/cache` delivery, and task dispatch.
-It has local compiled-binary E2E coverage. The earlier local-cache workflow ran
+It has local package-CLI and compiled task-artifact E2E coverage. The earlier local-cache workflow ran
 successfully for push and pull request events on a GitHub-hosted
 `ubuntu-24.04` runner. The generated remote-cache path has also completed a
 cold save followed by a warm restore on a same-revision rerun.

@@ -31,14 +31,13 @@ tests/
 examples/
 ```
 
-The package split is intended to separate import-time authoring APIs from
-compile-time execution. It is not intended to introduce independent release
-units before the project needs them.
+The directories separate import-time authoring APIs from compile-time
+execution. The root `deno.json` exports them as one Deno package.
 
 ## `packages/core`
 
-`packages/core` is the pure package that pipeline and task authors import from
-definition files.
+`packages/core` contains the pure authoring modules that pipeline and task
+authors import from the one Tsugiori package.
 
 It should avoid filesystem access, process execution, network access, package
 installation, YAML writing, and compiler side effects. Its job is to construct
@@ -65,11 +64,11 @@ handwritten-workflow interface should remain pure at authoring time.
 Authoring imports should use subpaths so the backend boundary remains visible:
 
 ```ts
-import { pipeline } from "@tsugiori/core/github-actions";
-import type { TaskFunction } from "@tsugiori/core/task";
+import { pipeline } from "@atty303/tsugiori/github-actions";
+import type { TaskFunction } from "@atty303/tsugiori/task";
 ```
 
-The root `@tsugiori/core` export should stay small and should not re-export
+The root `@atty303/tsugiori` export should stay small and should not re-export
 every provider DSL by default.
 
 ## `packages/compiler`
@@ -82,8 +81,8 @@ It should own:
 - loading and evaluating pipeline authoring source
 - converting pure authoring data into provider backend ASTs when needed
 - deterministic GitHub Actions YAML emission
-- implemented `tsugiori generate` behavior
-- `tsugiori generate --check` stale-output behavior
+- implemented `deno task generate` behavior
+- `deno task generate:check` stale-output behavior
 - writing generated files when running in generation mode
 - reporting stale generated files without mutating the tree when running in
   check mode
@@ -113,18 +112,19 @@ internal preparation commands.
 
 ## `packages/cli`
 
-`packages/cli` should stay a thin command-line entrypoint over compiler and task
-runtime capabilities.
+`packages/cli` is the executable module exported through the same Deno
+package as the authoring API. It stays a thin command-line entrypoint over
+compiler and task runtime capabilities.
 
 Implemented commands include:
 
-- `tsugiori generate`
+- `deno task generate`
 
 The compiler also emits GitHub Actions-specific internal commands for artifact
 key resolution and preparation. They are not a public cross-provider CLI
 contract.
 
-`tsugiori generate --check` checks all outputs owned by one config, or one
+`deno task generate:check` checks all outputs owned by one config, or one
 workflow when `--output` is specified.
 
 Command parsing, user-facing diagnostics, and process exit handling belong here.
@@ -142,11 +142,11 @@ Tests currently cover:
 - deterministic YAML emission for the minimal GitHub Actions AST subset
 - stable ordering and formatting of emitted workflow files
 - authoring-to-provider lowering for inline tasks
-- compiled CLI generation, local cache miss and hit, corrupt-entry recovery,
+- package CLI generation, local cache miss and hit, corrupt-entry recovery,
   runtime dispatch, and diagnostic recording behavior
 
-The current tests use Deno's committed snapshots for the backend emitter and a
-temporary-repository E2E test for the compiled CLI and task artifact.
+The current tests use Deno's committed snapshots for the backend emitter and temporary-repository E2E tests for Deno task generation and compiled task
+artifacts in `.github` and another workflow-project location.
 Stale-output tests cover scoped and all-output comparisons.
 
 Later tests should cover:
