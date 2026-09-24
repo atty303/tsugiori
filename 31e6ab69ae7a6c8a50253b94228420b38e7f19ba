@@ -1,0 +1,75 @@
+Task: Implement tsugiori generate --check and switch repository CI to self-check
+Anchor: 31e6ab69ae7a6c8a50253b94228420b38e7f19ba
+Base: 29896c32b33f592bd2b929a290bf505d5ca6cab1
+Branch: codex/generate-check
+Commits: 31e6ab69ae7a6c8a50253b94228420b38e7f19ba implements owner-marked generated YAML, compiler-side check mode, CI self-check, tests, and docs
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; review; investigate-problem
+Conditions: local Git only; no fetch, push, PR, deploy, or release; sandbox commit signing failed and escalated local signing succeeded
+## Evidence
+- mise run check passed; mise run test passed (22 tests); mise run build passed; compiled CLI scoped and all self-checks passed.
+- YAML with leading owner comment parsed locally; GitHub-hosted execution of the new workflow was not run.
+- Fresh read-only independent review of fixed diff reported no actionable findings.
+Authority: current user implementation request, repository source and tests, AGENTS.md, and accepted ADR 0003
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    
+    Tsugiori に `tsugiori generate --check` を実装し、このリポジトリの CI を新しい検査コマンドへ切り替えてください。
+    
+    ## 目的
+    
+    - コミットする生成 workflow YAML のずれを、ファイルを書き換えずに検出する。
+    - CI 内の検査 step は、自身の workflow YAML だけを検査する。
+    - 全出力の検査は、別の CLI 実行で行えるようにする。
+    
+    ## 成功条件
+    
+    - `generate --check --config <file> --output <path>` は、指定した workflow だけを検査する。
+    - `--output` を省略した `generate --check --config <file>` は、その設定ファイルが生成する全 workflow を検査する。
+    - 欠落、内容の相違、同じ設定ファイルが所有する余分な生成ファイルを、対象パスとともに報告して非ゼロで終了する。一致すればゼロで終了する。
+    - 検査中に workflow ファイルを作成、変更、削除しない。
+    - このリポジトリの CI は、既存の生成後の Git 差分確認を、自身の `.github/workflows/ci.yml` を指定した `--check` に置き換える。
+    - 対象を限定した検査と全出力の検査について、正常、欠落、相違、余分な生成ファイルをテストで確認する。
+    
+    ## 決定事項
+    
+    - 生成 YAML の先頭に、Tsugiori の生成物であることと所有する設定ファイルのリポジトリ内パスを示すコメントを入れる。
+      - 理由: 手書きの workflow と複数の設定ファイルによる生成物を区別するため。
+      - 主な棄却案: 別の管理ファイルは同期が必要になる。設定に恒久的な ID を追加する案は公開設定項目を増やす。
+    - `--output` 指定時は一つの workflow を検査し、省略時は指定した設定ファイルの全出力を検査する。
+      - 理由: CI の step は自身の YAML だけを確認し、全出力の確認は別の実行にするため。
+      - 主な棄却案: CI 環境から対象を自動判定する案は、ローカルでの再現と対象の特定が難しくなる。
+    - 指定した `--output` が設定から外れていても、指定先に同じ設定ファイルの生成物を示すコメントがあれば、余分な生成ファイルとして報告する。
+      - 理由: CI に残った workflow が設定から削除された状態を直接示せるため。
+      - 主な棄却案: 単なる引数エラーとして扱う案では、修正すべきファイルが分かりにくい。
+    - 生成結果とディスク上の現在のファイルを完全一致で比較する。
+      - 理由: 決定的な生成結果をコミットしてレビューするため。ローカルと CI で同じ検査を使える。
+      - 主な棄却案: YAML の意味だけを比較する案はコメントや整形のずれを見逃す。Git のコミット内容を直接比較する案は未コミットの修正を確認できない。
+    - 通常の `generate` は余分な生成ファイルを自動削除しない。設定ファイルを移動した際の旧パス所有の生成物も手動で整理する。
+      - 理由: 既存の書き込み動作を保ち、削除対象を利用者が差分で確認できるようにするため。
+      - 主な棄却案: 自動削除は通常の生成に破壊的な動作を追加する。
+    
+    ## 制約
+    
+    - 手書きの workflow と、別の設定ファイルが所有する生成物を、余分なファイルとして報告しない。
+    - 既存の GitHub Actions の job と step の可視性を保つ。
+    - リモート操作、deploy、release は行わない。
+    
+    ## 対象外
+    
+    - 余分な生成ファイルの自動削除。
+    - 全 workflow を一つの CI step で検査する仕組み。
+    - 設定ファイル移動後の旧パス所有ファイルの自動検出。
+    
+    ## 未検証の前提
+    
+    - 現在の CLI 引数解析、出力パス検証、生成器、テスト構成と CI の実装を、変更前に確認する。
+    - 生成 YAML の先頭コメントが GitHub Actions の読み込みと既存のスナップショットに与える影響を確認する。
+    
+    ## 実装時の指示
+    
+    - CLI は薄い入口とし、生成ファイルの比較と所有者判定は compiler 側に置く。
+    - 変更後の生成 YAML、関連ドキュメント、CI の自己検査を整合させ、リポジトリ標準の検証を実行する。
+  - A: Inspected current CLI, compiler, CI, tests, and docs; implemented owner-marked output and scoped/all byte comparison; switched CI self-check; added tests and updated docs; verified checks, tests, build, YAML parse, and self-checks; obtained independent review; committed locally after rerunning Git signing outside sandbox.
