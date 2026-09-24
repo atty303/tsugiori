@@ -172,7 +172,8 @@ authoring, task registry lowering, local artifact preparation and caching,
 manifest verification, generated `actions/cache` delivery, and task dispatch.
 It has local compiled-binary E2E coverage. The earlier local-cache workflow ran
 successfully for push and pull request events on a GitHub-hosted
-`ubuntu-24.04` runner; the new remote-cache path still requires a live run.
+`ubuntu-24.04` runner. The generated remote-cache path has also completed a
+cold save followed by a warm restore on a same-revision rerun.
 
 ## Codex-Driven Development
 

@@ -11,8 +11,9 @@ The minimal provider backend, public authoring subset, source loading,
 generation command, inline task lowering, local artifact preparation, and task
 dispatch are implemented. Generated `actions/cache` delivery is implemented;
 the public authoring subset uses immutable typestate facades and has an internal
-GitHub expression scope catalog and stale-output check mode. Live remote-cache
-validation remains incomplete.
+GitHub expression scope catalog and stale-output check mode. Live validation
+has covered a cold save and same-revision warm restore on a GitHub-hosted
+`ubuntu-24.04` runner.
 
 ## Ready Documentation Tasks
 
@@ -66,7 +67,7 @@ validation remains incomplete.
   permission contract.
 - [x] Add generated `actions/cache` restore and save steps with immutable cache
   recovery generations.
-- [ ] Validate the `actions/cache` path on a GitHub-hosted runner.
+- [x] Validate the `actions/cache` path on a GitHub-hosted runner.
 - [ ] Define Windows task artifact invocation before emitting task-backed
   steps for Windows runners.
 
