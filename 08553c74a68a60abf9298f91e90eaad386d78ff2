@@ -1,0 +1,17 @@
+Task: Implement and live-validate source-addressed task artifact caching
+Anchor: 08553c74a68a60abf9298f91e90eaad386d78ff2
+Base: 31e6ab69ae7a6c8a50253b94228420b38e7f19ba
+Branch: main
+Commits: 48b4819f079f0a0abb92e968459f5d7e376df36a implements source-addressed identity, cacheVersion, buildId removal, manifest compatibility bump, tests, ADR, and documentation; 08553c74a68a60abf9298f91e90eaad386d78ff2 records completed live cache validation
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; review; prior investigate-problem and dig results embedded in the implementation request
+Conditions: user authorized non-force pushes from current main to origin and same-revision GitHub Actions rerun; no new dependencies; remote notes ref was absent; generated GitHub Actions concepts and transport-key shape remained visible and unchanged
+## Evidence
+- `mise run fix`, `mise run check`, `mise run test` (24 passed, 0 failed), `mise run build`, compiled generation, scoped stale check, and generated-workflow diff all passed.
+- Clean-DENO_DIR E2E proved remote refetch stability; invariance tests covered remote and repository-external modules plus Deno configuration, while local source, cacheVersion, target, and artifact format changed the key.
+- Fresh read-only independent review of the fixed implementation diff reported no actionable findings.
+- GitHub Actions run https://github.com/atty303/tsugiori/actions/runs/35955432204 attempt 1 missed key sha256-1195fd59a30bde198be5d964b56e4477b2e01cf9a0918fa55987119550970446, built the artifact, and saved the cache; attempt 2 restored that key, prepared with cache hit, skipped save, and succeeded on the same commit.
+- Final documentation commit run https://github.com/atty303/tsugiori/actions/runs/35955784963 restored the same artifact key, prepared with cache hit, skipped save, and succeeded.
+Authority: attached implementation request, current repository source and tests, AGENTS.md, and ADR 0010
+## Transcript
+- U1: Attachment `貼り付けたテキスト.txt`, SHA-256 `7aed4bf7bb9833d7783fd11c293010f7fffa0f09a8e6e5eec921fad49673d890`, requesting implementation of the agreed source-addressed task artifact cache contract: config-wide positive-safe-integer `cacheVersion`, repository-local reachable `file:` module identity, explicit target and artifact-format axes, removal of CLI `buildId`, manifest compatibility bump, documentation and ADR updates, focused commits, non-force origin push, and cold-save/same-revision-warm-restore GitHub Actions validation.
+  - A: Applied repository development, observability, and design guidance; confirmed a clean main at the stated base; implemented the API, loader propagation, narrowed key computation, manifest and CLI changes, tests, dogfood config, and documentation; preserved visible Actions cache steps and transport keys; passed all local verification and fresh independent review; committed and non-force pushed two focused commits; observed the authorized cold miss/save and same-revision warm hit with conditional save skipped; updated living validation status and verified the final pushed commit in CI.
