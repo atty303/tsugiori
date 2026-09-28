@@ -1,0 +1,125 @@
+Task: Add environment OIDC verification to the Tsugiori-generated glaze-ops deployment workflow
+Anchor: ac8c522e9f7d9d18be1d39b58676421252f497f7
+Base: ae9dbfc40cdb9fcbeb60223da4e1737b88af6ce1
+Branch: main
+Commits: Tsugiori ac8c522e9f7d9d18be1d39b58676421252f497f7 published; glaze-ops c5e9a4d1b7c6249be79e2d335e4ba1fbd244cad5 local
+Guidance: user AGENTS instructions; dig, develop-repository, design-program-observability, investigate-problem, review; repository AGENTS where applicable
+Conditions: glaze-ops local commit only; Tsugiori change commit push authorized; no cloud mutation, deployment, workflow dispatch, token logging, or live OIDC verification
+## Evidence
+Tsugiori mise run test passed 35 tests; independent review identified invalid id-token read, fixed and delta-reviewed. Signed commit pushed to origin/main.
+Authority: user implementation request and constraints; repository source; GitHub Actions and aws-actions documentation; PR #10841 source and Atlantis checks
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) [https://github.com/CyberAgentAI/glaze/pull/10841](https://github.com/CyberAgentAI/glaze/pull/10841) でdevのoidcを追加した。それの最小限の動作テストを追加したい
+    
+  - A: PR と既存 workflow を調査し、OIDC と STS identity を最小 oracle として設計質問を開始した。
+- U2:
+    A
+    
+  - A: OIDC assume と STS account/role 確認を選択し、実行条件を質問した。
+- U3:
+    どのworkflowに入れるつもり？
+    
+  - A: 専用 workflow 案を提示した後、既存 workflow の利用意図を確認した。
+- U4:
+    B
+    
+  - A: deploy-tsugiori.yml を選び、push と手動実行時の条件を質問した。
+- U5:
+    B. 動作テストを兼ねるが、tsugiori deploy scriptからそのまま使う想定で進める
+    
+  - A: 同一 deploy-apps job で認証を後続 task に渡すと整理し、対象アプリがない場合を質問した。
+- U6:
+    A
+    
+  - A: 対象アプリがある場合だけ実行と決め、dry run 維持を質問した。
+- U7:
+    A
+    
+  - A: CUSTOM_SYNC を実行しないと決め、role ARN の設定元を質問した。
+- U8:
+    A
+    
+  - A: role ARN を生成元に固定し、stg/prd の扱いを質問した。
+- U9:
+    C. prdはまだ構築していないからダミー値で。あとで設定する
+    
+  - A: dev/stg の環境別 role と prd ダミーを整理し、prd の失敗扱いを質問した。
+- U10:
+    特別扱いせず自然にエラーになればいい
+    
+  - A: prd 認証失敗を通常の workflow failure と決め、複数環境の分離を質問した。
+- U11:
+    A
+    
+  - A: 環境別 matrix を採用し、live GitHub Actions 実行を完了条件に含めるか質問した。
+- U12:
+    A
+    
+  - A: glaze-ops は local 検証までと決め、設計の合意を確認した。
+- U13:
+    B. tsugiori dslが足りないときはtsugioriを改修すること
+    
+  - A: 現行 Tsugiori DSL の権限不足を確認し、本体改修と公開 pin の選択を質問した。
+- U14:
+    A
+    
+  - A: Tsugiori 改修と公開 commit の pin 更新を含め、最終合意を確認した。
+- U15:
+    A
+    
+  - A: 合意した設計を一つの再利用可能な実装依頼文にまとめた。
+- U16:
+    \# 実装依頼\
+    \
+    \## 依頼\
+    \`/Users/a13400/src/CyberAgentAI/glaze-ops\` の Tsugiori 生成 workflow に、PR [https://github.com/CyberAgentAI/glaze/pull/10841](https://github.com/CyberAgentAI/glaze/pull/10841) で追加した環境別 OIDC deploy role の最小限の動作テストを追加してください。必要な表現が不足する場合は \`/Users/a13400/src/atty303/tsugiori\` の DSL も改修してください。\
+    \
+    \## 目的\
+    \- 選ばれたデプロイ対象の環境に対応する role を GitHub Actions から OIDC で引き受け、後続の Tsugiori deploy task が同じ job の認証情報を使えるようにする。\
+    \
+    \## 成功条件\
+    \- 対象アプリがある場合、\`deploy-apps\` が環境別 matrix job として動き、各 job で対応する role を引き受ける。\
+    \- \`sts:GetCallerIdentity\` の account と role が対象環境と一致することを検査する。確認後、既存の dry run task をその環境のアプリに対して実行する。\
+    \- 対象アプリがない場合、\`deploy-apps\` は動かない。複数環境が選ばれた場合、一つの環境の失敗で他環境の確認が取り消されない。\
+    \- prd はダミーの role ARN を設定し、選ばれた場合は認証失敗を workflow の失敗として扱う。\
+    \- 生成済み workflow が生成元と一致し、関連するローカル検証が通る。\
+    \
+    \## 決定事項\
+    \- 認証確認は既存の \`deploy-tsugiori.yml\` の \`deploy-apps\` に置く。\
+    &#x20; \- 理由: 確認した認証情報を後続の deploy task がそのまま使える。\
+    &#x20; \- 主な棄却案: 独立 workflow・独立 job は認証設定が重複する。\
+    \- \`deploy-apps\` を環境別 matrix job にする。\
+    &#x20; \- 理由: 環境ごとの認証情報を job 単位で分離する。\
+    &#x20; \- 主な棄却案: 一つの job 内で role を順次切り替える方式は認証情報の境界が複雑になる。\
+    \- role ARN は生成元に明記する。\
+    &#x20; \- 理由: 今回は固定された環境別 role をコードレビューでき、GitHub 変数の追加設定が不要。\
+    &#x20; \- 主な棄却案: GitHub リポジトリ変数は別途設定と管理が必要。\
+    \- deploy task は現状の dry run を維持する。\
+    &#x20; \- 理由: 今回は OIDC 接続の確認に範囲を絞る。\
+    &#x20; \- 主な棄却案: \`CUSTOM_SYNC\` の実行は AWS リソースへの書き込みを伴う。\
+    \- Tsugiori DSL に不足があれば Tsugiori 本体を改修し、その commit を push して \`glaze-ops\` の固定参照を更新する。\
+    &#x20; \- 理由: 生成済み workflow を公開済みの固定 revision から再現できるようにする。\
+    &#x20; \- 主な棄却案: 生成 YAML だけの手編集や、未公開のローカル版だけでの生成は再現できない。\
+    \
+    \## 制約\
+    \- \`glaze-ops\` は push・PR 作成・GitHub Actions 実行をしない。Tsugiori の必要な改修 commit の push のみ許可されている。\
+    \- AWS リソースの変更、実デプロイ、Terraform apply は行わない。\
+    \- OIDC token や一時認証情報をログへ出さない。\
+    \- OIDC 権限は可能な限り \`deploy-apps\` job に限定する。\
+    \
+    \## 対象外\
+    \- \`CUSTOM_SYNC\` の実行への切り替え。\
+    \- prd role の構築と、prd の OIDC 成功確認。\
+    \- GitHub Actions 上での実接続確認。\
+    \
+    \## 未検証の前提\
+    \- 実装時点の dev・stg role の存在と ARN、PR #10841 の適用状態を確認する。\
+    \- Tsugiori の現行 DSL・compiler に必要な matrix、job 単位の \`id-token: write\` 権限指定が実装されているか再確認する。\
+    \
+    \## 実装時の指示\
+    \- \`.github/tsugiori.ts\` を生成元として変更し、\`.github/workflows/deploy-tsugiori.yml\` を再生成する。\
+    \- Tsugiori を改修する場合は関連する型・検証・生成・テストを更新し、改修 commit を push した後、その完全な SHA を \`glaze-ops\` の Tsugiori 参照箇所に反映する。\
+    \- ローカルで生成一致、型・構文、関連テストを確認し、GitHub Actions 上での OIDC 成功は未検証として報告する。
+    
+  - A: 両 repo を調査し、Tsugiori に job-scoped permissions を実装・テスト・独立レビュー後に ac8c522 を署名付き commit して push。glaze-ops の生成元、pin、lock、生成 YAML を更新して c5e9a4d1 を local commit。生成一致、型検査、actionlint、8 件の test と独立レビューを確認。AWS readback と live Actions は未検証。
