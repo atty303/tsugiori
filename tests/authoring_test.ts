@@ -30,6 +30,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
   }).job("deploy-dev", ({ job }) =>
     job.runsOn("ubuntu-24.04", {
       if: rawExpression("needs.detect.outputs.selected == 'true'"),
+      permissions: { contents: "read", "id-token": "write" },
       timeoutMinutes: 60,
       environment: "dev",
       outputs: { result: rawExpression("steps.deploy.outputs.result") },
@@ -54,6 +55,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
       "branches:",
       "master",
       "timeout-minutes: 60",
+      "id-token: write",
       "environment: dev",
       "cancel-in-progress: false",
       "working-directory: deploy/signage-plugin-webview-cz",

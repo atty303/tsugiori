@@ -168,6 +168,9 @@ export async function lowerConfig(
         runsOn: { type: "labels", labels: [job.runsOn] },
         needs: job.needs,
         ...(job.if === undefined ? {} : { if: job.if }),
+        ...(job.permissions === undefined
+          ? {}
+          : { permissions: job.permissions }),
         ...(job.timeoutMinutes === undefined
           ? {}
           : { timeoutMinutes: job.timeoutMinutes }),

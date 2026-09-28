@@ -8,7 +8,11 @@ export type WorkflowDispatchInput = Readonly<{
   default?: string;
 }>;
 export type PermissionLevel = "none" | "read" | "write";
-export type WorkflowPermissions = Readonly<{ contents?: PermissionLevel }>;
+export type OidcPermissionLevel = "none" | "write";
+export type WorkflowPermissions = Readonly<{
+  contents?: PermissionLevel;
+  "id-token"?: OidcPermissionLevel;
+}>;
 export type ActionInput = string | number | boolean;
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 export type EnvironmentVariables = Readonly<Record<string, string>>;
@@ -18,6 +22,7 @@ export type Concurrency = Readonly<{
 }>;
 export type JobOptions = Readonly<{
   if?: string;
+  permissions?: WorkflowPermissions;
   timeoutMinutes?: number;
   environment?: string;
   outputs?: Readonly<Record<string, string>>;
@@ -765,6 +770,9 @@ function materializeJob(
     runsOn: draft.runsOn,
     needs: draft.needs,
     ...draft.options,
+    ...(draft.options?.permissions === undefined ? {} : {
+      permissions: copyPermissions(draft.options.permissions),
+    }),
     steps: draft.steps,
   });
 }
@@ -821,12 +829,16 @@ function copyPermissions(
 ): WorkflowPermissions {
   assertPlainRecord(permissions, "Workflow permissions");
   for (const [key, value] of Object.entries(permissions)) {
-    if (key !== "contents") {
+    if (key !== "contents" && key !== "id-token") {
       throw new TypeError(
         `Workflow permission ${JSON.stringify(key)} is not supported.`,
       );
     }
-    if (value !== "none" && value !== "read" && value !== "write") {
+    if (key === "id-token") {
+      if (value !== "none" && value !== "write") {
+        throw new TypeError("OIDC permission must be none or write.");
+      }
+    } else if (value !== "none" && value !== "read" && value !== "write") {
       throw new TypeError("Workflow permission must be none, read, or write.");
     }
   }

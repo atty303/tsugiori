@@ -166,6 +166,9 @@ function emitJob(job: Job): Record<string, unknown> {
     emitted.needs = [...job.needs].sort(compareText);
   }
   if (job.if !== undefined) emitted.if = job.if;
+  if (job.permissions !== undefined) {
+    emitted.permissions = emitPermissions(job.permissions);
+  }
   if (job.timeoutMinutes !== undefined) {
     emitted["timeout-minutes"] = job.timeoutMinutes;
   }

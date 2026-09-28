@@ -7,9 +7,11 @@ export type WorkflowDispatchInput = Readonly<{
 }>;
 
 export type PermissionLevel = "none" | "read" | "write";
+export type OidcPermissionLevel = "none" | "write";
 
 export type WorkflowPermissions = Readonly<{
   contents?: PermissionLevel;
+  "id-token"?: OidcPermissionLevel;
 }>;
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<
@@ -17,6 +19,7 @@ export type Concurrency = Readonly<
 >;
 export type JobOptions = Readonly<{
   if?: string;
+  permissions?: WorkflowPermissions;
   timeoutMinutes?: number;
   environment?: string;
   outputs?: Readonly<Record<string, string>>;

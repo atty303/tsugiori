@@ -28,6 +28,9 @@ export type DiagnosticCode =
   | "job.runs-on.labels.duplicate"
   | "job.steps.empty"
   | "job.if.empty"
+  | "job.permissions.invalid"
+  | "job.permissions.key.unsupported"
+  | "job.permissions.value.invalid"
   | "job.timeout.invalid"
   | "job.environment.empty"
   | "job.outputs.invalid"
@@ -138,7 +141,12 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     diagnostics,
   );
 
-  validatePermissions(workflow.permissions, diagnostics);
+  validatePermissions(
+    workflow.permissions,
+    ["permissions"],
+    "workflow",
+    diagnostics,
+  );
 
   if (workflow.jobs.length === 0) {
     diagnostics.push(diagnostic(
@@ -217,6 +225,12 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       job.outputs,
       [...jobPath, "outputs"],
       "job.outputs.invalid",
+      diagnostics,
+    );
+    validatePermissions(
+      job.permissions,
+      [...jobPath, "permissions"],
+      "job",
       diagnostics,
     );
     validateStrategy(job.strategy, [...jobPath, "strategy"], diagnostics);
@@ -364,30 +378,40 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
 
 function validatePermissions(
   permissions: Workflow["permissions"],
+  path: DiagnosticPath,
+  scope: "workflow" | "job",
   diagnostics: Diagnostic[],
 ): void {
   if (permissions === undefined) return;
   if (!isPlainRecord(permissions)) {
     diagnostics.push(diagnostic(
-      "workflow.permissions.invalid",
-      ["permissions"],
-      "Workflow permissions must be an object.",
+      `${scope}.permissions.invalid`,
+      path,
+      `${
+        scope === "workflow" ? "Workflow" : "Job"
+      } permissions must be an object.`,
     ));
     return;
   }
   Object.entries(permissions).forEach(([key, value]) => {
-    if (key !== "contents") {
+    if (key !== "contents" && key !== "id-token") {
       diagnostics.push(diagnostic(
-        "workflow.permissions.key.unsupported",
-        ["permissions", key],
+        `${scope}.permissions.key.unsupported`,
+        [...path, key],
         `Workflow permission ${JSON.stringify(key)} is not supported.`,
       ));
     }
-    if (value !== "none" && value !== "read" && value !== "write") {
+    if (
+      key === "id-token"
+        ? value !== "none" && value !== "write"
+        : value !== "none" && value !== "read" && value !== "write"
+    ) {
       diagnostics.push(diagnostic(
-        "workflow.permissions.value.invalid",
-        ["permissions", key],
-        "Workflow permission must be none, read, or write.",
+        `${scope}.permissions.value.invalid`,
+        [...path, key],
+        key === "id-token"
+          ? "OIDC permission must be none or write."
+          : "Workflow permission must be none, read, or write.",
       ));
     }
   });

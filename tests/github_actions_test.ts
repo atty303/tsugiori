@@ -124,6 +124,56 @@ Deno.test("run blocks and separators preserve command values", () => {
   assertStringIncludes(yaml, "\n\n  'true':\n");
 });
 
+Deno.test("emits job scoped OIDC permission", () => {
+  const result = validateWorkflow({
+    name: "OIDC",
+    events: ["push"],
+    permissions: { contents: "read" },
+    jobs: [{
+      id: "deploy",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      permissions: { contents: "read", "id-token": "write" },
+      steps: [{ type: "run", run: "aws sts get-caller-identity" }],
+    }],
+  });
+  assert(result.ok);
+  const parsed = parse(emitWorkflow(result.value)) as {
+    permissions: Record<string, string>;
+    jobs: { deploy: { permissions: Record<string, string> } };
+  };
+  assertEquals(parsed.permissions, { contents: "read" });
+  assertEquals(parsed.jobs.deploy.permissions, {
+    contents: "read",
+    "id-token": "write",
+  });
+});
+
+Deno.test("rejects invalid job permissions", () => {
+  const result = validateWorkflow({
+    name: "OIDC",
+    events: ["push"],
+    jobs: [{
+      id: "deploy",
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      needs: [],
+      permissions: { "id-token": "read", actions: "write" },
+      steps: [{ type: "run", run: "true" }],
+    }],
+  } as unknown as Workflow);
+  assert(!result.ok);
+  assertEquals(result.diagnostics.map(({ code, path }) => ({ code, path })), [
+    {
+      code: "job.permissions.value.invalid",
+      path: ["jobs", 0, "permissions", "id-token"],
+    },
+    {
+      code: "job.permissions.key.unsupported",
+      path: ["jobs", 0, "permissions", "actions"],
+    },
+  ]);
+});
+
 Deno.test("rejects run commands that require YAML escapes", () => {
   const result = validateWorkflow({
     name: "Unsupported",
@@ -404,7 +454,7 @@ Deno.test("rejects invalid permissions and action input values", () => {
   const result = validateWorkflow({
     name: "Invalid values",
     events: ["push"],
-    permissions: { contents: "admin", actions: "read" },
+    permissions: { contents: "admin", "id-token": "read", actions: "read" },
     jobs: [{
       id: "test",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -427,6 +477,10 @@ Deno.test("rejects invalid permissions and action input values", () => {
       {
         code: "workflow.permissions.value.invalid",
         path: ["permissions", "contents"],
+      },
+      {
+        code: "workflow.permissions.value.invalid",
+        path: ["permissions", "id-token"],
       },
       {
         code: "workflow.permissions.key.unsupported",

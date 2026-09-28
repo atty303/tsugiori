@@ -57,6 +57,10 @@ Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,
 `permissions`, `concurrency`, `environment`, `secrets`, and outputs should
 remain GitHub Actions concepts.
 
+Workflow `permissions` can set `contents` and `id-token`. Jobs can override
+them with `runsOn(..., { permissions: { contents: "read", "id-token": "write" } })`
+when only one job needs OIDC credentials.
+
 The implemented slice supports inline task-backed pipeline steps. Handwritten
 workflow integration remains a future provider-specific decision; the current
 preparation commands are generated implementation details rather than a public
