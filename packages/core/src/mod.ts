@@ -23,5 +23,6 @@ export type {
   PipelineOptions,
   StepReference,
   TsugioriConfig,
+  WorkflowDispatchInput,
 } from "./github_actions/mod.ts";
 export type { TaskContext, TaskFunction, TaskLogger } from "./task/mod.ts";

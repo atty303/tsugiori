@@ -11,6 +11,7 @@ export type DiagnosticCode =
   | "workflow.events.empty"
   | "workflow.events.duplicate"
   | "workflow.push-branches.invalid"
+  | "workflow.dispatch-inputs.invalid"
   | "workflow.concurrency.invalid"
   | "workflow.permissions.invalid"
   | "workflow.permissions.key.unsupported"
@@ -103,6 +104,32 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
         "Push branches require a push event and nonempty unique branch names.",
       ),
     );
+  }
+  if (workflow.workflowDispatchInputs !== undefined) {
+    const inputs = workflow.workflowDispatchInputs;
+    if (
+      !workflow.events.includes("workflow_dispatch") ||
+      !inputs || typeof inputs !== "object" || Array.isArray(inputs) ||
+      Object.keys(inputs).length > 25 ||
+      Object.entries(inputs).some(([name, input]) =>
+        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
+        !input || typeof input !== "object" || Array.isArray(input) ||
+        Object.keys(input).some((key) =>
+          !["description", "required", "type", "default"].includes(key)
+        ) ||
+        input.type !== "string" ||
+        (input.description !== undefined &&
+          typeof input.description !== "string") ||
+        (input.required !== undefined && typeof input.required !== "boolean") ||
+        (input.default !== undefined && typeof input.default !== "string")
+      )
+    ) {
+      diagnostics.push(diagnostic(
+        "workflow.dispatch-inputs.invalid",
+        ["workflowDispatchInputs"],
+        "Workflow dispatch inputs require workflow_dispatch and valid string input definitions.",
+      ));
+    }
   }
   validateConcurrency(
     workflow.concurrency,

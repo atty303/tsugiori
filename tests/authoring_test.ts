@@ -64,6 +64,35 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
   assertThrows(() => rawExpression("  "), TypeError);
 });
 
+Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
+  const deploy = pipeline("deploy", {
+    output: ".github/workflows/deploy.yml",
+    events: ["push", "workflow_dispatch"],
+    workflowDispatchInputs: {
+      commit: {
+        description: "Commit SHA to deploy",
+        required: true,
+        type: "string",
+        default: "4edf1f703629073845d31eb54fe659f46c1b704b",
+      },
+    },
+  }).job(
+    "deploy",
+    ({ job }) =>
+      job.runsOn("ubuntu-24.04").run({ name: "Deploy", run: "true" }),
+  );
+  const lowered = await lowerConfig(
+    defineTsugiori({ pipelines: [deploy] }),
+    "./tsugiori.ts",
+  );
+  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  assertStringIncludes(yaml, "workflow_dispatch:\n    inputs:\n      commit:");
+  assertStringIncludes(
+    yaml,
+    "default: 4edf1f703629073845d31eb54fe659f46c1b704b",
+  );
+});
+
 Deno.test("task-backed steps lower to visible preparation and runtime steps", async () => {
   const checkout = defineAction({
     uses: "actions/checkout@v4",

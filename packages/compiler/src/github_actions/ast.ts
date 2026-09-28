@@ -1,4 +1,10 @@
-export type WorkflowEvent = "pull_request" | "push";
+export type WorkflowEvent = "pull_request" | "push" | "workflow_dispatch";
+export type WorkflowDispatchInput = Readonly<{
+  description?: string;
+  required?: boolean;
+  type: "string";
+  default?: string;
+}>;
 
 export type PermissionLevel = "none" | "read" | "write";
 
@@ -79,6 +85,7 @@ export type Workflow = Readonly<{
   name: string;
   events: readonly WorkflowEvent[];
   pushBranches?: readonly string[];
+  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly Job[];

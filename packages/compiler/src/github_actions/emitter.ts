@@ -20,6 +20,15 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
         event,
         event === "push" && workflow.pushBranches !== undefined
           ? { branches: [...workflow.pushBranches].sort(compareText) }
+          : event === "workflow_dispatch" &&
+              workflow.workflowDispatchInputs !== undefined
+          ? {
+            inputs: Object.fromEntries(
+              Object.entries(workflow.workflowDispatchInputs).sort(([a], [b]) =>
+                compareText(a, b)
+              ),
+            ),
+          }
           : {},
       ]),
   );

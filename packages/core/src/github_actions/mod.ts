@@ -1,6 +1,12 @@
 import type { TaskFunction } from "../task/mod.ts";
 
-export type PipelineEvent = "pull_request" | "push";
+export type PipelineEvent = "pull_request" | "push" | "workflow_dispatch";
+export type WorkflowDispatchInput = Readonly<{
+  description?: string;
+  required?: boolean;
+  type: "string";
+  default?: string;
+}>;
 export type PermissionLevel = "none" | "read" | "write";
 export type WorkflowPermissions = Readonly<{ contents?: PermissionLevel }>;
 export type ActionInput = string | number | boolean;
@@ -74,6 +80,7 @@ export type AuthoringPipeline = Readonly<{
   output: string;
   events: readonly PipelineEvent[];
   pushBranches?: readonly string[];
+  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
@@ -93,6 +100,7 @@ export type PipelineOptions<
   output: string;
   events: Events;
   pushBranches?: readonly string[];
+  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
 }>;
@@ -474,6 +482,7 @@ type PipelineDraft = Readonly<{
   output: string;
   events: readonly PipelineEvent[];
   pushBranches?: readonly string[];
+  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
@@ -505,6 +514,14 @@ export function pipeline<
     events: Object.freeze([...options.events]),
     ...(options.pushBranches === undefined ? {} : {
       pushBranches: Object.freeze([...options.pushBranches]),
+    }),
+    ...(options.workflowDispatchInputs === undefined ? {} : {
+      workflowDispatchInputs: Object.freeze(Object.fromEntries(
+        Object.entries(options.workflowDispatchInputs).map(([name, input]) => [
+          name,
+          Object.freeze({ ...input }),
+        ]),
+      )),
     }),
     ...(options.concurrency === undefined ? {} : {
       concurrency: Object.freeze({ ...options.concurrency }),
@@ -760,6 +777,9 @@ function materializePipeline(draft: PipelineDraft): AuthoringPipeline {
     ...(draft.pushBranches === undefined
       ? {}
       : { pushBranches: draft.pushBranches }),
+    ...(draft.workflowDispatchInputs === undefined
+      ? {}
+      : { workflowDispatchInputs: draft.workflowDispatchInputs }),
     ...(draft.concurrency === undefined
       ? {}
       : { concurrency: draft.concurrency }),

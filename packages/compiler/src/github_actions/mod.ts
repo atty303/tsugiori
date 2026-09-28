@@ -8,6 +8,7 @@ export type {
   Step,
   UsesStep,
   Workflow,
+  WorkflowDispatchInput,
   WorkflowEvent,
 } from "./ast.ts";
 export { emitWorkflow } from "./emitter.ts";

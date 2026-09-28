@@ -144,6 +144,11 @@ Task-backed steps also accept an optional `id` for Actions step outputs and an
 `env` record for values available only while that task runs. These fields are
 emitted on the task's visible Actions step.
 
+For a manually dispatched workflow, include `"workflow_dispatch"` in `events`
+and declare string inputs with `workflowDispatchInputs`. For example,
+`workflowDispatchInputs: { commit: { type: "string", required: true, default: "<commit-sha>" } }`
+emits a `workflow_dispatch.inputs.commit` field in the Actions workflow.
+
 Give the workflow project its own `deno.json`. `.github` is the recommended
 location; any directory inside the repository works. The import is the single
 Tsugiori dependency, and Deno records its resolution in the consumer lockfile:

@@ -189,6 +189,9 @@ export async function lowerConfig(
       ...(pipeline.pushBranches === undefined
         ? {}
         : { pushBranches: pipeline.pushBranches }),
+      ...(pipeline.workflowDispatchInputs === undefined
+        ? {}
+        : { workflowDispatchInputs: pipeline.workflowDispatchInputs }),
       ...(pipeline.concurrency === undefined
         ? {}
         : { concurrency: pipeline.concurrency }),

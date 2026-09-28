@@ -260,6 +260,45 @@ Deno.test("rejects invalid deployment-specific native fields", () => {
   ]);
 });
 
+Deno.test("rejects dispatch inputs without dispatch event or valid definitions", () => {
+  const base: Workflow = {
+    name: "Dispatch",
+    events: ["push"],
+    jobs: [job("test", [])],
+  };
+  const absentEvent = validateWorkflow({
+    ...base,
+    workflowDispatchInputs: { commit: { type: "string" } },
+  });
+  assert(!absentEvent.ok);
+  assertEquals(absentEvent.diagnostics.map(({ code }) => code), [
+    "workflow.dispatch-inputs.invalid",
+  ]);
+  const invalid = validateWorkflow({
+    ...base,
+    events: ["workflow_dispatch"],
+    workflowDispatchInputs: { commit: { type: "choice", default: 1 } },
+  } as unknown as Workflow);
+  assert(!invalid.ok);
+  assertEquals(invalid.diagnostics.map(({ code }) => code), [
+    "workflow.dispatch-inputs.invalid",
+  ]);
+  const tooMany = validateWorkflow({
+    ...base,
+    events: ["workflow_dispatch"],
+    workflowDispatchInputs: Object.fromEntries(
+      Array.from({ length: 26 }, (_, index) => [
+        `input_${index}`,
+        { type: "string" },
+      ]),
+    ),
+  });
+  assert(!tooMany.ok);
+  assertEquals(tooMany.diagnostics.map(({ code }) => code), [
+    "workflow.dispatch-inputs.invalid",
+  ]);
+});
+
 Deno.test("reports structural validation diagnostics", () => {
   const workflow = {
     name: " ",
