@@ -1,0 +1,19 @@
+Task: Add native workflow_dispatch string input support for selected-commit deployment
+Anchor: ae9dbfc40cdb9fcbeb60223da4e1737b88af6ce1
+Base: 39c7b078df79fd992228683a3c69e6a1cc7d1123
+Branch: main
+Commits: ae9dbfc40cdb9fcbeb60223da4e1737b88af6ce1 adds authoring, validation, and YAML emission support
+Guidance: user AGENTS instructions; repository AGENTS.md; develop-repository, investigate-problem, design-program-observability, review
+Conditions: local signed SSH commit; explicit approval to push Tsugiori main; no deployment; GitHub.com workflow_dispatch input limit 25
+## Evidence
+mise run check passed; mise run test passed 33 tests. Independent review found missing 25-input limit; fixed and delta-reviewed. GitHub official workflow syntax documents the limit.
+Authority: Current source, tests, repository guidance, user instructions, and GitHub Actions workflow syntax.
+## Transcript
+- U1: manual dispatchがdetectのシミュレーションになっていない。commitを入力に受け取り、それをdeployする構造にして。デフォルト値は 4edf1f703629073845d31eb54fe659f46c1b704b にして。
+  - A: Inspected the existing manual path and target commit; identified that the old path forced pilot and skipped commit detection.
+- U2: pilotはdetect結果へ追記するだけにする
+  - A: Implemented per-commit detection with pilot appended to the selected commit and preserved no manual Glaze callbacks.
+- U3: tsugioriのpatchを廃止して、tsugioriに必要なサポートを追加して
+  - A: Removed consumer YAML postprocessing and added native workflow_dispatch string input support across Tsugiori authoring, compiler validation, and YAML emission; tested and independently reviewed.
+- U4: push して統合を完了（推奨）
+  - A: Pushed signed Tsugiori commit ae9dbfc40cdb9fcbeb60223da4e1737b88af6ce1 to origin/main and pinned the consumer to that commit.
