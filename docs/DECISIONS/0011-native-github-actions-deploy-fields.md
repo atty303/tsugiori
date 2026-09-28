@@ -23,7 +23,9 @@ field through source inspection, lowering, and deterministic emission.
 ## Consequences
 
 GitOps deployment workflows can be generated while GitHub Actions retains
-scheduling, concurrency, environments, and credentials. Typed expressions and
+scheduling, concurrency, environments, and credentials. Concurrency can emit
+`queue: max` with `cancel-in-progress: false` to retain multiple pending runs.
+Typed expressions and
 broader Actions events remain separate work. The host workflow must still own
 external completion callbacks and failure deadlines.
 

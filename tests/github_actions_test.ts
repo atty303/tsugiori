@@ -310,6 +310,24 @@ Deno.test("rejects invalid deployment-specific native fields", () => {
   ]);
 });
 
+Deno.test("rejects queue max with cancelInProgress true", () => {
+  const result = validateWorkflow({
+    name: "Deploy",
+    events: ["workflow_dispatch"],
+    concurrency: { group: "deploy", cancelInProgress: true, queue: "max" },
+    jobs: [{
+      id: "deploy",
+      runsOn: { type: "labels", labels: ["ubuntu-24.04"] },
+      needs: [],
+      steps: [{ type: "run", run: "true" }],
+    }],
+  });
+  assert(!result.ok);
+  assertEquals(result.diagnostics.map(({ code }) => code), [
+    "workflow.concurrency.invalid",
+  ]);
+});
+
 Deno.test("rejects dispatch inputs without dispatch event or valid definitions", () => {
   const base: Workflow = {
     name: "Dispatch",

@@ -426,13 +426,15 @@ function validateConcurrency(
   if (value === undefined) return;
   if (
     !isPlainRecord(value) || typeof value.group !== "string" ||
-    isBlank(value.group) || typeof value.cancelInProgress !== "boolean"
+    isBlank(value.group) || typeof value.cancelInProgress !== "boolean" ||
+    (value.queue !== undefined &&
+      (value.queue !== "max" || value.cancelInProgress))
   ) {
     diagnostics.push(
       diagnostic(
         code,
         path,
-        "Concurrency requires a nonempty group and boolean cancelInProgress.",
+        "Concurrency requires a nonempty group and boolean cancelInProgress; queue max requires cancelInProgress false.",
       ),
     );
   }

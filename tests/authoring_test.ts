@@ -37,6 +37,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
       concurrency: {
         group: "signage-plugin-webview-cz-dev",
         cancelInProgress: false,
+        queue: "max",
       },
     }).run({
       id: "deploy",
@@ -58,6 +59,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
       "id-token: write",
       "environment: dev",
       "cancel-in-progress: false",
+      "queue: max",
       "working-directory: deploy/signage-plugin-webview-cz",
       "AWS_REGION: ap-northeast-1",
     ]

@@ -19,6 +19,7 @@ export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<{
   group: string;
   cancelInProgress: boolean;
+  queue?: "max";
 }>;
 export type JobOptions = Readonly<{
   if?: string;

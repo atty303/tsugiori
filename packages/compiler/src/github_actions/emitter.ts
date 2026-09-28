@@ -232,9 +232,13 @@ function emitStep(step: Step): Record<string, unknown> {
 }
 
 function emitConcurrency(
-  value: { group: string; cancelInProgress: boolean },
+  value: { group: string; cancelInProgress: boolean; queue?: "max" },
 ): Record<string, unknown> {
-  return { group: value.group, "cancel-in-progress": value.cancelInProgress };
+  return {
+    group: value.group,
+    "cancel-in-progress": value.cancelInProgress,
+    ...(value.queue === undefined ? {} : { queue: value.queue }),
+  };
 }
 
 function sortRecord<T>(record: Readonly<Record<string, T>>): Record<string, T> {
