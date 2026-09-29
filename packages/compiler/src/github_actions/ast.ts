@@ -25,7 +25,7 @@ export type JobOptions = Readonly<{
   outputs?: Readonly<Record<string, string>>;
   strategy?: Readonly<{
     failFast?: boolean;
-    matrix: Readonly<Record<string, string | readonly string[]>>;
+    matrix: string | Readonly<Record<string, string | readonly string[]>>;
   }>;
   concurrency?: Concurrency;
 }>;

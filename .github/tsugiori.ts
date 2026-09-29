@@ -27,6 +27,9 @@ const ci = pipeline("ci", {
 }).job("test", ({ job }) =>
   job
     .runsOn("ubuntu-24.04")
+    .when(({ github }) =>
+      github.event_name.eq("push").or(github.event_name.eq("pull_request"))
+    )
     .uses({
       name: "Checkout",
       uses: checkout({ "persist-credentials": false }),

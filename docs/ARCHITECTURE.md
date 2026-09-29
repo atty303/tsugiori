@@ -40,10 +40,19 @@ including push branch filters and string dispatch inputs. It supports native
 workflow and job permissions, concurrency, job conditions, timeouts,
 environments, outputs, matrix strategy, and step conditions, environment
 variables, failure policy, and working directories. The public
-`rawExpression()` emits an explicit `${{ ... }}` value. GitHub runtime values
-are not evaluated by host-language conditions during generation. The provider
-also has an internal expression-scope catalog; it is not a public structured
-expression DSL.
+`rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
+serializes literals, property references, operators, built-in calls, and
+opaque `rawNode<T>()` nodes. Field callbacks derive their available contexts
+from the provider scope catalog. The AST is built at each field; it is not a
+host-language evaluation of GitHub runtime values. `fromJSON().as<T>()` and
+`rawNode<T>()` contain caller assertions, not runtime validation.
+
+Jobs use staged methods for conditions, matrix, concurrency, and other options.
+Step output names come from typed action definitions, declared run-step outputs,
+or `defineTask()` declarations. Job outputs are authored after their steps and
+become the typed `needs` surface of subsequent jobs. Task output writes pass
+through a context writer that checks declared names and appends GitHub's
+multiline output format to `GITHUB_OUTPUT`.
 
 ## Generation and validation
 

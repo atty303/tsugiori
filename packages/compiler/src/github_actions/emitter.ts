@@ -179,7 +179,9 @@ function emitJob(job: Job): Record<string, unknown> {
       ...(job.strategy.failFast === undefined
         ? {}
         : { "fail-fast": job.strategy.failFast }),
-      matrix: sortRecord(job.strategy.matrix),
+      matrix: typeof job.strategy.matrix === "string"
+        ? job.strategy.matrix
+        : sortRecord(job.strategy.matrix),
     };
   }
   if (job.concurrency !== undefined) {

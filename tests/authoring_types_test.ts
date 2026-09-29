@@ -56,13 +56,21 @@ type _DependentJobSurface = Expect<
 type _ExecutionSurface = Expect<
   Equal<
     StringKeys<ExecutionJobState<"ci", "test">>,
-    "uses" | "run" | "task"
+    | "when"
+    | "strategy"
+    | "concurrency"
+    | "permissions"
+    | "timeoutMinutes"
+    | "environment"
+    | "uses"
+    | "run"
+    | "task"
   >
 >;
 type _StepSurface = Expect<
   Equal<
     StringKeys<NonEmptyStepState<"ci", "test", Record<never, never>>>,
-    "uses" | "run" | "steps" | "task"
+    "uses" | "run" | "steps" | "task" | "outputs"
   >
 >;
 

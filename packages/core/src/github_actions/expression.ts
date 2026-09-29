@@ -1,0 +1,371 @@
+import {
+  type GitHubExpressionScopeKey,
+  githubExpressionScopes,
+} from "./expression_scope.ts";
+
+const expressionBrand = Symbol("tsugiori.expression");
+export type RawExpression = string & {
+  readonly __rawExpression: unique symbol;
+};
+export type ExpressionInput<T = unknown> = Expression<T> | RawExpression;
+export type Operand<T = unknown> = Expression<T> | T;
+
+type Node =
+  | Readonly<{ kind: "literal"; value: string | number | boolean | null }>
+  | Readonly<{ kind: "path"; value: string }>
+  | Readonly<{ kind: "raw"; value: string }>
+  | Readonly<{ kind: "unary"; operator: string; value: Node }>
+  | Readonly<{ kind: "binary"; operator: string; left: Node; right: Node }>
+  | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
+
+export class Expression<T = unknown> {
+  readonly [expressionBrand]!: T;
+  toString(): never {
+    throw new TypeError(
+      "Expression nodes cannot be interpolated into host-language strings.",
+    );
+  }
+  constructor(readonly node: Node) {}
+  eq(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, "==", value);
+  }
+  ne(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, "!=", value);
+  }
+  lt(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, "<", value);
+  }
+  le(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, "<=", value);
+  }
+  gt(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, ">", value);
+  }
+  ge(value: Operand<unknown>): Expression<boolean> {
+    return binary(this, ">=", value);
+  }
+  and<U>(value: Operand<U>): Expression<T | U> {
+    return binary(this, "&&", value);
+  }
+  or<U>(value: Operand<U>): Expression<T | U> {
+    return binary(this, "||", value);
+  }
+  not(): Expression<boolean> {
+    return new Expression({ kind: "unary", operator: "!", value: this.node });
+  }
+  /** An assertion about the runtime value; this does not validate JSON. */
+  as<U>(): Expression<U> {
+    return this as unknown as Expression<U>;
+  }
+  at<K extends keyof T>(key: K): Expression<T[K]> {
+    return pathProperty(this, String(key));
+  }
+  filter(): Expression<readonly Element<T>[]>;
+  filter<K extends keyof Element<T>>(
+    key: K,
+  ): Expression<readonly Element<T>[K][]>;
+  filter(key?: PropertyKey): Expression<readonly unknown[]> {
+    const collection = pathProperty<readonly unknown[]>(this, "*");
+    return key === undefined
+      ? collection
+      : pathProperty<readonly unknown[]>(collection, String(key));
+  }
+}
+type Element<T> = T extends readonly (infer U)[] ? U
+  : T extends Record<string, infer U> ? U
+  : unknown;
+
+export type Ref<T> =
+  & Expression<T>
+  & (T extends readonly (infer U)[] ? Readonly<{ [index: number]: Ref<U> }>
+    : T extends object ? Readonly<
+        {
+          [K in Exclude<keyof T, keyof Expression<T>>]: Ref<T[K]>;
+        }
+      >
+    : Record<never, never>);
+
+function nodeOf(value: unknown): Node {
+  if (value instanceof Expression) return value.node;
+  if (
+    value === null || typeof value === "string" || typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return { kind: "literal", value } as Node;
+  }
+  throw new TypeError(
+    "Expression operand must be a finite literal or expression node.",
+  );
+}
+function binary<T>(
+  left: Expression<unknown>,
+  operator: string,
+  right: Operand<unknown>,
+): Expression<T> {
+  return new Expression<T>({
+    kind: "binary",
+    operator,
+    left: left.node,
+    right: nodeOf(right),
+  });
+}
+function pathProperty<T>(
+  source: Expression<unknown>,
+  key: string,
+): Expression<T> {
+  const base = source.node.kind === "path"
+    ? source.node.value
+    : renderNode(source.node);
+  const suffix = /^(?:[A-Za-z_][A-Za-z0-9_]*|\*)$/.test(key)
+    ? `.${key}`
+    : /^\d+$/.test(key)
+    ? `[${key}]`
+    : `[${quote(key)}]`;
+  return reference<T>(`${base}${suffix}`);
+}
+function reference<T>(value: string): Ref<T> {
+  const expression = new Expression<T>({ kind: "path", value });
+  return new Proxy(expression, {
+    get(target, key, receiver) {
+      if (typeof key !== "string" || key in target) {
+        return Reflect.get(target, key, receiver);
+      }
+      return pathProperty(target, key);
+    },
+  }) as Ref<T>;
+}
+function quote(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
+}
+function renderNode(node: Node): string {
+  switch (node.kind) {
+    case "literal":
+      return typeof node.value === "string"
+        ? quote(node.value)
+        : String(node.value);
+    case "path":
+    case "raw":
+      return node.value;
+    case "unary":
+      return `(!${renderNode(node.value)})`;
+    case "binary":
+      return `(${renderNode(node.left)} ${node.operator} ${
+        renderNode(node.right)
+      })`;
+    case "call":
+      return `${node.name}(${node.args.map(renderNode).join(", ")})`;
+  }
+}
+export function emitExpression(value: ExpressionInput): string {
+  if (value instanceof Expression) return `\${{ ${renderNode(value.node)} }}`;
+  if (typeof value === "string" && /^\$\{\{[\s\S]+\}\}$/.test(value)) {
+    return value;
+  }
+  throw new TypeError(
+    "Expected an expression AST or explicit rawExpression().",
+  );
+}
+/** Escape hatch for a single node. T is caller asserted and is not validated. */
+export function rawNode<T>(source: string): Expression<T> {
+  if (!source.trim()) {
+    throw new TypeError("Raw expression node must not be empty.");
+  }
+  return new Expression<T>({ kind: "raw", value: source });
+}
+export function literal<T extends string | number | boolean | null>(
+  value: T,
+): Expression<T> {
+  return new Expression<T>(nodeOf(value));
+}
+function call<T>(
+  name: string,
+  ...args: readonly Operand<unknown>[]
+): Expression<T> {
+  return new Expression<T>({ kind: "call", name, args: args.map(nodeOf) });
+}
+export const contains = (
+  search: Operand<unknown>,
+  item: Operand<unknown>,
+): Expression<boolean> => call("contains", search, item);
+export const startsWith = (
+  search: Operand<unknown>,
+  item: Operand<unknown>,
+): Expression<boolean> => call("startsWith", search, item);
+export const endsWith = (
+  search: Operand<unknown>,
+  item: Operand<unknown>,
+): Expression<boolean> => call("endsWith", search, item);
+export const format = (
+  pattern: Operand<string>,
+  ...values: readonly [Operand<unknown>, ...Operand<unknown>[]]
+): Expression<string> => call("format", pattern, ...values);
+export const join = (
+  value: Operand<unknown>,
+  separator?: Operand<string>,
+): Expression<string> =>
+  separator === undefined
+    ? call("join", value)
+    : call("join", value, separator);
+export const toJSON = (value: Operand<unknown>): Expression<string> =>
+  call("toJSON", value);
+export const fromJSON = (value: Operand<unknown>): Expression<unknown> =>
+  call("fromJSON", value);
+export const caseOf = (
+  ...values: readonly Operand<unknown>[]
+): Expression<unknown> => {
+  if (values.length < 3 || values.length % 2 !== 1) {
+    throw new TypeError("case requires predicate/value pairs and a default.");
+  }
+  return call("case", ...values);
+};
+export const always = (): Expression<boolean> => call("always");
+export const cancelled = (): Expression<boolean> => call("cancelled");
+export const success = (): Expression<boolean> => call("success");
+export const failure = (): Expression<boolean> => call("failure");
+export const hashFiles = (
+  ...paths: readonly [Operand<string>, ...Operand<string>[]]
+): Expression<string> => call("hashFiles", ...paths);
+
+export type GitHubContext = Readonly<{
+  action: string;
+  action_path: string;
+  action_ref: string;
+  action_repository: string;
+  action_status: string;
+  actor: string;
+  actor_id: string;
+  api_url: string;
+  base_ref: string;
+  env: string;
+  event: unknown;
+  event_name: string;
+  event_path: string;
+  graphql_url: string;
+  head_ref: string;
+  job: string;
+  path: string;
+  ref: string;
+  ref_name: string;
+  ref_protected: boolean;
+  ref_type: string;
+  repository: string;
+  repository_id: string;
+  repository_owner: string;
+  repository_owner_id: string;
+  repositoryUrl: string;
+  retention_days: string;
+  run_attempt: string;
+  run_id: string;
+  run_number: string;
+  secret_source: string;
+  server_url: string;
+  sha: string;
+  token: string;
+  triggering_actor: string;
+  workflow: string;
+  workflow_ref: string;
+  workflow_sha: string;
+  workspace: string;
+}>;
+export type StepContext<Outputs extends readonly string[]> = Readonly<{
+  outputs: Readonly<Record<Outputs[number], string>>;
+  outcome: string;
+  conclusion: string;
+}>;
+export type JobContext<Outputs extends readonly string[]> = Readonly<{
+  outputs: Readonly<Record<Outputs[number], string>>;
+  result: string;
+}>;
+export type ScopeValues<
+  Needs extends Record<string, readonly string[]>,
+  Steps extends Record<string, readonly string[]>,
+  Matrix extends object,
+  Vars extends string,
+  Secrets extends string,
+> = {
+  github: GitHubContext;
+  needs: { readonly [K in keyof Needs]: JobContext<Needs[K]> };
+  steps: { readonly [K in keyof Steps]: StepContext<Steps[K]> };
+  matrix: Matrix;
+  strategy: Readonly<
+    {
+      fail_fast: boolean;
+      job_index: number;
+      job_total: number;
+      max_parallel: number;
+    }
+  >;
+  vars: Readonly<Record<Vars, string>>;
+  secrets: Readonly<Record<Secrets, string>>;
+  inputs: Readonly<Record<string, string>>;
+  env: Readonly<Record<string, string>>;
+  job: Readonly<
+    { status: string; container: Readonly<{ id: string; network: string }> }
+  >;
+  runner: Readonly<
+    {
+      name: string;
+      os: string;
+      arch: string;
+      temp: string;
+      tool_cache: string;
+      debug: string;
+    }
+  >;
+};
+type ContextKeys<S extends GitHubExpressionScopeKey> =
+  (typeof githubExpressionScopes)[S]["contexts"][number];
+type FunctionKeys<S extends GitHubExpressionScopeKey> =
+  (typeof githubExpressionScopes)[S]["functions"][number];
+type Functions = {
+  always: typeof always;
+  cancelled: typeof cancelled;
+  success: typeof success;
+  failure: typeof failure;
+  hashFiles: typeof hashFiles;
+};
+export type Scope<
+  S extends GitHubExpressionScopeKey,
+  Needs extends Record<string, readonly string[]> = Record<never, never>,
+  Steps extends Record<string, readonly string[]> = Record<never, never>,
+  Matrix extends object = Record<never, never>,
+  Vars extends string = string,
+  Secrets extends string = string,
+> =
+  & {
+    readonly [K in ContextKeys<S>]: Ref<
+      ScopeValues<
+        Needs,
+        Steps,
+        Matrix,
+        Vars,
+        Secrets
+      >[K & keyof ScopeValues<Needs, Steps, Matrix, Vars, Secrets>]
+    >;
+  }
+  & Pick<Functions, FunctionKeys<S>>;
+export function scope<
+  S extends GitHubExpressionScopeKey,
+  Needs extends Record<string, readonly string[]>,
+  Steps extends Record<string, readonly string[]>,
+  Matrix extends object,
+  Vars extends string,
+  Secrets extends string,
+>(key: S): Scope<S, Needs, Steps, Matrix, Vars, Secrets> {
+  const definitions = githubExpressionScopes[key];
+  const result: Record<string, unknown> = {};
+  for (const context of definitions.contexts) {
+    result[context] = reference(context);
+  }
+  const functions: Functions = {
+    always,
+    cancelled,
+    success,
+    failure,
+    hashFiles,
+  };
+  for (const name of definitions.functions) result[name] = functions[name];
+  return Object.freeze(result) as Scope<S, Needs, Steps, Matrix, Vars, Secrets>;
+}
+
+export { caseOf as case };

@@ -190,13 +190,35 @@ withTest.job("build", ({ job, jobs }) => {
       );
       assertRelevantExactly(priorJobLabels, ["test"], ["build", "test"]);
 
+      const jobConditionLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        9,
+        "typed-job-if",
+        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
+pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] })
+  .job("test", ({ job }) => job.runsOn("ubuntu-latest")
+    .when((context) => { context./*completion*/; return context.github.ref.eq("main"); })
+    .run({ name: "Test", run: "true" }));`,
+      );
+      assertIncludesExactly(jobConditionLabels, [
+        "always",
+        "cancelled",
+        "failure",
+        "github",
+        "inputs",
+        "needs",
+        "success",
+        "vars",
+      ]);
+
       await writeMessage(writer, {
         jsonrpc: "2.0",
-        id: 9,
+        id: 10,
         method: "shutdown",
         params: null,
       });
-      await responseFor(stream, 9);
+      await responseFor(stream, 10);
       await writeMessage(writer, {
         jsonrpc: "2.0",
         method: "exit",

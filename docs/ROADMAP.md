@@ -19,16 +19,6 @@ behavior is documented in the [README](../README.md) and
 
 ## Future candidates
 
-### GitHub Actions expressions
-
-- Design a structured expression API for supported contexts, literals,
-  property access, function calls, comparisons, and boolean operators.
-- Preserve an explicit raw-expression escape hatch. Keep GitHub runtime
-  evaluation distinct from host-language conditions and test their different
-  effects on generated YAML.
-- Derive context availability from the existing provider scope catalog where
-  it applies. Do not require every GitHub expression to use a structured AST.
-
 ### Reusable workflows
 
 - Model `workflow_call` inputs, secrets, and outputs as GitHub Actions-native

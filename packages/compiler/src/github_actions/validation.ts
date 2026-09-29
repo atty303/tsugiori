@@ -472,12 +472,14 @@ function validateStrategy(
   if (
     !isPlainRecord(value) ||
     (value.failFast !== undefined && typeof value.failFast !== "boolean") ||
-    !isPlainRecord(value.matrix) ||
-    Object.entries(value.matrix).some(([key, entry]) =>
-      isBlank(key) || !(typeof entry === "string" && !isBlank(entry) ||
-        Array.isArray(entry) && entry.length > 0 &&
-          entry.every((item) => typeof item === "string" && !isBlank(item)))
-    )
+    !(typeof value.matrix === "string" && !isBlank(value.matrix)) &&
+      !isPlainRecord(value.matrix) ||
+    typeof value.matrix !== "string" && isPlainRecord(value.matrix) &&
+      Object.entries(value.matrix).some(([key, entry]) =>
+        isBlank(key) || !(typeof entry === "string" && !isBlank(entry) ||
+          Array.isArray(entry) && entry.length > 0 &&
+            entry.every((item) => typeof item === "string" && !isBlank(item)))
+      )
   ) {
     diagnostics.push(
       diagnostic(

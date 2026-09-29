@@ -9,6 +9,7 @@ import {
   actionInput,
   defineAction,
   defineTsugiori,
+  literal,
   pipeline,
   rawAction,
   rawExpression,
@@ -28,24 +29,26 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
     pushBranches: ["master"],
     permissions: { contents: "read" },
   }).job("deploy-dev", ({ job }) =>
-    job.runsOn("ubuntu-24.04", {
-      if: rawExpression("needs.detect.outputs.selected == 'true'"),
-      permissions: { contents: "read", "id-token": "write" },
-      timeoutMinutes: 60,
-      environment: "dev",
-      outputs: { result: rawExpression("steps.deploy.outputs.result") },
-      concurrency: {
-        group: "signage-plugin-webview-cz-dev",
+    job.runsOn("ubuntu-24.04")
+      .when(rawExpression("needs.detect.outputs.selected == 'true'"))
+      .permissions({ contents: "read", "id-token": "write" })
+      .timeoutMinutes(60)
+      .environment("dev")
+      .concurrency({
+        group: literal("signage-plugin-webview-cz-dev"),
         cancelInProgress: false,
         queue: "max",
-      },
-    }).run({
-      id: "deploy",
-      name: "Deploy",
-      run: "./scripts/deploy.sh",
-      workingDirectory: "deploy/signage-plugin-webview-cz",
-      env: { AWS_REGION: "ap-northeast-1" },
-    }));
+      })
+      .run({
+        id: "deploy",
+        name: "Deploy",
+        run: "./scripts/deploy.sh",
+        workingDirectory: "deploy/signage-plugin-webview-cz",
+        env: { AWS_REGION: "ap-northeast-1" },
+      })
+      .outputs(() => ({
+        result: rawExpression("steps.deploy.outputs.result"),
+      })));
   const lowered = await lowerConfig(
     defineTsugiori({ pipelines: [deploy] }),
     "./tsugiori.ts",

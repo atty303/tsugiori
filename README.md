@@ -14,9 +14,10 @@ step. GitHub Actions still runs the jobs and steps.
 The current authoring API covers `push`, `pull_request`, and
 `workflow_dispatch` events; jobs, dependencies, runners, permissions,
 concurrency, environments, matrix strategy, conditions, outputs, and `uses`,
-`run`, and task steps. `rawExpression()` marks a GitHub runtime expression
-without evaluating it during generation. A structured public expression DSL
-and other CI provider backends are not implemented.
+`run`, and task steps. A typed expression AST builds GitHub runtime expressions
+in field callbacks. `rawNode<T>()` embeds a raw expression inside an AST;
+`rawExpression()` remains an explicit whole-expression escape hatch. Other CI
+provider backends are not implemented.
 
 ## Use the repository workflow
 
@@ -122,3 +123,59 @@ for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
 
 Run the repository checks with `mise run check` and `mise run test` from the
 repository root.
+
+## Expressions and outputs
+
+Job fields are set in definition order. Configure a matrix before concurrency,
+and define steps before job outputs. Each expression callback receives the
+contexts available at its GitHub Actions field. Step callbacks see only earlier
+step IDs; dependent jobs see only declared outputs from their dependencies.
+
+```ts
+import {
+  defineTask, fromJSON, pipeline, rawNode,
+} from "@atty303/tsugiori/github-actions";
+
+const prepare = defineTask({
+  outputs: ["matrix"],
+  run: async ({ outputs }) => {
+    await outputs.set("matrix", '["dev", "stg"]');
+  },
+});
+
+const first = pipeline("deploy", {
+  output: ".github/workflows/deploy.yml",
+  events: ["push"],
+}).job("prepare", ({ job }) =>
+  job.runsOn("ubuntu-latest")
+    .task({ id: "make", name: "Make matrix", task: prepare })
+    .outputs(({ steps }) => ({ matrix: steps.make.outputs.matrix })));
+
+const deploy = first.job("deploy", ({ job, jobs }) =>
+  job.needs(jobs.prepare).runsOn("ubuntu-latest")
+    .strategy(({ needs }) => ({
+      matrix: {
+        stage: fromJSON(needs.prepare.outputs.matrix).as<readonly string[]>(),
+      },
+    }))
+    .concurrency({
+      group: ({ matrix }) => matrix.stage,
+      cancelInProgress: false,
+    })
+    .run({
+      name: "Deploy",
+      run: "./deploy.sh",
+      if: ({ matrix }) => matrix.stage.ne("disabled")
+        .and(rawNode<boolean>("custom_check()")),
+    }));
+```
+
+Operators are methods (`.eq()`, `.and()`, `.not()`, and so on); GitHub built-in
+functions are exported separately. Host TypeScript strings, including template
+strings, are accepted as literal operands to AST methods. An expression field
+requires an AST or `rawExpression()` and never interprets an ordinary string
+as an expression. `fromJSON()` starts with an unknown result type; `.as<T>()`
+asserts the expected shape for type checking and does not validate the runtime
+JSON. GitHub Actions performs the actual comparison, truthiness, and logical
+operator evaluation. `defineTask()` output values are strings, and a task may
+omit any declared output.

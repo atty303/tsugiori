@@ -1,6 +1,7 @@
 export {
   actionInput,
   defineAction,
+  defineTask,
   defineTsugiori,
   pipeline,
   rawAction,

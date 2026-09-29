@@ -220,7 +220,7 @@ async function dispatchTask(
         "Invalid Tsugiori configuration.",
       );
     }
-    let task: TaskFunction | undefined;
+    let task: TaskFunction<string> | undefined;
     for (const pipeline of config.pipelines) {
       for (const job of pipeline.jobs) {
         let ordinal = 0;
@@ -247,8 +247,26 @@ async function dispatchTask(
       );
     }
     errorType = "task_failed";
+    const declaredOutputs = new Set(task.outputNames ?? []);
     await task({
       cwd: Deno.cwd(),
+      outputs: {
+        set: async (name, value) => {
+          if (!declaredOutputs.has(name)) {
+            throw new TaskRuntimeError(
+              "github_output_invalid",
+              `Task output ${JSON.stringify(name)} is not declared.`,
+            );
+          }
+          if (typeof value !== "string") {
+            throw new TaskRuntimeError(
+              "github_output_invalid",
+              "Task output value must be a string.",
+            );
+          }
+          await writeTaskOutput(name, value);
+        },
+      },
       logger: {
         info: (...values) => console.log(...values),
         warn: (...values) => console.warn(...values),
@@ -263,6 +281,14 @@ async function dispatchTask(
     recorder.finish("success");
     return 0;
   } catch (error) {
+    if (
+      error instanceof TaskRuntimeError &&
+      (error.errorType === "github_output_invalid" ||
+        error.errorType === "github_output_unavailable" ||
+        error.errorType === "github_output_write_failed")
+    ) {
+      errorType = error.errorType;
+    }
     recorder.operation({
       name: "task.dispatch",
       status: "error",
@@ -378,6 +404,36 @@ async function writeGitHubOutputs(
     throw new TaskRuntimeError(
       "github_output_write_failed",
       "Failed to write GitHub Actions step outputs.",
+      { cause: error },
+    );
+  }
+}
+
+async function writeTaskOutput(name: string, value: string): Promise<void> {
+  const path = Deno.env.get("GITHUB_OUTPUT");
+  if (path === undefined || path.length === 0) {
+    throw new TaskRuntimeError(
+      "github_output_unavailable",
+      "GitHub Actions did not provide GITHUB_OUTPUT.",
+    );
+  }
+  const delimiter = `tsugiori_${crypto.randomUUID().replaceAll("-", "")}`;
+  if (value.includes(delimiter)) {
+    throw new TaskRuntimeError(
+      "github_output_invalid",
+      "Task output delimiter collision.",
+    );
+  }
+  try {
+    await Deno.writeTextFile(
+      path,
+      `${name}<<${delimiter}\n${value}\n${delimiter}\n`,
+      { append: true },
+    );
+  } catch (error) {
+    throw new TaskRuntimeError(
+      "github_output_write_failed",
+      "Failed to write GitHub Actions task output.",
       { cause: error },
     );
   }

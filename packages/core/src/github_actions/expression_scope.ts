@@ -289,8 +289,15 @@ export const githubExpressionScopes = {
 
 export type GitHubExpressionScopeKey = keyof typeof githubExpressionScopes;
 
-export const supportedExpressionScopeKeys =
-  [] as const satisfies readonly GitHubExpressionScopeKey[];
+export const supportedExpressionScopeKeys = [
+  "jobs.<job_id>.if",
+  "jobs.<job_id>.outputs.<output_id>",
+  "jobs.<job_id>.strategy",
+  "jobs.<job_id>.concurrency",
+  "jobs.<job_id>.steps.if",
+  "jobs.<job_id>.steps.env",
+  "jobs.<job_id>.steps.with",
+] as const satisfies readonly GitHubExpressionScopeKey[];
 
 const expressionContext = Symbol("tsugiori.expression-context");
 const specialFunction = Symbol("tsugiori.special-function");

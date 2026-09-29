@@ -22,7 +22,7 @@ export type RegisteredTask = Readonly<{
   name: string;
   pipelineId: string;
   jobId: string;
-  task: TaskFunction;
+  task: TaskFunction<string>;
 }>;
 
 export type LoweredPipeline = Readonly<{

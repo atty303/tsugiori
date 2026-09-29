@@ -44,7 +44,7 @@ Deno.test({
       );
       const configSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { defineTask, defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
 import { runTsugiori } from "@atty303/tsugiori/run";
 
 const base = pipeline("ci", {
@@ -63,7 +63,7 @@ const ci = base.job("test", ({ job }) =>
     .run({ name: "Setup", run: "echo setup" })
     .task({
       name: "Test",
-      task: async (ctx) => {
+      task: defineTask({ outputs: ["result"], run: async (ctx) => {
         ctx.logger.info("task-log-private");
         if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
           Object.defineProperty(WeakMap.prototype, "get", {
@@ -76,7 +76,8 @@ const ci = base.job("test", ({ job }) =>
           throw error;
         }
         await Deno.writeTextFile("task-result.txt", ctx.cwd);
-      },
+        await ctx.outputs.set("result", "first\\nsecond");
+      } }),
     })
 );
 
@@ -446,11 +447,12 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
       );
 
       const runtime = resolve(fixture, ".tsugiori/task-runtime");
+      await Deno.writeTextFile(githubOutput, "");
       const executed = await run(
         runtime,
         ["ci/test/task-1"],
         fixture,
-        environment,
+        { ...environment, GITHUB_OUTPUT: githubOutput },
       );
       assertEquals(executed.code, 0, executed.stderr);
       assertStringIncludes(executed.stdout, "task-log-private");
@@ -459,12 +461,20 @@ if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: imp
         await Deno.readTextFile(resolve(fixture, "task-result.txt")),
         await Deno.realPath(fixture),
       );
+      assertStringIncludes(
+        await Deno.readTextFile(githubOutput),
+        "result<<tsugiori_",
+      );
+      assertStringIncludes(
+        await Deno.readTextFile(githubOutput),
+        "first\nsecond\n",
+      );
 
       const debugged = await run(
         runtime,
         ["ci/test/task-1"],
         fixture,
-        { ...environment, RUNNER_DEBUG: "1" },
+        { ...environment, GITHUB_OUTPUT: githubOutput, RUNNER_DEBUG: "1" },
       );
       assertEquals(debugged.code, 0, debugged.stderr);
       const debugRecord = diagnosticRecord(debugged.stderr);
