@@ -1,0 +1,61 @@
+Task: Render quoted Tsugiori YAML values with double quotes
+Anchor: f6c70af337998e9fe0fa760fd61d850fd2fbd4b6
+Base: 1f73c49251b2a7237066093a017cbc85ec2b6522
+Branch: main
+Commits: f6c70af337998e9fe0fa760fd61d850fd2fbd4b6 (global YAML double quoting and @std/yaml 1.3.0 stable quoteStyle)
+Guidance: repository AGENTS.md; develop-repository; design-program-observability applicability; atty303 engineering policy; Git task evidence
+Conditions: macOS local workspace; edit deferred until clean after prior task commit; Git metadata writes required sandbox escalation; origin/main was behind local main; standard notes remote was behind local and was fetched separately without overwrite
+## Evidence
+- mise run test: 53 passed, 0 failed after @std/yaml 1.3.0 upgrade.
+- .github generate:check passed; parsed generated ci.yml matched the pre-change HEAD document; only YAML quoting changed.
+Authority: repository source and tests, current AGENTS.md, and the named development and evidence guidance
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) renderされたyamlの式で、yaml自体のsingle quoteで式内部の文字列リテラルがdouble single qoute escapeされて読みづらい。yaml側のqouteをdoubleにするか、式の文字列をdoubleにすればこのエスケープはなくせるはず。なぜ両方single quoteになっているのか？
+  - A: Inspected source and official GitHub syntax: expression literals require single quotes; YAML serializer default caused doubling. Presented global YAML double quoting versus selective rewriting.
+- U2: A
+  - A: Accepted global double quoting for values needing quotes; asked for shared-understanding confirmation.
+- U3: A
+  - A: Prepared the agreed implementation prompt with success conditions and constraints.
+- U4: \# 実装依頼\
+    \
+    \## 依頼\
+    Tsugiori が生成する YAML で、引用が必要な値には double quote を使うよう変更してください。\
+    \
+    \## 目的\
+    \- GitHub Actions の式内部に必要な single quote が、YAML 側の引用によって \`''\` と表示されるのをなくし、生成結果を読みやすくする。\
+    \
+    \## 成功条件\
+    \- 生成された式が \`if: "${{ github.event_name == 'push' }}"\` のように表示される。\
+    \- YAML を解析した値と GitHub Actions の式の意味が変更前と同じである。\
+    \- 関連テストと生成結果の整合性チェックが通る。\
+    \
+    \## 決定事項\
+    \- YAML 側で引用が必要な値すべてに double quote を使う。\
+    &#x20; \- 理由: 現在使用する YAML ライブラリの \`quoteStyle\` で一貫して設定できる。\
+    &#x20; \- 主な棄却案: 式を含む値だけを個別に書き換える案は、追加の出力規則が必要になるため採用しない。\
+    \- GitHub Actions の式内部の文字列リテラルは single quote のままにする。\
+    &#x20; \- 理由: GitHub Actions の式構文で必要である。\
+    &#x20; \- 主な棄却案: 式内部を double quote にする案は、GitHub Actions で無効になるため採用しない。\
+    \
+    \## 制約\
+    \- 既存の未コミット変更を保全する。\
+    \- 生成 YAML の表記以外の意味や実行動作を変えない。\
+    \
+    \## 対象外\
+    \- 式 AST の構文変更。\
+    \- GitHub Actions の実行経路の変更。\
+    \
+    \## 未検証の前提\
+    \- 変更時点でも使用中の YAML ライブラリが \`quoteStyle: '"'\` をサポートしていること。\
+    \- double quote 化した生成結果で、引用が必要な各値が YAML 解析後に元の値へ戻ること。\
+    \
+    \## 実装時の指示\
+    \- YAML エミッタの設定を変更し、関連テストの期待値を更新する。\
+    \- 生成済みワークフローを再生成して差分を確認する。
+    
+    - 他で進行中の作業がcommitされcleanになってから編集を開始する
+  - A: Read repository guidance and found other work uncommitted; did not edit, waited briefly, then reported the condition still unmet.
+- U5: go
+  - A: After the other work committed, verified a clean main branch, fetched code and notes safely, scoped observability as a deterministic pure serializer, implemented quoteStyle, updated tests and generated workflow, and verified parsed-value equality and tests.
+- U6: yaml 1.3.0で公開optionはないのか？
+  - A: Confirmed @std/yaml 1.3.0 exposes quoteStyle on the stable stringify API; upgraded the existing dependency and regenerated its lockfile, reran 53 tests and generate:check, confirmed parsed workflow equality, and created signed local commit f6c70af.
