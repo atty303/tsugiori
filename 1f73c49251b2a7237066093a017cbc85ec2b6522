@@ -1,0 +1,91 @@
+Task: Implement typed task I/O in Tsugiori GitHub Actions DSL and ignore .DS_Store
+Anchor: 1f73c49251b2a7237066093a017cbc85ec2b6522
+Base: 875d5301b6c6d4ac8fd52c881324e8179eca4aa5
+Branch: main (local, origin/main at base before task)
+Commits: 1f73c49251b2a7237066093a017cbc85ec2b6522 implements inline typed task I/O, migration, docs, tests, and .DS_Store ignore
+Guidance: User-supplied AGENTS.md; develop-repository; design-program-observability; design-review; review; repository README, ARCHITECTURE, ROADMAP
+Conditions: No new dependency or remote write; GitHub Actions backend only; staged changes committed with required SSH signing after an earlier 1Password agent error; generated YAML remains provider-native
+## Evidence
+- mise run check passed; mise run test passed 53/53; .github generate:check passed; git diff --check passed; independent delta review found no remaining concrete issue.
+- First two commit attempts failed at 1Password SSH signing; user later requested commit; signed commit succeeded. No push performed.
+Authority: Current source, user implementation request and follow-up, repository AGENTS.md, living README and docs, and standard test results.
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の GitHub Actions DSL に typed task I/O を実装する。task step は `job.task({ ... })` に直接定義し、既存の `defineTask` API と `{ task: ... }` 形式の利用箇所を移行する。
+    
+    ## 目的
+    - task の入力元と契約を一か所で宣言し、入力用の step `env` との重複をなくす。
+    - task の出力から後続 job の入力まで、型情報と実行時検証をつなぐ。
+    - Zod のような parser を利用できるようにしつつ、Tsugiori の必須依存にはしない。
+    
+    ## 成功条件
+    - `job.task({ id, name, if, inputs, env, outputs, run })` で task step を定義できる。`if`・`inputs`・`env` の式 callback は、配置先 job で利用可能な `needs`・`matrix`・先行 `steps` などに型付けされる。
+    - `inputs` は各項目に契約と入力元を一緒に指定する。コンパイラが入力用 step `env` を生成し、runner が契約で parse して `run({ inputs })` に渡す。独自の `env` も別途宣言できる。
+    - inline の `run` は `inputs` から型推論される。共通 object を spread できる。別に定義した共通の `run` は明示した引数型で検査される。
+    - 出力は項目ごとに契約と `required` を宣言できる。`outputs.set` は値を検証・シリアライズする。必須出力の未設定を検出する。
+    - 最初の typed I/O variant は text と JSON。JSON の schema は `{ parse(value: unknown): T }` として受け取り、構造を変える transform を認めない。
+    - 直接参照した task step 出力と、それをそのまま渡す job 出力には、同じ契約オブジェクトの情報が伝播する。計算した式には契約を自動伝播しない。
+    - `present(ref)` は GitHub Actions の空文字列判定へ描画され、型上の存在証明を持つ。証明は `and`、task step の `if`、job の `when` から必要な後続箇所へ伝播する。`or`、否定、raw expression には伝播しない。
+    - `fromJSON(typedRef)` は値の型を推論し、従来の `.as<T>()` を不要にする。描画結果は通常の `fromJSON(ref)` のままにする。
+    - glaze-ops の detect→matrix→deploy→complete に相当する、parse、出力の省略、`present`、独自 `env` を含む focused test が通る。
+    - README、ARCHITECTURE、ROADMAP を実装後の状態に更新し、リポジトリ標準の check と test が通る。
+    
+    ## 決定事項
+    - task step の基本形を `job.task({...})` とし、`defineTask` を廃止する。
+      - 理由: 配置先 job の文脈で初めて `if`・入力元・`env` の型が決まるため。
+      - 主な棄却案: `defineTask` に step 設定を集めて `job.task(defineTask(...))` とする案。余分な関数を要する。
+    - typed input の契約と入力元を同じ `inputs` 項目に置き、入力用 step `env` を生成する。
+      - 理由: `env` と `inputs` に同じ名前と参照を二度書かずに済む。
+      - 主な棄却案: task の入力契約と step の `env` を別々に宣言する案。
+    - 共通 task 設定は object spread で再利用し、共通化した `run` の型は明示する。
+      - 理由: 配置先が未確定の共通関数へ、後から配置先固有の型を推論すべきではない。
+      - 主な棄却案: 再利用専用の factory を追加する案。
+    - text と JSON を別 variant とする。JSON だけに限定せず、任意 codec も初回には追加しない。
+      - 理由: 文字列入力と構造化入力の双方を扱い、初期の契約を小さく保つ。
+      - 主な棄却案: 全入力を JSON に統一する案、任意 codec を最初から公開する案。
+    - 出力の必須性は出力ごとに指定する。未出力の論理値は `null` とし、top-level `null` の明示出力は禁止する。wire 上の未出力は空文字列に対応させる。text の明示空文字列も禁止し、JSON 内部の `null` と `[]` は通常の値として扱う。
+      - 理由: 未出力と明示出力を区別し、`[]` は参照側の式で必要に応じて扱える。
+      - 主な棄却案: `null` を明示出力として許す案、`[]` を Tsugiori が自動変換する案。
+    - producer と consumer の双方で契約を実行時検証する。型付き参照の互換性は共有された契約オブジェクトの同一性で扱う。型のない GitHub 値も入力として許し、runner で検証する。
+      - 理由: TypeScript の型主張だけでは Actions 実行時の値を保証できない。
+      - 主な棄却案: 静的型だけで済ませる案、構造的に同じ型なら同一契約とみなす案。
+    - `present` だけを Tsugiori 固有の authoring helper として GitHub 式へ下ろす。`fromJSON` を含む他の式 AST に、暗黙の値補正を入れない。省略可能な参照への `fromJSON` には存在条件または利用者が明示した fallback を要求する。
+      - 理由: 生成される GitHub 式の意味を予測可能にする。
+      - 主な棄却案: `fromJSON` の引数に暗黙の fallback を挿入する案。
+    - token のマスク処理を Tsugiori 独自には実装しない。
+      - 理由: GitHub Actions 側の責務である。
+      - 主な棄却案: Tsugiori が独自に token を検出・マスクする案。
+    
+    ## 制約
+    - GitHub Actions の通常の job と step、および生成 YAML の可視性を維持する。
+    - task 本体を生成 YAML に埋め込まない。
+    - Zod は利用側が選べる parser の例とし、Tsugiori runtime の必須依存にしない。必要なら focused test の依存として使う。
+    - 既存のユーザー変更を保護する。
+    
+    ## 対象外
+    - glaze-ops リポジトリ自体の変更。
+    - 任意 codec、追加 provider、独自 token masking。
+    - 計算した job output 式への契約の自動伝播。
+    - 新たな control plane や CI 実行基盤。
+    
+    ## 未検証の前提
+    - 実際の `ExecutionJobState` と `NonEmptyStepState` の型構成で、単一の `job.task({...})` object の `inputs` から `run` へ型推論できること。最小の TypeScript 実験では成立したが、既存 builder への統合は未検証。
+    - `present` の存在証明を、job の `when` と step の `if` から必要な後続型へ伝播できること。現在の typestate と式型を調べて確認する。
+    - 現在の task artifact・runner 経路で、契約 metadata を authoring 時に保持し、実行時に同じ契約を利用できること。
+    
+    ## 実装時の指示
+    - まず現在の task 定義、compiler、runner、参照型を確認し、既存の `defineTask` 利用箇所を把握する。
+    - API の具体的な補助関数名は実装に合わせて最小限に決める。利用者から見える中心形は `job.task({...})` とする。
+    - 生成した入力用 `env` と独自 `env` の名前衝突は検出してエラーにする。
+    - compiler、expression、validation、runner の契約境界に focused test を置く。特に、省略可能な出力、top-level `null`、text 空文字列、JSON 配列の matrix 利用、`present` の証明範囲、契約同一性、独自 `env` を確認する。
+    - `fromJSON` の描画と `present` 以外の式 AST の意味が変わっていないことを確認する。
+  - A: Inspected existing task DSL, compiler, runner, expressions, and repository guidance; implemented inline job.task contracts, generated input env, runtime parse and output validation, optional reference proof, direct output contract propagation, migrated usages, updated docs and focused tests; check and 53 tests passed, generated workflows were current, and independent review found no remaining concrete issue.
+- U2:
+    .DS_Storeはgitignoreに追加しておいて
+  - A: Added .DS_Store to .gitignore, preserved the existing untracked file, and included the ignore change in the verified commit.
+- U3:
+    commit
+  - A: Rechecked staged changes and created signed local commit 1f73c49251b2a7237066093a017cbc85ec2b6522; prepared its task evidence note.
