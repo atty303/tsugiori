@@ -1,3 +1,9 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/tsugiori-logo-dark-transparent.png">
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/tsugiori-logo-light-transparent.png">
+  <img alt="継織" src="docs/assets/tsugiori-logo-light-transparent.png" width="720">
+</picture>
+
 # Tsugiori
 
 Tsugiori is a proposed CI pipeline authoring tool and task runtime.
