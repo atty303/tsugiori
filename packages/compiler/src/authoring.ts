@@ -116,6 +116,9 @@ export async function lowerConfig(
             ...(step.id === undefined ? {} : { id: step.id }),
             uses: step.uses,
             ...(step.if === undefined ? {} : { if: step.if }),
+            ...(step.continueOnError === undefined ? {} : {
+              continueOnError: step.continueOnError,
+            }),
             ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.with === undefined ? {} : { with: step.with }),
           });
@@ -128,6 +131,9 @@ export async function lowerConfig(
             ...(step.id === undefined ? {} : { id: step.id }),
             run: step.run,
             ...(step.if === undefined ? {} : { if: step.if }),
+            ...(step.continueOnError === undefined ? {} : {
+              continueOnError: step.continueOnError,
+            }),
             ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.workingDirectory === undefined ? {} : {
               workingDirectory: step.workingDirectory,
@@ -158,6 +164,10 @@ export async function lowerConfig(
           type: "run",
           name: step.name,
           ...(step.id === undefined ? {} : { id: step.id }),
+          ...(step.if === undefined ? {} : { if: step.if }),
+          ...(step.continueOnError === undefined ? {} : {
+            continueOnError: step.continueOnError,
+          }),
           ...(step.env === undefined ? {} : { env: step.env }),
           run: `./.tsugiori/task-runtime ${entrypoint}`,
         });

@@ -57,6 +57,10 @@ if (import.meta.main) {
 From `.github`, run `deno task generate` and commit the generated workflow.
 Run `deno task generate:check` to detect stale output without writing it.
 
+GitHub Actions step options such as `if` and `continueOnError` can be set on
+`.uses()`, `.run()`, and `.task()` steps. A task step's `if` controls its runtime
+step; the job's shared artifact preparation still runs before the first task.
+
 ## Generated shape
 
 The task-backed job remains a normal GitHub Actions job. Before its task step,

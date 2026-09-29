@@ -50,6 +50,7 @@ export type AuthoringUsesStep = Readonly<{
   uses: string;
   with?: ActionInputs;
   if?: string;
+  continueOnError?: boolean;
   env?: EnvironmentVariables;
 }>;
 export type AuthoringRunStep = Readonly<{
@@ -58,6 +59,7 @@ export type AuthoringRunStep = Readonly<{
   name: string;
   run: string;
   if?: string;
+  continueOnError?: boolean;
   env?: EnvironmentVariables;
   workingDirectory?: string;
 }>;
@@ -66,6 +68,8 @@ export type AuthoringTaskStep = Readonly<{
   id?: string;
   name: string;
   task: TaskFunction;
+  if?: string;
+  continueOnError?: boolean;
   env?: EnvironmentVariables;
 }>;
 export type AuthoringStep =
@@ -270,6 +274,7 @@ export type UsesStepDefinition<
   name: string;
   uses: ActionInvocation<Outputs>;
   if?: string;
+  continueOnError?: boolean;
   env?: EnvironmentVariables;
 }>;
 export type RunStepDefinition<Id extends string | undefined = undefined> =
@@ -278,12 +283,20 @@ export type RunStepDefinition<Id extends string | undefined = undefined> =
     name: string;
     run: string;
     if?: string;
+    continueOnError?: boolean;
     env?: EnvironmentVariables;
     workingDirectory?: string;
   }>;
 export type TaskStepDefinition<Id extends string | undefined = undefined> =
   Readonly<
-    { id?: Id; name: string; task: TaskFunction; env?: EnvironmentVariables }
+    {
+      id?: Id;
+      name: string;
+      task: TaskFunction;
+      if?: string;
+      continueOnError?: boolean;
+      env?: EnvironmentVariables;
+    }
   >;
 
 export type JobReference<
@@ -725,6 +738,9 @@ function usesStep(
     name: definition.name,
     uses: definition.uses.uses,
     ...(definition.if === undefined ? {} : { if: definition.if }),
+    ...(definition.continueOnError === undefined ? {} : {
+      continueOnError: definition.continueOnError,
+    }),
     ...(definition.env === undefined
       ? {}
       : { env: Object.freeze({ ...definition.env }) }),
@@ -742,6 +758,9 @@ function runStep(
     name: definition.name,
     run: definition.run,
     ...(definition.if === undefined ? {} : { if: definition.if }),
+    ...(definition.continueOnError === undefined ? {} : {
+      continueOnError: definition.continueOnError,
+    }),
     ...(definition.env === undefined
       ? {}
       : { env: Object.freeze({ ...definition.env }) }),
@@ -758,6 +777,10 @@ function taskStep(
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     task: definition.task,
+    ...(definition.if === undefined ? {} : { if: definition.if }),
+    ...(definition.continueOnError === undefined ? {} : {
+      continueOnError: definition.continueOnError,
+    }),
     ...(definition.env === undefined
       ? {}
       : { env: Object.freeze({ ...definition.env }) }),

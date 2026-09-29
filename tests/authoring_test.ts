@@ -68,6 +68,59 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
   assertThrows(() => rawExpression("  "), TypeError);
 });
 
+Deno.test("authored step conditions and failure policy survive task lowering", async () => {
+  const ci = pipeline("ci", {
+    output: ".github/workflows/ci.yml",
+    events: ["workflow_dispatch"],
+  }).job("test", ({ job }) =>
+    job.runsOn("ubuntu-latest")
+      .uses({
+        name: "Optional action",
+        uses: rawAction("actions/checkout@v4"),
+        continueOnError: true,
+      })
+      .run({
+        name: "Optional command",
+        run: "false",
+        continueOnError: true,
+      })
+      .task({
+        name: "Conditional task",
+        if: rawExpression("steps.source.outputs.sha != ''"),
+        continueOnError: true,
+        task: () => {},
+      }));
+
+  const lowered = await lowerConfig(
+    defineTsugiori({ pipelines: [ci] }),
+    "./tsugiori.ts",
+  );
+  const steps = lowered.pipelines[0].workflow.jobs[0].steps;
+  assertEquals(
+    steps.filter((step) =>
+      step.name?.startsWith("Optional") ||
+      step.name === "Conditional task"
+    )
+      .map((step) => ({
+        name: step.name,
+        if: step.if,
+        continueOnError: step.continueOnError,
+      })),
+    [
+      { name: "Optional action", if: undefined, continueOnError: true },
+      { name: "Optional command", if: undefined, continueOnError: true },
+      {
+        name: "Conditional task",
+        if: rawExpression("steps.source.outputs.sha != ''"),
+        continueOnError: true,
+      },
+    ],
+  );
+  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  assertEquals(yaml.match(/continue-on-error: true/g)?.length, 4);
+  assertStringIncludes(yaml, "if: '${{ steps.source.outputs.sha != '''' }}'");
+});
+
 Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
   const deploy = pipeline("deploy", {
     output: ".github/workflows/deploy.yml",
