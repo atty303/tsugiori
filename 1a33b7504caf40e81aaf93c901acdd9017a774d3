@@ -1,0 +1,82 @@
+Task: Consolidate Tsugiori documentation into live reference and future roadmap
+Anchor: 1a33b7504caf40e81aaf93c901acdd9017a774d3
+Base: 82d8e466dd24cf78b0bc6324d932f9f6b364b0c5
+Branch: main
+Commits: 1a33b7504caf40e81aaf93c901acdd9017a774d3 docs: consolidate live reference and future roadmap
+Guidance: repository AGENTS.md; dig; develop-repository; maintain-agent-guidance; design-review
+Conditions: documentation and agent guidance only; no push; signed local commit; unrelated .DS_Store left untouched
+## Evidence
+- Local checks: mise run check; mise run test (37 passed); .github generate:check; markdown link and retired-reference scans.
+- GitHub-hosted fixed-key actions/cache save observed in run 35993915667 and restore in run 36530191695; roadmap validation item removed.
+- External consumer source and workflow generation were inspected read-only; no external repository changes.
+Authority: user-approved implementation request and repository AGENTS.md
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) docsを整理。実装より古くなった記述は削除。immutable adrを廃止し、live状態と未来のroadmapだけdocsは保持
+  - A: Used dig and repository sources to identify ADR handling as the first decision.
+- U2: A
+  - A: Recorded ADR removal and asked where current documentation should live.
+- U3: A
+  - A: Recorded README, architecture, and roadmap ownership; asked roadmap granularity.
+- U4: A
+  - A: Recorded concrete unfinished tasks and future candidates; asked about completed phases.
+- U5: A
+  - A: Recorded future-only roadmap; inspected stale agent guidance and asked about design constraints.
+- U6: A
+  - A: Recorded current and future constraints; asked for common-understanding confirmation.
+- U7: A
+  - A: Produced a self-contained implementation request after confirmation.
+- U8: # 実装依頼
+    
+    ## 依頼
+    Tsugioriの文書を、現行の実装状態と将来のロードマップだけを記述する構成に整理してください。immutable ADRの運用を廃止し、古くなった記述と文書を削除してください。
+    
+    ## 目的
+    - 現在使える機能と今後の作業を、古い設計記録と混同せずに読めるようにする。
+    - 同じ状態を複数の文書で更新する負担を減らす。
+    
+    ## 成功条件
+    - `README.md` は現行の利用方法、`docs/ARCHITECTURE.md` は実装済みの構造と境界、`docs/ROADMAP.md` は未完了作業と将来候補を記述する。
+    - 実装より古い記述、完了済みのロードマップ項目、ADRファイルを除去する。
+    - 廃止した文書やADR作成を求める参照が `AGENTS.md` と `.agents/skills/design-review/SKILL.md` を含めて残っていない。
+    - 現行状態の記述がコード、テスト、設定と一致し、ローカル検証とGitHub-hosted runnerでの検証を混同しない。
+    - 文書内のリンクと参照が有効で、変更差分に文書・エージェント向けガイダンス以外の変更がない。
+    
+    ## 決定事項
+    - ADRを廃止し、`docs/DECISIONS/` を削除する。現行の仕様や制約だけをlive文書へ移し、判断の経緯はGit履歴でたどる。
+      - 理由: 過去の判断と現在の仕様が並存する状態をなくすため。
+      - 主な棄却案: ADRを更新可能な判断文書に作り替える案。現行状態の記述先が増えるため。
+    - 現行仕様は `README.md` と `docs/ARCHITECTURE.md`、将来の作業は `docs/ROADMAP.md` に集約する。
+      - 理由: 利用方法、内部構造、未完了作業の更新先をそれぞれ一つにするため。
+      - 主な棄却案: 現行仕様をすべてREADMEへ集約する案。利用方法と内部構造が一文書に集中するため。
+    - `docs/TASKS.md` の未完了項目は `docs/ROADMAP.md` に統合し、確定した予定と検討候補を区別する。完了済みフェーズとチェック済み項目は残さない。
+      - 理由: 既知の未完了作業を失わず、ロードマップを将来の内容だけにするため。
+      - 主な棄却案: 大まかな方向だけを残す案と、完了履歴を残す案。前者は具体的な未完了作業を失い、後者は現行状態の記述と重複するため。
+    - 現行実装に適用される設計境界は `docs/ARCHITECTURE.md` に、将来の実装を制約する方針は `docs/ROADMAP.md` と必要最小限の `AGENTS.md` に残す。
+      - 理由: 古い概念文書を削除しても、合意済みの重要な境界を失わないため。
+      - 主な棄却案: 未実装の設計制約をすべて削除する案。今後の変更で既存の方針が失われるため。
+    
+    ## 制約
+    - この依頼は文書とエージェント向けガイダンスの整理に限定する。ソースコード、依存関係、生成済みworkflow、CI設定は変更しない。
+    - GitHub Actionsをオーケストレーションの主体とし、通常のjob・stepが見えるという境界を維持する。
+    - 既存の利用者変更を保持する。push、PR作成、release、deployは行わない。
+    
+    ## 対象外
+    - 新機能の実装。
+    - ADRの別形式での履歴保存。
+    - 完了済み作業の年表や回顧録の作成。
+    
+    ## 未検証の前提
+    - READMEと既存docsに書かれたAPI、実行手順、実装状況が現行コード・テスト・設定と一致するか。
+    - `docs/TASKS.md` と既存ADRにある各項目のうち、未完了作業または現行の制約として残すべきものが何か。
+    - 固定キーの`actions/cache` post-action経路について、GitHub-hosted runnerでの検証状況が現在も変わっていないか。
+    
+    ## 実装時の指示
+    - 削除対象の文書から、現行仕様と未完了作業だけを対応する保持先へ移してから削除する。
+    - `AGENTS.md` と `.agents/skills/design-review/SKILL.md` の文書参照、ADR更新規則、古い実装状態を新構成に合わせる。
+    - READMEのロゴに使う `docs/assets/` は保持する。
+    - 文書のリンク・参照を検索し、差分を確認する。検証結果と、対象環境で未確認の事項を最終報告に記す。
+  - A: Read development and guidance skills; inspected source and docs; rewrote current references and removed historical files; local checks passed.
+- U9: glaze-opsに実利用がある
+  - A: Checked the external consumer and GitHub-hosted runs; added commit-pinned external usage, removed the obsolete cache-validation item, verified 37 tests and generation, staged docs only; signing failed twice and work was preserved.
+- U10: commit
+  - A: Retried with configured SSH signing and created the local documentation commit; verified the staged scope and prepared task evidence.
