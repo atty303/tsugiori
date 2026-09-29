@@ -2,21 +2,14 @@ Task: Enable Tsugiori step metadata needed by glaze-ops complete notification
 Anchor: 6420298be29fe703e681a4c36ec837bb04149c34
 Base: 0a36eef64f52088de3dc3cd9a934c3689b008601
 Branch: main
-Commits: 6420298be29fe703e681a4c36ec837bb04149c34 adds task if and step continueOnError authoring support
+Commits: Tsugiori 6420298be29fe703e681a4c36ec837bb04149c34; glaze-ops 388a2d2018b39cd9fc571373e3c1a37fd128c9ec
 Guidance: AGENTS.md; develop-repository; design-program-observability; review
-Conditions: Local signed commit; no deploy or cloud mutation; explicit user approval to push Tsugiori main
+Conditions: Signed Tsugiori commit and notes pushed to origin/main; glaze-ops local commit only; no deploy or cloud mutation
 ## Evidence
 mise run check passed; mise run test passed 37 tests; independent review found no actionable findings.
 Authority: Current user request, Tsugiori AGENTS.md, repository source, and applicable development skills
 ## Transcript
-- U1: <send_user_message_question_reply>
-    [{"questionItemId":"[\"request_user_input_async\",\"call_vkNKOZlA4ztQpjks02uXkcU9\",0]","question":"glaze-ops が修正済み Tsugiori をフル SHA で参照するには、ローカル commit `6420298` を `atty303/tsugiori` の `main` に push する必要があります。提示された AGENTS.md は push に明示的な依頼・承認を求めています。この commit の push を承認しますか？","answer":"承認する"}]
-    </send_user_message_question_reply>
-  - A: Inspected glaze-ops and began the requested complete implementation; found the pinned Tsugiori authoring API dropped required step metadata.
-- U2: 必要なtsugiori側の修正も加えて
-    
-  - A: Implemented and independently reviewed Tsugiori step metadata forwarding, documented it, ran mise run check and mise run test (37 passed), and created signed local commit 6420298.
-- U3: # 実装依頼
+- U1: # 実装依頼
     
     ## 依頼
     `/Users/a13400/src/CyberAgentAI/glaze-ops` の `.github/tsugiori.ts` にある `complete` を完成させ、生成物 `.github/workflows/deploy-tsugiori.yml` を更新してください。CUSTOM_SYNC の結果を、既存の glaze 側 deployment protection rule に通知してください。
@@ -71,4 +64,11 @@ Authority: Current user request, Tsugiori AGENTS.md, repository source, and appl
     - detect が失敗しても、可能な場合は指定コミットから `Glaze-source-sha` を取得して拒否通知を試みる。source SHA を確認できない場合はその理由を記録する。
     - 通知先ゼロ件、トレーラー欠落、API 失敗、CUSTOM_SYNC とログ処理の成否の組み合わせを検証する。
     
-  - A: Recorded explicit authorization to push Tsugiori main; no remote write had occurred at this checkpoint.
+  - A: Inspected the existing glaze receiver and manual Tsugiori workflow, implemented source-SHA resolution and deployment-protection notification, and found that the pinned Tsugiori API dropped needed step metadata.
+- U2: 必要なtsugiori側の修正も加えて
+    
+  - A: Fixed and independently reviewed Tsugiori authoring of task if and step continueOnError; its 37 tests passed and signed commit 6420298 was created.
+- U3: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_vkNKOZlA4ztQpjks02uXkcU9\",0]","question":"glaze-ops が修正済み Tsugiori をフル SHA で参照するには、ローカル commit `6420298` を `atty303/tsugiori` の `main` に push する必要があります。提示された AGENTS.md は push に明示的な依頼・承認を求めています。この commit の push を承認しますか？","answer":"承認する"}]
+    </send_user_message_question_reply>
+  - A: Received explicit approval; pushed Tsugiori main and its task note, pinned the published SHA in glaze-ops, passed 19 tests and generation/type/lint checks, resolved two independent-review findings, and created local signed glaze-ops commit 388a2d2. No live deployment or glaze-ops push occurred.
