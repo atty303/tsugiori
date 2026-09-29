@@ -176,6 +176,8 @@ strings, are accepted as literal operands to AST methods. An expression field
 requires an AST or `rawExpression()` and never interprets an ordinary string
 as an expression. `fromJSON()` starts with an unknown result type; `.as<T>()`
 asserts the expected shape for type checking and does not validate the runtime
-JSON. GitHub Actions performs the actual comparison, truthiness, and logical
-operator evaluation. `defineTask()` output values are strings, and a task may
+JSON. `.and()` retains the falsy branch of its left operand in the result type,
+while `.or()` retains the truthy branch; GitHub Actions performs the actual
+comparison, truthiness, and logical operator evaluation. `defineTask()` output
+values are strings, and a task may
 omit any declared output.

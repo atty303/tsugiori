@@ -10,6 +10,20 @@ export type RawExpression = string & {
 export type ExpressionInput<T = unknown> = Expression<T> | RawExpression;
 export type Operand<T = unknown> = Expression<T> | T;
 
+// GitHub's && returns its left operand when falsy; || returns it when truthy.
+type FalsyPart<T> = unknown extends T ? unknown
+  :
+    | (false extends T ? false : never)
+    | ("" extends T ? "" : never)
+    | (number extends T ? number : 0 extends T ? 0 : never)
+    | (null extends T ? null : never)
+    | (undefined extends T ? undefined : never);
+type TruthyPart<T> = unknown extends T ? unknown
+  : T extends null | undefined ? never
+  : T extends boolean ? true extends T ? true : never
+  : T extends "" | 0 ? never
+  : T;
+
 type Node =
   | Readonly<{ kind: "literal"; value: string | number | boolean | null }>
   | Readonly<{ kind: "path"; value: string }>
@@ -44,10 +58,10 @@ export class Expression<T = unknown> {
   ge(value: Operand<unknown>): Expression<boolean> {
     return binary(this, ">=", value);
   }
-  and<U>(value: Operand<U>): Expression<T | U> {
+  and<U>(value: Operand<U>): Expression<FalsyPart<T> | U> {
     return binary(this, "&&", value);
   }
-  or<U>(value: Operand<U>): Expression<T | U> {
+  or<U>(value: Operand<U>): Expression<TruthyPart<T> | U> {
     return binary(this, "||", value);
   }
   not(): Expression<boolean> {

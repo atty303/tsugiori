@@ -3,6 +3,7 @@ import {
   defineAction,
   defineTask,
   defineTsugiori,
+  type Expression,
   fromJSON,
   pipeline,
   rawNode,
@@ -28,6 +29,24 @@ function assertContracts(): void {
     inputs: { stage: actionInput.string({ required: true }) },
     outputs: ["name"],
   });
+  pipeline("logic", {
+    output: ".github/workflows/logic.yml",
+    events: ["push", "workflow_dispatch"],
+  }).job("test", ({ job }) =>
+    job.runsOn("ubuntu-latest").uses({
+      name: "Conditional action input",
+      uses: ({ github, inputs }) => {
+        const primary = github.event_name.eq("push").and(github.sha);
+        const maybePrimary: Expression<false | string> = primary;
+        const chosen: Expression<string> = primary.or(inputs.commit);
+        void maybePrimary;
+        return deploy({ stage: chosen });
+      },
+    }));
+  const broad = rawNode<NonNullable<unknown>>("false").and("run");
+  // @ts-expect-error a non-nullish value can be falsy, so && may not return a string
+  const impossible: Expression<string> = broad;
+  void impossible;
   const task = defineTask({
     outputs: ["matrix"],
     run: async ({ outputs }) => {
