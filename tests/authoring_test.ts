@@ -123,7 +123,7 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
   );
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
   assertEquals(yaml.match(/continue-on-error: true/g)?.length, 4);
-  assertStringIncludes(yaml, "if: '${{ steps.source.outputs.sha != '''' }}'");
+  assertStringIncludes(yaml, "if: \"${{ steps.source.outputs.sha != '' }}\"");
 });
 
 Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
@@ -208,7 +208,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "key: 'tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}'",
+    'key: "tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}"',
   );
   assertEquals(yaml.match(/uses: actions\/cache@/g)?.length, 1);
   assert(!yaml.includes("actions/cache/restore@"));
@@ -574,7 +574,7 @@ Deno.test("direct config preserves task step ID and environment", async () => {
     const lowered = await lowerConfig(loaded.config, loaded.argument);
     const yaml = emitWorkflow(lowered.pipelines[0].workflow);
     assertStringIncludes(yaml, "id: plan");
-    assertStringIncludes(yaml, "TOKEN: '${{ secrets.TOKEN }}'");
+    assertStringIncludes(yaml, 'TOKEN: "${{ secrets.TOKEN }}"');
     assertStringIncludes(
       yaml,
       "run: |-\n          ./.tsugiori/task-runtime ci/test/task-1",

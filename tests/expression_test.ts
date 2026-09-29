@@ -21,6 +21,7 @@ import {
 } from "@atty303/tsugiori/github-actions";
 import { lowerConfig } from "../packages/compiler/src/authoring.ts";
 import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
+import { parse } from "../packages/core/src/deps.ts";
 import { emitExpression } from "../packages/core/src/github_actions/expression.ts";
 
 Deno.test("typed expressions compose across job and step fields", async () => {
@@ -96,20 +97,25 @@ Deno.test("typed expressions compose across job and step fields", async () => {
   });
   const lowered = await lowerConfig(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
-  assertStringIncludes(yaml, "contains(needs.prepare.outputs.matrix, ''dev'')");
+  assertStringIncludes(yaml, "contains(needs.prepare.outputs.matrix, 'dev')");
   assertStringIncludes(yaml, "fromJSON(needs.prepare.outputs.matrix)");
-  assertStringIncludes(yaml, "format(''deploy-{0}'', matrix.stage)");
+  assertStringIncludes(yaml, "format('deploy-{0}', matrix.stage)");
   assertStringIncludes(
     yaml,
-    "(steps.run.outputs.result == ''ok'') && custom()",
+    "(steps.run.outputs.result == 'ok') && custom()",
   );
   assertStringIncludes(
     yaml,
-    "case((steps.run.outputs.result == ''ok''), steps.run.outputs.result, ''other'')",
+    "case((steps.run.outputs.result == 'ok'), steps.run.outputs.result, 'other')",
   );
-  assertStringIncludes(yaml, "value: '${{ matrix.stage }}'");
-  assertStringIncludes(yaml, "STAGE: '${{ matrix.stage }}'");
-  assertStringIncludes(yaml, "TOKEN: '${{ secrets.token }}'");
+  assertStringIncludes(yaml, 'value: "${{ matrix.stage }}"');
+  assertStringIncludes(yaml, 'STAGE: "${{ matrix.stage }}"');
+  assertStringIncludes(yaml, 'TOKEN: "${{ secrets.token }}"');
+  const parsed = parse(yaml) as { jobs: { deploy: { if: string } } };
+  assertEquals(
+    parsed.jobs.deploy.if,
+    "${{ contains(needs.prepare.outputs.matrix, 'dev') }}",
+  );
   assertEquals(lowered.pipelines[0].workflow.jobs[1].needs, ["prepare"]);
 });
 
@@ -201,5 +207,15 @@ Deno.test("a complete matrix can come from one typed expression", async () => {
   });
   const lowered = await lowerConfig(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
-  assertStringIncludes(yaml, "matrix: '${{ fromJSON(''[{");
+  assertStringIncludes(
+    yaml,
+    'matrix: "${{ fromJSON(\'[{\\"stage\\":\\"dev\\"}]\') }}"',
+  );
+  const parsed = parse(yaml) as {
+    jobs: { test: { strategy: { matrix: string } } };
+  };
+  assertEquals(
+    parsed.jobs.test.strategy.matrix,
+    '${{ fromJSON(\'[{"stage":"dev"}]\') }}',
+  );
 });

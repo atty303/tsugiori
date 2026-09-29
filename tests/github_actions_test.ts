@@ -121,7 +121,7 @@ Deno.test("run blocks and separators preserve command values", () => {
   );
   assertStringIncludes(yaml, "uses: actions/checkout@v6\n\n      - run: |-");
   assertStringIncludes(yaml, "echo keep\n\n      - uses: actions/cache@v4");
-  assertStringIncludes(yaml, "\n\n  'true':\n");
+  assertStringIncludes(yaml, '\n\n  "true":\n');
 });
 
 Deno.test("emits job scoped OIDC permission", () => {

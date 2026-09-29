@@ -53,6 +53,7 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
     {
       compatMode: false,
       lineWidth: -1,
+      quoteStyle: '"',
       schema: "core",
       sortKeys: false,
       useAnchors: false,
