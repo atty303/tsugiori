@@ -20,17 +20,20 @@ step model and no second delivery backend.
 ## Package and authoring
 
 The root `deno.json` defines one Deno package with root, `github-actions`,
-`task`, and `run` exports. The GitHub Actions authoring API uses immutable
-facades: job methods become available as the definition advances, and only a
-pipeline with a completed, non-empty job can reach `defineTsugiori()`. Jobs are
-authored in dependency order, so a new job can reference already completed
+`task`, and `run` exports. The root re-exports the full GitHub Actions API and
+`runTsugiori()`; the subpath exports remain available. The authoring API uses
+immutable facades: job methods become available as the definition advances, and
+only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
+Jobs are authored in dependency order, so a new job can reference completed
 jobs. Typed action contracts bind a pinned `uses` value to declared inputs and
 outputs; `rawAction()` is the explicit path for an unregistered action.
 
 Authoring and task execution share a config file. The file exports a config
 object and calls `runTsugiori()` under `import.meta.main`, passing that object,
 its URL, and the repository root. The Deno project containing that file owns
-import resolution and its lockfile. The runner consumes the object in-process;
+import resolution and its lockfile. External projects can map the root to one
+commit-pinned source URL; the YAML dependency uses a direct `jsr:` specifier in
+the package source. The runner consumes the object in-process;
 it does not load it again or parse the project's Deno configuration. Top-level
 code constructs the workflow definition; task callbacks run only through the
 prepared task artifact.

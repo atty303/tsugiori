@@ -1,6 +1,6 @@
 {
   "imports": {
-    "@atty303/tsugiori": "workspace:*"
+    "@atty303/tsugiori": "../packages/core/src/mod.ts"
   },
   "tasks": {
     "generate": "deno run --frozen=true -A ./tsugiori.ts generate",

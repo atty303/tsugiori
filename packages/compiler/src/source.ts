@@ -1,4 +1,4 @@
-import type { TsugioriConfig } from "../../core/src/mod.ts";
+import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 

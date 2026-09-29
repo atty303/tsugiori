@@ -1,10 +1,10 @@
-import { runTsugiori } from "@atty303/tsugiori/run";
 import {
   actionInput,
   defineAction,
   defineTsugiori,
   pipeline,
-} from "@atty303/tsugiori/github-actions";
+  runTsugiori,
+} from "@atty303/tsugiori";
 
 const checkout = defineAction({
   uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",

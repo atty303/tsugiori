@@ -24,7 +24,8 @@ provider backends are not implemented.
 The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for
 [.github/workflows/ci.yml](.github/workflows/ci.yml). Its Deno project is
 [.github/deno.json](.github/deno.json), which imports this repository's
-workspace package. From `.github`, generate and commit the resulting YAML:
+root entrypoint through a local import mapping. From `.github`, generate and
+commit the resulting YAML:
 
 ```sh
 deno task generate
@@ -43,12 +44,11 @@ runs the check task before its task-backed test step.
 
 ## Author a workflow
 
-An authoring file imports the GitHub Actions API and runner from the same Deno
-package. It exports the config and calls `runTsugiori()` when executed:
+An authoring file imports the GitHub Actions API and runner from the package
+root. It exports the config and calls `runTsugiori()` when executed:
 
 ```ts
-import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
-import { runTsugiori } from "@atty303/tsugiori/run";
+import { defineTsugiori, pipeline, runTsugiori } from "@atty303/tsugiori";
 
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -87,15 +87,13 @@ authoring code should construct deterministic definitions; task work belongs
 inside `.task()` callbacks.
 
 An external repository can use the same config entrypoint without a workspace
-package. Its workflow project's `deno.json` can map the authoring API and
-runner directly to one published Tsugiori commit:
+package. Its workflow project's `deno.json` maps the package root to one
+Tsugiori commit:
 
 ```json
 {
   "imports": {
-    "@std/yaml": "jsr:@std/yaml@^1.2.0",
-    "@atty303/tsugiori/github-actions": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/core/src/github_actions/mod.ts",
-    "@atty303/tsugiori/run": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/runner/src/main.ts"
+    "@atty303/tsugiori": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/core/src/mod.ts"
   },
   "tasks": {
     "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
@@ -104,7 +102,7 @@ runner directly to one published Tsugiori commit:
 }
 ```
 
-Use the same full SHA in both URLs and commit the workflow project's Deno
+Use a full commit SHA and commit the workflow project's Deno
 lockfile. Changes to remote source are outside the automatic artifact key;
 increase `cacheVersion` when updating the pin changes the task binary.
 
@@ -134,7 +132,7 @@ step IDs; dependent jobs see only declared outputs from their dependencies.
 ```ts
 import {
   defineTask, fromJSON, pipeline, rawNode,
-} from "@atty303/tsugiori/github-actions";
+} from "@atty303/tsugiori";
 
 const prepare = defineTask({
   outputs: ["matrix"],

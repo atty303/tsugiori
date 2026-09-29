@@ -1,4 +1,4 @@
-import { parse, stringify } from "@std/yaml";
+import { parse, stringify } from "../../../core/src/deps.ts";
 import type {
   ActionInputs,
   Job,

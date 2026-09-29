@@ -568,15 +568,31 @@ Deno.test({
     let remoteSource = 'export const remoteMarker = "first";\n';
     const server = Deno.serve(
       { hostname: "127.0.0.1", port: 0, onListen: () => {} },
-      () =>
-        new Response(remoteSource, {
-          headers: { "content-type": "application/typescript" },
-        }),
+      async (request) => {
+        const pathname = new URL(request.url).pathname;
+        if (pathname === "/dependency.ts") {
+          return new Response(remoteSource, {
+            headers: { "content-type": "application/typescript" },
+          });
+        }
+        if (pathname !== "/deno.json" && !pathname.startsWith("/packages/")) {
+          return new Response("Not found", { status: 404 });
+        }
+        return new Response(
+          await Deno.readFile(resolve(repositoryRoot, `.${pathname}`)),
+          {
+            headers: {
+              "content-type": pathname === "/deno.json"
+                ? "application/json"
+                : "application/typescript",
+            },
+          },
+        );
+      },
     );
     try {
-      const coreModule = pathToFileURL(
-        resolve(repositoryRoot, "packages/core/src/github_actions/mod.ts"),
-      ).href;
+      const rootModule =
+        `http://127.0.0.1:${server.addr.port}/packages/core/src/mod.ts`;
       const externalModule = resolve(external, "dependency.ts");
       const externalUrl = pathToFileURL(externalModule).href;
       const remoteUrl = `http://127.0.0.1:${server.addr.port}/dependency.ts`;
@@ -587,11 +603,7 @@ Deno.test({
             {
               lock: false,
               imports: {
-                "@atty303/tsugiori/github-actions": coreModule,
-                "@atty303/tsugiori/run": pathToFileURL(
-                  resolve(repositoryRoot, "packages/runner/src/main.ts"),
-                ).href,
-                "@std/yaml": "jsr:@std/yaml@^1.2.0",
+                "@atty303/tsugiori": rootModule,
               },
             },
             null,
@@ -604,8 +616,7 @@ Deno.test({
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
       const configSource =
-        `import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
-import { runTsugiori } from "@atty303/tsugiori/run";
+        `import { defineTsugiori, pipeline, runTsugiori } from "@atty303/tsugiori";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;

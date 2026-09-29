@@ -9,8 +9,7 @@
     "./run": "./packages/runner/src/main.ts"
   },
   "imports": {
-    "@std/assert": "jsr:@std/assert@^1.0.19",
-    "@std/yaml": "jsr:@std/yaml@^1.2.0"
+    "@std/assert": "jsr:@std/assert@^1.0.19"
   },
   "tasks": {
     "test": "deno test -A",

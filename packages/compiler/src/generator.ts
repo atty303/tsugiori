@@ -1,4 +1,4 @@
-import type { TsugioriConfig } from "../../core/src/mod.ts";
+import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
 import { lowerConfig } from "./authoring.ts";
 import { emitWorkflow } from "./github_actions/emitter.ts";
 

@@ -4,7 +4,7 @@ import {
   assertStringIncludes,
   assertThrows,
 } from "@std/assert";
-import { parse } from "@std/yaml";
+import { parse } from "../packages/core/src/deps.ts";
 import {
   emitWorkflow,
   validateWorkflow,

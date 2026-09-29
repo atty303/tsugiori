@@ -1,7 +1,8 @@
 import { generateFiles } from "../../compiler/src/generator.ts";
 import { checkGeneratedFiles } from "../../compiler/src/check.ts";
 import { configSource } from "../../compiler/src/source.ts";
-import type { TaskFunction, TsugioriConfig } from "../../core/src/mod.ts";
+import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
+import type { TaskFunction } from "../../core/src/task/mod.ts";
 import { writeGeneratedFiles } from "../../compiler/src/write.ts";
 import { TaskRuntimeError } from "../../task-runtime/src/artifact.ts";
 import {
