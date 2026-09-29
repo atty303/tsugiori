@@ -1,0 +1,17 @@
+Task: Push Tsugiori and migrate glaze-ops master to typed expression DSL
+Anchor: e24e1ad3e6a993f0563ec320cf1fabc5c83b5900
+Base: 8745feb0d54af8f3fd01d92b060c201b23f7a510
+Branch: main
+Commits: e24e1ad3e6a993f0563ec320cf1fabc5c83b5900 refine logical expression result types
+Guidance: user supplied Tsugiori AGENTS.md; develop-repository; investigate-problem; review; existing Tsugiori source and tests
+Conditions: Tsugiori code and notes pushed first; glaze-ops master migration remains in progress; no glaze-ops push or deploy was requested; Git metadata writes required sandbox escalation
+Authority: latest user messages, Tsugiori source and tests, GitHub Actions expression semantics
+## Transcript
+- U1: pushしてから、今回の成果を使うようにglaze-opsを修正する。masterのうえでそのままcommitする
+  - A: Tsugiori の既存 commit と notes を origin/main へ push した。glaze-ops master が origin/master と一致し、作業ツリーがクリーンなことを確認して typed DSL、typed action、declared task outputs への移行を開始した。
+- U2: > `&&`・`||` の戻り値は GitHub の規則上は複数型になり得るため
+    
+    これはtsugiori側のexpressionの不足では？
+  - A: glaze-ops の型検査で checkout ref に Expression<string | boolean> が残る反例を確認した。Tsugiori の .and()/.or() の結果型不足として切り分けた。
+- U3: いや、typed dslは推移的に型が推論できるはずで、typed経路なら明示キャストはいらないはず。tsugioriがそうなっていないなら不足だ
+  - A: typed 経路で明示キャスト不要とする要求に沿い、Tsugiori で偽値・真値の分岐を型に反映した。{} の反例を独立レビューで修正し、45件のテストと check と generated stale check が成功。local commit e24e1ad を作成した。
