@@ -1,0 +1,74 @@
+Task: Enable Tsugiori step metadata needed by glaze-ops complete notification
+Anchor: 6420298be29fe703e681a4c36ec837bb04149c34
+Base: 0a36eef64f52088de3dc3cd9a934c3689b008601
+Branch: main
+Commits: 6420298be29fe703e681a4c36ec837bb04149c34 adds task if and step continueOnError authoring support
+Guidance: AGENTS.md; develop-repository; design-program-observability; review
+Conditions: Local signed commit; no deploy or cloud mutation; explicit user approval to push Tsugiori main
+## Evidence
+mise run check passed; mise run test passed 37 tests; independent review found no actionable findings.
+Authority: Current user request, Tsugiori AGENTS.md, repository source, and applicable development skills
+## Transcript
+- U1: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_vkNKOZlA4ztQpjks02uXkcU9\",0]","question":"glaze-ops が修正済み Tsugiori をフル SHA で参照するには、ローカル commit `6420298` を `atty303/tsugiori` の `main` に push する必要があります。提示された AGENTS.md は push に明示的な依頼・承認を求めています。この commit の push を承認しますか？","answer":"承認する"}]
+    </send_user_message_question_reply>
+  - A: Inspected glaze-ops and began the requested complete implementation; found the pinned Tsugiori authoring API dropped required step metadata.
+- U2: 必要なtsugiori側の修正も加えて
+    
+  - A: Implemented and independently reviewed Tsugiori step metadata forwarding, documented it, ran mise run check and mise run test (37 passed), and created signed local commit 6420298.
+- U3: # 実装依頼
+    
+    ## 依頼
+    `/Users/a13400/src/CyberAgentAI/glaze-ops` の `.github/tsugiori.ts` にある `complete` を完成させ、生成物 `.github/workflows/deploy-tsugiori.yml` を更新してください。CUSTOM_SYNC の結果を、既存の glaze 側 deployment protection rule に通知してください。
+    
+    ## 目的
+    - glaze 側の承認待ちを、デプロイ成功時は承認、失敗時は拒否で解放する。
+    
+    ## 成功条件
+    - 対応する `Glaze-source-sha` と待機中の deployment がある場合、CUSTOM_SYNC 成功で `approved`、失敗または未実行で `rejected` が送られる。
+    - detect 失敗または対象アプリなしでも、対応する source SHA を確認できれば `rejected` を試みる。
+    - CUSTOM_SYNC 成功後のログ表示・後片付けだけが失敗した場合は `approved` を送る。
+    - `rejected` の送信に成功した `complete` ジョブは成功する。通知 API の失敗時は `complete` が失敗する。
+    - 対応する承認待ちがゼロ件なら、再確認せず警告を残して `complete` は成功する。
+    - `Glaze-source-sha` がない場合は理由をログに残して通知を省略し、`complete` は成功する。
+    - 生成 workflow と関連する検証が通る。
+    
+    ## 決定事項
+    - 既存の glaze 側の受け取り方を維持する。glaze-ops の旧 `.github/workflows/deploy.yml` と同じく、source SHA に対応する待機中の `glaze-ops` deployment protection rule に `approved` または `rejected` を送る。
+      - 理由: glaze 側の型・workflow を変更せず連携するため。
+      - 主な棄却案: glaze 側の受け取り方を変更する案。既存契約を変えるため。
+    - 承認・拒否は CUSTOM_SYNC の成否を基準にする。実行前の失敗や対象アプリなしは拒否し、成功後のログ処理だけの失敗は承認する。
+      - 理由: glaze が待つデプロイ結果を正しく伝えるため。
+      - 主な棄却案: `deploy-apps` ジョブ全体の結果だけで判定する案。ログ処理の失敗をデプロイ失敗と誤認するため。
+    - 通知先ゼロ件は警告して正常終了する。
+      - 理由: 存在しない通知先に対して `complete` を失敗させても通知できないため。
+      - 主な棄却案: ゼロ件を失敗扱いにする案。
+    - 通知 API の失敗は `complete` の失敗とし、拒否の送信成功は `complete` の成功とする。
+      - 理由: デプロイ結果と通知結果をジョブ上で区別するため。
+      - 主な棄却案: 通知失敗を警告だけで済ませる案、拒否を送れた `complete` も失敗させる案。
+    - source SHA のない手動デプロイでは通知を省略する。
+      - 理由: glaze 由来でないコミットも指定できる現行の手動実行を維持するため。
+      - 主な棄却案: トレーラー欠落を `complete` の失敗とする案。
+    
+    ## 制約
+    - glaze リポジトリの受け取り型・workflow を変更しない。
+    - deploy の実行、push trigger の有効化、cloud resource の変更は行わない。
+    - 権限不足を解消するために identity、credential、role、policy、scope を拡張しない。
+    - 既存の手動 `workflow_dispatch` と `commit` 入力を維持する。
+    
+    ## 対象外
+    - PipeCD や旧 push workflow の切り替え。
+    - glaze 側の変更。
+    - 実環境へのデプロイ実行。
+    
+    ## 未検証の前提
+    - 現行の GitHub App 設定で、旧 workflow と同じ deployment protection rule API を呼べる。
+    - Tsugiori の現行 API で、CUSTOM_SYNC の結果と後続ログ処理の結果を区別して `complete` に渡せる。
+    
+    ## 実装時の指示
+    - `.github/tsugiori.ts` をソースとして編集し、生成 workflow を再生成する。
+    - 旧 `.github/workflows/deploy.yml` の通知先検索と API 呼び出しを確認し、対応する待機中の run を通知する。
+    - detect が失敗しても、可能な場合は指定コミットから `Glaze-source-sha` を取得して拒否通知を試みる。source SHA を確認できない場合はその理由を記録する。
+    - 通知先ゼロ件、トレーラー欠落、API 失敗、CUSTOM_SYNC とログ処理の成否の組み合わせを検証する。
+    
+  - A: Recorded explicit authorization to push Tsugiori main; no remote write had occurred at this checkpoint.
