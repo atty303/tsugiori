@@ -1,0 +1,97 @@
+Task: Implement Tsugiori root umbrella import
+Anchor: 875d5301b6c6d4ac8fd52c881324e8179eca4aa5
+Base: e24e1ad3e6a993f0563ec320cf1fabc5c83b5900
+Branch: main
+Commits: 875d5301b6c6d4ac8fd52c881324e8179eca4aa5 feat: expose Tsugiori umbrella entrypoint
+Guidance: user AGENTS.md; develop-repository; design-review; design-program-observability applicability; review
+Conditions: local durable change; no publish, release, push, or PR; unrelated .DS_Store untouched
+## Evidence
+- Deno one-mapping direct-jsr probe passed before implementation.
+- HTTP-served source fixture with one root mapping and no YAML mapping passed.
+- mise run check and mise run test passed, 45 tests total; generated workflow check passed.
+- Independent review of exact diff and shared dependency module found no actionable issues.
+Authority: current user request, repository source, AGENTS.md, and applicable skills
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) 個別packageをimportせずに手軽に利用できるアンブレラは作れる？
+    
+  - A: Investigated the current package exports, dependency mapping, external usage, and design choices with the dig skill.
+- U2: A
+    
+  - A: Selected a single root import covering authoring and execution.
+- U3: B
+    
+  - A: Selected one Tsugiori import mapping in the consumer project.
+- U4: AA
+    
+  - A: Interpreted AA as the commit-SHA-pinned GitHub source option and stated that interpretation.
+- U5: A
+    
+  - A: Selected full GitHub Actions API re-export from the root.
+- U6: Bの具体案は？
+    
+  - A: Explained the optional define-and-run helper and its larger CLI alternative.
+- U7: A
+    
+  - A: Selected the existing explicit runTsugiori call without a helper.
+- U8: A
+    
+  - A: Selected an exact YAML dependency version.
+- U9: A
+    
+  - A: Selected root imports for README and repository workflow config while preserving subpaths.
+- U10: ソースにlibrary versionを直書きするとこは宣言を1つにまとめて
+    
+  - A: Confirmed one human-maintained YAML version declaration in a shared source module.
+- U11: A
+    
+  - A: Confirmed the amended design and produced the implementation request.
+- U12: # 実装依頼
+    
+    ## 依頼
+    Tsugiori のルート export をアンブレラとして整備し、設定ファイルから一度の import で利用できるようにしてください。
+    
+    ## 目的
+    - 利用者が個別のサブパスを意識せず、GitHub Actions の設定と実行に必要な公開 API を使えるようにする。
+    - 外部リポジトリの `deno.json` では、commit SHA で固定した Tsugiori の import を一項目指定するだけで依存を解決できるようにする。
+    
+    ## 成功条件
+    - ルートから `github-actions` の公開 API 全体と `runTsugiori` を import できる。
+    - 外部利用の例と検証用 fixture が、Tsugiori のルートへの一項目の import mapping で動く。`@std/yaml` の mapping を利用者に要求しない。
+    - `@std/yaml` の正確な version の、人が編集する宣言が一か所だけにある。
+    - README と `.github/tsugiori.ts` がルート import を使い、既存のサブパスも引き続き使える。
+    - リポジトリの check と test が通る。
+    
+    ## 決定事項
+    - ルートで `github-actions` の公開 API 全体と `runTsugiori` を提供する。
+      - 理由: アンブレラの範囲を明確にし、公開 API の列挙を二重管理しないため。
+      - 主な棄却案: 一部の関数と型だけをルートに列挙する案。利用時にサブパスの知識が残る。
+    - 外部利用では、現行の GitHub ソースを commit SHA で固定する。
+      - 理由: 一項目の import mapping を実現しつつ、既存の配布方法を維持するため。
+      - 主な棄却案: JSR package の公開。新しい release 運用が必要になる。
+    - `@std/yaml` の正確な version を、公開ソースから到達できる共通の依存 module 一か所で宣言する。コンパイラとテストはそこを参照し、`deno.json` や利用例に同じ version を重複宣言しない。生成される lockfile の解決結果は重複宣言と扱わない。
+      - 理由: 外部利用者の import mapping を一項目にし、version の編集箇所も一つにするため。
+      - 主な棄却案: コンパイラの import 文、`deno.json`、利用例にそれぞれ version を記載する案。更新時に値がずれる。
+    - config の default export と、直接実行時の明示的な `runTsugiori()` 呼び出しを維持する。README とリポジトリ自身の設定ファイルではルート import を標準例にする。
+      - 理由: import の負担を解消しながら、現在の実行契約を維持するため。
+      - 主な棄却案: 定義と実行を兼ねる新しい補助 API。今回の目的に対して公開 API と変更範囲が増える。
+    
+    ## 制約
+    - 既存の `github-actions`、`task`、`run` サブパスの互換性を維持する。
+    - GitHub Actions backend と task artifact の実行方式を変えない。
+    - 外部の commit SHA を更新して task binary の入力が変わる場合の `cacheVersion` の扱いを、利用例で正しく説明する。
+    - publish、release、push、PR 作成は行わない。
+    
+    ## 対象外
+    - JSR への公開。
+    - 新しい CLI 起動方式や、設定の定義と実行を兼ねる補助 API。
+    - GitHub Actions workflow の機能追加。
+    
+    ## 未検証の前提
+    - commit SHA で固定した GitHub のソースをルートに mapping した際、ソース内の正確な `jsr:` 依存が、利用者側の追加 mapping なしで解決されること。実装前に Deno の挙動を確認する。
+    
+    ## 実装時の指示
+    - README の外部利用例と、該当する検証用 fixture から `@std/yaml` の mapping を除く。
+    - 一項目の mapping での解決を、ローカルの対象相当 fixture で検証する。未公開の commit SHA が GitHub 上で動いたとは主張しない。
+    - 生成 workflow に変更が必要な場合は、設定ソースから再生成する。
+    
+  - A: Implemented root exports and shared dependency module, updated consumer examples and HTTP fixture, verified Deno resolution, check, 45 tests, and generated workflow; independent review found no findings; committed locally without push.
