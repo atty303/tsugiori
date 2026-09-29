@@ -1,0 +1,148 @@
+Task: Implement typed GitHub Actions expression AST DSL in Tsugiori
+Anchor: 8745feb0d54af8f3fd01d92b060c201b23f7a510
+Base: 1a33b7504caf40e81aaf93c901acdd9017a774d3
+Branch: main
+Commits: 8745feb0d54af8f3fd01d92b060c201b23f7a510 typed expression DSL, staged authoring, task outputs, tests and docs
+Guidance: user supplied AGENTS.md; repository AGENTS.md; develop-repository; design-review; design-program-observability; investigate-problem; review; dig design decisions
+Conditions: local macOS Deno/mise checkout; glaze-ops read only; no push, PR, deploy, release or cloud changes; Git metadata writes required sandbox escalation
+Authority: current Tsugiori source, tests, live docs and latest user implementation request
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) glaze-opsにdogfoodingがある。現在rawになっているところでtyped dsl化する候補を決めたい
+  - A: glaze-ops の raw 利用箇所を調べ、typed DSL 化の候補を一問ずつ提示した。
+- U2: glaze-ops側がtyped actionを使っていないだけか？ tsugiori側で不足があるのか？
+  - A: rawAction は既存 typed action API の未利用が主因であり、式 DSL は Tsugiori 側の不足と切り分けた。
+- U3: C
+  - A: 式 DSL と scope catalog の公開 API を対象にする判断を確認した。
+- U4: C
+  - A: 初回は Tsugiori の DSL とテストに限定し、glaze-ops は変更しない方針を確認した。
+- U5: A
+  - A: task step の出力参照を型付きにする判断を確認した。
+- U6: A
+  - A: task context に宣言済み出力だけを書ける API を置き、出力省略を許す判断を確認した。
+- U7: A
+  - A: task 出力を文字列として扱い、JSON 解釈を明示する判断を確認した。
+- U8: A
+  - A: 式を使うフィールドが context scope を決める判断を確認した。
+- U9: テンプレート文字列の体験のまま型安全にできないか？
+  - A: テンプレート本文解析による型安全性の可能性と限界を説明した。
+- U10: TSで式ASTを自然に記述する方法がないか？
+  - A: TypeScript 値として AST を組み立てるメソッド方式を提案した。
+- U11: A
+  - A: AST メソッド方式を採用し、fromJSON の型境界を次の論点とした。
+- U12: A
+  - A: fromJSON の型を未確定とし、使用位置で形を指定する判断を確認した。
+- U13: A
+  - A: and/or を GitHub Actions の値を返す演算として扱う判断を確認した。
+- U14: B
+  - A: 比較で GitHub Actions の暗黙変換を許す判断を確認した。
+- U15: C
+  - A: vars/secrets のキー宣言を任意とし、宣言時は名前を検査する判断を確認した。
+- U16: A
+  - A: 式内の文字列結合は format 関数で表す判断を確認した。
+- U17: 文字列が期待される場所で`` `glaze-ops-deploy-${matrix.stage}` `` の記述を許してもよくない？
+  - A: 生成時文字列と実行時 AST の区別について説明したが、ユーザーの意図を取り違えた。
+- U18: いや、文字列を返すASTで、ASTを組み立てるときに文字列が期待される位置でテンプレート文字列を受け付けてもいいってこと。typed dslの式の受け取り側はASTかraw expressionしか受け付けず、そこで文字列の暗黙にASTやrawへ変換はしない
+  - A: 文字列 AST の構築と式受け取りフィールドの境界を再整理したが、なお意図と異なった。
+- U19: 違う！ if: output.name.eq(`matrix-${name}`)のようにeqの引数が文字列のとき、そこにformatを強制しなくていいってだけ。
+  - A: eq などの引数に生成時 TypeScript 文字列をリテラル node として受け取る意図を確認し修正した。
+- U20: B
+  - A: 初回の対象フィールド群を定め、glaze-ops を編集しない判断を確認した。
+- U21: A. ただし式全体をrawかtypedかの2択にせず、ASTのnodeごとにraw nodeを表現できること
+  - A: github の既知プロパティと node 単位の rawNode を採用する判断を確認した。
+- U22: Bのほうがシンプルでは？
+  - A: rawNode<T> の明示的な結果型で局所的 escape hatch を表す判断を確認した。
+- U23: B
+  - A: 初回から GitHub Actions の演算子と組み込み関数一式を対象にする判断を確認した。
+- U24: A
+  - A: job 出力を step 定義後に設定する案を提示した。
+- U25: A
+  - A: job 出力を定義済み step の型付き参照から設定する判断を確認した。
+- U26: A
+  - A: action input を uses callback 内の scope で組み立てる判断を確認した。
+- U27: A
+  - A: 既知 object は既知キーと適切な添字に限定する判断を確認した。
+- U28: A
+  - A: 条件式の真偽判定を GitHub Actions の意味に合わせる判断を確認した。
+- U29: A
+  - A: matrix の後に concurrency を設定する判断を確認した。
+- U30: B
+  - A: 旧 runsOn options を段階的 API に置換し、glaze-ops の pinned revision は保持する判断を確認した。
+- U31: B
+  - A: vars/secrets の任意キー宣言を pipeline 単位に置く判断を確認した。
+- U32: B
+  - A: 式 AST は各フィールド callback 内で構築する判断を確認した。
+- U33: A
+  - A: 決定事項と対象外を実装依頼としてまとめた。
+- U34: # 実装依頼
+    
+    ## 依頼
+    Tsugiori の GitHub Actions backend に、型付きの式 AST DSL を実装してください。glaze-ops の `.github/deploy/pipeline.ts` にある raw 式を具体例として参照しますが、glaze-ops は編集しないでください。
+    
+    ## 目的
+    - GitHub Actions の式を、利用位置で有効な context の補完を受けながら TypeScript で記述できるようにする。
+    - task・step・job の出力名を型付きで参照し、未対応の式は AST の node 単位で raw として組み込めるようにする。
+    
+    ## 成功条件
+    - job の `if`・`outputs`・`strategy.matrix`・`concurrency.group`、step の `if`・`env`・action input で式 DSL を使える。
+    - 利用位置で許されない context、未定義の step・job・出力名は型検査で検出できる。
+    - GitHub Actions の演算子と組み込み関数を一通り表現でき、GitHub Actions の評価規則に沿った YAML を生成する。
+    - task は宣言済みの出力名だけを context の書き込み API から出力できる。出力値は文字列で、個々の出力の書き込みは任意とする。
+    - 式 AST の一部に `rawNode<T>()` を組み込める。式を受け取る新 API は AST または明示的な raw expression を受け取り、通常の文字列を暗黙に式へ変換しない。
+    - Tsugiori 自身の authoring 設定、生成 workflow、関連ドキュメントを新 API に合わせる。型・生成・検証・task runtime のテストと `mise run check`、`mise run test`、生成物の stale check が通る。
+    
+    ## 決定事項
+    - 式は TypeScript の値として AST を組み立て、演算子を `.eq()`・`.and()` などのメソッドで表す。
+      - 理由: 補完と型検査を使い、生成時に JavaScript の演算子が式を評価してしまうことを避けるため。
+      - 主な棄却案: テンプレート本文の解析、および TypeScript callback のソース変換。
+    - 組み込み関数は `contains(value, item)`・`fromJSON(value)`・`always()` のように独立した関数で表す。
+      - 理由: GitHub Actions の関数と引数順を対応させるため。
+      - 主な棄却案: 関数を可能な限り値のメソッドにする案。
+    - 式を使うフィールドが context の scope を決め、その場の callback で式を作る。AST を別フィールドへ直接再利用する契約は初回に設けない。
+      - 理由: フィールドごとの補完と、step の定義順に応じた参照を明確にするため。
+      - 主な棄却案: 利用者が scope を指定する案、および AST を複数フィールドへ持ち回る案。
+    - 初回から GitHub Actions の演算子と組み込み関数を一通り対象にする。比較の暗黙変換、値を返す `&&`・`||`、条件の真偽判定は GitHub Actions の意味に従う。
+      - 理由: typed DSL と生成される GitHub Actions 式の意味を揃えるため。
+      - 主な棄却案: 真偽値演算や同型比較だけに制限する案。
+    - `.eq(\`matrix-${name}\`)` のように、AST を組み立てるメソッドが文字列を期待する位置では、生成時の TypeScript 文字列をリテラル node として受け取る。
+      - 理由: 通常の文字列生成に `format()` を強制しないため。
+      - 主な棄却案: 式を受け取るフィールドで任意の文字列を暗黙変換する案。
+    - `fromJSON()` の結果型は未確定とし、matrix などで使う位置で期待する形を明示する。その指定は実行時 JSON の検証を保証しない。
+      - 理由: GitHub Actions の実行時値を生成時には確認できないため。
+      - 主な棄却案: `fromJSON<T>()` で任意の型を直接主張する案。
+    - `rawNode<T>()` は利用者が結果型を明示する opaque な AST node とし、型付き node と合成できる。
+      - 理由: 未対応の式を局所的に逃がしつつ、周囲の AST を維持するため。
+      - 主な棄却案: 式全体を raw にする二択、および raw node を `any` として扱う案。
+    - task 出力名を宣言し、task context の書き込み API で宣言済みの名前だけを書けるようにする。出力値はすべて文字列とする。
+      - 理由: 参照側の型と実際の書き込み名を一致させ、GitHub Actions の出力境界に合わせるため。
+      - 主な棄却案: 宣言だけ追加して `GITHUB_OUTPUT` への直接書き込みを契約にする案、および出力に JSON の値型を付ける案。
+    - job 出力は step を定義した後に設定する。matrix を定義した後に concurrency を設定し、action input の式は `.uses()` の callback 内で組み立てる。
+      - 理由: 参照可能な step 出力と matrix 軸を、定義済みの状態から補完できるため。
+      - 主な棄却案: step・matrix 名の事前重複宣言、および現在の単一 `runsOn(..., options)` での兄弟プロパティ間推論。
+    - 現行の `runsOn(..., options)` API は段階的 API に置き換える。
+      - 理由: 型付きの定義順を公開 API に反映するため。
+      - 主な棄却案: 旧 API と新 API を併存させる案。
+    - `github` は初回は既知のプロパティを型付きにする。`vars`・`secrets` のキー宣言は pipeline 単位で任意とし、宣言がある場合はその名前を検査する。型が分かる object では既知のキーと適切な添字だけを許す。
+      - 理由: pipeline から導ける名前の誤記を防ぎつつ、GitHub 側で管理するキーの複製を必須にしないため。
+      - 主な棄却案: 全キーを必須宣言にする案、および型が分かる object にも任意のキーを許す案。
+    
+    ## 制約
+    - GitHub Actions が orchestration と実行を担う既存の境界を維持する。生成 YAML の job・step を見える形に保つ。
+    - glaze-ops は読み取り対象に限る。今回はその設定、生成 workflow、固定している Tsugiori の参照コミットを変更しない。
+    - push、PR 作成、release、deploy、cloud resource の変更は行わない。
+    - `rawExpression()` による明示的な escape hatch を維持し、host-language 条件と GitHub 実行時の式を混同しない。
+    
+    ## 対象外
+    - glaze-ops の raw 式や raw action の移行。
+    - `github.event` のイベント別 payload 全体の型定義。
+    - GitHub Actions 以外の provider backend。
+    - 実際の GitHub Actions 実行による検証。
+    
+    ## 未検証の前提
+    - 実装時点の GitHub 公式資料にある演算子・組み込み関数・フィールド別 context 利用可能範囲。特に `case()` を含む現在の関数一覧を再確認する。
+    - 現行の Tsugiori テストと生成 workflow が期待する API・出力の基準。
+    
+    ## 実装時の指示
+    - glaze-ops の raw 式を、scope、task 出力、matrix、条件、action input を含むテストケースの根拠として参照する。
+    - 補完候補、無効な context・参照の型エラー、raw node との合成、GitHub Actions の暗黙変換と値を返す論理演算を重点的に検証する。
+    - 既存の live documentation と roadmap を実装後の状態に合わせて更新する。
+  - A: 公式 GitHub 仕様と現行実装を照合し、式 AST、scope 付き段階的 API、task 出力 writer、生成物、ドキュメントとテストを実装した。mise run check、mise run test 45件、generate:check が成功し、独立レビューの3指摘を修正して再レビューで追加指摘なし。local commit 8745feb を作成した。
