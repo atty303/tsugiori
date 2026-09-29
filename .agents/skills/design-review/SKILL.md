@@ -1,50 +1,41 @@
 ---
 name: design-review
-description: Review or plan design changes against the GitHub Actions-native provider backend direction, task runtime boundary, non-goals, architecture, roadmap, and ADRs. Use when modifying design docs, implementing compiler/runtime pieces, or reviewing a repository diff.
+description: Review or plan changes against Tsugiori's current GitHub Actions architecture, task runtime boundary, and future roadmap. Use when modifying design docs, implementing compiler/runtime pieces, or reviewing a repository diff.
 ---
 
 # Design Review
 
-Use this skill to keep changes aligned with the intended project
-boundary.
+Use this skill to keep changes aligned with the project boundary.
 
-## Context to Read
+## Context to read
 
 Read only the relevant subset:
 
 - `AGENTS.md`
 - `README.md`
-- `docs/CONCEPT.md`
 - `docs/ARCHITECTURE.md`
-- `docs/NON_GOALS.md`
 - `docs/ROADMAP.md`
-- relevant files in `docs/DECISIONS/`
 - files touched by the task
 
-## Review Checks
+## Review checks
 
 Check for these issues:
 
-- The change implies the tool replaces GitHub Actions as the execution platform.
-- The change introduces a provider-neutral pipeline model that erases
-  provider-native concepts.
-- The change hides all work inside one opaque GitHub Actions step.
-- The change treats GitHub runtime concepts such as `if`, `matrix`, `needs`,
-  `secrets`, or outputs as host-language runtime values.
-- The change claims an API, compiler, runtime, package, or CI behavior exists
-  before implementation has been added.
-- The change makes task functions require pipeline generation, or makes
-  pipeline generation require task functions.
-- The change skips ADR updates for durable architectural decisions.
-- The change adds dependencies, manifests, source files, generated workflows, or
-  CI while the task is documentation-only.
+- The change implies Tsugiori replaces GitHub Actions as the execution platform.
+- The change introduces a provider-neutral pipeline model that erases native
+  provider concepts or hides work inside one opaque Actions step.
+- The change treats GitHub runtime values such as `matrix`, `needs`, and
+  `secrets` as host-language values during generation.
+- The change claims an API or behavior exists before code and tests support it.
+- The change treats the current inline task registration as a universal
+  task-runtime contract or makes workflow generation require task steps.
+- The change leaves live documentation or the roadmap inconsistent with the
+  implementation or the new design boundary.
+- The change adds dependencies, manifests, source files, generated workflows,
+  or CI while the task is documentation-only.
 
-## Output Style
+## Output style
 
 For reviews, lead with findings ordered by severity and include file
-references.
-
-For planning, produce a small sequence of implementation or documentation
-slices, each with verification steps.
-
-If no issues are found, say so clearly and mention any residual risk.
+references. For planning, provide a small sequence of changes with
+verification. If no issues are found, say so and mention any residual risk.

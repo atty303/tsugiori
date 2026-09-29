@@ -6,137 +6,65 @@
 
 # Tsugiori
 
-Tsugiori is a proposed CI pipeline authoring tool and task runtime.
+Tsugiori authors GitHub Actions workflows in TypeScript and emits ordinary
+`.github/workflows/*.yml` files. It can also compile inline Deno task functions
+into one task artifact and invoke each task from a separate, visible Actions
+step. GitHub Actions still runs the jobs and steps.
 
-The first intended CI provider is GitHub Actions. It is intended to let
-users define GitHub Actions workflow structure in TypeScript/Deno code, export
-native `.github/workflows/*.yml` files, and optionally author task functions
-that CI provider steps can execute through a prepared task artifact.
+The current authoring API covers `push`, `pull_request`, and
+`workflow_dispatch` events; jobs, dependencies, runners, permissions,
+concurrency, environments, matrix strategy, conditions, outputs, and `uses`,
+`run`, and task steps. `rawExpression()` marks a GitHub runtime expression
+without evaluating it during generation. A structured public expression DSL
+and other CI provider backends are not implemented.
 
-Tsugiori has an initial GitHub Actions authoring and task-runtime slice. It can
-load a TypeScript authoring module, generate deterministic workflow YAML,
-prepare a source-addressed Deno task binary through a repository-local cache,
-restore and save those cache entries through a generated `actions/cache` step,
-and dispatch inline task functions. The repository now uses a generated
-workflow to exercise that slice on GitHub Actions. Native stale-output check
-mode detects missing, changed, and extra generated workflows. Broader GitHub
-Actions syntax and other artifact delivery backends are not implemented yet.
+## Use the repository workflow
 
-The GitHub Actions authoring API supports push branch filters, workflow and job
-concurrency, job conditions, timeouts, environments, outputs, matrix strategy,
-and step conditions, environment variables, and working directories.
-`rawExpression()` emits an explicit GitHub runtime expression without evaluating
-it locally. These fields are emitted as normal Actions YAML.
+The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for
+[.github/workflows/ci.yml](.github/workflows/ci.yml). Its Deno project is
+[.github/deno.json](.github/deno.json), which imports this repository's
+workspace package. From `.github`, generate and commit the resulting YAML:
 
-## Problem
+```sh
+deno task generate
+```
 
-GitHub Actions YAML is the execution interface, but it is not a strong
-authoring interface for larger pipelines. As pipelines grow, authors often
-need:
+Check the committed output without changing it:
 
-- reusable typed structure
-- clearer pipeline composition
-- task implementations that can share ordinary language tooling
-- validation before generated workflow YAML reaches GitHub
-- generated YAML that is still understandable in the GitHub web UI
+```sh
+deno task generate:check
+```
 
-For the initial provider backend, the project explores a middle ground: use
-TypeScript/Deno as the authoring language, but keep GitHub Actions as the
-orchestration and execution platform.
+Check mode reports missing, changed, and extra `.yml` files owned by this
+config. Add `--output .github/workflows/ci.yml` to check one output. The
+generated file's first line identifies its owning config. The repository CI
+runs the check task before its task-backed test step.
 
-## Initial Direction
+## Author a workflow
 
-The compiler is intended to turn language-native pipeline definitions into
-provider-native CI configuration. The initial provider backend targets GitHub
-Actions-native YAML.
-
-The project should not define a lowest-common-denominator pipeline model.
-Users should choose the CI provider they are authoring for, and each provider
-backend should preserve that provider's native concepts. For GitHub Actions,
-the provider backend owns Actions events, workflows, jobs, steps, permissions,
-expression syntax, `uses` steps, workflow file layout, and YAML emission. A
-future GitLab CI provider backend would need its own native concepts rather
-than pretending those details are the same.
-
-The generated workflow should still expose jobs and steps normally in GitHub
-Actions. Concepts such as `if`, `needs`, `matrix`, `workflow_call`,
-`permissions`, `concurrency`, `environment`, `secrets`, and outputs should
-remain GitHub Actions concepts.
-
-Workflow `permissions` can set `contents` and `id-token`. Jobs can override
-them with `runsOn(..., { permissions: { contents: "read", "id-token": "write" } })`
-when only one job needs OIDC credentials.
-
-The implemented slice supports inline task-backed pipeline steps. Handwritten
-workflow integration remains a future provider-specific decision; the current
-preparation commands are generated implementation details rather than a public
-cross-provider contract.
-
-The pipeline source is intended to be the source of truth, while generated
-`.github/workflows/*.yml` files are committed review artifacts. A local git hook
-may compile pipeline source before commit. The repository CI checks its own
-workflow with `generate --check --output .github/workflows/ci.yml`.
-
-Task artifact preparation produces or restores a source-addressed task artifact.
-Its automatic key covers the reachable repository-local `file:` module graph,
-target platform, and artifact format. Authors increment the config-wide
-`cacheVersion` when changes outside that boundary need to invalidate the cache.
-Remote modules, files outside the repository root, lockfiles, Deno configuration
-and versions are not tracked automatically. The Tsugiori package
-identifier is tracked automatically. The artifact
-may be a prepared runtime form such as an OCI image. Provider steps should make
-that artifact available through explicit preparation work, then invoke task
-runtime entrypoints without fetching or building managed task code again. Task
-artifact delivery is provider-owned. The GitHub Actions backend emits visible
-an `actions/cache` step. A shared delivery abstraction should be
-extracted only after another backend such as an OCI registry or S3 requires it.
-
-## Initial Authoring API
+An authoring file imports the GitHub Actions API and runner from the same Deno
+package. It exports the config and calls `runTsugiori()` when executed:
 
 ```ts
-import {
-  actionInput,
-  defineAction,
-  defineTsugiori,
-  pipeline,
-} from "@atty303/tsugiori/github-actions";
+import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
 import { runTsugiori } from "@atty303/tsugiori/run";
-
-const checkout = defineAction({
-  uses: "actions/checkout@<commit-sha>",
-  inputs: {
-    "persist-credentials": actionInput.boolean(),
-  },
-  outputs: [],
-});
 
 const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["pull_request", "push"],
+  events: ["push", "pull_request"],
   permissions: { contents: "read" },
 }).job("test", ({ job }) =>
-  job
-    .runsOn("ubuntu-24.04")
-    .uses({
-      name: "Checkout",
-      uses: checkout({ "persist-credentials": false }),
-    })
-    .task({
-      name: "Test",
-      task: async (ctx) => {
-        ctx.logger.info(`Running tests in ${ctx.cwd}`);
-        const command = new Deno.Command("deno", {
-          args: ["test", "-A"],
-          stdout: "inherit",
-          stderr: "inherit",
-        });
-        const result = await command.output();
-        if (!result.success) {
-          throw new Error(`Tests failed with ${result.code}.`);
-        }
-      },
-    })
-);
+  job.runsOn("ubuntu-24.04").task({
+    name: "Test",
+    task: async () => {
+      const result = await new Deno.Command("deno", {
+        args: ["test", "-A"],
+        stdout: "inherit",
+        stderr: "inherit",
+      }).output();
+      if (!result.success) throw new Error(`Tests failed: ${result.code}`);
+    },
+  }));
 
 const config = defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
 export default config;
@@ -150,23 +78,23 @@ if (import.meta.main) {
 }
 ```
 
-Task-backed steps also accept an optional `id` for Actions step outputs and an
-`env` record for values available only while that task runs. These fields are
-emitted on the task's visible Actions step.
+Set the Deno project's `generate` and `generate:check` tasks as in
+[.github/deno.json](.github/deno.json). The config supplies the repository root;
+generated workflow paths and `.tsugiori/` storage are relative to that root.
+The project directory supplies Deno imports and its lockfile. Top-level
+authoring code should construct deterministic definitions; task work belongs
+inside `.task()` callbacks.
 
-For a manually dispatched workflow, include `"workflow_dispatch"` in `events`
-and declare string inputs with `workflowDispatchInputs`. For example,
-`workflowDispatchInputs: { commit: { type: "string", required: true, default: "<commit-sha>" } }`
-emits a `workflow_dispatch.inputs.commit` field in the Actions workflow.
-
-Give the workflow project its own `deno.json`. `.github` is the recommended
-location; any directory inside the repository works. The import is the single
-Tsugiori dependency, and Deno records its resolution in the consumer lockfile:
+An external repository can use the same config entrypoint without a workspace
+package. Its workflow project's `deno.json` can map the authoring API and
+runner directly to one published Tsugiori commit:
 
 ```json
 {
   "imports": {
-    "@atty303/tsugiori": "jsr:@atty303/tsugiori@<version>"
+    "@std/yaml": "jsr:@std/yaml@^1.2.0",
+    "@atty303/tsugiori/github-actions": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/core/src/github_actions/mod.ts",
+    "@atty303/tsugiori/run": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/runner/src/main.ts"
   },
   "tasks": {
     "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
@@ -175,65 +103,22 @@ Tsugiori dependency, and Deno records its resolution in the consumer lockfile:
 }
 ```
 
-Run `deno install` in the workflow project to create or update its lockfile.
-The config passes the repository root once to `runTsugiori`; the author chooses how to obtain it. Run the config from the workflow project so Deno uses that project's configuration and lockfile. From the workflow project, generate the configured workflow:
+Use the same full SHA in both URLs and commit the workflow project's Deno
+lockfile. Changes to remote source are outside the automatic artifact key;
+increase `cacheVersion` when updating the pin changes the task binary.
 
-```bash
-deno task generate
-```
+Task-backed jobs include visible artifact-key, `actions/cache`, and preparation
+steps before the task invocation. The generated cache step can restore a
+matching artifact; on a successful cache miss, its post action can save it.
+The prepared binary is invoked as `./.tsugiori/task-runtime
+<pipeline-id>/<job-id>/task-<ordinal>`. The current binary is compiled with
+Deno `-A` and targets POSIX invocation; Windows task artifacts are rejected.
 
-Check all workflows owned by the config without changing workflow files:
+The artifact key follows repository-local source modules, target platform,
+artifact format, Tsugiori package identity, and `cacheVersion`. Increase
+`cacheVersion` when an excluded input such as a remote module, lockfile, or
+Deno setting changes the task binary. See [Architecture](docs/ARCHITECTURE.md)
+for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
 
-```bash
-deno task generate:check
-```
-
-Add `--output .github/workflows/ci.yml` to check only one workflow. A leading
-comment in each generated YAML identifies its owning config; check mode compares
-the current file bytes and reports missing, changed, or extra owned files.
-
-The generated job keeps setup steps visible, resolves the artifact key, restores
-the source-addressed artifact through `actions/cache`, and prepares and
-validates it before the first task-backed step. On a cache miss, the action
-saves the prepared entry after the job succeeds. Each task remains a separate
-invocation such as
-`./.tsugiori/task-runtime ci/test/task-1`. The preparation step contains a
-job-layout fingerprint so stale task ordering fails before dispatch.
-
-The initial task artifact is compiled with Deno `-A`. Authoring module
-top-level code must only construct deterministic definitions; task work belongs
-inside `job.task` functions. The generated invocation currently targets POSIX
-runners.
-
-When GitHub Actions debug logging is enabled and exposes `RUNNER_DEBUG=1`, each
-config entrypoint or task-runtime invocation writes one bounded JSON diagnostic record to
-standard error. Normal runs do not emit structured diagnostics or retain
-diagnostic files.
-
-## Status
-
-Later provider-native GitHub Actions concepts remain in progress. The initial
-Phase 2 vertical slice implements stale-output checking, inline task
-authoring, task registry lowering, local artifact preparation and caching,
-manifest verification, generated `actions/cache` delivery, and task dispatch.
-It has local config-entrypoint and compiled task-artifact E2E coverage. The earlier local-cache workflow ran
-successfully for push and pull request events on a GitHub-hosted
-`ubuntu-24.04` runner. The fixed-key `actions/cache` post-action path has not
-yet been exercised on a GitHub-hosted runner.
-
-## Codex-Driven Development
-
-This repository includes lightweight structure for AI-assisted development with
-Codex:
-
-- `AGENTS.md`: durable repository guidance loaded by Codex
-- `docs/CODEX_WORKFLOW.md`: recommended Codex work loop and context packs
-- `docs/TASKS.md`: AI-friendly task queue
-- `docs/PROMPTS.md`: reusable prompts for planning, ADRs, implementation, and
-  review
-- `docs/GLOSSARY.md`: current design vocabulary for pipelines, providers,
-  tasks, and artifacts
-- `docs/REPOSITORY_LAYOUT.md`: proposed future source, package, test, fixture,
-  and example layout
-- `.agents/skills/design-review/SKILL.md`: repo-local review skill for checking
-  repository design constraints
+Run the repository checks with `mise run check` and `mise run test` from the
+repository root.
