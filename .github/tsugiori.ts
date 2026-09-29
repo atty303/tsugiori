@@ -45,7 +45,9 @@ const ci = pipeline("ci", {
     })
     .task({
       name: "Run repository checks and tests",
-      task: async () => {
+      inputs: {},
+      outputs: {},
+      run: async () => {
         const result = await new Deno.Command("mise", {
           args: ["run", "test"],
           stdout: "inherit",

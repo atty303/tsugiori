@@ -2,13 +2,86 @@ import {
   type GitHubExpressionScopeKey,
   githubExpressionScopes,
 } from "./expression_scope.ts";
+import type { ValueContract } from "../task/mod.ts";
 
 const expressionBrand = Symbol("tsugiori.expression");
 export type RawExpression = string & {
   readonly __rawExpression: unique symbol;
 };
-export type ExpressionInput<T = unknown> = Expression<T> | RawExpression;
-export type Operand<T = unknown> = Expression<T> | T;
+export type ExpressionInput<T = unknown> =
+  | Expression<T, string>
+  | RawExpression;
+export type Operand<T = unknown> = Expression<T, string> | T;
+const typedReference = Symbol("tsugiori.typed-reference");
+export type TypedReference<
+  T,
+  C extends ValueContract<unknown>,
+  Path extends string,
+  Required extends boolean,
+> =
+  & Expression<string>
+  & Readonly<
+    {
+      [typedReference]: {
+        value: T;
+        contract: C;
+        path: Path;
+        required: Required;
+      };
+    }
+  >;
+export type ReferenceProof<R> = R extends
+  TypedReference<unknown, ValueContract<unknown>, infer Path, boolean> ? Path
+  : never;
+export type ReferenceValue<R> = R extends
+  TypedReference<infer T, ValueContract<unknown>, string, boolean> ? T : never;
+export type ReferenceRequired<R> = R extends
+  TypedReference<unknown, ValueContract<unknown>, string, infer Required>
+  ? Required
+  : false;
+export type ReferenceContract<R> = R extends
+  TypedReference<unknown, infer C, string, boolean> ? C : never;
+export type TypedMarker<
+  T,
+  C extends ValueContract<unknown>,
+  Required extends boolean,
+> = Readonly<{
+  [typedReference]: { value: T; contract: C; required: Required };
+}>;
+type AsReference<T, Path extends string> = T extends
+  TypedMarker<infer V, infer C, infer R> ? TypedReference<V, C, Path, R>
+  : Ref<T, Path>;
+export type ReferenceBinding = Readonly<{
+  contract: ValueContract<unknown>;
+  required: boolean;
+}>;
+const referenceContracts = new WeakMap<
+  Expression<unknown, string>,
+  ReferenceBinding
+>();
+const referenceScopes = new WeakMap<
+  Expression<unknown, string>,
+  ReadonlyMap<string, ReferenceBinding>
+>();
+const presenceProofs = new WeakMap<
+  Expression<unknown, string>,
+  ReadonlySet<string>
+>();
+export function expressionProofs(value: unknown): ReadonlySet<string> {
+  return value instanceof Expression
+    ? presenceProofs.get(value) ?? new Set()
+    : new Set();
+}
+export function referenceContract(
+  value: unknown,
+): ValueContract<unknown> | undefined {
+  return referenceBinding(value)?.contract;
+}
+export function referenceBinding(value: unknown): ReferenceBinding | undefined {
+  return value instanceof Expression
+    ? referenceContracts.get(value)
+    : undefined;
+}
 
 // GitHub's && returns its left operand when falsy; || returns it when truthy.
 type FalsyPart<T> = unknown extends T ? unknown
@@ -32,8 +105,9 @@ type Node =
   | Readonly<{ kind: "binary"; operator: string; left: Node; right: Node }>
   | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
 
-export class Expression<T = unknown> {
+export class Expression<T = unknown, Proof extends string = never> {
   readonly [expressionBrand]!: T;
+  readonly __proof!: Proof;
   toString(): never {
     throw new TypeError(
       "Expression nodes cannot be interpolated into host-language strings.",
@@ -58,8 +132,18 @@ export class Expression<T = unknown> {
   ge(value: Operand<unknown>): Expression<boolean> {
     return binary(this, ">=", value);
   }
-  and<U>(value: Operand<U>): Expression<FalsyPart<T> | U> {
-    return binary(this, "&&", value);
+  and<U, OtherProof extends string = never>(
+    value: Expression<U, OtherProof> | U,
+  ): Expression<FalsyPart<T> | U, Proof | OtherProof> {
+    const result = binary<FalsyPart<T> | U>(this, "&&", value);
+    presenceProofs.set(
+      result,
+      new Set([
+        ...expressionProofs(this),
+        ...expressionProofs(value),
+      ]),
+    );
+    return result as Expression<FalsyPart<T> | U, Proof | OtherProof>;
   }
   or<U>(value: Operand<U>): Expression<TruthyPart<T> | U> {
     return binary(this, "||", value);
@@ -89,12 +173,16 @@ type Element<T> = T extends readonly (infer U)[] ? U
   : T extends Record<string, infer U> ? U
   : unknown;
 
-export type Ref<T> =
+export type Ref<T, Path extends string = string> =
   & Expression<T>
-  & (T extends readonly (infer U)[] ? Readonly<{ [index: number]: Ref<U> }>
+  & (T extends readonly (infer U)[]
+    ? Readonly<{ [index: number]: Ref<U, `${Path}[${number}]`> }>
     : T extends object ? Readonly<
         {
-          [K in Exclude<keyof T, keyof Expression<T>>]: Ref<T[K]>;
+          [K in Exclude<keyof T, keyof Expression<T>>]: AsReference<
+            T[K],
+            `${Path}.${K & string}`
+          >;
         }
       >
     : Record<never, never>);
@@ -112,7 +200,7 @@ function nodeOf(value: unknown): Node {
   );
 }
 function binary<T>(
-  left: Expression<unknown>,
+  left: Expression<unknown, string>,
   operator: string,
   right: Operand<unknown>,
 ): Expression<T> {
@@ -124,22 +212,31 @@ function binary<T>(
   });
 }
 function pathProperty<T>(
-  source: Expression<unknown>,
+  source: Expression<unknown, string>,
   key: string,
 ): Expression<T> {
   const base = source.node.kind === "path"
     ? source.node.value
     : renderNode(source.node);
+  return reference<T>(referencePath(base, key), referenceScopes.get(source));
+}
+export function referencePath(base: string, key: string): string {
   const suffix = /^(?:[A-Za-z_][A-Za-z0-9_]*|\*)$/.test(key)
     ? `.${key}`
     : /^\d+$/.test(key)
     ? `[${key}]`
     : `[${quote(key)}]`;
-  return reference<T>(`${base}${suffix}`);
+  return `${base}${suffix}`;
 }
-function reference<T>(value: string): Ref<T> {
+function reference<T>(
+  value: string,
+  contracts?: ReadonlyMap<string, ReferenceBinding>,
+): Ref<T> {
   const expression = new Expression<T>({ kind: "path", value });
-  return new Proxy(expression, {
+  if (contracts !== undefined) referenceScopes.set(expression, contracts);
+  const binding = contracts?.get(value);
+  if (binding !== undefined) referenceContracts.set(expression, binding);
+  const proxy = new Proxy(expression, {
     get(target, key, receiver) {
       if (typeof key !== "string" || key in target) {
         return Reflect.get(target, key, receiver);
@@ -147,6 +244,9 @@ function reference<T>(value: string): Ref<T> {
       return pathProperty(target, key);
     },
   }) as Ref<T>;
+  if (contracts !== undefined) referenceScopes.set(proxy, contracts);
+  if (binding !== undefined) referenceContracts.set(proxy, binding);
+  return proxy;
 }
 function quote(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
@@ -222,8 +322,27 @@ export const join = (
     : call("join", value, separator);
 export const toJSON = (value: Operand<unknown>): Expression<string> =>
   call("toJSON", value);
-export const fromJSON = (value: Operand<unknown>): Expression<unknown> =>
-  call("fromJSON", value);
+export function fromJSON<
+  T,
+  C extends ValueContract<unknown, "json">,
+  P extends string,
+>(value: TypedReference<T, C, P, true>): Expression<T>;
+export function fromJSON(value: Operand<unknown>): Expression<unknown>;
+export function fromJSON(value: Operand<unknown>): Expression<unknown> {
+  return call("fromJSON", value);
+}
+export function present<
+  T,
+  C extends ValueContract<unknown>,
+  P extends string,
+  R extends boolean,
+>(value: TypedReference<T, C, P, R>): Expression<boolean, P> {
+  const result = value.ne("");
+  if (value.node.kind === "path") {
+    presenceProofs.set(result, new Set([value.node.value]));
+  }
+  return result as Expression<boolean, P>;
+}
 export const caseOf = (
   ...values: readonly Operand<unknown>[]
 ): Expression<unknown> => {
@@ -281,13 +400,39 @@ export type GitHubContext = Readonly<{
   workflow_sha: string;
   workspace: string;
 }>;
-export type StepContext<Outputs extends readonly string[]> = Readonly<{
-  outputs: Readonly<Record<Outputs[number], string>>;
+type Proven<M, Path extends string, Proof extends string> = M extends
+  TypedMarker<infer T, infer C, infer R>
+  ? TypedMarker<T, C, R extends true ? true : Path extends Proof ? true : false>
+  : M;
+export type StepContext<
+  Outputs extends readonly string[],
+  Proof extends string = never,
+  Prefix extends string = string,
+> = Readonly<{
+  outputs: Readonly<
+    {
+      [K in Outputs[number]]: Outputs extends Readonly<{ __typed: infer M }>
+        ? K extends keyof M ? Proven<M[K], `${Prefix}.outputs.${K}`, Proof>
+        : string
+        : string;
+    }
+  >;
   outcome: string;
   conclusion: string;
 }>;
-export type JobContext<Outputs extends readonly string[]> = Readonly<{
-  outputs: Readonly<Record<Outputs[number], string>>;
+export type JobContext<
+  Outputs extends readonly string[],
+  Proof extends string = never,
+  Prefix extends string = string,
+> = Readonly<{
+  outputs: Readonly<
+    {
+      [K in Outputs[number]]: Outputs extends Readonly<{ __typed: infer M }>
+        ? K extends keyof M ? Proven<M[K], `${Prefix}.outputs.${K}`, Proof>
+        : string
+        : string;
+    }
+  >;
   result: string;
 }>;
 export type ScopeValues<
@@ -296,10 +441,23 @@ export type ScopeValues<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  Proof extends string = never,
 > = {
   github: GitHubContext;
-  needs: { readonly [K in keyof Needs]: JobContext<Needs[K]> };
-  steps: { readonly [K in keyof Steps]: StepContext<Steps[K]> };
+  needs: {
+    readonly [K in keyof Needs]: JobContext<
+      Needs[K],
+      Proof,
+      `needs.${K & string}`
+    >;
+  };
+  steps: {
+    readonly [K in keyof Steps]: StepContext<
+      Steps[K],
+      Proof,
+      `steps.${K & string}`
+    >;
+  };
   matrix: Matrix;
   strategy: Readonly<
     {
@@ -345,6 +503,7 @@ export type Scope<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  Proof extends string = never,
 > =
   & {
     readonly [K in ContextKeys<S>]: Ref<
@@ -353,8 +512,10 @@ export type Scope<
         Steps,
         Matrix,
         Vars,
-        Secrets
-      >[K & keyof ScopeValues<Needs, Steps, Matrix, Vars, Secrets>]
+        Secrets,
+        Proof
+      >[K & keyof ScopeValues<Needs, Steps, Matrix, Vars, Secrets, Proof>],
+      K & string
     >;
   }
   & Pick<Functions, FunctionKeys<S>>;
@@ -365,11 +526,15 @@ export function scope<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
->(key: S): Scope<S, Needs, Steps, Matrix, Vars, Secrets> {
+  Proof extends string = never,
+>(
+  key: S,
+  contracts?: ReadonlyMap<string, ReferenceBinding>,
+): Scope<S, Needs, Steps, Matrix, Vars, Secrets, Proof> {
   const definitions = githubExpressionScopes[key];
   const result: Record<string, unknown> = {};
   for (const context of definitions.contexts) {
-    result[context] = reference(context);
+    result[context] = reference(context, contracts);
   }
   const functions: Functions = {
     always,
@@ -379,7 +544,15 @@ export function scope<
     hashFiles,
   };
   for (const name of definitions.functions) result[name] = functions[name];
-  return Object.freeze(result) as Scope<S, Needs, Steps, Matrix, Vars, Secrets>;
+  return Object.freeze(result) as Scope<
+    S,
+    Needs,
+    Steps,
+    Matrix,
+    Vars,
+    Secrets,
+    Proof
+  >;
 }
 
 export { caseOf as case };

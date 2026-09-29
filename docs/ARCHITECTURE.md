@@ -47,15 +47,34 @@ variables, failure policy, and working directories. The public
 serializes literals, property references, operators, built-in calls, and
 opaque `rawNode<T>()` nodes. Field callbacks derive their available contexts
 from the provider scope catalog. The AST is built at each field; it is not a
-host-language evaluation of GitHub runtime values. `fromJSON().as<T>()` and
-`rawNode<T>()` contain caller assertions, not runtime validation.
+host-language evaluation of GitHub runtime values. `rawNode<T>()` and
+`.as<T>()` contain caller assertions, not runtime validation. Typed task JSON
+references give `fromJSON()` an inferred result type while preserving its
+ordinary GitHub expression rendering.
 
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,
-or `defineTask()` declarations. Job outputs are authored after their steps and
-become the typed `needs` surface of subsequent jobs. Task output writes pass
-through a context writer that checks declared names and appends GitHub's
-multiline output format to `GITHUB_OUTPUT`.
+or task-step output declarations. Job outputs are authored after their steps
+and become the typed `needs` surface of subsequent jobs. A task is defined
+directly in `job.task({ inputs, outputs, env, run })`. Each typed input couples
+a contract to a GitHub expression source; the compiler creates its step `env`
+entry and rejects collisions with authored `env`. Task output writes validate
+and serialize native values before appending GitHub's multiline format to
+`GITHUB_OUTPUT`; the runner parses and validates input wire values before
+calling `run`.
+
+Text and JSON are distinct task I/O variants. JSON accepts a consumer-owned
+`parse(value: unknown): T` schema without depending on a particular parser
+library. Parsing must preserve the JSON shape. An omitted output is `null` in
+the typed model and an empty string in GitHub's output wire format. Top-level
+`null` and explicit empty text are invalid writes; nested JSON `null` and arrays
+are normal values. A required output must be set. Direct task output and job
+output passthrough references retain the same contract object; computed
+expressions do not carry a contract. `present(ref)` lowers to an empty-string
+check and carries a presence proof through `and`, job `when`, and task `if`.
+Other expression nodes do not correct wire values implicitly.
+Conditional or `continueOnError` task steps expose their outputs as optional
+to consumers, even when an output is required during an actual task run.
 
 ## Generation and validation
 

@@ -1,4 +1,4 @@
 export * from "./github_actions/mod.ts";
-export type { TaskContext, TaskFunction, TaskLogger } from "./task/mod.ts";
+export type { TaskContext, TaskLogger, ValueContract } from "./task/mod.ts";
 export { runTsugiori } from "../../runner/src/main.ts";
 export type { RunOptions } from "../../runner/src/main.ts";

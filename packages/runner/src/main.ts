@@ -2,7 +2,8 @@ import { generateFiles } from "../../compiler/src/generator.ts";
 import { checkGeneratedFiles } from "../../compiler/src/check.ts";
 import { configSource } from "../../compiler/src/source.ts";
 import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
-import type { TaskFunction } from "../../core/src/task/mod.ts";
+import { parseWireValue, serializeValue } from "../../core/src/task/mod.ts";
+import type { AuthoringTaskStep } from "../../core/src/github_actions/mod.ts";
 import { writeGeneratedFiles } from "../../compiler/src/write.ts";
 import { TaskRuntimeError } from "../../task-runtime/src/artifact.ts";
 import {
@@ -221,21 +222,21 @@ async function dispatchTask(
         "Invalid Tsugiori configuration.",
       );
     }
-    let task: TaskFunction<string> | undefined;
+    let task: AuthoringTaskStep | undefined;
     for (const pipeline of config.pipelines) {
       for (const job of pipeline.jobs) {
         let ordinal = 0;
         for (const step of job.steps) {
           if (step.type !== "task") continue;
           ordinal += 1;
-          if (typeof step.task !== "function") {
+          if (typeof step.run !== "function") {
             throw new TaskRuntimeError(
               "schema_invalid",
               "Task step does not contain a function.",
             );
           }
           if (`${pipeline.id}/${job.id}/task-${ordinal}` === entrypoint) {
-            task = step.task;
+            task = step;
           }
         }
       }
@@ -248,24 +249,52 @@ async function dispatchTask(
       );
     }
     errorType = "task_failed";
-    const declaredOutputs = new Set(task.outputNames ?? []);
-    await task({
+    const inputs: Record<string, unknown> = {};
+    for (const [name, input] of Object.entries(task.inputs)) {
+      const wire = Deno.env.get(input.from as string) ?? "";
+      let value: unknown;
+      try {
+        value = parseWireValue(input.contract, wire);
+      } catch (cause) {
+        throw new TaskRuntimeError(
+          "schema_invalid",
+          `Task input ${JSON.stringify(name)} failed validation.`,
+          { cause },
+        );
+      }
+      if (value === null && !input.optional) {
+        throw new TaskRuntimeError(
+          "schema_invalid",
+          `Task input ${JSON.stringify(name)} is absent.`,
+        );
+      }
+      inputs[name] = value;
+    }
+    const written = new Set<string>();
+    await task.run({
       cwd: Deno.cwd(),
+      inputs,
       outputs: {
-        set: async (name, value) => {
-          if (!declaredOutputs.has(name)) {
+        set: async (name: string, value: unknown) => {
+          const output = task.outputs[name];
+          if (output === undefined) {
             throw new TaskRuntimeError(
               "github_output_invalid",
               `Task output ${JSON.stringify(name)} is not declared.`,
             );
           }
-          if (typeof value !== "string") {
+          let wire: string;
+          try {
+            wire = serializeValue(output.contract, value);
+          } catch (cause) {
             throw new TaskRuntimeError(
               "github_output_invalid",
-              "Task output value must be a string.",
+              `Task output ${JSON.stringify(name)} failed validation.`,
+              { cause },
             );
           }
-          await writeTaskOutput(name, value);
+          await writeTaskOutput(name, wire);
+          written.add(name);
         },
       },
       logger: {
@@ -274,6 +303,14 @@ async function dispatchTask(
         error: (...values) => console.error(...values),
       },
     });
+    for (const [name, output] of Object.entries(task.outputs)) {
+      if (output.required && !written.has(name)) {
+        throw new TaskRuntimeError(
+          "github_output_invalid",
+          `Required task output ${JSON.stringify(name)} was not set.`,
+        );
+      }
+    }
     recorder.operation({
       name: "task.dispatch",
       status: "success",
@@ -282,12 +319,7 @@ async function dispatchTask(
     recorder.finish("success");
     return 0;
   } catch (error) {
-    if (
-      error instanceof TaskRuntimeError &&
-      (error.errorType === "github_output_invalid" ||
-        error.errorType === "github_output_unavailable" ||
-        error.errorType === "github_output_write_failed")
-    ) {
+    if (error instanceof TaskRuntimeError) {
       errorType = error.errorType;
     }
     recorder.operation({

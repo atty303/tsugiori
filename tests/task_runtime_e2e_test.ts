@@ -44,7 +44,7 @@ Deno.test({
       );
       const configSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTask, defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { defineTsugiori, pipeline, textValue } from "@atty303/tsugiori/github-actions";
 import { runTsugiori } from "@atty303/tsugiori/run";
 
 const base = pipeline("ci", {
@@ -63,7 +63,9 @@ const ci = base.job("test", ({ job }) =>
     .run({ name: "Setup", run: "echo setup" })
     .task({
       name: "Test",
-      task: defineTask({ outputs: ["result"], run: async (ctx) => {
+      inputs: {},
+      outputs: { result: { contract: textValue(), required: true } },
+      run: async (ctx) => {
         ctx.logger.info("task-log-private");
         if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
           Object.defineProperty(WeakMap.prototype, "get", {
@@ -77,7 +79,7 @@ const ci = base.job("test", ({ job }) =>
         }
         await Deno.writeTextFile("task-result.txt", ctx.cwd);
         await ctx.outputs.set("result", "first\\nsecond");
-      } }),
+      },
     })
 );
 
@@ -625,7 +627,7 @@ const ci = pipeline("ci", {
   output: ".github/workflows/ci.yml",
   events: ["push"],
 }).job("test", ({ job }) =>
-  job.runsOn("ubuntu-latest").task({ name: "Test", task: () => {} })
+  job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
 const config = defineTsugiori({ cacheVersion, pipelines: [ci] });
 export default config;
@@ -752,7 +754,7 @@ import { runTsugiori } from "@atty303/tsugiori/run";
 const config = defineTsugiori({ pipelines: [pipeline("ci", {
   output: ".github/workflows/ci.yml", events: ["push"],
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
-  name: "Test", task: () => {},
+  name: "Test", inputs: {}, outputs: {}, run: () => {},
 }))] });
 export default config;
 if (import.meta.main) Deno.exitCode = await runTsugiori({ config, configUrl: import.meta.url, root: new URL("../../", import.meta.url) });\n`,

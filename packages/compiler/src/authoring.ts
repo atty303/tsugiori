@@ -2,7 +2,7 @@ import type {
   AuthoringPipeline,
   TsugioriConfig,
 } from "../../core/src/github_actions/mod.ts";
-import type { TaskFunction } from "../../core/src/task/mod.ts";
+import type { AuthoringTaskStep } from "../../core/src/github_actions/mod.ts";
 import { isAbsolute, relative } from "node:path";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {
@@ -22,7 +22,7 @@ export type RegisteredTask = Readonly<{
   name: string;
   pipelineId: string;
   jobId: string;
-  task: TaskFunction<string>;
+  task: AuthoringTaskStep;
 }>;
 
 export type LoweredPipeline = Readonly<{
@@ -158,7 +158,7 @@ export async function lowerConfig(
           name: step.name,
           pipelineId: pipeline.id,
           jobId: job.id,
-          task: step.task,
+          task: step,
         });
         steps.push({
           type: "run",

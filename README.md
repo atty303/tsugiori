@@ -57,7 +57,9 @@ const ci = pipeline("ci", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-24.04").task({
     name: "Test",
-    task: async () => {
+    inputs: {},
+    outputs: {},
+    run: async () => {
       const result = await new Deno.Command("deno", {
         args: ["test", "-A"],
         stdout: "inherit",
@@ -130,14 +132,14 @@ contexts available at its GitHub Actions field. Step callbacks see only earlier
 step IDs; dependent jobs see only declared outputs from their dependencies.
 
 ```ts
-import {
-  defineTask, fromJSON, pipeline, rawNode,
-} from "@atty303/tsugiori";
+import { fromJSON, jsonValue, pipeline, present, rawNode } from "@atty303/tsugiori";
 
-const prepare = defineTask({
-  outputs: ["matrix"],
-  run: async ({ outputs }) => {
-    await outputs.set("matrix", '["dev", "stg"]');
+const stages = jsonValue({
+  parse(value: unknown): readonly string[] {
+    if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
+      throw new TypeError("Expected stage names");
+    }
+    return value;
   },
 });
 
@@ -146,25 +148,37 @@ const first = pipeline("deploy", {
   events: ["push"],
 }).job("prepare", ({ job }) =>
   job.runsOn("ubuntu-latest")
-    .task({ id: "make", name: "Make matrix", task: prepare })
+    .task({
+      id: "make", name: "Make matrix", inputs: {},
+      outputs: { matrix: { contract: stages, required: false } },
+      run: async ({ outputs }) => {
+        await outputs.set("matrix", ["dev", "stg"]);
+      },
+    })
     .outputs(({ steps }) => ({ matrix: steps.make.outputs.matrix })));
 
 const deploy = first.job("deploy", ({ job, jobs }) =>
   job.needs(jobs.prepare).runsOn("ubuntu-latest")
+    .when(({ needs }) => present(needs.prepare.outputs.matrix))
     .strategy(({ needs }) => ({
       matrix: {
-        stage: fromJSON(needs.prepare.outputs.matrix).as<readonly string[]>(),
+        stage: fromJSON(needs.prepare.outputs.matrix),
       },
     }))
     .concurrency({
       group: ({ matrix }) => matrix.stage,
       cancelInProgress: false,
     })
-    .run({
+    .task({
       name: "Deploy",
-      run: "./deploy.sh",
+      inputs: {
+        stages: { contract: stages, from: ({ needs }) => needs.prepare.outputs.matrix },
+      },
+      env: { DEPLOY_REGION: "ap-northeast-1" },
+      outputs: {},
       if: ({ matrix }) => matrix.stage.ne("disabled")
         .and(rawNode<boolean>("custom_check()")),
+      run: ({ inputs }) => { console.log(inputs.stages); },
     }));
 ```
 
@@ -172,10 +186,25 @@ Operators are methods (`.eq()`, `.and()`, `.not()`, and so on); GitHub built-in
 functions are exported separately. Host TypeScript strings, including template
 strings, are accepted as literal operands to AST methods. An expression field
 requires an AST or `rawExpression()` and never interprets an ordinary string
-as an expression. `fromJSON()` starts with an unknown result type; `.as<T>()`
-asserts the expected shape for type checking and does not validate the runtime
-JSON. `.and()` retains the falsy branch of its left operand in the result type,
+as an expression. Task inputs declare a contract and source together; Tsugiori
+generates their step environment variables and parses them before `run`.
+`jsonValue()` accepts any parser with `parse(value: unknown): T`, including a
+Zod schema supplied by the consumer project, and requires it to preserve the
+JSON shape. `textValue()` handles non-empty text. Each output declares whether
+it is required. An omitted output is logically `null` and has an empty wire
+value; a task cannot write top-level `null` or an empty text value. JSON arrays
+and nested `null` remain ordinary values. The producer validates before writing
+and the consumer validates before `run`.
+`required` is enforced when the task runs. A task skipped by `if`, or a task
+with `continueOnError`, exposes its outputs as optional to later steps.
+
+Direct task-output references and direct job-output passthroughs retain their
+contract. A computed job-output expression does not. `present(ref)` renders a
+GitHub empty-string check and proves an optional typed reference is present in
+`when` or task `if` conditions; `and` preserves that proof. `or`, negation, and
+raw expressions do not. `fromJSON(typedRef)` infers the JSON value type when
+the reference is required or presence has been proved, and emits an ordinary
+`fromJSON(ref)` call. For untyped references, `.as<T>()` remains a caller
+assertion without runtime validation. `.and()` retains the falsy branch of its left operand in the result type,
 while `.or()` retains the truthy branch; GitHub Actions performs the actual
-comparison, truthiness, and logical operator evaluation. `defineTask()` output
-values are strings, and a task may
-omit any declared output.
+comparison, truthiness, and logical operator evaluation.

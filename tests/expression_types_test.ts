@@ -1,12 +1,12 @@
 import {
   actionInput,
   defineAction,
-  defineTask,
   defineTsugiori,
   type Expression,
   fromJSON,
   pipeline,
   rawNode,
+  textValue,
 } from "@atty303/tsugiori/github-actions";
 
 function assertContracts(): void {
@@ -47,14 +47,7 @@ function assertContracts(): void {
   // @ts-expect-error a non-nullish value can be falsy, so && may not return a string
   const impossible: Expression<string> = broad;
   void impossible;
-  const task = defineTask({
-    outputs: ["matrix"],
-    run: async ({ outputs }) => {
-      await outputs.set("matrix", "dev");
-      // @ts-expect-error undeclared task output
-      await outputs.set("missing", "value");
-    },
-  });
+  const matrixContract = textValue();
   pipeline("inline", {
     output: ".github/workflows/inline.yml",
     events: ["push"],
@@ -64,9 +57,10 @@ function assertContracts(): void {
       ({ job }) =>
         job.runsOn("ubuntu-latest").task({
           name: "Inline",
-          task: async ({ outputs }) => {
-            // @ts-expect-error inline task has no declared outputs
-            await outputs.set("unknown", "value");
+          inputs: {},
+          outputs: {},
+          run: ({ outputs }) => {
+            void outputs;
           },
         }),
     );
@@ -94,7 +88,17 @@ function assertContracts(): void {
   })
     .job("prepare", ({ job }) =>
       job.runsOn("ubuntu-latest")
-        .task({ id: "produce", name: "Produce", task })
+        .task({
+          id: "produce",
+          name: "Produce",
+          inputs: {},
+          outputs: { matrix: { contract: matrixContract, required: true } },
+          run: async ({ outputs }) => {
+            await outputs.set("matrix", "dev");
+            // @ts-expect-error undeclared task output
+            await outputs.set("missing", "value");
+          },
+        })
         .outputs(({ steps }) => ({ matrix: steps.produce.outputs.matrix })));
   first.job("bad-raw-string", ({ job }) =>
     job.runsOn("ubuntu-latest")

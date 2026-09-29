@@ -89,9 +89,11 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
       })
       .task({
         name: "Conditional task",
+        inputs: {},
+        outputs: {},
         if: rawExpression("steps.source.outputs.sha != ''"),
         continueOnError: true,
-        task: () => {},
+        run: () => {},
       }));
 
   const lowered = await lowerConfig(
@@ -172,9 +174,9 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
         name: "Checkout",
         uses: checkout({ "persist-credentials": false }),
       })
-      .task({ name: "Test", task: () => {} })
+      .task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
       .run({ name: "Inspect", run: "echo inspected" })
-      .task({ name: "Report", task: async () => {} }));
+      .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
   const lowered = await lowerConfig(
     defineTsugiori({ pipelines: [ci] }),
@@ -259,7 +261,12 @@ Deno.test("task-backed steps reject Windows runners", async () => {
   }).job(
     "test",
     ({ job }) =>
-      job.runsOn("windows-latest").task({ name: "Test", task: () => {} }),
+      job.runsOn("windows-latest").task({
+        name: "Test",
+        inputs: {},
+        outputs: {},
+        run: () => {},
+      }),
   );
 
   await assertRejects(
@@ -281,7 +288,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
         name: "Authored",
         run: "true",
       })
-      .task({ name: "Task", task: () => {} }));
+      .task({ name: "Task", inputs: {}, outputs: {}, run: () => {} }));
 
   const lowered = await lowerConfig(
     defineTsugiori({ pipelines: [ci] }),
@@ -553,7 +560,7 @@ Deno.test("direct config preserves task step ID and environment", async () => {
   kind: "tsugiori.config", cacheVersion: 1,
   pipelines: [{ id: "ci", name: "CI", output: ".github/workflows/ci.yml",
     events: ["push"], jobs: [{ id: "test", runsOn: "ubuntu-latest", needs: [],
-      steps: [{ type: "task", id: "plan", name: "Plan", task: () => {},
+      steps: [{ type: "task", id: "plan", name: "Plan", inputs: {}, outputs: {}, run: () => {},
         env: { TOKEN: "\${{ secrets.TOKEN }}" } }]
     }]
   }]

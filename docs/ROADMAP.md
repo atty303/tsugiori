@@ -34,8 +34,9 @@ behavior is documented in the [README](../README.md) and
 
 ### Further dogfooding and providers
 
-- Exercise newly added syntax and task-runtime boundaries in repository CI,
-  then document current migration or failure behavior in the live reference.
+- Exercise typed task I/O across a real consumer's detect, matrix, deploy, and
+  completion jobs. Local compiler and runner tests cover the contract, but an
+  Actions run is still needed to verify the generated environment transport.
 - Evaluate another provider, such as GitLab CI, after the GitHub Actions
   integration is proven. Its module, authoring API, validation, expressions,
   emitter, and artifact delivery must preserve that provider's native

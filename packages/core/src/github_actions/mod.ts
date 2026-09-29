@@ -1,12 +1,23 @@
-import type { DefinedTask, TaskFunction } from "../task/mod.ts";
-export { defineTask } from "../task/mod.ts";
+import type {
+  InputDefinitions,
+  OutputDefinitions,
+  TaskContext,
+  ValueContract,
+} from "../task/mod.ts";
+export { jsonValue, textValue } from "../task/mod.ts";
 import {
   emitExpression,
   Expression,
   type ExpressionInput,
+  expressionProofs,
   type RawExpression,
+  type ReferenceBinding,
+  referenceBinding,
+  referencePath,
   type Scope,
   scope,
+  type TypedMarker,
+  type TypedReference,
 } from "./expression.ts";
 export {
   always,
@@ -21,6 +32,7 @@ export {
   hashFiles,
   join,
   literal,
+  present,
   rawNode,
   startsWith,
   success,
@@ -99,7 +111,18 @@ export type AuthoringTaskStep = Readonly<{
   type: "task";
   id?: string;
   name: string;
-  task: TaskFunction<string>;
+  inputs: Readonly<
+    Record<
+      string,
+      Readonly<
+        { contract: ValueContract<unknown>; from: string; optional: boolean }
+      >
+    >
+  >;
+  outputs: OutputDefinitions;
+  run: (
+    context: TaskContext<InputDefinitions, OutputDefinitions>,
+  ) => void | Promise<void>;
   if?: string;
   continueOnError?: boolean;
   env?: EnvironmentVariables;
@@ -242,7 +265,11 @@ const booleanInput =
       boolean
     >;
 
-export const actionInput = Object.freeze({
+export const actionInput: Readonly<{
+  string: ActionInputFactory<string>;
+  number: ActionInputFactory<number>;
+  boolean: ActionInputFactory<boolean>;
+}> = Object.freeze({
   string: stringInput,
   number: numberInput,
   boolean: booleanInput,
@@ -311,7 +338,14 @@ export type JobReference<
   PipelineId extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
-> = Readonly<{ id: JobId; pipelineId: PipelineId; outputNames: Outputs }>;
+> = Readonly<
+  {
+    id: JobId;
+    pipelineId: PipelineId;
+    outputNames: Outputs;
+    contracts?: Readonly<Record<string, ReferenceBinding>>;
+  }
+>;
 type JobReferences = Readonly<
   Record<string, JobReference<string, string, readonly string[]>>
 >;
@@ -328,8 +362,29 @@ export type StepReference<
     { [OutputName in Outputs[number]]: ActionOutputReference<Id, OutputName> }
   >;
   outputNames: Outputs;
+  contracts?: Readonly<Record<string, ReferenceBinding>>;
 }>;
 type StepReferences = Readonly<Record<string, StepReference>>;
+type TypedNames<O extends OutputDefinitions> =
+  & readonly (keyof O & string)[]
+  & Readonly<{
+    __typed: {
+      [K in keyof O]: TypedMarker<
+        O[K] extends { contract: ValueContract<infer T> } ? T : never,
+        O[K]["contract"],
+        O[K]["required"]
+      >;
+    };
+  }>;
+type JobOutputNames<O extends Readonly<Record<string, unknown>>> =
+  & readonly (keyof O & string)[]
+  & Readonly<{
+    __typed: {
+      [K in keyof O]: O[K] extends
+        TypedReference<infer T, infer C, string, infer R> ? TypedMarker<T, C, R>
+        : string;
+    };
+  }>;
 type OutputMap<
   References extends Readonly<
     Record<string, { outputNames: readonly string[] }>
@@ -356,6 +411,9 @@ type Field<
   | ((
     context: Scope<S, Needs, Steps, Matrix, Vars, Secrets>,
   ) => ExpressionInput);
+type ConditionProof<C> = C extends Expression<boolean, infer P> ? P
+  : C extends (...args: never[]) => Expression<boolean, infer P> ? P
+  : never;
 type StepField<
   S extends import("./expression_scope.ts").GitHubExpressionScopeKey,
   Needs extends Record<string, readonly string[]>,
@@ -442,15 +500,50 @@ export type RunStepDefinition<
   >;
 export type TaskStepDefinition<
   Id extends string | undefined = undefined,
-  Outputs extends string = never,
+  Inputs extends InputDefinitions = Record<never, never>,
+  Outputs extends OutputDefinitions = Record<never, never>,
   Needs extends Record<string, readonly string[]> = Record<never, never>,
   Steps extends StepReferences = Record<never, never>,
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  Proof extends string = never,
+  Condition extends
+    | StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>
+    | undefined = undefined,
 > =
-  & StepCommon<Needs, Steps, Matrix, Vars, Secrets>
-  & Readonly<{ id?: Id; task: TaskFunction<Outputs> }>;
+  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets>, "if">
+  & Readonly<{
+    id?: Id;
+    if?: Condition;
+    inputs:
+      & Inputs
+      & Readonly<
+        Record<
+          string,
+          Readonly<{
+            contract: ValueContract<unknown>;
+            from:
+              | ExpressionInput
+              | ((
+                context: Scope<
+                  "jobs.<job_id>.steps.env",
+                  Needs,
+                  OutputMap<Steps>,
+                  Matrix,
+                  Vars,
+                  Secrets,
+                  Proof | ConditionProof<Condition>
+                >,
+              ) => ExpressionInput);
+          }>
+        >
+      >;
+    outputs: Outputs;
+    run: (
+      context: TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>,
+    ) => void | Promise<void>;
+  }>;
 const jobDefinition = Symbol("tsugiori.job-definition");
 const pipelineDefinition = Symbol("tsugiori.pipeline-definition");
 type FinalizedJobDefinition<
@@ -463,6 +556,7 @@ type FinalizedJobDefinition<
   owner: symbol;
   job: AuthoringJob;
   outputNames: Outputs;
+  contracts: Readonly<Record<string, ReferenceBinding>>;
 }>;
 export interface FinalizedJobState<
   PipelineId extends string = string,
@@ -483,13 +577,15 @@ type Invocation<Definition> = Definition extends Readonly<{ uses: infer Value }>
   : readonly []
   : readonly [];
 type TaskOutputs<Definition> = Definition extends
-  Readonly<{ task: DefinedTask<infer O> }> ? readonly O[] : readonly [];
+  Readonly<{ outputs: infer O extends OutputDefinitions }> ? TypedNames<O>
+  : readonly [];
 type DefinitionStepReference<Definition> = Definition extends
   Readonly<{ id: infer Id extends string }> ? StepReference<
     Id,
     Definition extends Readonly<{ uses: unknown }> ? Invocation<Definition>
       : Definition extends
-        Readonly<{ outputs: infer O extends readonly string[] }> ? O
+        Readonly<{ run: string; outputs: infer O extends readonly string[] }>
+        ? O
       : TaskOutputs<Definition>
   >
   : never;
@@ -502,6 +598,24 @@ type AddStepReference<Definition, Steps extends StepReferences> =
         DefinitionStepReference<Definition>
       >
     >;
+type AddTaskReference<
+  Id extends string | undefined,
+  O extends OutputDefinitions,
+  Steps extends StepReferences,
+> = Id extends string
+  ? Readonly<Steps & Record<Id, StepReference<Id, TypedNames<O>>>>
+  : Steps;
+type SkippableOutputs<O extends OutputDefinitions> = {
+  readonly [K in keyof O]: Readonly<
+    { contract: O[K]["contract"]; required: false }
+  >;
+};
+type EffectiveOutputs<
+  O extends OutputDefinitions,
+  C,
+  F extends boolean | undefined,
+> = [C] extends [undefined] ? true extends F ? SkippableOutputs<O> : O
+  : SkippableOutputs<O>;
 export interface ExecutionJobState<
   PipelineId extends string,
   JobId extends string,
@@ -509,9 +623,10 @@ export interface ExecutionJobState<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  Proof extends string = never,
 > {
-  when(
-    condition: Field<
+  when<
+    const C extends Field<
       "jobs.<job_id>.if",
       Needs,
       Record<never, never>,
@@ -519,7 +634,17 @@ export interface ExecutionJobState<
       Vars,
       Secrets
     >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets>;
+  >(
+    condition: C,
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    ConditionProof<C>
+  >;
   strategy<const Shape extends object>(
     definition: (
       context: Scope<
@@ -528,10 +653,11 @@ export interface ExecutionJobState<
         Record<never, never>,
         Record<never, never>,
         Vars,
-        Secrets
+        Secrets,
+        Proof
       >,
     ) => Readonly<{ matrix: Expression<Shape>; failFast?: boolean }>,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Shape, Vars, Secrets>;
+  ): ExecutionJobState<PipelineId, JobId, Needs, Shape, Vars, Secrets, Proof>;
   strategy(
     definition: (
       context: Scope<
@@ -540,7 +666,8 @@ export interface ExecutionJobState<
         Record<never, never>,
         Record<never, never>,
         Vars,
-        Secrets
+        Secrets,
+        Proof
       >,
     ) => Readonly<{ matrix: RawExpression; failFast?: boolean }>,
   ): ExecutionJobState<
@@ -549,7 +676,8 @@ export interface ExecutionJobState<
     Needs,
     Record<never, never>,
     Vars,
-    Secrets
+    Secrets,
+    Proof
   >;
   strategy<
     const Axes extends Readonly<
@@ -568,7 +696,8 @@ export interface ExecutionJobState<
           Record<never, never>,
           Record<never, never>,
           Vars,
-          Secrets
+          Secrets,
+          Proof
         >,
       ) => Readonly<{ matrix: Axes; failFast?: boolean }>),
   ): ExecutionJobState<
@@ -580,7 +709,8 @@ export interface ExecutionJobState<
         : string;
     },
     Vars,
-    Secrets
+    Secrets,
+    Proof
   >;
   concurrency(
     definition: Readonly<
@@ -597,16 +727,16 @@ export interface ExecutionJobState<
         queue?: "max";
       }
     >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets>;
+  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
   permissions(
     value: WorkflowPermissions,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets>;
+  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
   timeoutMinutes(
     value: number,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets>;
+  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
   environment(
     value: string,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets>;
+  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
   uses<
     const D extends UsesStepDefinition<
       string | undefined,
@@ -626,7 +756,9 @@ export interface ExecutionJobState<
     Needs,
     Matrix,
     Vars,
-    Secrets
+    Secrets,
+    readonly [],
+    Proof
   >;
   run<
     const D extends RunStepDefinition<
@@ -647,50 +779,50 @@ export interface ExecutionJobState<
     Needs,
     Matrix,
     Vars,
-    Secrets
+    Secrets,
+    readonly [],
+    Proof
   >;
   task<
-    const D extends TaskStepDefinition<
-      string | undefined,
-      never,
-      Needs,
-      Record<never, never>,
-      Matrix,
-      Vars,
-      Secrets
-    >,
+    const Id extends string | undefined,
+    const I extends InputDefinitions,
+    const O extends OutputDefinitions,
+    const C extends
+      | StepField<
+        "jobs.<job_id>.steps.if",
+        Needs,
+        Record<never, never>,
+        Matrix,
+        Vars,
+        Secrets
+      >
+      | undefined,
+    const F extends boolean | undefined = undefined,
   >(
-    definition: D,
+    definition:
+      & TaskStepDefinition<
+        Id,
+        I,
+        O,
+        Needs,
+        Record<never, never>,
+        Matrix,
+        Vars,
+        Secrets,
+        Proof,
+        C
+      >
+      & Readonly<{ inputs: I; outputs: O; if?: C; continueOnError?: F }>,
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddStepReference<D, Record<never, never>>,
+    AddTaskReference<Id, EffectiveOutputs<O, C, F>, Record<never, never>>,
     Needs,
     Matrix,
     Vars,
-    Secrets
-  >;
-  task<
-    const O extends string,
-    const D extends TaskStepDefinition<
-      string | undefined,
-      O,
-      Needs,
-      Record<never, never>,
-      Matrix,
-      Vars,
-      Secrets
-    >,
-  >(
-    definition: D & Readonly<{ task: DefinedTask<O> }>,
-  ): NonEmptyStepState<
-    PipelineId,
-    JobId,
-    AddStepReference<D, Record<never, never>>,
-    Needs,
-    Matrix,
-    Vars,
-    Secrets
+    Secrets,
+    readonly [],
+    Proof
   >;
 }
 export interface NonEmptyStepState<
@@ -702,6 +834,7 @@ export interface NonEmptyStepState<
   Vars extends string = string,
   Secrets extends string = string,
   Outputs extends readonly string[] = readonly [],
+  Proof extends string = never,
 > extends FinalizedJobState<PipelineId, JobId, Outputs> {
   readonly steps: Steps;
   outputs<
@@ -726,10 +859,11 @@ export interface NonEmptyStepState<
         OutputMap<Steps>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        Proof
       >,
     ) => Names,
-  ): FinalizedJobState<PipelineId, JobId, readonly (keyof Names & string)[]>;
+  ): FinalizedJobState<PipelineId, JobId, JobOutputNames<Names>>;
   uses<
     const D extends UsesStepDefinition<
       string | undefined,
@@ -750,7 +884,8 @@ export interface NonEmptyStepState<
     Matrix,
     Vars,
     Secrets,
-    Outputs
+    Outputs,
+    Proof
   >;
   run<
     const D extends RunStepDefinition<
@@ -772,54 +907,50 @@ export interface NonEmptyStepState<
     Matrix,
     Vars,
     Secrets,
-    Outputs
+    Outputs,
+    Proof
   >;
   task<
-    const D extends TaskStepDefinition<
-      string | undefined,
-      never,
-      Needs,
-      Steps,
-      Matrix,
-      Vars,
-      Secrets
-    >,
-  >(
-    definition: AvailableStepDefinition<D, Steps>,
-  ): NonEmptyStepState<
-    PipelineId,
-    JobId,
-    AddStepReference<D, Steps>,
-    Needs,
-    Matrix,
-    Vars,
-    Secrets,
-    Outputs
-  >;
-  task<
-    const O extends string,
-    const D extends TaskStepDefinition<
-      string | undefined,
-      O,
-      Needs,
-      Steps,
-      Matrix,
-      Vars,
-      Secrets
-    >,
+    const Id extends string | undefined,
+    const I extends InputDefinitions,
+    const O extends OutputDefinitions,
+    const C extends
+      | StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>
+      | undefined,
+    const F extends boolean | undefined = undefined,
   >(
     definition:
-      & AvailableStepDefinition<D, Steps>
-      & Readonly<{ task: DefinedTask<O> }>,
+      & TaskStepDefinition<
+        Id,
+        I,
+        O,
+        Needs,
+        Steps,
+        Matrix,
+        Vars,
+        Secrets,
+        Proof,
+        C
+      >
+      & Readonly<
+        {
+          inputs: I;
+          outputs: O;
+          if?: C;
+          continueOnError?: F;
+          id?: Exclude<Id, keyof Steps>;
+        }
+      >,
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddStepReference<D, Steps>,
+    AddTaskReference<Id, EffectiveOutputs<O, C, F>, Steps>,
     Needs,
     Matrix,
     Vars,
     Secrets,
-    Outputs
+    Outputs,
+    Proof
   >;
 }
 export interface IndependentJobState<
@@ -990,6 +1121,9 @@ type JobDraft = Readonly<{
   needs: readonly string[];
   steps: readonly AuthoringStep[];
   references: StepReferences;
+  contracts: ReadonlyMap<string, ReferenceBinding>;
+  proofPaths: ReadonlySet<string>;
+  outputContracts?: Readonly<Record<string, ReferenceBinding>>;
 }>;
 
 export function pipeline<
@@ -1096,6 +1230,8 @@ function createPipelineFacade(
           needs: Object.freeze([]),
           steps: Object.freeze([]),
           references: Object.freeze({}),
+          contracts: new Map(),
+          proofPaths: new Set<string>(),
         }),
         Object.keys(draft.references).length > 0,
       );
@@ -1127,6 +1263,7 @@ function createPipelineFacade(
               id,
               pipelineId: draft.id,
               outputNames: completed.outputNames,
+              contracts: completed.contracts,
             }),
           }),
         }),
@@ -1148,6 +1285,18 @@ function evaluateField(
     ? (value as (context: unknown) => Expression<unknown>)(scope(key))
     : value;
   return emitExpression(result as ExpressionInput);
+}
+function evaluateCondition(
+  key: "jobs.<job_id>.if" | "jobs.<job_id>.steps.if",
+  value: unknown,
+): Readonly<{ rendered: string; proofPaths: ReadonlySet<string> }> {
+  const result = typeof value === "function"
+    ? (value as (context: unknown) => ExpressionInput)(scope(key))
+    : value;
+  return {
+    rendered: emitExpression(result as ExpressionInput),
+    proofPaths: expressionProofs(result),
+  };
 }
 function evaluateEnv(
   value: Readonly<Record<string, unknown>> | undefined,
@@ -1190,6 +1339,22 @@ function createJobStartFacade(
                     dependencies.map((dependency) => dependency.id),
                   ),
                   runsOn: runner,
+                  contracts: new Map(dependencies.flatMap((dependency) =>
+                    Object.entries(dependency.contracts ?? {}).map((
+                      [name, contract],
+                    ) =>
+                      [
+                        referencePath(
+                          referencePath(
+                            referencePath("needs", dependency.id),
+                            "outputs",
+                          ),
+                          name,
+                        ),
+                        contract,
+                      ] as const
+                    )
+                  )),
                 }),
               ),
           }),
@@ -1203,16 +1368,14 @@ function createExecutionJobFacade(
   draft: JobDraft & Readonly<{ runsOn: string }>,
 ): ExecutionJobState<string, string> {
   return Object.freeze({
-    when: (value: unknown) =>
-      createExecutionJobFacade(
-        Object.freeze({
-          ...draft,
-          options: {
-            ...draft.options,
-            if: evaluateField("jobs.<job_id>.if", value),
-          },
-        }),
-      ),
+    when: (value: unknown) => {
+      const condition = evaluateCondition("jobs.<job_id>.if", value);
+      return createExecutionJobFacade(Object.freeze({
+        ...draft,
+        proofPaths: condition.proofPaths,
+        options: { ...draft.options, if: condition.rendered },
+      }));
+    },
     strategy: (value: unknown) => {
       const definition = typeof value === "function"
         ? (value as (
@@ -1298,11 +1461,27 @@ function createExecutionJobFacade(
       }
       return appendStep(draft, runStep(definition), definition.outputs ?? []);
     },
-    task: (definition: TaskStepDefinition<string | undefined>) =>
+    task: (
+      definition: TaskStepDefinition<
+        string | undefined,
+        InputDefinitions,
+        OutputDefinitions
+      >,
+    ) =>
       appendStep(
         draft,
-        taskStep(definition),
-        definition.task.outputNames ?? [],
+        taskStep(definition, draft.contracts, draft.proofPaths),
+        Object.keys(definition.outputs ?? {}),
+        Object.fromEntries(
+          Object.entries(definition.outputs).map(([name, output]) => [
+            name,
+            {
+              contract: output.contract,
+              required: output.required && definition.if === undefined &&
+                definition.continueOnError !== true,
+            },
+          ]),
+        ),
       ),
   }) as ExecutionJobState<string, string>;
 }
@@ -1317,10 +1496,13 @@ function createStepFacade(
       owner: draft.owner,
       job: materializeJob(draft),
       outputNames: Object.freeze(Object.keys(draft.options?.outputs ?? {})),
+      contracts: draft.outputContracts ?? Object.freeze({}),
     }),
     steps: draft.references,
     outputs: (define: (context: unknown) => Record<string, unknown>) => {
-      const values = define(scope("jobs.<job_id>.outputs.<output_id>"));
+      const values = define(
+        scope("jobs.<job_id>.outputs.<output_id>", draft.contracts),
+      );
       assertPlainRecord(values, "Job outputs");
       validateActionOutputs(Object.keys(values));
       const outputs = Object.freeze(
@@ -1333,8 +1515,18 @@ function createStepFacade(
           ]),
         ),
       );
+      const outputContracts = Object.freeze(Object.fromEntries(
+        Object.entries(values).flatMap(([name, value]) => {
+          const binding = referenceBinding(value);
+          return binding === undefined ? [] : [[name, binding]];
+        }),
+      ));
       return createStepFacade(
-        Object.freeze({ ...draft, options: { ...draft.options, outputs } }),
+        Object.freeze({
+          ...draft,
+          outputContracts,
+          options: { ...draft.options, outputs },
+        }),
       );
     },
     uses: base.uses,
@@ -1346,6 +1538,7 @@ function appendStep(
   draft: JobDraft & Readonly<{ runsOn: string }>,
   step: AuthoringStep,
   outputNames: readonly string[] = Object.freeze([]),
+  contracts?: Readonly<Record<string, ReferenceBinding>>,
 ): NonEmptyStepState<string, string, StepReferences> {
   if (
     step.id !== undefined &&
@@ -1354,9 +1547,23 @@ function appendStep(
   return createStepFacade(Object.freeze({
     ...draft,
     steps: Object.freeze([...draft.steps, step]),
+    contracts: step.id === undefined || contracts === undefined
+      ? draft.contracts
+      : new Map([
+        ...draft.contracts,
+        ...Object.entries(contracts).map(([name, contract]) =>
+          [
+            referencePath(
+              referencePath(referencePath("steps", step.id!), "outputs"),
+              name,
+            ),
+            contract,
+          ] as const
+        ),
+      ]),
     references: step.id === undefined ? draft.references : Object.freeze({
       ...draft.references,
-      [step.id]: stepReference(step.id, outputNames),
+      [step.id]: stepReference(step.id, outputNames, contracts),
     }),
   }));
 }
@@ -1410,14 +1617,99 @@ function runStep(
   });
 }
 function taskStep(
-  definition: TaskStepDefinition<string | undefined>,
+  definition: TaskStepDefinition<
+    string | undefined,
+    InputDefinitions,
+    OutputDefinitions
+  >,
+  contracts: ReadonlyMap<string, ReferenceBinding>,
+  jobProofPaths: ReadonlySet<string>,
 ): AuthoringTaskStep {
+  const fields = stepFields({
+    env: definition.env,
+    continueOnError: definition.continueOnError,
+  });
+  const condition = definition.if === undefined
+    ? undefined
+    : evaluateCondition("jobs.<job_id>.steps.if", definition.if);
+  const proofPaths = new Set([
+    ...jobProofPaths,
+    ...condition?.proofPaths ?? [],
+  ]);
+  const env: Record<string, string> = { ...fields.env };
+  const inputs: Record<
+    string,
+    { contract: ValueContract<unknown>; from: string; optional: boolean }
+  > = {};
+  for (const [name, input] of Object.entries(definition.inputs ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      throw new TypeError(
+        `Task input ${JSON.stringify(name)} is not a valid environment name.`,
+      );
+    }
+    if (typeof input.contract?.parse !== "function") {
+      throw new TypeError(
+        `Task input ${JSON.stringify(name)} requires a contract.`,
+      );
+    }
+    const envName = `TSUGIORI_INPUT_${name.toUpperCase()}`;
+    if (envName in env) {
+      throw new TypeError(
+        `Task input environment variable ${envName} conflicts with env.`,
+      );
+    }
+    const source = typeof input.from === "function"
+      ? (input.from as (context: unknown) => unknown)(
+        scope("jobs.<job_id>.steps.env", contracts),
+      )
+      : input.from;
+    const binding = referenceBinding(source);
+    const sourceContract = binding?.contract;
+    if (sourceContract !== undefined && sourceContract !== input.contract) {
+      throw new TypeError(
+        `Task input ${JSON.stringify(name)} uses a different contract object.`,
+      );
+    }
+    env[envName] = source instanceof Expression
+      ? emitExpression(source)
+      : typeof source === "string" && source.startsWith("${{ ")
+      ? source
+      : (() => {
+        throw new TypeError(
+          `Task input ${JSON.stringify(name)} must be an expression.`,
+        );
+      })();
+    inputs[name] = {
+      contract: input.contract,
+      from: envName,
+      optional: binding?.required === false &&
+        !(source instanceof Expression && source.node.kind === "path" &&
+          proofPaths.has(source.node.value)),
+    };
+  }
+  validateActionOutputs(Object.keys(definition.outputs ?? {}));
+  for (const [name, output] of Object.entries(definition.outputs ?? {})) {
+    if (
+      typeof output.required !== "boolean" ||
+      typeof output.contract?.parse !== "function"
+    ) {
+      throw new TypeError(
+        `Task output ${
+          JSON.stringify(name)
+        } requires a contract and required flag.`,
+      );
+    }
+  }
   return Object.freeze({
     type: "task",
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
-    task: definition.task,
-    ...stepFields(definition),
+    inputs,
+    outputs: definition.outputs ?? {},
+    run: definition.run,
+    ...fields,
+    ...(condition === undefined ? {} : { if: condition.rendered }),
+    ...(Object.keys(env).length === 0 ? {} : { env: Object.freeze(env) }),
   });
 }
 function materializeJob(
@@ -1473,10 +1765,12 @@ function freezeActionInvocation<const Outputs extends readonly string[]>(
 function stepReference(
   id: string,
   outputNames: readonly string[],
+  contracts?: Readonly<Record<string, ReferenceBinding>>,
 ): StepReference {
   return Object.freeze({
     id,
     outputNames: Object.freeze([...outputNames]),
+    ...(contracts === undefined ? {} : { contracts }),
     outputs: Object.freeze(Object.fromEntries(outputNames.map((name) => [
       name,
       `\${{ steps.${id}.outputs.${name} }}`,
