@@ -1,5 +1,11 @@
 import { scenario } from "../packages/testing/src/mod.ts";
-import { jsonValue, pipeline, toJSON } from "../packages/core/src/mod.ts";
+import {
+  fromJSON,
+  jsonValue,
+  pipeline,
+  present,
+  toJSON,
+} from "../packages/core/src/mod.ts";
 
 function assertScenarioTypes(): void {
   const numberValue = jsonValue({
@@ -44,3 +50,46 @@ function assertScenarioTypes(): void {
   });
 }
 void assertScenarioTypes;
+
+function assertTypedMatrixFromOutput(): void {
+  const stages = jsonValue({
+    parse(value: unknown): ("dev" | "prd")[] {
+      if (!Array.isArray(value)) throw new TypeError();
+      return value.map((item: unknown) => {
+        if (item === "dev" || item === "prd") return item;
+        throw new TypeError();
+      });
+    },
+  });
+  const detected = pipeline("matrix-output", {
+    events: ["push"],
+    output: ".github/workflows/matrix-output.yml",
+  }).job("detect", ({ job }) =>
+    job.runsOn("ubuntu-latest")
+      .task({
+        id: "plan",
+        name: "Plan",
+        inputs: {},
+        outputs: { stages: { contract: stages, required: false } },
+        run: () => {},
+      }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })));
+  const flow = detected.job("deploy", ({ job, jobs }) =>
+    job.needs(jobs.detect)
+      .runsOn("ubuntu-latest")
+      .when(({ needs }) => present(needs.detect.outputs.stages))
+      .strategy(({ needs }) => ({
+        matrix: { stage: fromJSON(needs.detect.outputs.stages) },
+      }))
+      .run({ id: "execute", name: "Execute", run: "true" }));
+  void scenario(flow, (test) =>
+    test.job("deploy", (job) => {
+      job.eachMatrix(({ stage }) => {
+        const value: "dev" | "prd" = stage;
+        void value;
+        // @ts-expect-error stage comes from the typed output schema
+        const invalid: "stg" = stage;
+        void invalid;
+      });
+    }));
+}
+void assertTypedMatrixFromOutput;

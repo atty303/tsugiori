@@ -766,6 +766,8 @@ export interface ExecutionJobState<
     Needs,
     {
       readonly [K in keyof Axes]: Axes[K] extends readonly (infer V)[] ? V
+        : Axes[K] extends Expression<infer Values>
+          ? Values extends readonly (infer V)[] ? V : string
         : string;
     },
     Vars,
