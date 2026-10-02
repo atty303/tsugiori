@@ -124,6 +124,64 @@ for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
 Run the repository checks with `mise run check` and `mise run test` from the
 repository root.
 
+## Test pipeline logic
+
+Use `scenario()` inside `Deno.test` to check the lowered GitHub Actions
+workflow without running authored steps or task bodies. Give referenced
+external values with `github()`, `inputs()`, `vars()`, or `secrets()`. A reached
+authored step needs an explicit ID and a fixture. Task fixtures return native
+output values; Tsugiori validates and serializes them before passing them to
+later steps and jobs. Action and run-step outputs are strings.
+
+```ts
+import { scenario } from "@atty303/tsugiori";
+
+Deno.test("deploy failure reaches completion", async () => {
+  await scenario(deployPipeline, (test) => {
+    test.github({ event_name: "push", ref: "refs/heads/master", event: {} });
+    test.job("detect", (job) => {
+      job.step("plan").fixture({ outputs: { stages: ["dev", "prd"] } });
+    });
+    test.job("deploy", (job) => {
+      job.expectMatrix([{ stage: "dev" }, { stage: "prd" }]);
+      job.eachMatrix(({ stage }, instance) => {
+        instance.step("run-deploy")
+          .fixture({ outcome: stage === "prd" ? "failure" : "success" })
+          .expectInputs({ stage });
+      });
+      job.expectResult("failure");
+    });
+    test.job("complete", (job) => {
+      job.step("notify").fixture({}).expectInputs({ deployResult: "failure" });
+    });
+  });
+});
+```
+
+The snippet shows the shape of a scenario; supply fixtures for every other
+reached authored step and all required task outputs in a real pipeline. The
+pipeline type supplies job and step IDs, task input and output values, and
+matrix values to the editor and type checker. `fixture()` supplies values;
+`expectRun()`, `expectSkip()`, `expectInputs()`, `expectOutputs()`, and
+`expectResult()` check independent expectations. Expectations are optional.
+`expectBefore()` checks a declared `needs` edge without asserting an order
+between independent jobs. `expectAllReached()` provides an optional common
+step conclusion expectation.
+
+Typed expressions are evaluated by the interpreter. For an unsupported raw
+expression or `hashFiles()`, give the value at its exact evaluation site, such
+as `job.step("build").expression("if", true)` or
+`job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
+an error. Generated task preparation steps succeed by default and can be
+overridden with `job.internal("prepare", "failure")`. Failures identify the
+pipeline, job, matrix, step, and field, and distinguish missing or invalid
+fixtures, expression errors, and expectation mismatches.
+
+This test covers trigger filters, conditions, matrix expansion, `needs`,
+status, input and output wiring, and results. GitHub Actions still owns runner
+execution, permissions, environment approvals, timeouts, concurrency, and
+actual scheduling. Keep task unit tests for the task bodies themselves.
+
 ## Expressions and outputs
 
 Job fields are set in definition order. Configure a matrix before concurrency,

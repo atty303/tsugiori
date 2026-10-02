@@ -20,7 +20,7 @@ step model and no second delivery backend.
 ## Package and authoring
 
 The root `deno.json` defines one Deno package with root, `github-actions`,
-`task`, and `run` exports. The root re-exports the full GitHub Actions API and
+`task`, `testing`, and `run` exports. The root re-exports the full GitHub Actions API and
 `runTsugiori()`; the subpath exports remain available. The authoring API uses
 immutable facades: job methods become available as the definition advances, and
 only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
@@ -90,6 +90,25 @@ bytes to existing files and reports missing or changed outputs, plus extra
 `--output <path>` limits the check to one workflow. Normal generation does not
 delete extra files. The checked-in [CI config](../.github/tsugiori.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `generate:check`.
+
+## Scenario interpretation
+
+The testing API lowers a pipeline with the same compiler path used for YAML
+generation and interprets the validated GitHub Actions workflow AST. Its
+scenario builder preserves the pipeline's job IDs, step IDs, task contracts,
+and matrix types for editor completion. A scenario provides referenced
+external contexts and fixtures for reached authored steps. The interpreter
+builds `steps`, `needs`, and `matrix` contexts, evaluates supported expressions,
+serializes typed task outputs to GitHub wire values, and checks independent
+expectations against the resulting state. Generated task preparation steps
+default to success and support an explicit outcome override.
+
+The interpreter checks trigger filters, conditions, step order, matrix
+expansion, job dependencies, status and `continue-on-error`, and value
+propagation. It does not call authored step or task bodies. It does not model
+runner behavior, permissions, environment approvals, timeouts, concurrency,
+or actual parallel execution. Unknown expression forms and `hashFiles()` need
+a field-specific scenario value; unsupported forms never silently succeed.
 
 ## Task artifact lifecycle
 

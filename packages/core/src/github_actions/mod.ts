@@ -1,6 +1,8 @@
 import type {
   InputDefinitions,
+  InputValues,
   OutputDefinitions,
+  OutputValues,
   TaskContext,
   ValueContract,
 } from "../task/mod.ts";
@@ -338,14 +340,42 @@ export type JobReference<
   PipelineId extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
+  Test extends object = object,
 > = Readonly<
   {
     id: JobId;
     pipelineId: PipelineId;
     outputNames: Outputs;
     contracts?: Readonly<Record<string, ReferenceBinding>>;
+    [testJobShape]?: Test;
   }
 >;
+const testStepShape: unique symbol = Symbol("tsugiori.test-step-shape");
+const testJobShape: unique symbol = Symbol("tsugiori.test-job-shape");
+const testPipelineShape: unique symbol = Symbol("tsugiori.test-pipeline-shape");
+export type TestStepShape<
+  Inputs = Record<string, unknown>,
+  Outputs = Record<string, unknown>,
+> = Readonly<{ inputs: Inputs; outputs: Outputs }>;
+export type TestJobShape<
+  Steps extends StepReferences = StepReferences,
+  Matrix extends object = object,
+> = Readonly<{ steps: Steps; matrix: Matrix }>;
+export type TestStepsOf<Job> = Job extends { readonly [testJobShape]?: infer T }
+  ? T extends TestJobShape<infer Steps, object> ? Steps : never
+  : never;
+export type TestMatrixOf<Job> = Job extends
+  { readonly [testJobShape]?: infer T }
+  ? T extends TestJobShape<StepReferences, infer Matrix> ? Matrix : never
+  : never;
+export type TestStepOf<Step> = Step extends {
+  readonly [testStepShape]?: infer T;
+} ? T
+  : never;
+export type TestJobsOf<Pipeline> = Pipeline extends {
+  readonly [testPipelineShape]?: infer Jobs;
+} ? Jobs
+  : never;
 type JobReferences = Readonly<
   Record<string, JobReference<string, string, readonly string[]>>
 >;
@@ -356,6 +386,7 @@ export type ActionOutputReference<
 export type StepReference<
   Id extends string = string,
   Outputs extends readonly string[] = readonly string[],
+  Test extends TestStepShape = TestStepShape,
 > = Readonly<{
   id: Id;
   outputs: Readonly<
@@ -363,6 +394,7 @@ export type StepReference<
   >;
   outputNames: Outputs;
   contracts?: Readonly<Record<string, ReferenceBinding>>;
+  [testStepShape]?: Test;
 }>;
 type StepReferences = Readonly<Record<string, StepReference>>;
 type TypedNames<O extends OutputDefinitions> =
@@ -546,6 +578,10 @@ export type TaskStepDefinition<
   }>;
 const jobDefinition = Symbol("tsugiori.job-definition");
 const pipelineDefinition = Symbol("tsugiori.pipeline-definition");
+export interface TestablePipeline {
+  readonly [pipelineDefinition]: AuthoringPipeline;
+  readonly [testPipelineShape]?: Readonly<Record<string, unknown>>;
+}
 type FinalizedJobDefinition<
   PipelineId extends string,
   JobId extends string,
@@ -562,8 +598,11 @@ export interface FinalizedJobState<
   PipelineId extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
+  Steps extends StepReferences = StepReferences,
+  Matrix extends object = object,
 > {
   readonly [jobDefinition]: FinalizedJobDefinition<PipelineId, JobId, Outputs>;
+  readonly [testJobShape]?: TestJobShape<Steps, Matrix>;
 }
 type DefinitionStepId<Definition> = Definition extends
   Readonly<{ id: infer Id extends string }> ? Id : never;
@@ -586,7 +625,18 @@ type DefinitionStepReference<Definition> = Definition extends
       : Definition extends
         Readonly<{ run: string; outputs: infer O extends readonly string[] }>
         ? O
-      : TaskOutputs<Definition>
+      : TaskOutputs<Definition>,
+    TestStepShape<
+      Record<string, unknown>,
+      Record<
+        Definition extends Readonly<{ uses: unknown }>
+          ? Invocation<Definition>[number]
+          : Definition extends
+            Readonly<{ outputs: infer O extends readonly string[] }> ? O[number]
+          : never,
+        string
+      >
+    >
   >
   : never;
 type AddStepReference<Definition, Steps extends StepReferences> =
@@ -600,10 +650,20 @@ type AddStepReference<Definition, Steps extends StepReferences> =
     >;
 type AddTaskReference<
   Id extends string | undefined,
+  I extends InputDefinitions,
   O extends OutputDefinitions,
   Steps extends StepReferences,
-> = Id extends string
-  ? Readonly<Steps & Record<Id, StepReference<Id, TypedNames<O>>>>
+> = Id extends string ? Readonly<
+    & Steps
+    & Record<
+      Id,
+      StepReference<
+        Id,
+        TypedNames<O>,
+        TestStepShape<InputValues<I>, OutputValues<O>>
+      >
+    >
+  >
   : Steps;
 type SkippableOutputs<O extends OutputDefinitions> = {
   readonly [K in keyof O]: Readonly<
@@ -816,7 +876,7 @@ export interface ExecutionJobState<
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddTaskReference<Id, EffectiveOutputs<O, C, F>, Record<never, never>>,
+    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Record<never, never>>,
     Needs,
     Matrix,
     Vars,
@@ -835,7 +895,7 @@ export interface NonEmptyStepState<
   Secrets extends string = string,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
-> extends FinalizedJobState<PipelineId, JobId, Outputs> {
+> extends FinalizedJobState<PipelineId, JobId, Outputs, Steps, Matrix> {
   readonly steps: Steps;
   outputs<
     const Names extends Readonly<
@@ -863,7 +923,13 @@ export interface NonEmptyStepState<
         Proof
       >,
     ) => Names,
-  ): FinalizedJobState<PipelineId, JobId, JobOutputNames<Names>>;
+  ): FinalizedJobState<
+    PipelineId,
+    JobId,
+    JobOutputNames<Names>,
+    Steps,
+    Matrix
+  >;
   uses<
     const D extends UsesStepDefinition<
       string | undefined,
@@ -944,7 +1010,7 @@ export interface NonEmptyStepState<
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddTaskReference<Id, EffectiveOutputs<O, C, F>, Steps>,
+    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
     Needs,
     Matrix,
     Vars,
@@ -1037,7 +1103,12 @@ type AddJobReference<
   & Jobs
   & Record<
     JobId,
-    JobReference<PipelineId, JobId, Result[typeof jobDefinition]["outputNames"]>
+    JobReference<
+      PipelineId,
+      JobId,
+      Result[typeof jobDefinition]["outputNames"],
+      NonNullable<Result[typeof testJobShape]>
+    >
   >
 >;
 type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
@@ -1079,6 +1150,7 @@ export interface NonEmptyPipelineState<
   Secrets extends string = string,
 > {
   readonly [pipelineDefinition]: AuthoringPipeline;
+  readonly [testPipelineShape]?: Jobs;
   job<
     const JobId extends string,
     Result extends FinalizedJobState<
