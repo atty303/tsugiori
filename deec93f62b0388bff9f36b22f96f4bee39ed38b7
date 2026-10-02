@@ -1,0 +1,13 @@
+Task: Publish Tsugiori scenario API and add glaze-ops pipeline scenarios
+Anchor: deec93f62b0388bff9f36b22f96f4bee39ed38b7
+Base: 0fbec0ef38da69b50396427a58418db9b6e06130
+Branch: main
+Commits: deec93f62b0388bff9f36b22f96f4bee39ed38b7
+Guidance: AGENTS.md; develop-repository; design-review; review; git-task-evidence
+Conditions: User authorized push and glaze-ops test addition; no PR or deploy was requested.
+## Evidence
+Initial scenario implementation 0fbec0e and its note were pushed. Glaze-ops type-checking exposed a widened matrix axis from typed JSON output; the focused Tsugiori fix passed mise run check and mise run test (69 tests), and independent review found no remaining issue. Glaze-ops scenario tests are being completed.
+Authority: User follow-up, repository AGENTS.md, and current Tsugiori source and tests.
+## Transcript
+- U1: pushしてops側にtestを追加
+  - A: Pushed Tsugiori scenario code and note. Inspected glaze-ops, added explicit step IDs and a three-scenario test, and found that typed fromJSON matrix values widened in the public DSL. Fixed the Tsugiori type inference, added a validated compile-time test, passed check and 69 tests, obtained independent review, and created local commit deec93f for publication.
