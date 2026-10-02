@@ -1,0 +1,47 @@
+Task: Implement Glaze-required native workflows and fixed GitHub Actions specification handling
+Anchor: c006147d9e5010e6817c1981f86f9cbb811257f0
+Base: deec93f62b0388bff9f36b22f96f4bee39ed38b7
+Branch: main
+Commits: 1; native workflow capabilities, specification inventory and update skill
+Guidance: repository AGENTS.md; dig; develop-repository; design-review; design-program-observability; author-skills; maintain-agent-guidance; investigate-problem; review; Git task evidence
+Conditions: Deno 2.9.5 and hk 2 via mise; workspace-write sandbox; Git and skill mutations approved separately; GitHub owns execution; no push/PR/deploy/release/cloud authority
+## Evidence
+- Snapshot: GitHub.com docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436, verified 2026-10-02, 181 fixed sources with SHA256.
+- Exact independent final review patch SHA256: 9499cb10c4d9040378c8ed330b4e7c745e4fa5484497c3856506b6345f740870. Implementation/spec review and five skill forward scenarios cleared.
+- Local verification: 79 tests passed; final spec regression passed; mise run check and generate:check passed.
+- Glaze read-only lowering/emission: 12 workflows, 29 jobs, 30 run scripts preserved; public typed authoring tested separately. GitHub runner, permissions, environment approval and actual concurrency remain unverified.
+Authority: current user implementation attachment and agreed dig decisions; repository AGENTS.md and current living documentation
+## Transcript
+- U1: glaze repoの全workflowをtsugioriで書き換えるとき、tsugioriに不足している機能は？ [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) 
+  - A: Inspected Glaze revision 6754b2f611 (12 workflows) against Tsugiori deec93f, identified missing reusable workflow and native fields, and asked to preserve reusable boundaries.
+- U2: A
+  - A: Agreed native reusable workflow file/call boundaries; asked typed local calls versus raw external calls.
+- U3: A
+  - A: Agreed typed local pipeline references and raw external calls; asked recursive scenario interpretation.
+- U4: A
+  - A: Agreed recursive local scenario and external fixtures; asked whether to retain existing actions and run scripts.
+- U5: A
+  - A: Agreed retain actions/run/scripts and defer task conversion and Windows runtime; asked native defaults.run.
+- U6: A
+  - A: Agreed native defaults.run and per-step overrides; asked typed static matrix include.
+- U7: A
+  - A: Agreed inferred static include and existing dynamic matrix; asked task scope.
+- U8: A
+  - A: Agreed Tsugiori additions only, Glaze migration separate; asked specification scope.
+- U9:
+    B. github actionsの仕様に依存する部分の扱いを広く定める
+    APIにはGitHub側仕様に基づいたDocコメントをつける。出典へのリンクもつける。
+    GitHub側仕様は変わっていくので、Tsugioriがどの時点での仕様を表現しているか、明確にする必要がある
+  - A: Expanded specification handling and source-linked Doc comments for existing APIs, checked official sources and asked one snapshot per Tsugiori version.
+- U10: A
+  - A: Agreed one GitHub.com snapshot per version with centralized identity; asked inventory versus full implementation.
+- U11: A
+  - A: Agreed broad inventory with Glaze-required implementation only; asked explicit specification update workflow.
+- U12: A. 更新作業に特化したskillを作成する
+  - A: Agreed dedicated repository update skill, applied author-skills and maintain-agent-guidance; asked new feature implementation policy.
+- U13: A. 対応するかどうかは判断を仰ぐ
+  - A: Agreed present differences/impact/recommendation and obtain support decision before implementation; presented final design confirmation.
+- U14: A
+  - A: Produced agreed implementation request covering APIs, scenarios, specification inventory and skill with scope and acceptance constraints.
+- U15: [Attachment: 実装依頼; SHA256 ae159489593178c3bb16b24272c2f8b1182d6fdf76444324d215381e7ad0e987; Tsugiori native reusable workflow APIs, local scenarios, GitHub.com specification snapshot and source-linked comments, dedicated update skill, tests/review/forward tests; Glaze read-only and no push, PR, deploy, release or cloud changes.]
+  - A: Applied develop-repository, design-program-observability, design-review, author-skills, maintain-agent-guidance and investigate-problem. Verified unchanged Glaze baseline; fetched code and notes over HTTPS after SSH stalled. Implemented native APIs/compiler/recursive scenarios/host-owned observation, fixed-source inventory and Doc comments, and update skill. Independent reviews found and verified fixes for partial defaults serialization, matrix result expectations, task timeout propagation, coverage/doc details and one false activity item. Skill passed structural/reference validation and five forward scenarios. Standard suite 79 passed; final specification regression passed; check and generate:check passed. Read-only Glaze lowering/emission retained 12 workflows, 29 jobs and 30 run scripts, separate from typed API tests. No hosted execution or Glaze changes. Prepared one local implementation commit and standardized note from the complete runtime history.
