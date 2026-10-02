@@ -1,0 +1,13 @@
+Task: Make public API field documentation usable without individual GitHub specification lookups
+Anchor: 287569a0c81c49ab9b7c04e5196b1f89ef2bd52f
+Base: c006147d9e5010e6817c1981f86f9cbb811257f0
+Branch: main
+Commits: 1; GitHub-first field and context Doc comments
+Guidance: repository AGENTS.md; develop-repository; atty303 profile; design-review; Git task evidence; user documentation conventions
+Conditions: documentation-only scope; fixed GitHub.com snapshot unchanged; Deno/mise; no dependency, API or runtime behavior changes; no push/PR
+Authority: current user field-documentation request and GitHub-first comment direction; repository AGENTS.md and living specification basis
+## Transcript
+- U1: doc commentに各フィールドの意味も書けないの？ 利用者がgithubの仕様を個別に読みにいかなくても使える状態にしたい
+  - A: Acknowledged that the previous comments emphasized sources and limitations over field meaning; applied develop-repository/design-review, fetched remote code/notes read-only and inspected public declarations and fixed official syntax sources. Began per-field documentation for values, defaults and behavior.
+- U2: doc commentはtsugiori固有の説明が主体ではなく、github仕様の説明を主体としtsugioriの差分はコメントの末尾にまとめる。基本的に対応するgithub仕様のコピーになるはずだ
+  - A: Reorganized comments with GitHub semantics as the main description and final Tsugiori paragraphs for differences. Copied or adapted fixed GitHub Docs context descriptions, expanding templates for GitHub.com, and recorded CC BY 4.0 attribution. Added field descriptions for workflow settings, reusable/dispatch inputs and secrets, permissions, run defaults, steps, matrices/concurrency and runtime contexts. Corrected action-versus-workflow and job-versus-step distinctions during self-review. Type/runtime token comparison passed; focused mise check and diff checks passed; deno doc JSON retained nine sampled field categories. One initial documentation check queried actor only in the main module; checking the expression module resolved the inspection mismatch. No new runtime tests needed for documentation-only changes. Prepared one local documentation commit and this note after comparing all cycle user messages against complete runtime history.
