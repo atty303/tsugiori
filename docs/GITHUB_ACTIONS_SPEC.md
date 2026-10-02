@@ -42,3 +42,12 @@ only for an explicit specification refresh. It fixes the new sources before
 changing coverage and asks whether newly discovered capabilities should be
 implemented. Unsupported fields can remain unsupported when advancing the basis.
 Ordinary workflow authoring and generation do not invoke this process.
+
+Public API Doc comments reproduce or adapt the corresponding GitHub specification
+so users can read field meanings, defaults and execution behavior in editor hovers.
+GitHub semantics form the main description; a final `Tsugiori:` paragraph records
+local differences, validation limits or scenario limitations. Source links remain
+attached to the relevant field. Descriptions from [GitHub Docs](https://github.com/github/docs)
+are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+They are edited for API names and the supported GitHub.com surface, with Markdown
+templates expanded from the fixed source revision recorded in the snapshot.

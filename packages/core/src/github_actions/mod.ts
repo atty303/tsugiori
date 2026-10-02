@@ -1,3 +1,5 @@
+// GitHub specification descriptions are copied or adapted from GitHub Docs (CC BY 4.0).
+// Attribution, modifications and fixed source basis: docs/GITHUB_ACTIONS_SPEC.md.
 export { githubActionsSpec } from "./github_spec.ts";
 import type {
   InputDefinitions,
@@ -43,7 +45,8 @@ export {
 } from "./expression.ts";
 export type { Expression, RawExpression, Scope } from "./expression.ts";
 
-/** GitHub triggers supported by Tsugiori. See the fixed coverage in github_spec.ts.
+/** Events determine when a workflow runs. Multiple events are alternatives; each matching event can start a separate run.
+ * Tsugiori: the supported event names are limited to this union; see githubActionsSpec for the fixed specification basis.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
  */
 export type PipelineEvent =
@@ -52,50 +55,166 @@ export type PipelineEvent =
   | "push"
   | "workflow_dispatch"
   | "workflow_call";
-/** Dispatch choice values remain strings; inputs are only supplied on manual dispatch.
+/** Manual workflow dispatch accepts named inputs and displays them in the run form. choice inputs use a single selection and return a string. GitHub allows at most 10 top-level inputs with a total payload of 65,535 characters.
+ * Tsugiori: supports string and choice inputs; other GitHub dispatch input types are not implemented.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
  */
 export type WorkflowDispatchInput =
   & Readonly<{
+    /** A human-readable explanation of this input, secret or output for workflow authors.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     */
     description?: string;
+    /** Whether the caller must supply this value. Defaults to false when omitted.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     */
     required?: boolean;
   }>
   & (
-    | Readonly<{ type: "string"; default?: string }>
-    | Readonly<{ type: "choice"; options: readonly string[]; default?: string }>
+    | Readonly<{
+      /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
+       * Tsugiori: boolean, number and environment dispatch inputs are not supported.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       */
+      type: "string";
+      /** The preselected or initial value on the manual-run form when the caller does not supply one. For choice inputs, use one of options.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+       */
+      default?: string;
+    }>
+    | Readonly<{
+      /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
+       * Tsugiori: boolean, number and environment dispatch inputs are not supported.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       */
+      type: "choice";
+      /** The choices displayed in the manual-run UI. The selected choice is a string input value.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       */
+      options: readonly string[];
+      /** The preselected or initial value on the manual-run form when the caller does not supply one. For choice inputs, use one of options.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+       */
+      default?: string;
+    }>
   );
-/** Omitted token permissions become none when any permission is specified.
+/** For each GITHUB_TOKEN permission, read grants read-only access, write grants read and write access, and none disables access. Once any permission is specified, unspecified permissions become none.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
  */
 export type PermissionLevel = "none" | "read" | "write";
+/** OIDC uses write to allow token requests, or none to disable them; it has no read level.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+ */
 export type OidcPermissionLevel = "none" | "write";
 export type WorkflowPermissions = Readonly<{
+  /** Controls GITHUB_TOKEN access to repository contents: read allows checkout; write allows content changes and releases.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   contents?: PermissionLevel;
+  /** Allows requesting an OpenID Connect token for authentication to an external provider. write permits token requests, not writes to that provider.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   "id-token"?: OidcPermissionLevel;
+  /** Controls GITHUB_TOKEN access to pull requests, including reading metadata or writing labels and comments.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   "pull-requests"?: PermissionLevel;
+  /** Controls GITHUB_TOKEN access to GitHub Actions, including reading runs or cancelling workflow runs with write.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   actions?: PermissionLevel;
 }>;
 /** Reusable input defaults are literals; GitHub supplies false, 0 or an empty string when omitted.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
  */
 export type WorkflowCallInput =
-  & Readonly<{ description?: string; required?: boolean }>
+  & Readonly<{
+    /** A human-readable explanation of this input, secret or output for workflow authors.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+     */
+    description?: string;
+    /** Whether the caller must supply this value. Defaults to false when omitted.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+     */
+    required?: boolean;
+  }>
   & (
-    | Readonly<{ type: "string"; default?: string }>
-    | Readonly<{ type: "boolean"; default?: boolean }>
-    | Readonly<{ type: "number"; default?: number }>
+    | Readonly<{
+      /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       */
+      type: "string";
+      /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       */
+      default?: string;
+    }>
+    | Readonly<{
+      /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       */
+      type: "boolean";
+      /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       */
+      default?: boolean;
+    }>
+    | Readonly<{
+      /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       */
+      type: "number";
+      /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       */
+      default?: number;
+    }>
   );
-/** Required secret declarations describe the called workflow, not repository authorization.
+/** A reusable workflow declares inputs and secrets accepted from its caller. Required secrets must be supplied; declaring a secret does not grant access to it.
+ * Tsugiori: validates explicit local call contracts, but cannot verify repository authorization.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
  */
 export type WorkflowCall = Readonly<{
+  /** Named typed values accepted by this reusable workflow. The caller supplies them with with; undeclared names or mismatched primitive types are invalid.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+   */
   inputs?: Readonly<Record<string, WorkflowCallInput>>;
+  /** Named secrets the caller may pass to this reusable workflow. Undeclared explicit secrets cause an error; inherit permits using inherited secrets without a declaration. Environment secrets are selected by a callee job environment rather than passed via workflow_call.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
+   */
   secrets?: Readonly<
-    Record<string, Readonly<{ description?: string; required?: boolean }>>
+    Record<
+      string,
+      Readonly<{
+        /** A description of the secret expected by this reusable workflow.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
+         */
+        description?: string;
+        /** Whether the caller must supply this secret. Defaults to false.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecretssecret_idrequired
+         */
+        required?: boolean;
+      }>
+    >
   >;
 }>;
+/** Outputs returned by a reusable workflow are available to downstream jobs in its caller. Each output has an identifier, optional description and value mapped to a job output within the callee.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+ */
 export type WorkflowCallOutputs = Readonly<
-  Record<string, Readonly<{ description?: string; value: string }>>
+  Record<
+    string,
+    Readonly<{
+      /** A human-readable explanation of this input, secret or output for workflow authors.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       */
+      description?: string;
+      /** The expression defining the workflow output, usually a job output such as `${{ jobs.build.outputs.version }}`. The caller reads it through `needs.<caller_job>.outputs`.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       */
+      value: string;
+    }>
+  >
 >;
 const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
 export type ReusablePipeline<
@@ -136,17 +255,47 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
  */
 export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
-  & (RequiredKeys<CallInputs<C>> extends never ? { with?: CallValues<C> }
-    : { with: CallValues<C> })
-  & (RequiredKeys<CallSecrets<C>> extends never
-    ? { secrets?: SecretValues<C> | "inherit" }
-    : { secrets: SecretValues<C> | "inherit" })
+  & (RequiredKeys<CallInputs<C>> extends never ? {
+      /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+       */
+      with?: CallValues<C>;
+    }
+    : {
+      /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+       */
+      with: CallValues<C>;
+    })
+  & (RequiredKeys<CallSecrets<C>> extends never ? {
+      /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
+       * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+       */
+      secrets?: SecretValues<C> | "inherit";
+    }
+    : {
+      /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
+       * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+       */
+      secrets: SecretValues<C> | "inherit";
+    })
 >;
-/** Most-specific env wins; workflow env never crosses a reusable-workflow call.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+/** Job run defaults choose the shell and working directory for run steps. Step-level settings override the job defaults. They do not affect uses steps.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
  */
 export type RunDefaults = Readonly<
-  { shell?: string; workingDirectory?: string }
+  {
+    /** The default command interpreter (for example bash, pwsh or cmd) for run steps in this job. An explicit step value overrides it; this does not configure action steps.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunshell
+     */
+    shell?: string;
+    /** The default execution directory, which must exist on the runner for run steps in this job. An explicit step value overrides it; this does not configure action steps.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunworking-directory
+     */
+    workingDirectory?: string;
+  }
 >;
 export type MatrixValue = string | number | boolean;
 export type StaticMatrix = Readonly<
@@ -162,42 +311,86 @@ export type ActionInput =
   | number
   | boolean
   | Expression<string | number | boolean>;
-/** Action values are serialized into native with mappings; registered action types are Tsugiori contracts.
- * Specification basis and limits: github_spec.json.
+/** An action receives named parameters from the step with map, using the input names declared by the action.
+ * Tsugiori: registered primitive input types are author assertions, not verification of action metadata.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  */
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 /** More-specific job/step values override workflow env; values in one env map cannot refer to each other.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
  */
 export type EnvironmentVariables = Readonly<Record<string, string>>;
-/** GitHub owns group cancellation/queueing. Tsugiori supports queue max only with cancellation disabled.
- * Specification basis and limits: github_spec.json.
+/** Concurrency restricts jobs or workflow runs sharing a group to one running member. By default, a new pending member replaces the existing pending member.
+ * Tsugiori: queue max is supported only with cancellation disabled; scenarios do not simulate scheduling.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
  */
 export type Concurrency = Readonly<{
+  /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   */
   group: string;
+  /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   */
   cancelInProgress: boolean;
+  /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   */
   queue?: "max";
 }>;
 type JobOptions = Readonly<{
+  /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   */
   if?: string;
+  /** Permissions granted to GITHUB_TOKEN for jobs in this workflow. A job can override this map. Once any permission is specified, unspecified permissions become none; repository and fork policies may further restrict access.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   permissions?: WorkflowPermissions;
+  /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
+   * Tsugiori: literal values must be integers from 1 to 360; scenarios do not measure time.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+   */
   timeoutMinutes?: number | string;
+  /** The deployment environment whose protection rules, approvals and secrets apply to this job. Protection rules must pass before the job is sent to a runner.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
+   */
   environment?: string;
+  /** The job display name in the run UI. If omitted, GitHub uses the job id.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   */
   name?: string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
+  /** Default shell and working directory for all run steps in the job. Explicit step settings take precedence; defaults do not affect uses steps.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
+   */
   defaults?: RunDefaults;
+  /** Maps output names to expressions evaluated at the end of the job. Dependent jobs read needs.<job_id>.outputs.<name>. GitHub omits outputs that may contain secrets. Matrix output names should be unique: execution order is not guaranteed. Output size limits are 1 MB per job and 50 MB per workflow run, approximated using UTF-16 encoding.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+   */
   outputs?: Readonly<Record<string, string>>;
+  /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+   */
   strategy?: Readonly<{
+    /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+     * Tsugiori: scenarios do not simulate cancellation or scheduling.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+     */
     failFast?: boolean;
+    /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+     */
     matrix: string | StaticMatrix;
   }>;
   concurrency?: Concurrency;
 }>;
 
-/** Emits an explicit runtime expression. No interpolation is evaluated by Tsugiori; syntax and scopes are caller asserted.
+/** GitHub evaluates expressions enclosed by `${{ }}` in workflow fields using contexts, operators and functions.
+ * Tsugiori: inserts caller-asserted syntax without checking context availability or evaluating it during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
  */
 export function rawExpression(expression: string): RawExpression {
@@ -208,44 +401,103 @@ export function rawExpression(expression: string): RawExpression {
 }
 export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 
-/** Native action step; Tsugiori does not execute the action during generation or scenarios.
- * Specification basis and limits: github_spec.json.
+/** A uses step executes an action with its declared inputs and exposes its outputs to later steps.
+ * Tsugiori: this lowered representation is not executed during generation or scenarios.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
  */
 export type AuthoringUsesStep = Readonly<{
   type: "uses";
+  /** A unique job identifier used by needs and output/result references.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   */
   id?: string;
+  /** The job display name in the run UI. If omitted, GitHub uses the job id.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   */
   name: string;
+  /** The reusable workflow invoked by this job: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. A local path uses the caller commit; expressions are not allowed.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+   */
   uses: string;
+  /** Named input values passed to the action, using the names declared by its metadata.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+   */
   with?: Readonly<Record<string, string | number | boolean>>;
+  /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   */
   if?: string;
+  /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+   */
   continueOnError?: boolean;
+  /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
+   * Tsugiori: literal values must be integers from 1 to 360; scenarios do not measure time.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+   */
   timeoutMinutes?: number | string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
 }>;
-/** Native shell script; run values remain unchanged through YAML literal-block emission.
- * Specification basis and limits: github_spec.json.
+/** A run step executes commands in a new shell process on the runner.
+ * Tsugiori: script values remain unchanged through YAML literal-block emission.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
  */
 export type AuthoringRunStep = Readonly<{
   type: "run";
+  /** A unique job identifier used by needs and output/result references.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   */
   id?: string;
+  /** The job display name in the run UI. If omitted, GitHub uses the job id.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   */
   name: string;
+  /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+   */
   run: string;
+  /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   */
   if?: string;
+  /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+   */
   continueOnError?: boolean;
+  /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
+   * Tsugiori: literal values must be integers from 1 to 360; scenarios do not measure time.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+   */
   timeoutMinutes?: number | string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
+  /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+   */
   workingDirectory?: string;
+  /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+   */
   shell?: string;
 }>;
-/** Tsugiori task body remains outside YAML and is invoked through normal Actions steps.
- * Specification basis and limits: github_spec.json.
+/** GitHub runs steps sequentially on the selected runner.
+ * Tsugiori: the task body remains outside YAML and is invoked through a normal Actions step.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
  */
 export type AuthoringTaskStep = Readonly<{
   type: "task";
+  /** A unique job identifier used by needs and output/result references.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   */
   id?: string;
+  /** The job display name in the run UI. If omitted, GitHub uses the job id.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   */
   name: string;
   inputs: Readonly<
     Record<
@@ -255,13 +507,32 @@ export type AuthoringTaskStep = Readonly<{
       >
     >
   >;
+  /** Maps output names to expressions evaluated at the end of the job. Dependent jobs read needs.<job_id>.outputs.<name>. GitHub omits outputs that may contain secrets. Matrix output names should be unique: execution order is not guaranteed. Output size limits are 1 MB per job and 50 MB per workflow run, approximated using UTF-16 encoding.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+   */
   outputs: OutputDefinitions;
+  /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+   */
   run: (
     context: TaskContext<InputDefinitions, OutputDefinitions>,
   ) => void | Promise<void>;
+  /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   */
   if?: string;
+  /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+   */
   continueOnError?: boolean;
+  /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
+   * Tsugiori: literal values must be integers from 1 to 360; scenarios do not measure time.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+   */
   timeoutMinutes?: number | string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
 }>;
 export type AuthoringStep =
@@ -269,40 +540,113 @@ export type AuthoringStep =
   | AuthoringRunStep
   | AuthoringTaskStep;
 /** Native regular or reusable caller job; caller jobs must omit runner/step execution fields.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
  */
 export type AuthoringJob =
   & Readonly<{
+    /** A unique job identifier used by needs and output/result references.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     */
     id: string;
+    /** The runner executing this job. An array requires every listed label; a single label may select a GitHub-hosted image. Caller jobs use a reusable workflow instead of selecting a runner.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
+     */
     runsOn?: string | NonEmptyReadonlyArray<string>;
+    /** Jobs that must finish successfully before this job starts. A failed or skipped dependency skips dependent jobs unless the job condition explicitly admits another status.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
+     */
     needs: readonly string[];
+    /** The reusable workflow invoked by this job: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. A local path uses the caller commit; expressions are not allowed.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     */
     uses?: string;
+    /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+     */
     with?: Readonly<Record<string, string | number | boolean>>;
+    /** Named secrets passed to a reusable workflow, or inherit to forward available secrets within the same organization or enterprise. Forwarding is only to the direct callee.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+     */
     callSecrets?: "inherit" | EnvironmentVariables;
+    /** A reusable workflow runs as a separate workflow with its own jobs and steps.
+     * Tsugiori: retains the local pipeline definition for typed validation and scenario interpretation.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     */
     callee?: AuthoringPipeline;
+    /** Steps executed in sequence on this job's runner; they share a workspace but run scripts use separate shell processes.
+     * Tsugiori: reusable caller jobs keep this array empty and emit no steps field.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
+     */
     steps: readonly AuthoringStep[];
   }>
   & JobOptions;
 /** A generated native workflow file; only declared supported fields are lowered.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
 export type AuthoringPipeline = Readonly<{
+  /** The workflow identifier used by Tsugiori for local references and the default display name.
+   * Tsugiori: this is not a GitHub workflow syntax field.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   */
   id: string;
+  /** The workflow display name in the Actions tab.
+   * Tsugiori: omission uses the pipeline id rather than GitHub's workflow-file-path fallback.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
+   */
   name: string;
+  /** The workflow YAML file path. GitHub discovers .yml and .yaml files under .github/workflows.
+   * Tsugiori: generate writes this path relative to the configuration root.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   */
   output: string;
+  /** Events that trigger independent workflow runs; any listed event can start a run. workflow_call makes this file callable by another workflow, and workflow_dispatch permits manual invocation.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   */
   events: readonly PipelineEvent[];
+  /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+   */
   pushTags?: readonly string[];
+  /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+   */
   pullRequestTypes?: readonly string[];
+  /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+   */
   pullRequestTargetTypes?: readonly string[];
+  /** The display name of an individual workflow run. Supports GitHub runtime expressions. When absent or whitespace-only, GitHub uses event-specific information such as a commit message or pull request title.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
+   */
   runName?: string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
+  /** Declares the inputs and secrets accepted when another workflow calls this file. The workflow must also enable the workflow_call event. Inputs are available through inputs and secrets through secrets.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_call
+   */
   workflowCall?: WorkflowCall;
+  /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
+   * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+   */
   workflowCallOutputs?: WorkflowCallOutputs;
+  /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+   */
   pushBranches?: readonly string[];
+  /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+   */
   workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
+  /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   */
   concurrency?: Concurrency;
+  /** Permissions granted to GITHUB_TOKEN for jobs in this workflow. A job can override this map. Once any permission is specified, unspecified permissions become none; repository and fork policies may further restrict access.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
 }>;
@@ -312,8 +656,7 @@ export type TsugioriConfig = Readonly<{
   pipelines: readonly AuthoringPipeline[];
 }>;
 
-/** Workflow env is local to this workflow; reusable calls exchange only inputs, secrets and outputs.
- * Specification basis and limits: github_spec.json.
+/** Workflow settings define triggers, names, environment variables and the default token permissions. Reusable workflows exchange inputs, secrets and outputs; workflow environment variables do not cross the call boundary.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
 export type PipelineOptions<
@@ -324,21 +667,74 @@ export type PipelineOptions<
   Secrets extends readonly string[] | undefined = undefined,
   C extends WorkflowCall = WorkflowCall,
 > = Readonly<{
+  /** The workflow display name in the Actions tab.
+   * Tsugiori: omission uses the pipeline id rather than GitHub's workflow-file-path fallback.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
+   */
   name?: string;
+  /** The workflow YAML file path. GitHub discovers .yml and .yaml files under .github/workflows.
+   * Tsugiori: generate writes this path relative to the configuration root.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   */
   output: string;
+  /** Events that trigger independent workflow runs; any listed event can start a run. workflow_call makes this file callable by another workflow, and workflow_dispatch permits manual invocation.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   */
   events: Events;
+  /** Repository, organization or environment configuration variables are read through vars.<name>. Unset variables evaluate to an empty string.
+   * Tsugiori: this list narrows reference names; it neither creates variables nor changes GitHub configuration.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
+   */
   vars?: Vars;
+  /** Repository, organization or environment secrets are read through secrets.<name>. Unset secrets evaluate to an empty string.
+   * Tsugiori: this list narrows reference names; it does not create, populate or authorize secrets.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
+   */
   secrets?: Secrets;
+  /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+   */
   pushTags?: readonly string[];
+  /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+   */
   pullRequestTypes?: readonly string[];
+  /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+   */
   pullRequestTargetTypes?: readonly string[];
+  /** The display name of an individual workflow run. Supports GitHub runtime expressions. When absent or whitespace-only, GitHub uses event-specific information such as a commit message or pull request title.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
+   */
   runName?: string;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: EnvironmentVariables;
+  /** Declares the inputs and secrets accepted when another workflow calls this file. The workflow must also enable the workflow_call event. Inputs are available through inputs and secrets through secrets.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_call
+   */
   workflowCall?: C;
+  /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
+   * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+   */
   workflowCallOutputs?: WorkflowCallOutputs;
+  /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+   */
   pushBranches?: readonly string[];
+  /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+   */
   workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
+  /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   */
   concurrency?: Concurrency;
+  /** Permissions granted to GITHUB_TOKEN for jobs in this workflow. A job can override this map. Once any permission is specified, unspecified permissions become none; repository and fork policies may further restrict access.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   */
   permissions?: WorkflowPermissions;
 }>;
 
@@ -349,22 +745,28 @@ type LiteralNames<Values extends readonly string[] | undefined> = Values extends
 
 const actionOutputs = Symbol("tsugiori.action-outputs");
 
-/** Registered action outputs are string references; real action behavior belongs to GitHub.
- * Specification basis and limits: github_spec.json.
+/** Action outputs are string values supplied by the action, accessible through steps.<id>.outputs.<name>.
+ * Tsugiori: the invocation retains declared output names for typed references; generation does not run the action.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  */
 export type ActionInvocation<
   Outputs extends readonly string[] = readonly string[],
 > = Readonly<{
+  /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   */
   uses: string;
+  /** Named input values passed to the action, using the names declared by its metadata.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+   */
   with?: ActionInputs;
   [actionOutputs]: Outputs;
 }>;
 
 const actionInputDefinition = Symbol("tsugiori.action-input-definition");
 
-/** Tsugiori contract for a native action input; action metadata itself represents string input values.
- * Specification basis and limits: github_spec.json.
+/** Actions declare input names, descriptions, defaults and required flags in action metadata; input values are passed through with.
+ * Tsugiori: this declaration adds primitive type checking to the author's contract without inspecting action metadata.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  */
 export type ActionInputDefinition<
@@ -372,6 +774,10 @@ export type ActionInputDefinition<
   Required extends boolean = false,
 > = Readonly<{
   type: "string" | "number" | "boolean";
+  /** Whether an action invocation must supply this input.
+   * Tsugiori: validates this declared contract before generation; it does not inspect the action metadata.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+   */
   required: Required;
   [actionInputDefinition]: Value;
 }>;
@@ -410,6 +816,9 @@ export type ActionArguments<Definitions extends ActionInputDefinitions> =
 
 function inputDefinition<Value extends ActionInput>(
   type: Type,
+  /** The choices displayed in the manual-run UI. The selected choice is a string input value.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+   */
   options?: Readonly<{ required?: boolean }>,
 ): ActionInputDefinition<Value, boolean> {
   return Object.freeze({
@@ -451,7 +860,8 @@ export const actionInput: Readonly<{
   boolean: booleanInput,
 });
 
-/** Pins an action and Tsugiori input/output contract; this does not verify the external action implementation.
+/** Actions accept named inputs and expose named string outputs. A commit SHA in uses pins the action implementation.
+ * Tsugiori: declares input/output contracts for local type checking without verifying external action metadata or behavior.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  */
 export function defineAction<
@@ -459,8 +869,19 @@ export function defineAction<
   const Outputs extends readonly string[],
 >(
   definition: Readonly<{
+    /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+     */
     uses: string;
+    /** Inputs accepted by this action. Names follow the action metadata.
+     * Tsugiori: primitive contracts are author assertions and validated locally; they do not verify the external action.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+     */
     inputs: Definitions;
+    /** Named string outputs produced by this action, read by later steps as steps.<id>.outputs.<name>.
+     * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+     */
     outputs: LiteralActionOutputs<Outputs>;
   }>,
 ): (
@@ -501,10 +922,14 @@ export function defineAction<
   };
 }
 
-/** External action assertions bypass registered action contracts; GitHub validates actual inputs/outputs.
+/** Runs an action selected by its uses reference with named input values. GitHub resolves and executes the referenced action.
+ * Tsugiori: bypasses registered input/output contracts and exposes no declared output names.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
  */
 export function rawAction(
+  /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   */
   uses: string,
   withInputs?: ActionInputs,
 ): ActionInvocation<readonly []> {
@@ -517,7 +942,6 @@ export function rawAction(
 }
 
 /** Declared outputs are available to dependent jobs through needs, not through host-language values.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  */
 export type JobReference<
@@ -527,6 +951,9 @@ export type JobReference<
   Test extends object = object,
 > = Readonly<
   {
+    /** The job identifier used in needs dependencies and needs.<id> output/result references. It is separate from the display name.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     */
     id: JobId;
     pipelineId: PipelineId;
     outputNames: Outputs;
@@ -564,15 +991,14 @@ type JobReferences = Readonly<
   Record<string, JobReference<string, string, readonly string[]>>
 >;
 /** Native action/run outputs are strings, including JSON serialized by the action itself.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
  */
 export type ActionOutputReference<
   StepId extends string = string,
   OutputName extends string = string,
 > = `\${{ steps.${StepId}.outputs.${OutputName} }}`;
-/** Only earlier step IDs and declared output names are exposed by the authoring facade.
- * Specification basis and limits: github_spec.json.
+/** Earlier step outputs are accessible as steps.<id>.outputs.<name>.
+ * Tsugiori: exposes only declared step ids and output names.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
  */
 export type StepReference<
@@ -580,7 +1006,14 @@ export type StepReference<
   Outputs extends readonly string[] = readonly string[],
   Test extends TestStepShape = TestStepShape,
 > = Readonly<{
+  /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   */
   id: Id;
+  /** String output references from an earlier action or run step, read as steps.<id>.outputs.<name>.
+   * Tsugiori: this map contains runtime expression references, not values evaluated during generation.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   */
   outputs: Readonly<
     { [OutputName in Outputs[number]]: ActionOutputReference<Id, OutputName> }
   >;
@@ -698,10 +1131,26 @@ type StepCommon<
   Vars extends string,
   Secrets extends string,
 > = Readonly<{
+  /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   */
   id?: string;
+  /** The step display name shown in the GitHub Actions run UI. It does not identify outputs; use id for references.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsname
+   */
   name: string;
+  /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
+   */
   if?: StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>;
+  /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+   */
   continueOnError?: boolean;
+  /** The maximum execution time in whole minutes before GitHub cancels the step. A step has no separate timeout when omitted; the job timeout still applies.
+   * Tsugiori: literal values must be integers from 1 to 360; expression results are checked by GitHub. Scenarios do not measure time.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes
+   */
   timeoutMinutes?:
     | number
     | StepField<
@@ -712,10 +1161,13 @@ type StepCommon<
       Vars,
       Secrets
     >;
+  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   */
   env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets>;
 }>;
-/** Action references and input maps become native uses/with fields; conditions use runtime expressions.
- * Specification basis and limits: github_spec.json.
+/** A uses step runs an action with named inputs. GitHub evaluates conditions and input expressions at runtime.
+ * Tsugiori: scenarios use fixtures rather than executing actions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
  */
 export type UsesStepDefinition<
@@ -730,7 +1182,13 @@ export type UsesStepDefinition<
   & StepCommon<Needs, Steps, Matrix, Vars, Secrets>
   & Readonly<
     {
+      /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       */
       id?: Id;
+      /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+       */
       uses:
         | ActionInvocation<Outputs>
         | ((
@@ -745,8 +1203,8 @@ export type UsesStepDefinition<
         ) => ActionInvocation<Outputs>);
     }
   >;
-/** Explicit shell and working directory override job run defaults; timeout units are whole minutes.
- * Specification basis and limits: github_spec.json.
+/** A run step executes commands in a new shell process. Step shell and working-directory settings override job defaults. Values written to GITHUB_OUTPUT become string outputs.
+ * Tsugiori: outputs declares reference names; scenarios do not execute the script.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
  */
 export type RunStepDefinition<
@@ -761,15 +1219,31 @@ export type RunStepDefinition<
   & StepCommon<Needs, Steps, Matrix, Vars, Secrets>
   & Readonly<
     {
+      /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       */
       id?: Id;
+      /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+       */
       run: string;
+      /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
+       * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       */
       outputs?: Outputs;
+      /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+       */
       workingDirectory?: string;
+      /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+       */
       shell?: string;
     }
   >;
-/** Typed task I/O is Tsugiori-specific; GitHub step failure policy determines consumer availability.
- * Specification basis and limits: github_spec.json.
+/** A step condition can skip execution, and continue-on-error can prevent a step failure from failing the job.
+ * Tsugiori: typed task input/output contracts and the task callback are additional runtime contracts, not GitHub workflow fields.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
  */
 export type TaskStepDefinition<
@@ -918,8 +1392,8 @@ type EffectiveOutputs<
   F extends boolean | undefined,
 > = [C] extends [undefined] ? true extends F ? SkippableOutputs<O> : O
   : SkippableOutputs<O>;
-/** Configure matrix-dependent execution fields after strategy; GitHub owns runtime evaluation.
- * Specification basis and limits: github_spec.json.
+/** A job selects a runner and executes steps. Matrix expansion creates job variants with their own runtime matrix values.
+ * Tsugiori: configure strategy before fields that reference its inferred matrix.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
  */
 export interface ExecutionJobState<
@@ -931,10 +1405,8 @@ export interface ExecutionJobState<
   Secrets extends string = string,
   Proof extends string = never,
 > {
-  /** Runner labels are conjunctive. Configure a matrix before overriding a matrix-dependent runner.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
-   */
-  /** Labels are conjunctive; override after strategy for matrix-dependent selection. Runner execution belongs to GitHub.
+  /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    */
   runsOn(
@@ -952,7 +1424,7 @@ export interface ExecutionJobState<
         >,
       ) => Expression<string> | string | NonEmptyReadonlyArray<string>),
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** GitHub evaluates job names after matrix expansion; expressions are runtime values.
+  /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    */
   name(
@@ -973,15 +1445,15 @@ export interface ExecutionJobState<
   env(
     value: JobEnv<Needs, Matrix, Vars, Secrets>,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** Defaults apply to run steps; explicit step values override them.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
-   */
   /** Run defaults apply to run steps; explicit step shell/directory wins.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
    */
   defaultsRun(
     value: Readonly<
       {
+        /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+         */
         shell?:
           | string
           | Field<
@@ -992,6 +1464,9 @@ export interface ExecutionJobState<
             Vars,
             Secrets
           >;
+        /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+         */
         workingDirectory?:
           | string
           | Field<
@@ -1005,7 +1480,7 @@ export interface ExecutionJobState<
       }
     >,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** GitHub checks this before matrix expansion and implicitly requires success unless a status function is present.
+  /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    */
   when<
@@ -1028,12 +1503,28 @@ export interface ExecutionJobState<
     Secrets,
     ConditionProof<C>
   >;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
     definition: Readonly<
-      { matrix: Readonly<{ include: Rows }>; failFast?: boolean }
+      {
+        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         */
+        matrix: Readonly<{
+          /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
+           */
+          include: Rows;
+        }>;
+        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+         * Tsugiori: scenarios do not simulate cancellation or scheduling.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         */
+        failFast?: boolean;
+      }
     >,
   ): ExecutionJobState<
     PipelineId,
@@ -1044,7 +1535,8 @@ export interface ExecutionJobState<
     Secrets,
     Proof
   >;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<const Shape extends object>(
@@ -1058,9 +1550,20 @@ export interface ExecutionJobState<
         Secrets,
         Proof
       >,
-    ) => Readonly<{ matrix: Expression<Shape>; failFast?: boolean }>,
+    ) => Readonly<{
+      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       */
+      matrix: Expression<Shape>;
+      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+       * Tsugiori: scenarios do not simulate cancellation or scheduling.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       */
+      failFast?: boolean;
+    }>,
   ): ExecutionJobState<PipelineId, JobId, Needs, Shape, Vars, Secrets, Proof>;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy(
@@ -1074,7 +1577,17 @@ export interface ExecutionJobState<
         Secrets,
         Proof
       >,
-    ) => Readonly<{ matrix: RawExpression; failFast?: boolean }>,
+    ) => Readonly<{
+      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       */
+      matrix: RawExpression;
+      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+       * Tsugiori: scenarios do not simulate cancellation or scheduling.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       */
+      failFast?: boolean;
+    }>,
   ): ExecutionJobState<
     PipelineId,
     JobId,
@@ -1084,7 +1597,8 @@ export interface ExecutionJobState<
     Secrets,
     Proof
   >;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<
@@ -1098,7 +1612,17 @@ export interface ExecutionJobState<
     >,
   >(
     definition:
-      | Readonly<{ matrix: Axes; failFast?: boolean }>
+      | Readonly<{
+        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         */
+        matrix: Axes;
+        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+         * Tsugiori: scenarios do not simulate cancellation or scheduling.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         */
+        failFast?: boolean;
+      }>
       | ((
         context: Scope<
           "jobs.<job_id>.strategy",
@@ -1109,7 +1633,17 @@ export interface ExecutionJobState<
           Secrets,
           Proof
         >,
-      ) => Readonly<{ matrix: Axes; failFast?: boolean }>),
+      ) => Readonly<{
+        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         */
+        matrix: Axes;
+        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+         * Tsugiori: scenarios do not simulate cancellation or scheduling.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         */
+        failFast?: boolean;
+      }>),
   ): ExecutionJobState<
     PipelineId,
     JobId,
@@ -1124,12 +1658,16 @@ export interface ExecutionJobState<
     Secrets,
     Proof
   >;
-  /** GitHub owns cancellation and queueing. Tsugiori accepts queue max only with cancellation disabled; scenarios do not schedule.
+  /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
+   * Tsugiori: queue max requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    */
   concurrency(
     definition: Readonly<
       {
+        /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         group: Field<
           "jobs.<job_id>.concurrency",
           Needs,
@@ -1138,18 +1676,26 @@ export interface ExecutionJobState<
           Vars,
           Secrets
         >;
+        /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         cancelInProgress: boolean;
+        /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         queue?: "max";
       }
     >,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** Omitted permissions become none. Tsugiori supports contents, id-token, actions and pull-requests; effective authorization belongs to GitHub.
+  /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
+   * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    */
   permissions(
     value: WorkflowPermissions,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** Whole minutes. Tsugiori retains a 1–360 integer limit, narrower than GitHub runner-dependent job limits; expression values are passed through and scenarios do not measure time.
+  /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
+   * Tsugiori: literal values retain a 1–360 integer limit; expression values pass through. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
    */
   timeoutMinutes(
@@ -1164,13 +1710,15 @@ export interface ExecutionJobState<
         Secrets
       >,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** Environment name only; GitHub owns approval, protection and secret selection. Structured URLs are outside the public API.
+  /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
+   * Tsugiori: supports the name only, not the structured name/url form; scenarios do not enforce protections.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
    */
   environment(
     value: string,
   ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
-  /** Creates a native action step; action behavior is represented by fixtures in scenarios.
+  /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
+   * Tsugiori: scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    */
   uses<
@@ -1196,7 +1744,8 @@ export interface ExecutionJobState<
     readonly [],
     Proof
   >;
-  /** Script bytes are preserved through YAML emission. Explicit shell/directory overrides defaults; scenarios do not execute scripts.
+  /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
+   * Tsugiori: preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
    */
   run<
@@ -1222,7 +1771,8 @@ export interface ExecutionJobState<
     readonly [],
     Proof
   >;
-  /** Creates a normal Actions step invoking the task runtime; task bodies remain outside YAML. Timeout applies to the invocation step.
+  /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
+   * Tsugiori: creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
    */
   task<
@@ -1268,7 +1818,6 @@ export interface ExecutionJobState<
   >;
 }
 /** Outputs become the needs surface of dependent jobs; GitHub can suppress outputs containing secrets.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
  */
 export interface NonEmptyStepState<
@@ -1319,7 +1868,8 @@ export interface NonEmptyStepState<
     Steps,
     Matrix
   >;
-  /** Creates a native action step; action behavior is represented by fixtures in scenarios.
+  /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
+   * Tsugiori: scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    */
   uses<
@@ -1345,7 +1895,8 @@ export interface NonEmptyStepState<
     Outputs,
     Proof
   >;
-  /** Script bytes are preserved through YAML emission. Explicit shell/directory overrides defaults; scenarios do not execute scripts.
+  /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
+   * Tsugiori: preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
    */
   run<
@@ -1371,7 +1922,8 @@ export interface NonEmptyStepState<
     Outputs,
     Proof
   >;
-  /** Creates a normal Actions step invoking the task runtime; task bodies remain outside YAML. Timeout applies to the invocation step.
+  /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
+   * Tsugiori: creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
    */
   task<
@@ -1399,9 +1951,22 @@ export interface NonEmptyStepState<
       & Readonly<
         {
           inputs: I;
+          /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
+           * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+           */
           outputs: O;
+          /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
+           */
           if?: C;
+          /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+           */
           continueOnError?: F;
+          /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+           */
           id?: Exclude<Id, keyof Steps>;
         }
       >,
@@ -1428,7 +1993,7 @@ export type ReusableJobState<
   V extends string = string,
   S extends string = string,
 > = {
-  /** GitHub checks this before matrix expansion and implicitly requires success unless a status function is present.
+  /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    */
   when(
@@ -1441,7 +2006,8 @@ export type ReusableJobState<
       S
     >,
   ): ReusableJobState<P, J, N, M, V, S>;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<const Shape extends object>(
@@ -1454,9 +2020,20 @@ export type ReusableJobState<
         V,
         S
       >,
-    ) => Readonly<{ matrix: Expression<Shape>; failFast?: boolean }>,
+    ) => Readonly<{
+      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       */
+      matrix: Expression<Shape>;
+      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+       * Tsugiori: scenarios do not simulate cancellation or scheduling.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       */
+      failFast?: boolean;
+    }>,
   ): ReusableJobState<P, J, N, Shape, V, S>;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<
@@ -1476,7 +2053,17 @@ export type ReusableJobState<
         V,
         S
       >,
-    ) => Readonly<{ matrix: Axes; failFast?: boolean }>,
+    ) => Readonly<{
+      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       */
+      matrix: Axes;
+      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+       * Tsugiori: scenarios do not simulate cancellation or scheduling.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       */
+      failFast?: boolean;
+    }>,
   ): ReusableJobState<
     P,
     J,
@@ -1490,19 +2077,46 @@ export type ReusableJobState<
     V,
     S
   >;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
     value: Readonly<
-      { matrix: Readonly<{ include: Rows }>; failFast?: boolean }
+      {
+        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         */
+        matrix: Readonly<{
+          /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
+           */
+          include: Rows;
+        }>;
+        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+         * Tsugiori: scenarios do not simulate cancellation or scheduling.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         */
+        failFast?: boolean;
+      }
     >,
   ): ReusableJobState<P, J, N, Rows[number], V, S>;
-  /** GitHub expands at most 256 matrix jobs. Tsugiori emits static axes/include or explicit expressions; scenarios do not simulate scheduling/fail-fast cancellation.
+  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
+   * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    */
   strategy<const Axes extends Readonly<Record<string, readonly string[]>>>(
-    value: Readonly<{ matrix: Axes; failFast?: boolean }>,
+    value: Readonly<{
+      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       */
+      matrix: Axes;
+      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
+       * Tsugiori: scenarios do not simulate cancellation or scheduling.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       */
+      failFast?: boolean;
+    }>,
   ): ReusableJobState<
     P,
     J,
@@ -1511,7 +2125,7 @@ export type ReusableJobState<
     V,
     S
   >;
-  /** GitHub evaluates job names after matrix expansion; expressions are runtime values.
+  /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    */
   name(
@@ -1519,16 +2133,21 @@ export type ReusableJobState<
       | string
       | Field<"jobs.<job_id>.name", N, Record<never, never>, M, V, S>,
   ): ReusableJobState<P, J, N, M, V, S>;
-  /** Omitted permissions become none. Tsugiori supports contents, id-token, actions and pull-requests; effective authorization belongs to GitHub.
+  /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
+   * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    */
   permissions(value: WorkflowPermissions): ReusableJobState<P, J, N, M, V, S>;
-  /** GitHub owns cancellation and queueing. Tsugiori accepts queue max only with cancellation disabled; scenarios do not schedule.
+  /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
+   * Tsugiori: queue max requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    */
   concurrency(
     value: Readonly<
       {
+        /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         group: Field<
           "jobs.<job_id>.concurrency",
           N,
@@ -1537,15 +2156,26 @@ export type ReusableJobState<
           V,
           S
         >;
+        /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         cancelInProgress: boolean;
+        /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         */
         queue?: "max";
       }
     >,
   ): ReusableJobState<P, J, N, M, V, S>;
-  /** Calls a local typed pipeline included in the same config. Explicit input/secret contracts are validated; inherit cannot prove GitHub secret availability.
+  /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
+   * Tsugiori: requires the callee in the same config and validates its explicit contract; inherit cannot prove GitHub secret availability.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
    */
   call<const C extends WorkflowCall, O extends string>(
+    /** A reusable workflow runs as a separate workflow with its own jobs and steps.
+     * Tsugiori: retains the local pipeline definition for typed validation and scenario interpretation.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     */
     callee: ReusablePipeline<C, O>,
     args:
       | WorkflowCallArguments<C>
@@ -1572,15 +2202,26 @@ export type ReusableJobState<
           >,
       ) => WorkflowCallArguments<C>),
   ): FinalizedJobState<P, J, readonly O[], Record<never, never>, M>;
-  /** Calls an external workflow with caller-asserted contracts; scenarios require a call fixture.
+  /** Runs a reusable workflow referenced by owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; external references select a SHA, tag or branch and cannot use expressions.
+   * Tsugiori: input/output contracts are caller assertions; scenarios require a call fixture.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    */
   rawCall(
+    /** The reusable workflow to invoke: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; a SHA pins an external version. Expressions are not allowed.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     */
     uses: string,
     args?:
       | Readonly<
         {
+          /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+           */
           with?: ActionInputs;
+          /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
+           * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+           */
           secrets?:
             | "inherit"
             | Readonly<Record<string, string | Expression<string>>>;
@@ -1609,7 +2250,14 @@ export type ReusableJobState<
           >,
       ) => Readonly<
         {
+          /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+           */
           with?: ActionInputs;
+          /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
+           * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+           */
           secrets?:
             | "inherit"
             | Readonly<Record<string, string | Expression<string>>>;
@@ -1618,7 +2266,6 @@ export type ReusableJobState<
   ): FinalizedJobState<P, J, readonly string[], Record<never, never>, M>;
 };
 /** Choose regular runner execution or a native reusable caller job.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
  */
 export interface IndependentJobState<
@@ -1638,7 +2285,8 @@ export interface IndependentJobState<
     Vars,
     Secrets
   >;
-  /** Labels are conjunctive; override after strategy for matrix-dependent selection. Runner execution belongs to GitHub.
+  /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    */
   runsOn(
@@ -1653,7 +2301,6 @@ export interface IndependentJobState<
   >;
 }
 /** needs supplies status and declared outputs; failed dependencies skip jobs unless a status condition admits them.
- * Specification basis and limits: github_spec.json.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  */
 export interface DependentJobState<
@@ -1674,7 +2321,8 @@ export interface DependentJobState<
     Vars,
     Secrets
   >;
-  /** Labels are conjunctive; override after strategy for matrix-dependent selection. Runner execution belongs to GitHub.
+  /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    */
   runsOn(
@@ -1764,7 +2412,8 @@ export interface EmptyPipelineState<
     { readonly [K in keyof CallInputs<C>]: InputValue<CallInputs<C>[K]> },
     "inputs"
   >;
-  /** Adds a native job in dependency order; references expose declared outputs for later jobs.
+  /** Jobs run independently unless needs declares dependencies. A job id identifies it in dependency and output references; name controls its display label.
+   * Tsugiori: adds jobs in declaration order and exposes declared outputs for later definitions.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    */
   job<
@@ -1775,6 +2424,9 @@ export interface EmptyPipelineState<
       readonly string[]
     >,
   >(
+    /** The job identifier used for needs dependencies and output references. It must start with a letter or underscore and contain only letters, digits, hyphens or underscores.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     */
     id: JobId,
     define: (
       scope: JobDefinitionScope<
@@ -1810,7 +2462,8 @@ export interface NonEmptyPipelineState<
     "inputs"
   >;
   readonly [workflowContract]: Readonly<{ call: C; outputs: readonly O[] }>;
-  /** Only reusable workflows can expose callee jobs outputs to their caller; output references are strings.
+  /** Defines reusable workflow outputs mapped to outputs of jobs within the callee. Callers read them as needs.<caller_job>.outputs.<name>.
+   * Tsugiori: exposes typed callee job references and only allows this on reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
    */
   workflowOutputs<
@@ -1842,7 +2495,8 @@ export interface NonEmptyPipelineState<
   >;
   readonly [pipelineDefinition]: AuthoringPipeline;
   readonly [testPipelineShape]?: Jobs;
-  /** Adds a native job in dependency order; references expose declared outputs for later jobs.
+  /** Jobs run independently unless needs declares dependencies. A job id identifies it in dependency and output references; name controls its display label.
+   * Tsugiori: adds jobs in declaration order and exposes declared outputs for later definitions.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    */
   job<
@@ -1853,6 +2507,9 @@ export interface NonEmptyPipelineState<
       readonly string[]
     >,
   >(
+    /** The unique job identifier used in needs dependencies and output/result references. It must start with a letter or underscore and contain only letters, digits, hyphens or underscores.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     */
     id: AvailableJobId<JobId, Jobs>,
     define: (
       scope: JobDefinitionScope<PipelineId, JobId, Jobs, Vars, Secrets>,
@@ -1901,7 +2558,8 @@ type JobDraft = Readonly<{
   outputContracts?: Readonly<Record<string, ReferenceBinding>>;
 }>;
 
-/** Constructs immutable authoring state, without executing GitHub expressions or step bodies.
+/** A workflow defines event triggers and jobs in a YAML file under .github/workflows.
+ * Tsugiori: constructs immutable authoring state; expressions and step bodies are not executed during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
 export function pipeline<
