@@ -1,0 +1,169 @@
+Task: Implement Tsugiori GitHub Actions pipeline logic scenario DSL and interpreter
+Anchor: 0fbec0ef38da69b50396427a58418db9b6e06130
+Base: f6c70af337998e9fe0fa760fd61d850fd2fbd4b6
+Branch: main
+Commits: 0fbec0ef38da69b50396427a58418db9b6e06130
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; review
+Conditions: Local Tsugiori implementation only; glaze-ops application deferred until its pinned Tsugiori source is published; no push, PR, deploy, or release.
+## Evidence
+Tsugiori mise run check passed, mise run test passed 69 tests, .github generate:check passed; independent review resolved matrix include/exclude, matrix output merging, and ordered branch filters. glaze-ops was inspected but not edited.
+Authority: User implementation request and subsequent scope clarification; repository AGENTS.md; current README and docs/ARCHITECTURE.md.
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) glaze-opsにdogfoodingがある。pipelineのテストを記述する仕組みをtsugioriに持たせたい。github actionsのworkflowのインタプリタを追加し、stepやtaskにはfixtureを宣言して、全体の結果を検証するようなものがいいと思う
+  - A: Started dig-based design exploration of a pipeline logic scenario DSL, asking one design decision at a time.
+- U2: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U3: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U4: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U5: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U6: C
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U7: C
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U8: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U9: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U10: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U11: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U12: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U13: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U14: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U15: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U16: A. そもそもworkflowの実行セマンティクスではなく論理だけをテストするのが目的が
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U17: fixtureとassertionをセットでpipeline形状にあわせて宣言できるといい。普通のassertの羅列は理解が難しい。
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U18: B+C
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U19: C
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U20: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U21: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U22: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U23: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U24: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U25: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U26: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U27: テストシナリオの記述例を出して
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U28: そのexpectはfixtureの値の検証になってないか？
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U29: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U30: fixtureの定義が意図と違うかもしれない。expressionの評価に必要な例えばpipelineへのgithub.eventなどのfixtureが必須だよね。でも、stepやtaskそのものは実行しないのでfixtureが必要だが、typed expressionは評価できるのでfixtureとして与える必要がない
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U31: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U32: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U33: B. 概念モデルは合っているがネストしたJSON記述が可読性が悪い。もっとDSLでシナリオを記述したい
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U34: 具体的なイメージで比較したい
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U35: A. さらに読みやすくするアイデアはないか？
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U36: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U37: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U38: B
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U39: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U40: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U41: A
+  - A: Compared the design alternatives and incorporated this answer into the next DSL, fixture, expression, or interpreter decision.
+- U42: # 実装依頼
+    
+    ## 依頼
+    Tsugiori に GitHub Actions pipeline の論理をテストするシナリオ DSL とインタプリタを実装し、glaze-ops の deploy pipeline に適用してください。
+    
+    ## 目的
+    - step・task の本体を実行せずに、pipeline の起動条件、分岐、matrix、`needs`、入力・出力、結果の伝播を検証できるようにする。
+    - fixture と期待値を、pipeline → job → step の流れに沿って読みやすく記述できるようにする。
+    
+    ## 成功条件
+    - `Deno.test` から、job ごとの callback 内に文を並べる DSL でシナリオを記述・実行できる。
+    - シナリオの fixture が `github.event` など参照される外部値を与え、到達した step・task の fixture が実行結果を代替する。指定漏れは明確なエラーになる。
+    - 型付き式はインタプリタが評価する。未対応の raw 式と `hashFiles()` は、評価箇所ごとにシナリオで値を与えられ、指定がなければエラーになる。
+    - fixture と独立した期待値で、到達・skip、評価済み入力、matrix 展開、job・step の結果、出力と後続への伝播を検証できる。独立した job 間の全順序は要求しない。
+    - job・step ID、task fixture の出力、task の入力期待値、型付き matrix の値が IDE で補完され、型検査される。実行時の契約検証も行う。
+    - glaze-ops に、成功、検出結果が空、deploy 失敗が complete に伝わる、という代表的なシナリオを追加する。既存の task 単体テストは維持する。
+    - Tsugiori と glaze-ops の関連するテスト・チェックが通り、利用方法と検証範囲が現行ドキュメントに反映される。
+    
+    ## 決定事項
+    - YAML 出力に使う変換済み GitHub Actions workflow AST を解釈する。
+      - 理由: 実際に出力する job・step・式の論理を検証するため。
+      - 主な棄却案: 変換前の pipeline だけを解釈する案は lowering を検証できない。YAML の再解析は task 定義との対応付けが複雑になる。
+    - 対象は workflow の論理とする。イベント・branch filter・dispatch input の判定、条件、matrix、`needs`、status、値の伝播を扱う。同一 job の step 順序と `needs` の前後関係だけを順序の契約とする。
+      - 理由: pipeline の判断と配線をテストすることが目的である。
+      - 主な棄却案: runner、権限、環境承認、timeout、`concurrency`、実際の並行実行などの再現は対象外。これらの設定の再現状況を結果へ列挙する機能も不要。
+    - シナリオの fixture は参照される外部コンテキストだけを与える。`needs`、`steps`、matrix はインタプリタが構築する。到達した著者定義の step・task には fixture を要求するが、fixture の存在だけでは到達を期待しない。
+      - 理由: fixture は値の供給、expect は検証という役割を分けるため。
+      - 主な棄却案: 全 step の fixture を開始前に要求する案、欠けた fixture を成功扱いする案、fixture の存在を到達期待とみなす案。
+    - task fixture は型付きの native output 値を返し、既存の output contract に従って検証・wire 形式への変換を行う。action と通常の run step の output は文字列として扱う。fixture 関数は評価済みの task inputs／action `with`／step `env` を確認できる。
+      - 理由: task 間の値の伝播を実際の契約に沿って検証するため。
+      - 主な棄却案: task fixture に GitHub の生 output 文字列だけを書かせる案。
+    - matrix ごとの fixture と期待値は、matrix 値だけを受け取る関数で一緒に選ぶ。選ばれた step fixture は評価済み入力を確認できるが、期待値をその入力から自動生成しない。
+      - 理由: stage ごとの違いを短く書き、誤った入力を期待値へ写してしまうことを防ぐため。
+      - 主な棄却案: matrix の各組み合わせをすべて列挙する案、評価済み入力から fixture と期待値を同時に作る案。
+    - DSL は `scenario(pipeline, test => { ... })` を基調とし、`test.job("detect", job => { job.step("plan")...; })` のように文を並べる。`.fixture(...)` と `.expect...(...)` を区別する。expect は必要な箇所だけ書き、共通の結果期待は任意で pipeline または job に設定できる。
+      - 理由: ネストした JSON や長い immutable chain を避け、pipeline の形と fixture・期待値の近さを保つため。
+      - 主な棄却案: 平坦なパス指定の列、given/when/then による分離、全ノードへの期待値必須化。同じ fixture 値を同じ step で照合する記述は許すが、例では避ける。
+    - fixture 対象の著者定義 step・task には明示 ID を使う。pipeline の型に job・step ID、task 入出力、型付き matrix の情報を保持してシナリオ DSL に渡す。
+      - 理由: 位置や名前に依存せず対象を指定し、補完と型検査を得るため。
+      - 主な棄却案: step 名・順番による指定、実行時の ID 検証だけに留める案。
+    - Tsugiori が挿入する task 準備 step は通常成功として扱い、必要なシナリオでは結果を上書きできるようにする。
+      - 理由: 通常の論理テストを簡潔にしつつ、準備失敗後の分岐も検証できるため。
+      - 主な棄却案: 毎回 fixture を必須にする案、失敗を注入できない案。
+    - 初回はライブラリ API を `Deno.test` から使う。glaze-ops に成功・空検出・deploy 失敗伝播のシナリオを追加する。
+      - 理由: 実際の dogfooding で DSL を検証するため。
+      - 主な棄却案: 専用 CLI とシナリオ発見機構の追加、既存 task 単体テストの移行、初回からの組み合わせ網羅。
+    
+    ## 制約
+    - GitHub Actions が実際の orchestration と execution を担う既存の境界を維持する。テスト時に step・task 本体、deploy、通知、cloud 操作を実行しない。
+    - 他 provider 向けの抽象化や CI control plane を追加しない。
+    - glaze-ops で ID を追加した場合は生成 workflow を再生成し、その差分も対象に含める。既存の挙動と無関係な変更を混ぜない。
+    - push、PR 作成、deploy、release は行わない。
+    
+    ## 対象外
+    - GitHub Actions の実行環境、全式言語、`hashFiles()` のファイル探索、runner・権限・環境承認・timeout・`concurrency` の実動作の再現。
+    - task 本体の正しさの検証と、既存の task 単体テストの置き換え。
+    - 専用 `tsugiori test` CLI、他 provider 対応。
+    
+    ## 未検証の前提
+    - GitHub Actions の暗黙の status 条件、skip・failure・`continue-on-error` の `outcome`／`conclusion`、matrix job の集約結果、`needs` への伝播について、実装前に公式資料と既存の生成 workflow で確認する。
+    - glaze-ops の最新の作業 tree、適用される guidance、deploy pipeline と既存テストの状態を変更前に確認する。
+    
+    ## 実装時の指示
+    - まず glaze-ops の三つの代表シナリオを DSL の使用例として具体化し、その記述に必要な最小の公開 API と型保持を実装する。
+    - 未対応式の値は job・step ID とフィールドで評価箇所を指定し、matrix ごとの値も与えられるようにする。
+    - fixture 設定エラー、式評価エラー、期待値の不一致を区別して報告する。失敗時は pipeline・job・matrix・step・フィールドを特定できるようにする。
+    - 生成 workflow の検査と、DSL の型補完・型エラーを含むテストを追加する。
+  - A: Inspected both repositories and official GitHub Actions semantics; implemented the Tsugiori DSL, interpreter, type retention, tests, and documentation while identifying the glaze-ops published-source pin.
+- U43: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_ga7sUizdIHVk7Qjbq6tW0Lf1\",0]","question":"glaze-ops の Tsugiori 参照は現在公開済み commit に固定されています。push 禁止のままでは新 DSL を通常の glaze-ops テストから import できません。実装後の参照はどう扱いますか？","answer":"公開を待ち、glaze の適用は未完成として残す（推奨）"}]
+    </send_user_message_question_reply>
+  - A: Accepted publication wait for glaze-ops; kept that repository unchanged and advanced the Tsugiori implementation and tests.
+- U44: glaze-ops側を編集しなくても同等のシナリオを用意してtsugioriのテストスイートにできるだろ？
+  - A: Prepared representative scenarios in the Tsugiori suite without editing glaze-ops.
+- U45: tsugiori側でテストはopsとの完全一致は求めていない。テストハーネスの完全性を検証するテストにして
+  - A: Replaced an ops-shaped test with harness contract tests, resolved independent-review findings, passed check, 69 tests and generate:check, then created local commit 0fbec0e without push.
