@@ -6,7 +6,7 @@ Commits: 0fbec0ef38da69b50396427a58418db9b6e06130
 Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; review
 Conditions: Local Tsugiori implementation only; glaze-ops application deferred until its pinned Tsugiori source is published; no push, PR, deploy, or release.
 ## Evidence
-Tsugiori mise run check passed, mise run test passed 69 tests, .github generate:check passed; independent review resolved matrix include/exclude, matrix output merging, and ordered branch filters. glaze-ops was inspected but not edited.
+Tsugiori mise run check passed, mise run test passed 69 tests, .github generate:check passed; independent review resolved matrix include/exclude, matrix output merging, and ordered branch filters. glaze-ops was inspected but not edited; its existing deploy tests passed 32 tests and generate:check passed under the existing pin.
 Authority: User implementation request and subsequent scope clarification; repository AGENTS.md; current README and docs/ARCHITECTURE.md.
 ## Transcript
 - U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) glaze-opsにdogfoodingがある。pipelineのテストを記述する仕組みをtsugioriに持たせたい。github actionsのworkflowのインタプリタを追加し、stepやtaskにはfixtureを宣言して、全体の結果を検証するようなものがいいと思う
@@ -166,4 +166,4 @@ Authority: User implementation request and subsequent scope clarification; repos
 - U44: glaze-ops側を編集しなくても同等のシナリオを用意してtsugioriのテストスイートにできるだろ？
   - A: Prepared representative scenarios in the Tsugiori suite without editing glaze-ops.
 - U45: tsugiori側でテストはopsとの完全一致は求めていない。テストハーネスの完全性を検証するテストにして
-  - A: Replaced an ops-shaped test with harness contract tests, resolved independent-review findings, passed check, 69 tests and generate:check, then created local commit 0fbec0e without push.
+  - A: Replaced an ops-shaped test with harness contract tests, resolved independent-review findings, passed check, 69 tests and generate:check, then created local commit 0fbec0e without push. Verified glaze-ops' existing deploy tests (32 passed) and generated workflow under its existing pin.
