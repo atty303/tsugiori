@@ -105,6 +105,11 @@ type Node =
   | Readonly<{ kind: "binary"; operator: string; left: Node; right: Node }>
   | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
 
+/** Native runtime expression AST. GitHub comparisons coerce unlike types and compare strings without case.
+ * and/or return operands, not necessarily booleans; host string interpolation throws.
+ * Tsugiori's fixed specification basis and coverage are owned by github_spec.json.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+ */
 export class Expression<T = unknown, Proof extends string = never> {
   readonly [expressionBrand]!: T;
   readonly __proof!: Proof;
@@ -114,24 +119,45 @@ export class Expression<T = unknown, Proof extends string = never> {
     );
   }
   constructor(readonly node: Node) {}
+  /** Loose equality with GitHub numeric coercion and case-insensitive string comparison.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   eq(value: Operand<unknown>): Expression<boolean> {
     return binary(this, "==", value);
   }
+  /** Negates GitHub loose equality, including its coercion rules.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   ne(value: Operand<unknown>): Expression<boolean> {
     return binary(this, "!=", value);
   }
+  /** Relational comparisons return false for NaN after numeric coercion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   lt(value: Operand<unknown>): Expression<boolean> {
     return binary(this, "<", value);
   }
+  /** Relational comparisons return false for NaN after numeric coercion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   le(value: Operand<unknown>): Expression<boolean> {
     return binary(this, "<=", value);
   }
+  /** Relational comparisons return false for NaN after numeric coercion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   gt(value: Operand<unknown>): Expression<boolean> {
     return binary(this, ">", value);
   }
+  /** Relational comparisons return false for NaN after numeric coercion.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   ge(value: Operand<unknown>): Expression<boolean> {
     return binary(this, ">=", value);
   }
+  /** Returns the left operand when falsy, otherwise the right operand; carries conjunctive presence proofs.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   and<U, OtherProof extends string = never>(
     value: Expression<U, OtherProof> | U,
   ): Expression<FalsyPart<T> | U, Proof | OtherProof> {
@@ -145,9 +171,15 @@ export class Expression<T = unknown, Proof extends string = never> {
     );
     return result as Expression<FalsyPart<T> | U, Proof | OtherProof>;
   }
+  /** Returns the left operand when truthy, otherwise the right operand; grants no presence proof.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   or<U>(value: Operand<U>): Expression<TruthyPart<T> | U> {
     return binary(this, "||", value);
   }
+  /** Applies GitHub truthiness; the result is a boolean.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   not(): Expression<boolean> {
     return new Expression({ kind: "unary", operator: "!", value: this.node });
   }
@@ -155,13 +187,25 @@ export class Expression<T = unknown, Proof extends string = never> {
   as<U>(): Expression<U> {
     return this as unknown as Expression<U>;
   }
+  /** Property/index dereference happens at runtime; missing property values depend on GitHub context semantics.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
+   */
   at<K extends keyof T>(key: K): Expression<T[K]> {
     return pathProperty(this, String(key));
   }
+  /** Native object wildcard filter; object iteration order is not guaranteed.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
+   */
   filter(): Expression<readonly Element<T>[]>;
+  /** Native object wildcard filter; object iteration order is not guaranteed.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
+   */
   filter<K extends keyof Element<T>>(
     key: K,
   ): Expression<readonly Element<T>[K][]>;
+  /** Native object wildcard filter; object iteration order is not guaranteed.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
+   */
   filter(key?: PropertyKey): Expression<readonly unknown[]> {
     const collection = pathProperty<readonly unknown[]>(this, "*");
     return key === undefined
@@ -279,7 +323,9 @@ export function emitExpression(value: ExpressionInput): string {
     "Expected an expression AST or explicit rawExpression().",
   );
 }
-/** Escape hatch for a single node. T is caller asserted and is not validated. */
+/** Escape hatch for a single node. T, syntax and context availability are caller asserted.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
+ */
 export function rawNode<T>(source: string): Expression<T> {
   if (!source.trim()) {
     throw new TypeError("Raw expression node must not be empty.");
@@ -297,22 +343,37 @@ function call<T>(
 ): Expression<T> {
   return new Expression<T>({ kind: "call", name, args: args.map(nodeOf) });
 }
+/** Case-insensitive containment; GitHub casts scalar operands to strings.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains
+ */
 export const contains = (
   search: Operand<unknown>,
   item: Operand<unknown>,
 ): Expression<boolean> => call("contains", search, item);
+/** Case-insensitive string prefix; GitHub casts operands to strings.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#startswith
+ */
 export const startsWith = (
   search: Operand<unknown>,
   item: Operand<unknown>,
 ): Expression<boolean> => call("startsWith", search, item);
+/** Case-insensitive string suffix; GitHub casts operands to strings.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#endswith
+ */
 export const endsWith = (
   search: Operand<unknown>,
   item: Operand<unknown>,
 ): Expression<boolean> => call("endsWith", search, item);
+/** GitHub format placeholders use numbered braces; double braces escape literal braces.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#format
+ */
 export const format = (
   pattern: Operand<string>,
   ...values: readonly [Operand<unknown>, ...Operand<unknown>[]]
 ): Expression<string> => call("format", pattern, ...values);
+/** Joins array/string elements with a separator (comma by default).
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#join
+ */
 export const join = (
   value: Operand<unknown>,
   separator?: Operand<string>,
@@ -320,8 +381,14 @@ export const join = (
   separator === undefined
     ? call("join", value)
     : call("join", value, separator);
+/** Serializes a GitHub runtime value, not a host-language object evaluation.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#tojson
+ */
 export const toJSON = (value: Operand<unknown>): Expression<string> =>
   call("toJSON", value);
+/** Converts a runtime JSON string; typed task references retain their contract, other result types are assertions.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#fromjson
+ */
 export function fromJSON<
   T,
   C extends ValueContract<unknown, "json">,
@@ -343,6 +410,9 @@ export function present<
   }
   return result as Expression<boolean, P>;
 }
+/** Returns the value for the first truthy condition, otherwise the fallback; branches do not grant presence proofs.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#case
+ */
 export const caseOf = (
   ...values: readonly Operand<unknown>[]
 ): Expression<unknown> => {
@@ -351,14 +421,32 @@ export const caseOf = (
   }
   return call("case", ...values);
 };
+/** Admits execution even after cancellation; do not infer that prerequisites or resources are available.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#always
+ */
 export const always = (): Expression<boolean> => call("always");
+/** Checks whether the workflow was cancelled.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#cancelled
+ */
 export const cancelled = (): Expression<boolean> => call("cancelled");
+/** Checks earlier success; GitHub applies this implicitly to conditions without a status function.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#success
+ */
 export const success = (): Expression<boolean> => call("success");
+/** Checks failures in preceding steps or dependent jobs.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#failure
+ */
 export const failure = (): Expression<boolean> => call("failure");
+/** Hashes workspace matches at step execution; scenario requires an explicit site value.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#hashfiles
+ */
 export const hashFiles = (
   ...paths: readonly [Operand<string>, ...Operand<string>[]]
 ): Expression<string> => call("hashFiles", ...paths);
 
+/** GitHub-provided values; property availability depends on evaluation site and event.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
+ */
 export type GitHubContext = Readonly<{
   action: string;
   action_path: string;
@@ -496,6 +584,9 @@ type Functions = {
   failure: typeof failure;
   hashFiles: typeof hashFiles;
 };
+/** Field-specific contexts follow the fixed availability catalog; unavailable properties require explicit raw assertions.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
+ */
 export type Scope<
   S extends GitHubExpressionScopeKey,
   Needs extends Record<string, readonly string[]> = Record<never, never>,

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Update GitHub Actions specification"
+  short_description: "Refresh Tsugiori's fixed GitHub Actions basis and coverage"
+  default_prompt: "Use $update-github-actions-spec to review and update Tsugiori's fixed GitHub Actions specification basis with explicit capability decisions."

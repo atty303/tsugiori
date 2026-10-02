@@ -6,9 +6,28 @@ import {
   type TestStepOf,
   type TestStepShape,
   type TestStepsOf,
+  type TsugioriConfig,
 } from "../../core/src/github_actions/mod.ts";
 import { runScenario } from "./run.ts";
 
+/** Optional host-owned diagnostic sink. No input, environment, secret, expression or fixture values are recorded.
+ * Sink errors never change scenario results. Tsugiori does not own storage or exporters.
+ */
+export type ScenarioObservation = Readonly<
+  {
+    operationId: number;
+    parentId?: number;
+    stage: "workflow";
+    status: "start" | "success" | "failure";
+    errorType?: string;
+  }
+>;
+export type ScenarioObserver = (event: ScenarioObservation) => void;
+export type ScenarioObservationState = {
+  observer?: ScenarioObserver;
+  nextId: number;
+  parentId?: number;
+};
 export type StepOutcome = "success" | "failure" | "cancelled";
 export type Result = StepOutcome | "skipped";
 export type Fixture<Outputs> = Readonly<{
@@ -55,6 +74,8 @@ export type JobInstanceResult = Readonly<{
   matrix: Readonly<Record<string, unknown>>;
   result: Result;
   steps: Readonly<Record<string, StepResult>>;
+  call?: ScenarioResult;
+  outputs?: Readonly<Record<string, string>>;
 }>;
 export type JobResult = Readonly<{
   result: Result;
@@ -64,6 +85,7 @@ export type JobResult = Readonly<{
 export type ScenarioResult = Readonly<{
   result: Result;
   jobs: Readonly<Record<string, JobResult>>;
+  outputs?: Readonly<Record<string, string>>;
 }>;
 
 export type StepRules = {
@@ -80,6 +102,14 @@ export type InstanceRules = {
   internals: Map<string, StepOutcome>;
   expectedResult?: Result;
   expectedStepOrder?: readonly string[];
+  call?: Program;
+  callFixture?: FixtureValue<
+    Readonly<Record<string, unknown>>,
+    Record<string, string>,
+    Readonly<Record<string, unknown>>
+  >;
+  expectedCallInputs?: Readonly<Record<string, unknown>>;
+  expectedCallSecrets?: Readonly<Record<string, string>>;
 };
 export type JobRules = InstanceRules & {
   expectedMatrix?: readonly Readonly<Record<string, unknown>>[];
@@ -92,6 +122,7 @@ export type Program = {
   defaultResult?: Result;
   expectedResult?: Result;
   expectedBefore: [string, string][];
+  pipelineId?: string;
 };
 
 type InputsOf<Step> = TestStepOf<Step> extends
@@ -171,6 +202,38 @@ export class InstanceScenario<Job> {
       this.rules.steps.set(id, rules);
     }
     return new StepScenario(rules);
+  }
+  /** Interpret a local call with an isolated scenario; do not supply step fixtures on the caller job.
+   * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
+   */
+  call<const P extends TestablePipeline>(
+    pipeline: P,
+    define: (test: PipelineScenario<TestJobsOf<P>>) => void,
+  ): this {
+    const child = new PipelineScenario<TestJobsOf<P>>();
+    define(child);
+    child.program.pipelineId =
+      defineTsugiori({ pipelines: [pipeline] }).pipelines[0].id;
+    this.rules.call = child.program;
+    return this;
+  }
+  callFixture(
+    value: FixtureValue<
+      Readonly<Record<string, unknown>>,
+      Record<string, string>,
+      Readonly<Record<string, unknown>>
+    >,
+  ): this {
+    this.rules.callFixture = value;
+    return this;
+  }
+  expectCallInputs(value: Readonly<Record<string, unknown>>): this {
+    this.rules.expectedCallInputs = value;
+    return this;
+  }
+  expectCallSecrets(value: Readonly<Record<string, string>>): this {
+    this.rules.expectedCallSecrets = value;
+    return this;
   }
   internal(
     which: "artifact" | "cache" | "prepare",
@@ -280,9 +343,23 @@ export async function scenario<
 >(
   pipeline: Pipeline,
   define: (test: PipelineScenario<TestJobsOf<Pipeline>>) => void,
+  options: Readonly<{ config?: TsugioriConfig; observe?: ScenarioObserver }> =
+    {},
 ): Promise<ScenarioResult> {
   const builder = new PipelineScenario<TestJobsOf<Pipeline>>();
   define(builder);
-  const config = defineTsugiori({ pipelines: [pipeline] });
-  return await runScenario(config, builder.program);
+  const primary = defineTsugiori({ pipelines: [pipeline] }).pipelines[0];
+  const config = options.config ?? defineTsugiori({ pipelines: [pipeline] });
+  if (!config.pipelines.includes(primary)) {
+    throw new ScenarioError(
+      "fixture_invalid",
+      primary.id,
+      "Scenario pipeline must be included in config.",
+    );
+  }
+  builder.program.pipelineId = primary.id;
+  return await runScenario(config, builder.program, false, {
+    observer: options.observe,
+    nextId: 0,
+  });
 }

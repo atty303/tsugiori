@@ -19,12 +19,6 @@ behavior is documented in the [README](../README.md) and
 
 ## Future candidates
 
-### Reusable workflows
-
-- Model `workflow_call` inputs, secrets, and outputs as GitHub Actions-native
-  contracts, with practical caller and callee validation.
-- Emit native reusable-workflow YAML without hiding jobs and steps.
-
 ### Task execution
 
 - Consider thin Deno `Deno.Command` helpers for logging, environment access,

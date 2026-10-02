@@ -1,18 +1,17 @@
-export type WorkflowEvent = "pull_request" | "push" | "workflow_dispatch";
-export type WorkflowDispatchInput = Readonly<{
-  description?: string;
-  required?: boolean;
-  type: "string";
-  default?: string;
-}>;
-
-export type PermissionLevel = "none" | "read" | "write";
-export type OidcPermissionLevel = "none" | "write";
-
-export type WorkflowPermissions = Readonly<{
-  contents?: PermissionLevel;
-  "id-token"?: OidcPermissionLevel;
-}>;
+import type {
+  PipelineEvent,
+  RunDefaults,
+  StaticMatrix,
+  WorkflowCall,
+  WorkflowCallOutputs,
+  WorkflowDispatchInput,
+  WorkflowPermissions,
+} from "../../../core/src/github_actions/mod.ts";
+export type {
+  WorkflowDispatchInput,
+  WorkflowPermissions,
+} from "../../../core/src/github_actions/mod.ts";
+export type WorkflowEvent = PipelineEvent;
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<
   { group: string; cancelInProgress: boolean; queue?: "max" }
@@ -20,12 +19,15 @@ export type Concurrency = Readonly<
 export type JobOptions = Readonly<{
   if?: string;
   permissions?: WorkflowPermissions;
-  timeoutMinutes?: number;
+  timeoutMinutes?: number | string;
   environment?: string;
+  name?: string;
+  env?: EnvironmentVariables;
+  defaults?: RunDefaults;
   outputs?: Readonly<Record<string, string>>;
   strategy?: Readonly<{
     failFast?: boolean;
-    matrix: string | Readonly<Record<string, string | readonly string[]>>;
+    matrix: string | StaticMatrix;
   }>;
   concurrency?: Concurrency;
 }>;
@@ -37,6 +39,7 @@ export type StepMetadata = Readonly<{
   id?: string;
   if?: string;
   continueOnError?: boolean;
+  timeoutMinutes?: number | string;
   env?: EnvironmentVariables;
 }>;
 
@@ -71,6 +74,7 @@ export type RunStep =
     name?: string;
     run: string;
     workingDirectory?: string;
+    shell?: string;
   }>;
 
 export type Step = UsesStep | RunStep;
@@ -78,7 +82,11 @@ export type Step = UsesStep | RunStep;
 export type Job =
   & Readonly<{
     id: string;
-    runsOn: RunnerSelection;
+    runsOn?: RunnerSelection;
+    uses?: string;
+    callOutputNames?: readonly string[];
+    with?: ActionInputs;
+    callSecrets?: "inherit" | EnvironmentVariables;
     needs: readonly string[];
     steps: readonly Step[];
   }>
@@ -87,6 +95,13 @@ export type Job =
 export type Workflow = Readonly<{
   name: string;
   events: readonly WorkflowEvent[];
+  pushTags?: readonly string[];
+  pullRequestTypes?: readonly string[];
+  pullRequestTargetTypes?: readonly string[];
+  runName?: string;
+  env?: EnvironmentVariables;
+  workflowCall?: WorkflowCall;
+  workflowCallOutputs?: WorkflowCallOutputs;
   pushBranches?: readonly string[];
   workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;

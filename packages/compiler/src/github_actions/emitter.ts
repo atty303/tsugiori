@@ -18,16 +18,38 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
         event,
       ) => [
         event,
-        event === "push" && workflow.pushBranches !== undefined
-          ? { branches: [...workflow.pushBranches].sort(compareText) }
-          : event === "workflow_dispatch" &&
-              workflow.workflowDispatchInputs !== undefined
+        event === "push"
           ? {
-            inputs: Object.fromEntries(
-              Object.entries(workflow.workflowDispatchInputs).sort(([a], [b]) =>
-                compareText(a, b)
-              ),
-            ),
+            ...(workflow.pushBranches === undefined
+              ? {}
+              : { branches: [...workflow.pushBranches] }),
+            ...(workflow.pushTags === undefined
+              ? {}
+              : { tags: [...workflow.pushTags] }),
+          }
+          : event === "pull_request"
+          ? (workflow.pullRequestTypes
+            ? { types: workflow.pullRequestTypes }
+            : {})
+          : event === "pull_request_target"
+          ? (workflow.pullRequestTargetTypes
+            ? { types: workflow.pullRequestTargetTypes }
+            : {})
+          : event === "workflow_dispatch"
+          ? (workflow.workflowDispatchInputs
+            ? { inputs: emitDefinitions(workflow.workflowDispatchInputs) }
+            : {})
+          : event === "workflow_call"
+          ? {
+            ...(workflow.workflowCall?.inputs === undefined
+              ? {}
+              : { inputs: emitDefinitions(workflow.workflowCall.inputs) }),
+            ...(workflow.workflowCall?.secrets === undefined
+              ? {}
+              : { secrets: emitDefinitions(workflow.workflowCall.secrets) }),
+            ...(workflow.workflowCallOutputs
+              ? { outputs: emitDefinitions(workflow.workflowCallOutputs) }
+              : {}),
           }
           : {},
       ]),
@@ -41,6 +63,10 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const yaml = stringify(
     {
       name: workflow.name,
+      ...(workflow.runName === undefined
+        ? {}
+        : { "run-name": workflow.runName }),
+      ...(workflow.env === undefined ? {} : { env: sortRecord(workflow.env) }),
       on: events,
       ...(workflow.permissions === undefined
         ? {}
@@ -161,7 +187,29 @@ function jobsByDependencyLayer(jobs: readonly Job[]): Job[] {
 
 function emitJob(job: Job): Record<string, unknown> {
   const emitted: Record<string, unknown> = {
-    "runs-on": emitRunnerSelection(job.runsOn),
+    ...(job.uses === undefined
+      ? { "runs-on": emitRunnerSelection(job.runsOn!) }
+      : { uses: job.uses }),
+    ...(job.name === undefined ? {} : { name: job.name }),
+    ...(job.env === undefined ? {} : { env: sortRecord(job.env) }),
+    ...(job.defaults === undefined ? {} : {
+      defaults: {
+        run: {
+          ...(job.defaults.shell === undefined
+            ? {}
+            : { shell: job.defaults.shell }),
+          ...(job.defaults.workingDirectory === undefined
+            ? {}
+            : { "working-directory": job.defaults.workingDirectory }),
+        },
+      },
+    }),
+    ...(job.with === undefined ? {} : { with: sortRecord(job.with) }),
+    ...(job.callSecrets === undefined ? {} : {
+      secrets: job.callSecrets === "inherit"
+        ? "inherit"
+        : sortRecord(job.callSecrets),
+    }),
   };
   if (job.needs.length > 0) {
     emitted.needs = [...job.needs].sort(compareText);
@@ -188,7 +236,7 @@ function emitJob(job: Job): Record<string, unknown> {
   if (job.concurrency !== undefined) {
     emitted.concurrency = emitConcurrency(job.concurrency);
   }
-  emitted.steps = job.steps.map(emitStep);
+  if (job.uses === undefined) emitted.steps = job.steps.map(emitStep);
   return emitted;
 }
 
@@ -219,6 +267,9 @@ function emitStep(step: Step): Record<string, unknown> {
   if (step.continueOnError !== undefined) {
     emitted["continue-on-error"] = step.continueOnError;
   }
+  if (step.timeoutMinutes !== undefined) {
+    emitted["timeout-minutes"] = step.timeoutMinutes;
+  }
   if (step.env !== undefined) emitted.env = sortRecord(step.env);
   if (step.type === "uses") {
     emitted.uses = step.uses;
@@ -227,6 +278,7 @@ function emitStep(step: Step): Record<string, unknown> {
     }
   } else {
     emitted.run = RUN_PLACEHOLDER;
+    if (step.shell !== undefined) emitted.shell = step.shell;
     if (step.workingDirectory !== undefined) {
       emitted["working-directory"] = step.workingDirectory;
     }
@@ -286,4 +338,19 @@ function compareText(left: string, right: string): number {
 
 function runnerLabelKey(label: string): string {
   return label.toLowerCase();
+}
+
+function emitDefinitions<T extends object>(
+  definitions: Readonly<Record<string, T>>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(definitions).sort(([a], [b]) => compareText(a, b)).map((
+      [key, value],
+    ) => [
+      key,
+      Object.fromEntries(
+        Object.entries(value).filter(([, entry]) => entry !== undefined),
+      ),
+    ]),
+  );
 }

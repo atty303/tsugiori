@@ -21,6 +21,7 @@ import {
   type Program,
   type Result,
   ScenarioError,
+  type ScenarioObservationState,
   type ScenarioResult,
   type StepOutcome,
   type StepResult,
@@ -140,7 +141,7 @@ function stringValue(value: unknown): string {
 
 function evaluateMap(
   values:
-    | Readonly<Record<string, string | number | boolean | readonly string[]>>
+    | Readonly<Record<string, unknown>>
     | undefined,
   context: Context,
   status: Status,
@@ -284,6 +285,11 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
     internals: new Map([...base.internals, ...instance.internals]),
     expectedResult: instance.expectedResult,
     expectedStepOrder: instance.expectedStepOrder ?? base.expectedStepOrder,
+    call: instance.call ?? base.call,
+    callFixture: instance.callFixture ?? base.callFixture,
+    expectedCallInputs: instance.expectedCallInputs ?? base.expectedCallInputs,
+    expectedCallSecrets: instance.expectedCallSecrets ??
+      base.expectedCallSecrets,
   };
 }
 
@@ -321,6 +327,17 @@ async function runInstance(
   validateRules(rules, authorJob, location);
   const steps: Record<string, StepResult> = {};
   const context: Context = { ...base, matrix, steps: {} };
+  context.env = {
+    ...(base.env as Record<string, unknown> ?? {}),
+    ...evaluateMap(
+      job.env,
+      context,
+      { success: true, failure: false, cancelled: false },
+      location,
+      "env",
+      rules.steps.get("__job__")?.expressions ?? new Map(),
+    ),
+  };
   const source = new Map(
     authorJob.steps.filter((step) => step.id !== undefined).map((
       step,
@@ -377,14 +394,17 @@ async function runInstance(
           "Reached authored step has no fixture.",
         );
       }
-      const rawEnv = evaluateMap(
-        step.env,
-        context,
-        status,
-        stepLocation,
-        "env",
-        overrides,
-      );
+      const rawEnv = {
+        ...(context.env as Record<string, unknown>),
+        ...evaluateMap(
+          step.env,
+          context,
+          status,
+          stepLocation,
+          "env",
+          overrides,
+        ),
+      };
       env = Object.fromEntries(
         Object.entries(rawEnv).map(([key, value]) => [key, stringValue(value)]),
       );
@@ -598,7 +618,8 @@ function checkStep(
 }
 
 function triggered(config: TsugioriConfig, program: Program): boolean {
-  const pipeline = config.pipelines[0];
+  const pipeline = config.pipelines.find((p) => p.id === program.pipelineId) ??
+    config.pipelines[0];
   const github = program.external.github;
   if (!github || typeof github !== "object") {
     throw new ScenarioError(
@@ -619,22 +640,41 @@ function triggered(config: TsugioriConfig, program: Program): boolean {
   if (!pipeline.events.includes(event as typeof pipeline.events[number])) {
     return false;
   }
-  if (event === "push" && pipeline.pushBranches?.length) {
+  if (event === "pull_request" || event === "pull_request_target") {
+    const types = event === "pull_request"
+      ? pipeline.pullRequestTypes
+      : pipeline.pullRequestTargetTypes;
+    const action =
+      (values.event as Record<string, unknown> | undefined)?.action ??
+        (types ? undefined : "opened");
+    const allowed = types ?? ["opened", "synchronize", "reopened"];
+    if (typeof action !== "string") {
+      throw new ScenarioError(
+        "fixture_missing",
+        pipeline.id,
+        "github.event.action is required for PR activity filters.",
+      );
+    }
+    if (!allowed.includes(action)) return false;
+  }
+  if (event === "push" && (pipeline.pushBranches || pipeline.pushTags)) {
     if (typeof values.ref !== "string") {
       throw new ScenarioError(
         "fixture_missing",
         pipeline.id,
-        "github.ref is required for push branch filters.",
+        "github.ref is required for push filters.",
       );
     }
-    const branch = values.ref.replace(/^refs\/heads\//, "");
+    const tag = values.ref.startsWith("refs/tags/");
+    const filters = tag ? pipeline.pushTags : pipeline.pushBranches;
+    if (!filters) return false;
+    const name = values.ref.replace(/^refs\/(heads|tags)\//, "");
     let included = false;
-    for (const rule of pipeline.pushBranches) {
+    for (const rule of filters) {
       const negative = rule.startsWith("!");
-      const pattern = negative ? rule.slice(1) : rule;
-      if (branchPattern(pattern, pipeline.id).test(branch)) {
-        included = !negative;
-      }
+      if (
+        branchPattern(negative ? rule.slice(1) : rule, pipeline.id).test(name)
+      ) included = !negative;
     }
     if (!included) return false;
   }
@@ -697,19 +737,22 @@ function branchPattern(pattern: string, pipelineId: string): RegExp {
   return new RegExp(`${source}$`);
 }
 
-export async function runScenario(
+async function interpretScenario(
   config: TsugioriConfig,
   program: Program,
+  called: boolean,
+  observation: ScenarioObservationState,
 ): Promise<ScenarioResult> {
-  const author = config.pipelines[0];
-  if (!triggered(config, program)) {
+  const author = config.pipelines.find((p) => p.id === program.pipelineId) ??
+    config.pipelines[0];
+  if (!called && !triggered(config, program)) {
     if (program.expectedResult !== undefined) {
       expectValue("skipped", program.expectedResult, `${author.id}.result`);
     }
     return { result: "skipped", jobs: {} };
   }
   const lowered = await lowerConfig(config, ".github/tsugiori.ts", ".github");
-  const workflow = lowered.pipelines[0].workflow;
+  const workflow = lowered.pipelines.find((p) => p.id === author.id)!.workflow;
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));
   for (const name of program.jobs.keys()) {
     if (!authoredJobs.has(name)) {
@@ -759,6 +802,14 @@ export async function runScenario(
     }
     const context: Context = {
       ...program.external,
+      env: evaluateMap(
+        author.env,
+        program.external,
+        { success: true, failure: false, cancelled: false },
+        author.id,
+        "env",
+        new Map(),
+      ),
       needs,
       job: { status: "success" },
     };
@@ -789,6 +840,159 @@ export async function runScenario(
         { steps: new Map(), internals: new Map() };
       const merged = mergedRules(rules, specific);
       const authoredJob = authoredJobs.get(job.id)!;
+      if (job.uses !== undefined) {
+        const location = `${author.id}.${job.id}[${JSON.stringify(matrix)}]`;
+        const callContext = { ...context, matrix };
+        const inputs = evaluateMap(
+          job.with,
+          callContext,
+          status,
+          location,
+          "with",
+          overrides,
+        );
+        const secrets = job.callSecrets === "inherit"
+          ? { ...(context.secrets as Record<string, unknown> ?? {}) }
+          : evaluateMap(
+            job.callSecrets,
+            callContext,
+            status,
+            location,
+            "secrets",
+            overrides,
+          );
+        const callee = authoredJob.callee;
+        let child: ScenarioResult;
+        if (callee) {
+          if (
+            !merged.call || merged.call.pipelineId !== callee.id ||
+            merged.callFixture
+          ) {
+            throw new ScenarioError(
+              "fixture_missing",
+              location,
+              "Local workflow call requires its callee scenario, not a fixture.",
+            );
+          }
+          if (Object.keys(merged.call.external).length) {
+            throw new ScenarioError(
+              "fixture_invalid",
+              location,
+              "Callee contexts are provided by the caller; use call expectations instead of overriding contexts.",
+            );
+          }
+          for (
+            const [name, d] of Object.entries(callee.workflowCall?.inputs ?? {})
+          ) {
+            if (!Object.hasOwn(inputs, name)) {
+              if (d.required) {
+                throw new ScenarioError(
+                  "fixture_missing",
+                  location,
+                  `Required call input ${name} is missing.`,
+                );
+              }
+              inputs[name] = d.default ??
+                (d.type === "boolean" ? false : d.type === "number" ? 0 : "");
+            }
+            const actualType = typeof inputs[name];
+            if (actualType !== d.type) {
+              throw new ScenarioError(
+                "fixture_invalid",
+                location,
+                `Call input ${name} violates declared type.`,
+              );
+            }
+          }
+          for (
+            const [name, d] of Object.entries(
+              callee.workflowCall?.secrets ?? {},
+            )
+          ) {
+            if (d.required && !Object.hasOwn(secrets, name)) {
+              throw new ScenarioError(
+                "fixture_missing",
+                location,
+                `Required secret ${name} is missing.`,
+              );
+            }
+          }
+          // Caller github context remains unchanged. Caller env and custom inputs/secrets do not leak.
+          child = await runScenario(
+            config,
+            {
+              ...merged.call,
+              external: {
+                ...context,
+                env: undefined,
+                needs: undefined,
+                job: undefined,
+                matrix: undefined,
+                inputs,
+                secrets,
+              },
+              pipelineId: callee.id,
+            },
+            true,
+            observation,
+          );
+        } else {
+          if (!merged.callFixture || merged.call) {
+            throw new ScenarioError(
+              "fixture_missing",
+              location,
+              "External workflow call requires a fixture.",
+            );
+          }
+          const fixture = typeof merged.callFixture === "function"
+            ? await merged.callFixture({ inputs, env: {}, matrix })
+            : merged.callFixture;
+          if (
+            !fixture ||
+            !["success", "failure", "cancelled"].includes(
+              fixture.outcome ?? "success",
+            ) || Object.values(fixture.outputs ?? {}).some((v) =>
+              typeof v !== "string"
+            )
+          ) {
+            throw new ScenarioError(
+              "fixture_invalid",
+              location,
+              "External workflow fixture has invalid result or outputs.",
+            );
+          }
+          child = {
+            result: fixture.outcome ?? "success",
+            jobs: {},
+            outputs: fixture.outputs as Record<string, string> ?? {},
+          };
+        }
+        if (merged.expectedCallInputs) {
+          expectSubset(inputs, merged.expectedCallInputs, `${location}.with`);
+        }
+        if (merged.expectedCallSecrets) {
+          expectSubset(
+            secrets,
+            merged.expectedCallSecrets,
+            `${location}.secrets`,
+          );
+        }
+        if (merged.expectedResult !== undefined) {
+          expectValue(
+            child.result,
+            merged.expectedResult,
+            `${location}.result`,
+          );
+        }
+        instances.push({
+          matrix,
+          result: child.result,
+          steps: {},
+          call: child,
+          outputs: child.outputs ?? {},
+        });
+        continue;
+      }
       instances.push(
         await runInstance(
           job,
@@ -812,8 +1016,12 @@ export async function runScenario(
         matrix: instance.matrix,
         steps: instance.steps,
       };
-      for (const [name, expression] of Object.entries(job.outputs ?? {})) {
-        const value = stringValue(
+      for (
+        const [name, expression] of Object.entries(
+          job.uses ? instance.outputs ?? {} : job.outputs ?? {},
+        )
+      ) {
+        const value = job.uses ? expression : stringValue(
           evaluateAt(
             expression,
             jobContext,
@@ -853,5 +1061,70 @@ export async function runScenario(
   if (program.expectedResult !== undefined) {
     expectValue(result, program.expectedResult, `${author.id}.result`);
   }
-  return { result, jobs: results };
+  const outputs: Record<string, string> = {};
+  for (const [name, d] of Object.entries(author.workflowCallOutputs ?? {})) {
+    outputs[name] = stringValue(
+      evaluateAt(
+        d.value,
+        { ...program.external, jobs: results },
+        {
+          success: result === "success",
+          failure: result === "failure",
+          cancelled: result === "cancelled",
+        },
+        author.id,
+        `workflow.outputs.${name}`,
+        new Map(),
+      ),
+    );
+  }
+  return {
+    result,
+    jobs: results,
+    ...(author.workflowCallOutputs ? { outputs } : {}),
+  };
+}
+
+export async function runScenario(
+  config: TsugioriConfig,
+  program: Program,
+  called = false,
+  observation: ScenarioObservationState = { nextId: 0 },
+): Promise<ScenarioResult> {
+  const operationId = ++observation.nextId;
+  const parentId = observation.parentId;
+  const emit = (
+    status: "start" | "success" | "failure",
+    errorType?: string,
+  ) => {
+    try {
+      observation.observer?.({
+        operationId,
+        parentId,
+        stage: "workflow",
+        status,
+        ...(errorType ? { errorType } : {}),
+      });
+    } catch { /* Host diagnostics never alter the interpreted result. */ }
+  };
+  emit("start");
+  observation.parentId = operationId;
+  try {
+    const result = await interpretScenario(
+      config,
+      program,
+      called,
+      observation,
+    );
+    emit("success");
+    return result;
+  } catch (error) {
+    emit(
+      "failure",
+      error instanceof ScenarioError ? error.kind : "schema_invalid",
+    );
+    throw error;
+  } finally {
+    observation.parentId = parentId;
+  }
 }

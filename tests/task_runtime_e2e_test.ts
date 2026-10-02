@@ -584,7 +584,7 @@ Deno.test({
           await Deno.readFile(resolve(repositoryRoot, `.${pathname}`)),
           {
             headers: {
-              "content-type": pathname === "/deno.json"
+              "content-type": pathname.endsWith(".json")
                 ? "application/json"
                 : "application/typescript",
             },

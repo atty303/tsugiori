@@ -266,3 +266,88 @@ the reference is required or presence has been proved, and emits an ordinary
 assertion without runtime validation. `.and()` retains the falsy branch of its left operand in the result type,
 while `.or()` retains the truthy branch; GitHub Actions performs the actual
 comparison, truthiness, and logical operator evaluation.
+
+## Reusable workflows and the specification basis
+
+Tsugiori emits native reusable workflow files and caller jobs. Include each
+local callee in the same config. Calling a local pipeline checks input names,
+primitive types and required values, explicit secrets and declared output
+references. `secrets: "inherit"` forwards one hop; it cannot prove repository
+secret availability or organization/enterprise eligibility.
+
+```ts
+import { defineTsugiori, pipeline } from "@atty303/tsugiori";
+
+const definition = pipeline("build", {
+  output: ".github/workflows/build.yml",
+  events: ["workflow_call"],
+  workflowCall: {
+    inputs: { module: { type: "string", required: true } },
+    secrets: { token: { required: true } },
+  },
+});
+const build = definition.job("build", ({ job }) =>
+  job.runsOn("ubuntu-latest")
+    .defaultsRun({ shell: "bash", workingDirectory: "./modules" })
+    .run({
+      id: "build",
+      name: "Build",
+      run: 'echo "message=ok" >> "$GITHUB_OUTPUT"',
+      env: { MODULE: definition.inputs.module },
+      outputs: ["message"],
+    })
+    .outputs(({ steps }) => ({ message: steps.build.outputs.message })))
+  .workflowOutputs(({ jobs }) => ({ message: jobs.build.outputs.message }));
+
+const ci = pipeline("ci", {
+  output: ".github/workflows/ci.yml",
+  events: ["push"],
+  pushBranches: ["main"],
+  pushTags: ["v*"],
+}).job("build", ({ job }) =>
+  job.reusable().call(build, {
+    with: { module: "app" },
+    secrets: "inherit",
+  }));
+
+export default defineTsugiori({ pipelines: [ci, build] });
+```
+
+`definition.inputs` provides references with the declared boolean, number or
+string type. The existing field callback `inputs` context retains its string
+reference surface; use the definition's typed references for boolean/number
+inputs. Workflow outputs use the callee's `jobs` context. Caller outputs become
+the ordinary `needs.<job>.outputs` surface. Expressions/raw nodes are evaluated
+by GitHub; runtime expression values cannot all be statically guaranteed.
+
+Use
+`job.reusable().rawCall("owner/repo/.github/workflows/build.yml@<ref>", args)`
+for an external workflow. Its input/secret/output contracts are caller
+assertions. Caller jobs support conditions, needs, matrix strategy, name,
+permissions and concurrency; they do not contain runner execution fields.
+
+A static platform matrix can use `strategy({ matrix: { include: rows } })`. Row
+fields supply typed matrix references. Configure strategy before
+`.runsOn(({ matrix }) => matrix.runner)` or other matrix-dependent fields.
+`.runsOn(["self-hosted", "linux"])` emits conjunctive runner labels. `.env()`
+defines job env; workflow env belongs in pipeline options. Job `.defaultsRun()`
+emits native defaults, and a run step's `shell` and `workingDirectory` override
+them. Step `timeoutMinutes` accepts an integer or an expression callback.
+PR/PR-target `types`, push tags, dispatch choice/options, `runName`, job
+`.name()` and `actions`/`pull-requests` permissions are supported.
+
+Pass `{ config }` as the third argument of `scenario()` when testing local
+calls. Configure a caller instance with
+`instance.call(callee, test => { ...callee job fixtures... })`, nesting this for
+further calls. `expectCallInputs()` and `expectCallSecrets()` check the actual
+propagated values. Child contexts come from the call and cannot be overridden by
+child context fixtures. External calls use `callFixture()`; local calls
+interpret their callee and reject external fixtures. Workflow env does not cross
+a call. Results retain nested call results and workflow outputs. Optional
+`{ observe }` sends bounded per-workflow stage events to a host-owned sink
+without fixture values; sink errors do not change the scenario result.
+
+[Specification coverage and limits](docs/GITHUB_ACTIONS_SPEC.md) identify the
+fixed GitHub.com basis for this source/version. Normal generation, validation
+and scenarios do not fetch specifications. Coverage is distinct from hosted
+GitHub execution and effective authorization.

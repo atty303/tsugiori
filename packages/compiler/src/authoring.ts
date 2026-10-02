@@ -54,6 +54,7 @@ export async function lowerConfig(
   projectArgument = ".",
 ): Promise<LoweredConfig> {
   const diagnostics: string[] = [];
+  validateCalls(config, diagnostics);
   const tasks: RegisteredTask[] = [];
   const layoutFingerprints = new Map<string, string>();
   const pipelineIds = new Set<string>();
@@ -81,6 +82,23 @@ export async function lowerConfig(
     const jobs: Job[] = [];
 
     for (const job of pipeline.jobs) {
+      if (job.uses !== undefined) {
+        jobs.push({
+          id: job.id,
+          needs: job.needs,
+          uses: job.uses,
+          callOutputNames: Object.keys(job.callee?.workflowCallOutputs ?? {}),
+          with: job.with,
+          callSecrets: job.callSecrets,
+          if: job.if,
+          name: job.name,
+          strategy: job.strategy,
+          concurrency: job.concurrency,
+          permissions: job.permissions,
+          steps: [],
+        });
+        continue;
+      }
       const steps: Step[] = [];
       const usedStepIds = new Set(
         job.steps.flatMap((step) => step.id === undefined ? [] : [step.id]),
@@ -90,7 +108,9 @@ export async function lowerConfig(
         .map((step) => step.name);
       if (
         taskNames.length > 0 &&
-        job.runsOn.toLowerCase().includes("windows")
+        (typeof job.runsOn === "string"
+          ? job.runsOn
+          : job.runsOn?.join(" ") ?? "").toLowerCase().includes("windows")
       ) {
         diagnostics.push(
           `Job ${JSON.stringify(job.id)} in pipeline ${
@@ -119,6 +139,9 @@ export async function lowerConfig(
             ...(step.continueOnError === undefined ? {} : {
               continueOnError: step.continueOnError,
             }),
+            ...(step.timeoutMinutes === undefined
+              ? {}
+              : { timeoutMinutes: step.timeoutMinutes }),
             ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.with === undefined ? {} : { with: step.with }),
           });
@@ -130,10 +153,14 @@ export async function lowerConfig(
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
             run: step.run,
+            ...(step.shell === undefined ? {} : { shell: step.shell }),
             ...(step.if === undefined ? {} : { if: step.if }),
             ...(step.continueOnError === undefined ? {} : {
               continueOnError: step.continueOnError,
             }),
+            ...(step.timeoutMinutes === undefined
+              ? {}
+              : { timeoutMinutes: step.timeoutMinutes }),
             ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.workingDirectory === undefined ? {} : {
               workingDirectory: step.workingDirectory,
@@ -169,13 +196,24 @@ export async function lowerConfig(
             continueOnError: step.continueOnError,
           }),
           ...(step.env === undefined ? {} : { env: step.env }),
+          ...(step.timeoutMinutes === undefined
+            ? {}
+            : { timeoutMinutes: step.timeoutMinutes }),
           run: `./.tsugiori/task-runtime ${entrypoint}`,
         });
       }
 
       jobs.push({
         id: job.id,
-        runsOn: { type: "labels", labels: [job.runsOn] },
+        runsOn: {
+          type: "labels",
+          labels: typeof job.runsOn === "string"
+            ? [job.runsOn]
+            : job.runsOn ?? [""],
+        },
+        name: job.name,
+        env: job.env,
+        defaults: job.defaults,
         needs: job.needs,
         ...(job.if === undefined ? {} : { if: job.if }),
         ...(job.permissions === undefined
@@ -199,6 +237,13 @@ export async function lowerConfig(
     const workflow: Workflow = {
       name: pipeline.name,
       events: pipeline.events,
+      pushTags: pipeline.pushTags,
+      pullRequestTypes: pipeline.pullRequestTypes,
+      pullRequestTargetTypes: pipeline.pullRequestTargetTypes,
+      runName: pipeline.runName,
+      env: pipeline.env,
+      workflowCall: pipeline.workflowCall,
+      workflowCallOutputs: pipeline.workflowCallOutputs,
       ...(pipeline.pushBranches === undefined
         ? {}
         : { pushBranches: pipeline.pushBranches }),
@@ -364,4 +409,80 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
 
 function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function validateCalls(config: TsugioriConfig, diagnostics: string[]): void {
+  const pipelines = new Set(config.pipelines);
+  const visit = (
+    pipeline: AuthoringPipeline,
+    ancestors: readonly AuthoringPipeline[],
+  ): void => {
+    if (ancestors.includes(pipeline)) {
+      diagnostics.push(`Reusable workflow cycle at ${pipeline.id}.`);
+      return;
+    }
+    if (ancestors.length >= 10) {
+      diagnostics.push(
+        `Reusable workflow nesting exceeds ten levels at ${pipeline.id}.`,
+      );
+      return;
+    }
+    for (const job of pipeline.jobs) {
+      const target = job.callee;
+      if (!target) continue;
+      const location = `${pipeline.id}.${job.id}`;
+      if (!pipelines.has(target)) {
+        diagnostics.push(
+          `${location}: called pipeline must be included in the same config.`,
+        );
+      }
+      if (!target.events.includes("workflow_call")) {
+        diagnostics.push(`${location}: target requires workflow_call.`);
+      }
+      const check = (
+        definitions: Readonly<
+          Record<
+            string,
+            { required?: boolean; type?: string; default?: unknown }
+          >
+        >,
+        values: Readonly<Record<string, unknown>>,
+        secret: boolean,
+      ) => {
+        for (const [name, value] of Object.entries(values)) {
+          const definition = definitions[name];
+          if (!definition) {
+            diagnostics.push(
+              `${location}: undeclared ${secret ? "secret" : "input"} ${name}.`,
+            );
+            continue;
+          }
+          if (typeof value === "string" && value.includes("${{")) continue;
+          const actualType = typeof value;
+          if (actualType !== (secret ? "string" : definition.type)) {
+            diagnostics.push(
+              `${location}: invalid type for ${
+                secret ? "secret" : "input"
+              } ${name}.`,
+            );
+          }
+        }
+        for (const [name, definition] of Object.entries(definitions)) {
+          if (definition.required && !Object.hasOwn(values, name)) {
+            diagnostics.push(
+              `${location}: required ${
+                secret ? "secret" : "input"
+              } ${name} is missing.`,
+            );
+          }
+        }
+      };
+      check(target.workflowCall?.inputs ?? {}, job.with ?? {}, false);
+      if (job.callSecrets !== "inherit") {
+        check(target.workflowCall?.secrets ?? {}, job.callSecrets ?? {}, true);
+      }
+      visit(target, [...ancestors, pipeline]);
+    }
+  };
+  for (const pipeline of config.pipelines) visit(pipeline, []);
 }

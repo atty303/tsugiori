@@ -38,12 +38,14 @@ it does not load it again or parse the project's Deno configuration. Top-level
 code constructs the workflow definition; task callbacks run only through the
 prepared task artifact.
 
-The public API supports `push`, `pull_request`, and `workflow_dispatch` events,
-including push branch filters and string dispatch inputs. It supports native
-workflow and job permissions, concurrency, job conditions, timeouts,
-environments, outputs, matrix strategy, and step conditions, environment
-variables, failure policy, and working directories. The public
-`rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
+The public API supports push, PR, PR-target, dispatch and reusable-workflow
+triggers and the native fields listed in the
+[specification coverage](GITHUB_ACTIONS_SPEC.md). Local reusable references
+retain input/secret/output contracts and emit normal caller jobs with
+uses/with/secrets. The config contains both callers and callees; lowering checks
+membership, contracts, nesting and output references. Workflow env stays within
+each workflow. Run defaults remain native job settings and per-step overrides
+remain explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
 serializes literals, property references, operators, built-in calls, and
 opaque `rawNode<T>()` nodes. Field callbacks derive their available contexts
 from the provider scope catalog. The AST is built at each field; it is not a
@@ -97,7 +99,10 @@ The testing API lowers a pipeline with the same compiler path used for YAML
 generation and interprets the validated GitHub Actions workflow AST. Its
 scenario builder preserves the pipeline's job IDs, step IDs, task contracts,
 and matrix types for editor completion. A scenario provides referenced
-external contexts and fixtures for reached authored steps. The interpreter
+external contexts and fixtures for reached authored steps. Local calls recursively
+interpret callee workflows with separate inputs, secrets and env; external calls
+use explicit fixtures. The caller github context stays unchanged. Call results
+and workflow outputs retain their native boundaries. The interpreter
 builds `steps`, `needs`, and `matrix` contexts, evaluates supported expressions,
 serializes typed task outputs to GitHub wire values, and checks independent
 expectations against the resulting state. Generated task preparation steps
@@ -156,3 +161,11 @@ one bounded JSON diagnostic record to standard error. Normal runs emit no
 structured diagnostic record, and neither path retains diagnostic files.
 Import and top-level config failures occur before the runner and use Deno's
 error output.
+
+The scenario library can emit per-workflow start/completion/error operations to
+an optional host-owned observation sink, linked through nested calls. Events
+contain generated operation IDs, stage, status and stable error type; no input,
+secret, env, expression or fixture values enter the sink. A missing or failing
+sink does not affect results. The library owns no provider, recording store or
+exporter. Deterministic compiler/schema failures retain operation-specific typed
+diagnostics and can be rerun safely from the same authoring input.

@@ -144,14 +144,18 @@ empty.job("test", ({ job }) => {
   return execution.run({ name: "Test", run: "true" });
 });`,
       );
-      assertRelevantExactly(executionLabels, ["run", "task", "uses"], [
-        "needs",
-        "run",
-        "runsOn",
-        "steps",
-        "task",
-        "uses",
-      ]);
+      assertRelevantExactly(
+        executionLabels,
+        ["run", "runsOn", "task", "uses"],
+        [
+          "needs",
+          "run",
+          "runsOn",
+          "steps",
+          "task",
+          "uses",
+        ],
+      );
 
       const stepLabels = await sourceCompletionLabels(
         writer,

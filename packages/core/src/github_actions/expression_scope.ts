@@ -59,6 +59,8 @@ const stepContexts = [
   "inputs",
 ] as const;
 
+// Fixed source identity and coverage are owned by github_spec.json.
+// https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
 // This is a checked-in snapshot of GitHub's context availability table. The
 // workflow-key identity remains explicit even when entries share a value so a
 // later provider change can split them independently.

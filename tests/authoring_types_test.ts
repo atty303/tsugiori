@@ -22,7 +22,7 @@ type Expect<Value extends true> = Value;
 type StringKeys<Value> = Extract<keyof Value, string>;
 
 type _EmptyPipelineSurface = Expect<
-  Equal<StringKeys<EmptyPipelineState<"ci">>, "job">
+  Equal<StringKeys<EmptyPipelineState<"ci">>, "job" | "inputs">
 >;
 type _NonEmptyPipelineSurface = Expect<
   Equal<
@@ -32,13 +32,13 @@ type _NonEmptyPipelineSurface = Expect<
         { test: JobReference<"ci", "test"> }
       >
     >,
-    "job"
+    "job" | "workflowOutputs" | "inputs"
   >
 >;
 type _FirstJobSurface = Expect<
   Equal<
     StringKeys<AvailableJobState<"ci", "test", Record<never, never>>>,
-    "runsOn"
+    "runsOn" | "reusable"
   >
 >;
 type _DependentJobSurface = Expect<
@@ -50,12 +50,16 @@ type _DependentJobSurface = Expect<
         { test: JobReference<"ci", "test"> }
       >
     >,
-    "needs" | "runsOn"
+    "needs" | "runsOn" | "reusable"
   >
 >;
 type _ExecutionSurface = Expect<
   Equal<
     StringKeys<ExecutionJobState<"ci", "test">>,
+    | "runsOn"
+    | "name"
+    | "env"
+    | "defaultsRun"
     | "when"
     | "strategy"
     | "concurrency"

@@ -7,6 +7,10 @@ export type ValidatedWorkflow = Workflow & {
 };
 
 export type DiagnosticCode =
+  | "workflow.native.invalid"
+  | "job.call.invalid"
+  | "step.timeout.invalid"
+  | "step.shell.invalid"
   | "workflow.name.empty"
   | "workflow.events.empty"
   | "workflow.events.duplicate"
@@ -118,9 +122,16 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
         !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
         !input || typeof input !== "object" || Array.isArray(input) ||
         Object.keys(input).some((key) =>
-          !["description", "required", "type", "default"].includes(key)
+          !["description", "required", "type", "default", "options"].includes(
+            key,
+          )
         ) ||
-        input.type !== "string" ||
+        !["string", "choice"].includes(input.type) ||
+        (input.type === "choice" &&
+          (!Array.isArray(input.options) || input.options.length === 0 ||
+            input.options.some((v) => typeof v !== "string") ||
+            input.default !== undefined &&
+              !input.options.includes(input.default))) ||
         (input.description !== undefined &&
           typeof input.description !== "string") ||
         (input.required !== undefined && typeof input.required !== "boolean") ||
@@ -134,6 +145,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       ));
     }
   }
+  validateNativeFields(workflow, diagnostics);
   validateConcurrency(
     workflow.concurrency,
     ["concurrency"],
@@ -183,7 +195,20 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       ));
     }
 
-    validateRunnerSelection(job.runsOn, [...jobPath, "runsOn"], diagnostics);
+    if (job.uses === undefined) {
+      validateRunnerSelection(job.runsOn ?? { type: "labels", labels: [""] }, [
+        ...jobPath,
+        "runsOn",
+      ], diagnostics);
+    } else if (!validCallJob(job)) {
+      diagnostics.push(
+        diagnostic(
+          "job.call.invalid",
+          jobPath,
+          "Reusable caller jobs require a workflow path and support only caller keywords.",
+        ),
+      );
+    }
     if (
       job.if !== undefined &&
       (typeof job.if !== "string" || isBlank(job.if))
@@ -198,8 +223,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     }
     if (
       job.timeoutMinutes !== undefined &&
-      (!Number.isInteger(job.timeoutMinutes) || job.timeoutMinutes < 1 ||
-        job.timeoutMinutes > 360)
+      !validTimeout(job.timeoutMinutes)
     ) {
       diagnostics.push(
         diagnostic(
@@ -249,7 +273,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       diagnostics,
     );
 
-    if (job.steps.length === 0) {
+    if (job.uses === undefined && job.steps.length === 0) {
       diagnostics.push(diagnostic(
         "job.steps.empty",
         [...jobPath, "steps"],
@@ -260,6 +284,28 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     const stepIds = new Map<string, number>();
     job.steps.forEach((step, stepIndex) => {
       const stepPath = [...jobPath, "steps", stepIndex] as const;
+      if (
+        step.timeoutMinutes !== undefined && !validTimeout(step.timeoutMinutes)
+      ) {
+        diagnostics.push(
+          diagnostic(
+            "step.timeout.invalid",
+            stepPath,
+            "Step timeout must be a positive integer up to 360 or an expression.",
+          ),
+        );
+      }
+      if (
+        step.type === "run" && step.shell !== undefined && isBlank(step.shell)
+      ) {
+        diagnostics.push(
+          diagnostic(
+            "step.shell.invalid",
+            stepPath,
+            "Shell must not be blank.",
+          ),
+        );
+      }
       if (step.name !== undefined && isBlank(step.name)) {
         diagnostics.push(diagnostic(
           "step.name.empty",
@@ -394,7 +440,7 @@ function validatePermissions(
     return;
   }
   Object.entries(permissions).forEach(([key, value]) => {
-    if (key !== "contents" && key !== "id-token") {
+    if (!["contents", "id-token", "actions", "pull-requests"].includes(key)) {
       diagnostics.push(diagnostic(
         `${scope}.permissions.key.unsupported`,
         [...path, key],
@@ -478,7 +524,12 @@ function validateStrategy(
       Object.entries(value.matrix).some(([key, entry]) =>
         isBlank(key) || !(typeof entry === "string" && !isBlank(entry) ||
           Array.isArray(entry) && entry.length > 0 &&
-            entry.every((item) => typeof item === "string" && !isBlank(item)))
+            entry.every((item) =>
+              (key === "include" || key === "exclude")
+                ? isPlainRecord(item) &&
+                  Object.values(item).every(isActionInput)
+                : isActionInput(item)
+            ))
       )
   ) {
     diagnostics.push(
@@ -709,4 +760,122 @@ function compareText(left: string, right: string): number {
 
 function runnerLabelKey(label: string): string {
   return label.toLowerCase();
+}
+
+function validTimeout(value: number | string): boolean {
+  return typeof value === "string"
+    ? /^\$\{\{.+\}\}$/s.test(value)
+    : Number.isInteger(value) && value >= 1 && value <= 360;
+}
+function validCallJob(job: Job): boolean {
+  return job.runsOn === undefined && job.steps.length === 0 &&
+    job.env === undefined && job.defaults === undefined &&
+    job.environment === undefined && job.timeoutMinutes === undefined &&
+    job.outputs === undefined && typeof job.uses === "string" &&
+    (/^\.\/\.github\/workflows\/[^/]+\.ya?ml$/.test(job.uses) ||
+      /^[^/]+\/[^/]+\/\.github\/workflows\/[^/]+\.ya?ml@[^\s]+$/.test(
+        job.uses,
+      )) &&
+    !job.uses.includes("${{") &&
+    (job.callSecrets === undefined || job.callSecrets === "inherit" ||
+      isPlainRecord(job.callSecrets) &&
+        Object.values(job.callSecrets).every((v) => typeof v === "string")) &&
+    (job.with === undefined ||
+      isPlainRecord(job.with) && Object.values(job.with).every(isActionInput));
+}
+function validateNativeFields(
+  workflow: Workflow,
+  diagnostics: Diagnostic[],
+): void {
+  const invalid = (field: string, message: string) =>
+    diagnostics.push(diagnostic("workflow.native.invalid", [field], message));
+  for (
+    const [field, event] of [["pushTags", "push"], [
+      "pullRequestTypes",
+      "pull_request",
+    ], ["pullRequestTargetTypes", "pull_request_target"]] as const
+  ) {
+    const values = workflow[field];
+    if (
+      values !== undefined &&
+      (!workflow.events.includes(event) || !Array.isArray(values) ||
+        !values.length || values.some((v) =>
+          typeof v !== "string" || !v.trim()
+        ))
+    ) {
+      invalid(
+        field,
+        "Event filter requires its event and nonempty string values.",
+      );
+    }
+  }
+  if (
+    workflow.workflowCall !== undefined ||
+    workflow.workflowCallOutputs !== undefined
+  ) {
+    if (!workflow.events.includes("workflow_call")) {
+      invalid(
+        "workflowCall",
+        "Workflow call declarations require workflow_call.",
+      );
+    }
+    for (
+      const [name, d] of Object.entries(workflow.workflowCall?.inputs ?? {})
+    ) {
+      if (
+        !JOB_ID_PATTERN.test(name) || !d ||
+        !["string", "boolean", "number"].includes(d.type) ||
+        d.default !== undefined && typeof d.default !== d.type
+      ) {
+        invalid(
+          "workflowCall.inputs",
+          "Reusable input name, type or default is invalid.",
+        );
+      }
+    }
+    for (
+      const [name, d] of Object.entries(workflow.workflowCall?.secrets ?? {})
+    ) {
+      if (
+        !JOB_ID_PATTERN.test(name) || !d ||
+        d.required !== undefined && typeof d.required !== "boolean"
+      ) {
+        invalid(
+          "workflowCall.secrets",
+          "Reusable secret declaration is invalid.",
+        );
+      }
+    }
+    for (
+      const [name, d] of Object.entries(workflow.workflowCallOutputs ?? {})
+    ) {
+      if (!JOB_ID_PATTERN.test(name) || !d || typeof d.value !== "string") {
+        invalid("workflowCallOutputs", "Reusable output is invalid.");
+        continue;
+      }
+      for (const m of d.value.matchAll(/jobs\.([\w-]+)\.outputs\.([\w-]+)/g)) {
+        const job = workflow.jobs.find((j) => j.id === m[1]);
+        if (
+          !job ||
+          !(job.callOutputNames?.includes(m[2]) ||
+            Object.hasOwn(job.outputs ?? {}, m[2]))
+        ) invalid("workflowCallOutputs", `Unknown job output ${m[1]}.${m[2]}.`);
+      }
+    }
+  }
+  validateExpressionMap(workflow.env, ["env"], "step.env.invalid", diagnostics);
+  for (const job of workflow.jobs) {
+    validateExpressionMap(
+      job.env,
+      ["jobs", job.id, "env"],
+      "step.env.invalid",
+      diagnostics,
+    );
+    if (
+      job.defaults !== undefined &&
+      (job.defaults.shell !== undefined && isBlank(job.defaults.shell) ||
+        job.defaults.workingDirectory !== undefined &&
+          isBlank(job.defaults.workingDirectory))
+    ) invalid("defaults", "Run defaults must not be blank.");
+  }
 }
