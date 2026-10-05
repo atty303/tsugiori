@@ -1,0 +1,207 @@
+Task: Direct action metadata contracts and string inputs
+Anchor: ac3c1ee98a73ca155e10fba676b5cb53b548504e
+Base: 499455ca0e47768fc4cd4354d788204ba8489c16
+Branch: main
+Commits: ac3c1ee98a73ca155e10fba676b5cb53b548504e implements agreed direct action API and repository migration
+Guidance: User request; common and project AGENTS; dig; develop-repository and atty303 profile; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: Deno 2.9.5 via mise; existing main checkout; workspace-write with Git metadata escalation; no new dependencies; no deployment, credential changes, push or PR
+## Evidence
+- Complete cycle begins after prior main/notes push with the dig request at 2026-10-05T12:37:41.577Z; all 11 human messages through the implementation request at 2026-10-05T12:59:54.939Z were enumerated and compared across the persisted root and continuation logs for thread 01a10b95-d193-7ff1-9b7d-e98156dc635e.
+- Real Deno LSP verified generated g1 contract input completion, input description/deprecation, root hover and direct/callback step-output hover through job.uses.
+- Standard verification: 98 passed, 0 failed; generated workflow files up to date; Worker dry-run and existing URL/redirect/lock tests passed with unchanged service sources.
+- Independent review and delta review completed on exact snapshots; final reviewed patch SHA256 7f49074711c4649f3455e4809e50aaf40d3b117c4658edced3b48e8c58b46e26.
+Authority: Current user implementation request and approved dig decisions; common/project AGENTS and referenced development/review guidance
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) 今回のtyped action contractで実質defineActionが不要になっていないか？
+    
+  - A: Applied dig; inspected current contract and invocation implementation. Concluded standalone action preparation could move into job.uses; asked whether contracts should be consumed directly.
+- U2:
+    A. それならdefineAction自体が不要では？ contractを手書きすればいい
+    
+  - A: Confirmed handwritten metadata can use the same ActionContract shape; proposed deleting defineAction and actionInput rather than preserving two formats.
+- U3:
+    A
+    
+  - A: Accepted removal of old definition helpers; proposed replacing rawAction with a directly selected implementation reference.
+- U4:
+    A. そもそもbooleanの扱いがおかしくないか？ uses inputsはnative booleanをサポートしているのか？
+    
+  - A: Checked primary GitHub metadata, runner schema/conversion and toolkit getBooleanInput sources. Distinguished accepted workflow literals from string action inputs and reusable workflow primitives; proposed string-only action inputs.
+- U5:
+    A
+    
+  - A: Continued approved string-only API design, preserving explicit expression conversion and workflow primitive semantics.
+- U6:
+    A
+  - A: Confirmed all action inputs use string or Expression<string>, with legacy helpers removed. Asked whether with can be omitted when no required input lacks a default.
+- U7:
+    A
+    
+  - A: Confirmed omitted with and untouched action defaults; presented the then-current object-form design for agreement.
+- U8:
+    B. uses(contract, { ... }) のほうがよくないか？
+    
+  - A: Adopted suggested two-argument API; proposed first argument contract or full uses string and second argument step settings, with override only for a contract.
+- U9:
+    A
+    
+  - A: Inspected step settings and agreed optional second argument when no required input exists; asked for final common-understanding confirmation.
+- U10:
+    A
+    
+  - A: Produced the complete standalone implementation request for the agreed direct action API, string inputs, legacy removal, repository migration and unchanged Worker.
+- U11:
+    # 実装依頼
+    
+    ## 依頼
+    
+    `/Users/a13400/src/atty303/tsugiori`で、actionの利用APIを`job.uses(contractOrUses, options?)`へ統一してください。
+    
+    生成されたtyped action contractと手書きcontractを直接利用し、`defineAction`・`actionInput`・`rawAction`および従来の`job.uses({ ... })`形式を削除してください。repository内の利用箇所・テスト・ドキュメントを新APIへ移行してください。
+    
+    ## 目的
+    
+    - URL importしたcontractを、準備用の関数を挟まず利用できるようにする。
+    - 自動生成と手書きで同じcontract形式を使う。
+    - actionの指定とstep設定を分け、型付き・型なしの利用方法を揃える。
+    - action入力を、その文字列としての契約に合わせる。
+    
+    利用イメージ：
+    
+    ```ts
+    import checkout from
+      "https://<host>/github/actions/actions/checkout@v4";
+    
+    // 必須入力がなければ設定を省略可能
+    job.uses(checkout);
+    
+    // 入力とstep設定
+    job.uses(checkout, {
+      id: "checkout",
+      name: "Checkout",
+      with: ({ github }) => ({ ref: github.sha }),
+    });
+    
+    // 実体を上書きする場合
+    job.uses(checkout, {
+      uses: "my-org/checkout@ref",
+    });
+    
+    // contractなし
+    job.uses("actions/checkout@v4", {
+      with: { "fetch-depth": "0" },
+    });
+    ```
+    
+    手書きcontract：
+    
+    ```ts
+    const checkout = {
+      uses: "actions/checkout@v4",
+      name: "Checkout",
+      description: "Checkout the repository",
+      inputs: {
+        ref: { description: "Ref to checkout" },
+        "fetch-depth": {
+          description: "Number of commits to fetch",
+          default: "1",
+        },
+      },
+      outputs: {
+        commit: { description: "Checked out commit SHA" },
+      },
+    } as const satisfies ActionContract;
+    ```
+    
+    ## 成功条件
+    
+    - `job.uses(contract, options?)`から入力名・省略可否・出力名を推論できる。
+    - 入力値は、contractの有無によらず`string | Expression<string>`のみを受け付ける。
+    - boolean・numberの値および対応する型のExpressionを直接渡すと型エラーになり、型検査を回避した不正値も生成時に拒否する。
+    - `with`は入力objectまたは既存のGitHub式scopeを受け取って入力objectを返すcallbackを受け付ける。
+    - contract付きでは未知の入力名と必須入力の欠落を、型検査と生成時の検証で検出する。
+    - `required: true`かつdefaultなしの入力だけを必須とする。
+    - 必須入力があるcontractでは第二引数・`with`・該当キーを必須とする。
+    - 必須入力がないcontractとcontractなしの利用では、第二引数および`with`を省略できる。
+    - defaultをTsugioriで補わず、`with`省略時にはYAMLへ`with`を出力しない。
+    - contract付きで第二引数の`uses`を省略すると、contractの元の`uses`を使う。指定すると完全な実体指定で上書きする。
+    - `job.uses("owner/repo@ref", options?)`では入力名を検証せず、宣言された出力名を公開しない。第二引数の`uses`は受け付けない。
+    - `id`・`name`・`if`・`env`など既存のstep設定と、step出力参照・expression scope・typestateの制約を維持する。
+    - 新APIを通した入力補完とstep出力参照で、生成contractのJSDocを読めることを実際のDeno LSPで検証する。
+    - `defineAction`・`actionInput`・`rawAction`と従来の一引数object形式を公開APIから削除する。
+    - repository内のコード・例・テスト・ドキュメントを移行し、標準の検証が成功する。
+    - Workerの契約形式・URL・g1生成本文・キャッシュ動作を変更しない。
+    
+    ## 決定事項
+    
+    - action APIは`job.uses(contractOrUses, options?)`へ統一する。
+      - 理由: 第一引数でactionを選び、第二引数でstepを設定する一貫した形にできる。
+      - 主な棄却案: `job.uses({ contract, uses?, with? })`。contractとstep設定が同じobjectへ混在する。
+    
+    - 生成・手書きとも既存の`ActionContract`形式を利用する。
+      - 理由: contractが入出力定義を持つため、別の定義関数を必要としない。
+      - 主な棄却案: 手書き専用の`defineAction`・`actionInput`を維持する方式。定義形式と保守対象が重複する。
+    
+    - `defineAction`・`actionInput`・`rawAction`と旧step形式を削除する。
+      - 理由: contract付き・contractなしを直接指定できれば、公開の呼び出し関数による包装は不要になる。
+      - 主な棄却案: 非推奨として互換APIを残す方式。今回は破壊的変更を受け入れて統一する。
+    
+    - action入力は一律`string | Expression<string>`とする。
+      - 理由: action metadataにはboolean・number入力型の宣言がなく、runnerからactionへ渡る入力は文字列である。
+      - 主な棄却案: boolean・numberを記述上の便宜として受け付ける方式。暗黙の文字列化をAPIへ持ち込む。
+    
+    - contractなしでは、第一引数へ完全な`uses`文字列を指定する。
+      - 理由: 型付きと同じ引数配置で、未型付けのactionも利用できる。
+      - 主な棄却案: `rawAction()`を残す方式。型なしだけ別の包装を必要とする。
+    
+    - 実体上書き用の第二引数の`uses`はcontract付きだけで利用可能にする。
+      - 理由: contractの既定実体を差し替える用途に限定できる。文字列指定では第一引数がすでに実体を選んでいる。
+      - 主な棄却案: 文字列指定でも上書きを許す方式。実体指定が重複する。
+    
+    - 必須入力がない場合は第二引数と`with`を省略可能にする。
+      - 理由: 不要な空objectを要求せず、actionのdefaultへ任せられる。
+      - 主な棄却案: 常に`with: {}`を要求する方式。
+    
+    - Workerの生成形式は維持する。
+      - 理由: 今回は利用側APIの整理であり、配布境界の独立した契約データはそのまま使える。
+      - 主な棄却案: 生成モジュールを呼び出し可能にする方式。Tsugioriへの依存やruntime変換を配布側へ持ち込む。
+    
+    ## 制約
+    
+    - 既存APIとの互換性は維持しない。repository内の利用箇所を移行対象に含める。
+    - contractの取得元と実体の対応・互換性・更新は管理しない。
+    - 元の`uses`と型生成用の解決SHAを区別し、既定実体を解決SHAへ置き換えない。
+    - contractにはTsugiori固有のSymbol・Expressionクラス・Cloudflare型を持ち込まない。
+    - 入力の型推測、map/transform、追加のruntime変換を導入しない。
+    - reusable workflow・dispatchのboolean・number入力は、action入力と区別して維持する。
+    - 公開deployment・credential設定・cloud resource変更・push・PR作成は含めない。
+    
+    ## 対象外
+    
+    - Workerの契約生成、URL、キャッシュ、hosting設定の変更。
+    - reusable workflowやdispatch対象workflowの契約生成。
+    - private action、GHES、action実体の実行・管理・更新。
+    - 旧APIの互換adapterや非推奨期間の提供。
+    - repository外の利用者コードの編集。
+    
+    ## 未検証の前提
+    
+    - 二引数形式のgeneric推論を通して、入力callbackのcontextual typingとstep出力のJSDocを維持できるかは本体統合時に確認する。
+    - 既存のExpression APIでboolean・numberの式を文字列式へ明示的に変換する方法を確認する。
+    - compiler・task準備処理・scenario DSLなどの内部利用箇所にあるboolean・numberのaction入力を確認し、今回のaction入力境界へ整合させる。
+    
+    ## 実装時の指示
+    
+    - 契約型は`packages/core/src/github_actions/action_contract.ts`の既存形式を使用する。
+    - metadata解釈・入力検証・invocation生成の既存処理を確認し、新APIに必要な内部処理だけを残す。公開関数の削除と内部表現の削除を同一視しない。
+    - required判定はdefaultの有無を基準にし、default値のtruthinessで判定しない。
+    - 手書きcontractの例では、入力名と`required: true`などのリテラル型を保つために`as const satisfies ActionContract`を使う。
+    - boolean・numberの静的入力は`"false"`・`"0"`など意図する文字列へ移行する。式は既存の明示的な文字列式への変換を使用し、意味を維持する。
+    - 文字列指定の第二引数へ`uses`を渡せないこと、必須入力に応じて第二引数の省略可否が変わることを型検査で検証する。
+    - 未知の入力、必須入力不足、不正な入力値は、型検査を回避した経路でも黙って受け付けない。
+    - 実体の上書き、default非補完、出力参照、既存expression scopeの制約を、新APIを通して検証する。
+    - Deno LSP検証では生成contractを使用し、実際の入力補完と`steps.<id>.outputs.<name>`参照の説明を確認する。
+    - generated workflowに差分が出る場合はTypeScript sourceから再生成し、意味の変化と表記の変化を区別して確認する。
+    
+  - A: Applied develop-repository, design-review and observability applicability assessment. Fetched code and notes; implemented on existing main at baseline 499455ca0e47768fc4cd4354d788204ba8489c16 (SemVer release work already present). Replaced action definition/invocation public helpers with direct contract/string job.uses; inferred required inputs, callback scope and metadata output references; separated reusable call primitive inputs from action string values; migrated repository callers, documentation and generated workflows. Deno LSP initially lost input JSDoc under whole-object inference; investigated and adjusted overloads to retain documentation and exact input checking. Updated intentional string-input YAML expectations and snapshot through test:update. Fresh reviewer review_direct_actions found logical non-string results and variable-object extra keys bypassing static checking; fixed both with expression-result analysis and inferred object key checks. Delta review reported no remaining findings. mise run check and mise run test succeeded with 98 tests, including Worker redirect/lock tests, actual Deno LSP documentation and Wrangler dry-run; generated workflows passed generate:check. No Worker, contract data, generation g1, URL, cache, dependency, credentials or cloud changes. Fixed reviewed diff SHA256 7f49074711c4649f3455e4809e50aaf40d3b117c4658edced3b48e8c58b46e26 was staged and committed locally as ac3c1ee98a73ca155e10fba676b5cb53b548504e. No push or PR. Raw expression/caller assertions remain without runtime value-type validation. Created this normalized note from complete persisted thread user-message inventory (11 cycle messages); no auto-injected guidance included.
