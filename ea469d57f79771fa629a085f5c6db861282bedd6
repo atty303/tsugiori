@@ -1,0 +1,152 @@
+Task: Implement public GitHub action metadata contracts and a Cloudflare type service
+Anchor: ea469d57f79771fa629a085f5c6db861282bedd6
+Base: 5f8a2f32f1910503dd7c60dd90125ddc6e49e37b
+Branch: main
+Commits: ea469d57f79771fa629a085f5c6db861282bedd6 (consumer API, Worker, tests and living documentation)
+Guidance: human implementation request; common/project AGENTS; develop-repository and atty303 profile; design-program-observability; design-review; investigate-problem; independent review; Git task evidence
+Conditions: macOS current checkout; mise-managed Deno 2.9.5; clean initial main; Git metadata writes escalated; no new dependency, worktree, deployment, cloud resource, credential, push or PR changes
+## Evidence
+- mise run test built a browser-targeted Worker bundle and passed all 89 tests. Integrated Deno LSP confirmed input completion and JSDoc through defineAction and both direct and expression callback step output references.
+- Real Deno loopback import tests proved lock redirect/checksum recording, a fresh DENO_DIR fetching the immutable SHA URL directly, unchanged lock under --frozen=true, --reload alone retaining that redirect, and explicit selected redirect removal followed by --reload --frozen=false updating it.
+- Unauthenticated public GitHub live probes resolved checkout@v4 to 11d5960a326750d5838078e36cf38b85af677262 and setup-node@v4 to 49933ea5288caeca8642d1e84afbd3f7d6820020, generated metadata, redirected over loopback, imported with actual Deno and invoked defineAction. These probes did not execute the actions or test the deployed Cloudflare runtime.
+- Public checkout defaults include YAML boolean, number and null scalars. Contracts retain those as metadata without changing string invocation types or injecting defaults.
+- Fresh read-only reviewer inspected the complete fixed patch (SHA256 55a0c7260e06ad08ec35d19848b70f33624d8e15b093e5197a88cfcaf1326dcd) and reported no actionable findings. Snapshot was unchanged after review.
+- Complete local thread history across three continuation logs reconciled 41 human messages. This implementation cycle begins at the final implementation request after the successful design handoff; injected skill, Page and AGENTS/environment messages were excluded. The original request below matches the retrieved last human message byte-for-byte.
+Authority: human implementation request and common/project AGENTS; invoked development, observation, design, investigation, review and Git-evidence skills
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    
+    `/Users/a13400/src/atty303/tsugiori`で、公開GitHub actionのmetadataからtyped契約を提供するCloudflare Workerと、その契約を利用するTsugiori APIを実装してください。
+    
+    Workerは同じrepositoryの`services/type-service/`に配置し、一つの型生成サービスとして管理してください。今回の生成対象はactionのみです。
+    
+    ## 目的
+    
+    - 利用者がURL importするだけで、actionの入力・出力の型と説明を得られるようにする。
+    - ローカルでのコード生成や、第三者による定義packageの配布を不要にする。
+    - 通常利用ではactionとrefをimportの一か所に書き、必要な場合だけ実体を上書きできるようにする。
+    
+    利用イメージ：
+    
+    ```ts
+    import checkoutV4 from
+      "https://<host>/github/actions/actions/checkout@v4";
+    
+    const checkout = defineAction({ contract: checkoutV4 });
+    
+    job.uses({
+      name: "Checkout",
+      uses: ({ github }) => checkout({ ref: github.sha }),
+    });
+    
+    // 実体を別に選ぶ場合
+    const customCheckout = defineAction({
+      contract: checkoutV4,
+      uses: "my-org/checkout@<ref>",
+    });
+    ```
+    
+    ## 成功条件
+    
+    - `defineAction({ contract, uses? })`から、入力名・省略可否・出力名を推論できる。
+    - 入力値はstringと対応するGitHub式を受け付け、未知の入力名と必須入力の欠落を検出する。
+    - `required: true`かつdefaultなしの入力だけが呼び出し時に必須になる。default値はTsugioriで入力へ補わず、実際のactionに適用を任せる。
+    - `uses`省略時は、importで指定した元の`owner/repo[/path]@ref`を使う。指定時は、その完全な`uses`へ上書きできる。
+    - 生成モジュールはTsugioriをimportせず、異なるTsugiori versionのSymbolやクラスを配布境界へ持ち出さない。
+    - metadataは`runs`以外を保持し、root・入力・出力の説明をJSDocにも反映する。
+    - 実際の利用側APIを通した入力補完・出力参照で、JSDocを読めることを検証する。
+    - Workerが公開GitHub actionのrefをSHAへ解決し、そのSHAの`action.yml`または`action.yaml`から契約TSを生成する。subdirectory内のactionにも対応する。
+    - ref→SHAは5分を初期TTLとしてキャッシュし、SHA固定の契約は長時間キャッシュする。
+    - 解決後のURLは、元の指定・解決SHA・生成ロジックversionを識別でき、再生成しても同じ内容になる。
+    - ローカルHTTP環境と実際のDenoを使い、URL import、redirect、lock後の再取得、明示的な更新の挙動を検証する。
+    - 現在の手書きaction定義の互換性を維持し、新しい利用方法とサービスの保証範囲をdocumentationへ反映する。
+    
+    ## 決定事項
+    
+    - 利用側APIは`defineAction({ contract, uses? })`とする。
+      - 理由: 現行のaction呼び出し形式を活かし、通常利用の重複指定をなくせる。
+      - 主な棄却案: stepに`contract`と`with`を直接指定する形式。
+    
+    - 既定の`uses`は、importに書いた元のactionとrefを保持する。
+      - 理由: `@v4`をimportした利用者の既定値も`@v4`に揃える。型生成用の解決SHAで実体を暗黙に固定しない。
+      - 主な棄却案: `uses`の常時明示、解決SHAを既定の実体にする方式。
+    
+    - 生成物は、metadataを基にした独立したTS契約データとする。
+      - 理由: 配布側と利用側のTsugiori versionを揃える必要をなくす。
+      - 主な棄却案: Tsugioriに依存する呼び出し関数の配布。
+    
+    - metadata全体から`runs`だけを除き、取得元の`uses`を追加してdefault exportする。
+      - 理由: 実行情報を持ち込まず、説明・作者・branding・入出力metadataを保持する。
+      - 主な棄却案: 入出力名だけへの縮約、`runs`を含む実装情報の保持。
+    
+    - 生成はmetadataに忠実に行い、入力値をstringとして扱う。
+      - 理由: action metadataには入力のboolean・number・enumを宣言する標準型フィールドがない。
+      - 主な棄却案: 説明やdefaultからの型推測、map/transformによる追加の型付け。いずれも今回提供しない。
+    
+    - descriptionを対応する宣言のJSDocにも付ける。
+      - 理由: IDEでmetadataを別途開かずに説明を読める。
+      - 主な棄却案: descriptionをデータとして保持するだけの方式。
+      - rootにはname・description・authorを反映する。生成元への`@see`、入力のdefault情報、`deprecationMessage`からの`@deprecated`も反映する。
+    
+    - 公開URLは`/github/actions/<owner/repo[/path]@ref>`とする。
+      - 理由: providerとリソース種別を明示し、末尾はGitHub Actionsの指定と同じ形にできる。
+      - 主な棄却案: prefixなし、リソース種別だけのprefix。
+      - `.ts`拡張子は付けず、TypeScriptのContent-Typeで返す。
+    
+    - 公開入口から、不変URLへredirectする。
+      - 理由: major/refは最新取得の入口として使い、取得結果の固定・更新は利用者のDeno側に任せる。
+      - 主な棄却案: 同じ公開URLから変化するTS本文を直接返す方式。
+      - 不変URLの基本形は`/_resolved/g1/<SHA>/github/actions/<uses>`。`g1`は生成ロジックversionであり、元の`uses`も識別に含める。
+    
+    - Cloudflare Workersとキャッシュで提供し、永続保存は持たない。
+      - 理由: GitHubから取得可能な範囲で再生成するサービスとして責務を小さく保つ。
+      - 主な棄却案: R2による過去生成物の永続保存。
+      - ref→SHAのTTLは初期値5分。期限後の取得失敗では、古い解決結果を黙って返さない。
+    
+    - 一つの型生成サービスとして、同じrepositoryで管理する。
+      - 理由: 契約と生成器を一緒に検証し、複数リソースでhostingを共有できる。
+      - 主な棄却案: 別repository、リソースごとのWorker。
+      - 契約の型は`packages/core/src/github_actions/action_contract.ts`、Workerは`services/type-service/`に置く。
+      - 外部reusable workflowは次の候補とし、今回の実装対象には含めない。
+    
+    ## 制約
+    
+    - 利用者は完全な`uses`を自由に指定できる。契約の取得元と実体の対応・互換性・更新を、Tsugioriやサーバーが管理しない。
+    - 初期対象は公開GitHub.com actionのみ。利用者の認証情報をサーバーへ送る仕組みは設けない。
+    - 契約の型にはTsugiori固有のSymbol・Expressionクラス・Cloudflareの型を含めない。
+    - Workerのbuild・deploy設定はサービス側へ分離し、利用側packageからWorkerの依存を読み込ませない。
+    - 今回は実装とローカル検証まで。公開deployment、cloud resource作成、credential設定は行わない。
+    - `<host>`は未指定。特定domainの所有や公開先を仮定せず実装する。
+    
+    ## 対象外
+    
+    - private action、GHES、Docker image単独からの契約生成。
+    - actionの実行、GitHub workflowの実行管理、実体の更新管理。
+    - 公式actionsの本体へのバンドル。
+    - 利用者によるローカル生成、第三者向け定義packageの配布基盤。
+    - 型の推測、map/transform、追加のruntime変換。
+    - reusable workflowやdispatch対象workflowの生成処理。
+    - 永続的な生成物保存、元データ消失後の配信保証。
+    
+    ## 未検証の前提
+    
+    - 実際の`defineAction`からjobのstep出力参照まで、metadataのJSDocを維持できるかを確認する。Deno 2.9.5の一時prototypeでは、mapped type経由の入力・出力hoverと、default importのroot hoverに説明が引き継がれたが、本体への統合は未検証。
+    - repositoryの既存YAML依存を、Workers向けbuildで利用できるかを確認する。
+    - Denoのredirect・キャッシュ・lock更新を組み合わせた実際の取得挙動を確認する。未検証のままlock後の再現性を保証しない。
+    - 公開運用時のGitHub API認証とrate limit対応は、deployment前に利用可能な環境・credentialで確認する。今回はcredentialを作成・変更しない。
+    
+    ## 実装時の指示
+    
+    - GitHub取得・ref解決、純粋なmetadata検証とTS生成、WorkerのHTTP処理とキャッシュを分離する。
+    - refを先にSHAへ解決し、そのSHAからmetadataを取得する。途中のtag更新で生成元が混在しないようにする。
+    - 元の`uses`と解決SHAを区別し、`@v4`の既定`uses`を`@SHA`へ置き換えない。
+    - refやaction pathのURL encoding規則を明文化し、subdirectory・branch・tag・SHAのケースを検証する。
+    - 同じ不変URLの本文を変えない。出力が変わる生成ロジックの修正には新しい生成ロジックversionを割り当て、既存versionでの再生成方法を維持する。
+    - metadata内の文字列とdoc commentを安全に出力する。引用符・改行・`*/`などを含む入力で、生成TSの構文やデータが壊れないことを検証する。
+    - 取得失敗・不正metadata・rate limit時に、型を広げた代替契約を黙って返さない。
+    - 将来のリソース用コードは追加せず、HTTP入口・GitHub取得・キャッシュを一つのサービス内で共有できる配置に留める。
+    
+  - A: Read development, observability, engineering and design guidance; fetched code and standard notes; confirmed clean current main. Added plain structural action contracts, a compatible defineAction metadata overload and JSDoc-preserving output mappings. Added one public action-only Cloudflare HTTP service with SHA-first GitHub fetches, versioned pure YAML-to-TS generation, original uses defaults, bounded fetches, cache TTLs and isolate-local diagnostic recording. Added isolated Deno import/lock, runtime, type and LSP tests and living user/architecture documentation. Investigated and corrected invalid delimiter validation, mapped-reference documentation loss, YAML scalar default handling and overload diagnostic placement. Existing dependencies suffice for the Worker browser bundle. Focused tests and the full standard test task passed; live public GitHub-to-loopback-to-Deno API probes succeeded after directing the probe cache into an owned temporary directory. Fresh independent review found no actionable issues. Committed only the reviewed changes with configured signing as the recorded anchor; working tree is clean. No deployment, resource, credential or remote write was performed. Complete thread comparison and classified normalized evidence prepared for standard Git notes.
