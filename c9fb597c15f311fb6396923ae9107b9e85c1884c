@@ -1,0 +1,158 @@
+Task: Native on pipeline API and dispatch/call input inference
+Anchor: c9fb597c15f311fb6396923ae9107b9e85c1884c
+Base: 287569a0c81c49ab9b7c04e5196b1f89ef2bd52f
+Branch: main in the original checkout
+Commits: c9fb597c15f311fb6396923ae9107b9e85c1884c implements API, compiler, scenario, tests and documentation migration
+Guidance: user implementation request; applicable AGENTS.md; dig; develop-repository; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: macOS; repository mise-managed Deno 2.9.5; current checkout only; no new dependency; sandbox escalations for local Git metadata; remote code/notes fetch succeeded; no push/PR/release/deploy authority
+## Evidence
+- Complete human transcript reconciled from both runtime rollout files: 15 messages, beginning with dig and ending with the implementation request. Auto-injected AGENTS/skill/environment/page context was excluded.
+- Current source/tests are durable; native Actions execution remains GitHub-owned. Deterministic compiler paths retain typed diagnostics; existing scenario observation ownership remains with the host.
+- mise run check succeeded; mise run test: 82 passed, 0 failed, including task artifact/runtime tests and Deno LSP completion/hover checks.
+- .github deno task generate:check succeeded. No workflow YAML or committed snapshot changed.
+- Fresh reviewer /root/review_pipeline_api examined exact fixed diff and source with no inherited implementation history: no actionable findings. GitHub-hosted execution and external consumer migration were not performed.
+Authority: The explicit user implementation request and applicable AGENTS.md control scope and breaking compatibility; source and tests establish behavior; memory is descriptive only.
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) pipelineの定義形状が公式のonではなくevents+workflowDispatchInputsのように分解されているのには意図があるのか？
+    
+  - A: Applied dig. Inspected current authoring/compiler sources and relevant Git history; separated incremental implementation history from a deliberate API constraint. Discussed native on object shape.
+- U2:
+    A
+    
+  - A: Confirmed native on structure; asked whether the old split API should remain compatible.
+- U3:
+    A
+    
+  - A: Confirmed immediate compatibility break; kept current event/settings coverage and YAML semantics.
+- U4:
+    A
+    
+  - A: Confirmed current coverage; discussed object-only trigger forms.
+- U5:
+    A. object形式でコンテキスト推論の補完は効くのか？
+    
+  - A: Confirmed object form. Explained that contextual nested completion and literal inference must be verified with real Deno LSP. Asked about dispatch references.
+- U6:
+    A
+    
+  - A: Confirmed dispatch input inference; examined common references when dispatch and call definitions differ.
+- U7:
+    B
+    
+  - A: Confirmed differing schemas with union value types and empty-string absence. Verified GitHub context missing-property evaluation; excluded undefined.
+- U8:
+    A
+    
+  - A: Confirmed no event-condition-based automatic narrowing; reviewed workflow output authoring order.
+- U9:
+    A
+    
+  - A: Confirmed retaining workflowOutputs after jobs and moving direct outputs under on.workflow_call; discussed implementation scope.
+- U10:
+    A
+    
+  - A: Continued agreed trigger/input design. No implementation edits were made during dig.
+- U11: 定義はpipelineやdefineActionなど揺れている
+  - A: Investigated factory-name history and current definitions; compared defineX naming with noun factories.
+- U12:
+    どっちがいいと思う？
+    
+  - A: Recommended definePipeline while retaining defineAction and defineTsugiori, alongside the same migration.
+- U13:
+    A
+    
+  - A: Confirmed definePipeline rename without a pipeline alias; summarized the agreed design for final confirmation.
+- U14:
+    A
+    
+  - A: Produced the agreed implementation request with purpose, acceptance criteria, decisions, constraints, exclusions and unverified premises. No repository implementation had occurred yet.
+- U15:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の現在のcheckoutで、pipeline定義APIを`definePipeline()`へ改名し、トリガー定義を公式の`on`構造に沿ったオブジェクト形式へ統一してください。dispatch／callのinput定義から参照名と値型を推論し、補完へ反映してください。
+    
+    ## 目的
+    - GitHub Actions公式仕様からの読み替えを減らし、イベントとその設定を一か所にまとめる。
+    - 定義APIの命名を揃える。
+    - 宣言したinputを、補完と型検査を使って参照できるようにする。
+    
+    ## 成功条件
+    - `pipeline()`を廃止し、`definePipeline()`へ統一する。旧名のaliasを残さない。
+    - `on`は非空のオブジェクト形式のみ受け付ける。文字列・配列の短縮形は受け付けない。
+    - 以下の旧フィールドを廃止し、対応する設定へ移す。
+      - `events` → `on`のイベントキー
+      - `pushBranches`／`pushTags` → `on.push.branches`／`tags`
+      - `pullRequestTypes` → `on.pull_request.types`
+      - `pullRequestTargetTypes` → `on.pull_request_target.types`
+      - `workflowDispatchInputs` → `on.workflow_dispatch.inputs`
+      - `workflowCall` → `on.workflow_call`のinputs／secrets
+      - `workflowCallOutputs` → `on.workflow_call.outputs`
+    - 定義中に対応イベント、イベント固有の設定、input定義の候補が補完される。
+    - dispatch／callで宣言したinput名が参照補完に現れ、値型が保持される。未宣言のinput名を型付き参照で受け付けない。
+    - イベント間でinput名・値型が異なる定義も受け付ける。
+    - 共通のinput参照型は、設定された起動イベントで取り得る値型のunionになる。そのinputが存在しない起動イベントでは、GitHubの式評価に合わせて`""`を含める。欠落を`undefined`として扱わない。
+    - `.workflowOutputs()`は維持し、`on.workflow_call.outputs`を更新する。
+    - 再利用workflow呼び出し側のinput／secret検証は、共通参照型ではなく`workflow_call`の契約から導出する。
+    - リポジトリ内の利用箇所、公開export、テスト、ドキュメントを移行する。
+    - 同等の定義から生成されるYAMLは変更前と同一になる。
+    - 型検査、Deno LSP補完テスト、関連するcompiler／validation／scenarioテストと標準チェックが通る。
+    
+    ## 決定事項
+    - トリガー設定を公式キーによる`on`配下へ集約する。
+      - 理由: イベントと設定の対応を構造で表し、公式仕様との読み替えと設定間の不整合を減らす。
+      - 主な棄却案: トップレベルの分離形式を維持して整合検査を強化する案。
+    - 旧形式は互換受付せず、オブジェクト形式へ一括移行する。
+      - 理由: 表現、型、検証、ドキュメントを一つに保つ。
+      - 主な棄却案: 旧形式との移行期間、文字列・配列の短縮形の受付。
+    - 対応イベントと設定項目は現在の範囲を維持する。
+      - 理由: 定義形状の変更とinput推論に集中し、生成YAMLの意味を維持する。
+      - 主な棄却案: 未対応イベントやdispatch input型などの同時追加。
+    - dispatchのinput定義も参照型の導出元にする。
+      - 理由: 定義中から利用時まで補完を一貫させる。
+      - 主な棄却案: 既存のcall中心の推論範囲を維持する案。
+    - イベントごとに異なるinput定義を許容し、共通参照ではunion型を使う。現在対応するdispatchの`choice`はstringとして扱う。
+      - 理由: 現在許容されている定義に、新たな一致制約を課さない。
+      - 主な棄却案: dispatch／callで同一のinput名と値型を要求する案。
+    - イベント条件による型の自動絞り込みは追加しない。
+      - 理由: 条件・式APIへ新しい推論機構を持ち込まず、今回の変更範囲を保つ。
+      - 主な棄却案: `github.event_name`の条件に連動する型の絞り込み。
+    - `.workflowOutputs()`は維持する。
+      - 理由: job定義後に、定義済みjob出力を補完付きで参照する順序を保つ。
+      - 主な棄却案: メソッドを廃止し、最初の`on`定義内で遅延コールバック等を使う案。
+    - `pipeline()`を`definePipeline()`へ改名する。`defineAction()`と`defineTsugiori()`は維持する。
+      - 理由: 定義APIを`defineX`形式に揃え、今回の移行にまとめる。
+      - 主な棄却案: 名詞形式への統一、現在の命名の維持、旧名aliasの追加。
+    
+    ## 制約
+    - 現在のcheckoutで作業する。
+    - 外部の利用側にも移行が必要になる破壊的変更として扱う。
+    - 対応範囲とGitHub Actions上の実行の意味を維持する。
+    - input参照の型推論拡張によって、呼び出し側の契約検証を緩めない。
+    - 実行時の値変換や欠落値の正規化を追加しない。
+    - Push、PR作成、release、deployは依頼に含まない。
+    
+    ## 対象外
+    - 未対応イベント、フィルター、input型の追加。
+    - `on`以外の設定全体の命名・形状変更。
+    - `defineAction()`・`defineTsugiori()`の改名。
+    - イベント条件による型の自動絞り込み。
+    - 外部consumer repositoryの編集。
+    
+    ## 未検証の前提
+    - 新しいgeneric型設計が、ネストした定義への補完とinput名・値型のリテラル推論を両立できること。実装時にDeno LSPで確認する。
+    - workflow outputsの直接指定と`.workflowOutputs()`の併用時の現在の更新規則。sourceとテストで確認し、その挙動を維持する。
+    - scenario実行器のinput欠落・defaultの扱いが、今回の参照型と整合すること。既存実装と公式仕様を確認する。
+    
+    ## 実装時の指示
+    - 公開API、authoringデータ、compiler AST、lowering、validation、emitter、scenario実行器、再利用workflow契約の関連箇所を確認し、旧形式の残存を解消する。
+    - 共通input参照の型と、再利用workflow呼び出しの契約型を区別する。
+    - 型付きinput参照は、既存の式コンテキストの利用可能範囲を守って伝播させる。
+    - LSPテストでは、イベント候補、イベント固有の設定候補、input名、inputの値型を確認する。
+    - 型・挙動テストでは、単独イベント、dispatch／call併用、異なる値型、片方だけのinput、push等との併用による欠落を確認する。
+    - 旧API・旧フィールド・短縮形の拒否と、生成YAMLが変わらないことを検証する。
+    - 公式の欠落プロパティの式評価は空文字列となる。出典: https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts
+    - 変更内容、検証結果、外部利用側に必要な移行を最終報告に含める。
+    
+  - A: Implemented the requested breaking API migration in the current main checkout. Native on settings now own authoring data, compiler AST/lowering/validation/emission and scenario triggers. Common input maps infer names and primitive unions from dispatch/call, adding empty strings for missing event properties; call arguments/secrets retain their workflow_call contract. Propagated input maps through existing expression scopes. Preserved workflowOutputs replacement and immutable prior definitions. Migrated documentation, exports, source fixtures and tests. Deno LSP verified events/settings/input names and reference value types; static tests verified invalid forms and contracts. Fixed test label comparisons for optional completion suffixes and all dynamic fixture imports. Scenario missing properties in supplied input contexts evaluate empty strings without changing task runtime. mise run check passed; mise run test passed 82 tests; CI generate:check and existing YAML snapshots passed without generated YAML changes. Fresh independent review of the fixed diff found no actionable issues. Reconciled complete human message history across the two runtime rollout files. Created signed local commit c9fb597; no remote writes or external consumer edits. Prepared the normalized task note.
