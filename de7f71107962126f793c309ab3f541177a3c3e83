@@ -1,0 +1,18 @@
+Task: Prepare the type service for official Wrangler deployment through mise
+Anchor: de7f71107962126f793c309ab3f541177a3c3e83
+Base: ea469d57f79771fa629a085f5c6db861282bedd6
+Branch: main
+Commits: de7f71107962126f793c309ab3f541177a3c3e83
+Guidance: User AGENTS.md; develop-repository; design-review; design-program-observability; investigate-problem
+Conditions: Local deployment readiness only; no login, deployment, cloud resource change, credential configuration, push or PR
+## Evidence
+- mise run check passed; mise run test passed 91 tests and official Wrangler upload dry-run, with 77.44 KiB Worker output.
+- Actual local workerd returned 302 then 200 for actions/checkout@v4, resolving SHA 11d5960a326750d5838078e36cf38b85af677262; actual Deno imported the generated contract.
+- Workerd probes isolated unsupported redirect:error and native fetch receiver issues; manual redirects and wrapped global fetch preserve failure behavior and are regression tested.
+- Independent fresh reviewer review_wrangler reviewed the frozen patch and raw verification evidence; no actionable findings. Snapshot revalidated before commit.
+- Node and Wrangler managed installations and reproducible dist/type-service build outputs retained for deployment readiness; owned temporary probes, logs and Wrangler local state cleaned after verification.
+Authority: Latest human request retrieved verbatim from this thread; cycle begins after prior completed implementation task. Local commit and evidence note follow development guidance. Publication remains unperformed.
+## Transcript
+- U1:
+    wranglerなど公式手順をmise追加してcloudflare workerにdeploy可能なところまで進めて
+  - A: Added pinned Node and Wrangler to mise and lock, official login/dev/dry-run/deploy tasks, scoped build watcher and ignored local secret/state files; removed obsolete Deno dev adapter; fixed and tested two actual workerd fetch compatibility defects, updated architecture and roadmap, passed checks, 91 tests and actual local Worker/Deno import verification, completed independent review and signed local commit de7f711. No public deployment or authentication change performed.
