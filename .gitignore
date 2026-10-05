@@ -6,3 +6,4 @@ dist/
 services/type-service/.dev.vars*
 services/type-service/.env*
 .release/
+mise.local.toml
