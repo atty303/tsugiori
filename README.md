@@ -27,9 +27,6 @@ on GitHub Releases. Releases follow
 Conventional Commits and normal SemVer (`fix`: patch, `feat`: minor, breaking
 change: major).
 
-Publication setup, regular operation and recovery are described in
-[Releasing](docs/RELEASING.md).
-
 ## Use the repository workflow
 
 The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for
