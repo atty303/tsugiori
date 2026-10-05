@@ -1,0 +1,17 @@
+Task: Remove the release procedure document
+Anchor: 53c0f75dc22f6315ba8d87fbf7c01941fe8a4005
+Base: 922d8f067f4ac951c38fc1ec24affc9ce311ac30
+Branch: main
+Commits: 53c0f75dc22f6315ba8d87fbf7c01941fe8a4005 removes docs/RELEASING.md and its README link
+Guidance: User instructions; AGENTS.md; develop-repository; atty303 engineering policy
+Conditions: Current checkout; documentation-only; no content migration; local commit only
+Authority: User request and current repository guidance
+## Transcript
+- U1:
+    RELEASING.mdって残す意味あると思う？
+    
+  - A: Recommended removing the standalone document and moving prerequisites and retry notes to README; made no edits.
+- U2:
+    どちらも残さなくていい。単にこのmdを削除する。こういう過程のdocsをcommitしてほしくないんだがな
+    
+  - A: Deleted the document and removed its README link without moving any content. Fetched code and notes, confirmed a clean starting tree, checked README and diff formatting, and confirmed no remaining document references. Created a signed local commit. No program, workflow or release behavior changed; no new tests or independent review required.
