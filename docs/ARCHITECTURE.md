@@ -247,11 +247,11 @@ repository config without global configuration, strips the decryption identity
 from its child, and supplies a Cloudflare account API token for deployment. The
 OAuth secret goes into a mode-0600 temporary secrets file for Wrangler's
 code-and-secret deployment and is removed on success or failure. The build
-receives neither decrypted secrets nor the decryption identity. Subprocess
-secret-resolution and upload output is discarded and Wrangler disk logs are
-disabled; bounded release diagnostics retain stage and status only. Real
-recipients and credentials are operator
-configuration, not repository defaults.
+receives neither decrypted secrets nor the decryption identity. Normal fnox and
+Wrangler output is visible in release logs; Wrangler debug payload sanitization
+is enforced and disk logs are disabled. Bounded release diagnostics retain stage
+and status only. Real recipients and credentials are operator configuration, not
+repository defaults.
 
 JSR retries compare the complete registry file manifest (path, byte count and
 SHA-256) and exports against the source archive. The publication config excludes

@@ -1,4 +1,9 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+} from "@std/assert";
 import { join } from "node:path";
 import { Recording } from "./diagnostics.ts";
 import { deployWorker } from "./worker.ts";
@@ -109,8 +114,8 @@ await Deno.writeTextFile(Deno.env.get("PROBE")!, JSON.stringify({
   noDiskLogs: Deno.env.get("WRANGLER_WRITE_LOGS") === "false",
   sanitizedLogs: Deno.env.get("WRANGLER_LOG_SANITIZE") === "true",
 }));
-console.log(secrets.GITHUB_OAUTH_CLIENT_SECRET);
-console.error(Deno.env.get("CLOUDFLARE_API_TOKEN"));
+console.log("Worker fixture upload started");
+if (Deno.env.get("PROBE_FAIL") === "true") console.error("Worker fixture upload failed");
 Deno.exit(Deno.env.get("PROBE_FAIL") === "true" ? 1 : 0);
 `,
       { mode: 0o700 },
@@ -143,23 +148,42 @@ Deno.exit(Deno.env.get("PROBE_FAIL") === "true" ? 1 : 0);
       }
       await assertRejects(() => Deno.stat(probe.path), Deno.errors.NotFound);
     }
-    const failed = new Recording(join(root, "diagnostics"));
-    await assertRejects(
-      () =>
-        deployWorker("dist/type-service/worker.js", failed, {
-          ...env,
-          FNOX_AGE_KEY: keys[0],
-          PROBE_FAIL: "true",
-        }, root),
-      Error,
-      "Worker deployment failed",
+    const run = (environment: Record<string, string>) =>
+      new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "-A",
+          new URL("./worker.ts", import.meta.url).pathname,
+          "dist/type-service/worker.js",
+        ],
+        cwd: root,
+        clearEnv: true,
+        env: environment,
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+    const failed = await run({
+      ...env,
+      FNOX_AGE_KEY: keys[0],
+      PROBE_FAIL: "true",
+    });
+    assertEquals(failed.code, 1);
+    assertStringIncludes(
+      new TextDecoder().decode(failed.stdout),
+      "Worker fixture upload started",
     );
-    await failed.finish("error");
+    const stderr = new TextDecoder().decode(failed.stderr);
+    assertStringIncludes(stderr, "Worker fixture upload failed");
+    assertStringIncludes(stderr, "Worker upload failed with exit 1");
+    assertStringIncludes(stderr, "Worker deployment failed with exit 1");
     const probe = JSON.parse(await Deno.readTextFile(env.PROBE));
     await assertRejects(() => Deno.stat(probe.path), Deno.errors.NotFound);
     await Deno.remove(env.PROBE);
-    await assertRejects(() =>
-      deployWorker("dist/type-service/worker.js", failed, env, root)
+    const missingIdentity = await run(env);
+    assertEquals(missingIdentity.code, 1);
+    assertStringIncludes(
+      new TextDecoder().decode(missingIdentity.stderr),
+      "Age identity file not found",
     );
     await assertRejects(() => Deno.stat(env.PROBE), Deno.errors.NotFound);
     const config = await Deno.readTextFile(join(root, "fnox.toml"));

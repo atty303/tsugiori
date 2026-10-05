@@ -81,13 +81,12 @@ export async function deployWorker(
         cwd: root,
         clearEnv: true,
         env,
-        // Neither fnox errors nor downstream output is a safe secret-log contract.
-        stdout: "null",
-        stderr: "null",
+        stdout: "inherit",
+        stderr: "inherit",
       }).output();
       if (!result.success) {
         throw new Error(
-          "Worker deployment failed; check fnox configuration and Worker release diagnostics",
+          `Worker deployment failed with exit ${result.code}`,
         );
       }
     } finally {
@@ -146,10 +145,12 @@ export async function uploadWorker(
           WRANGLER_WRITE_LOGS: "false",
           WRANGLER_LOG_SANITIZE: "true",
         },
-        stdout: "null",
-        stderr: "null",
+        stdout: "inherit",
+        stderr: "inherit",
       }).output();
-      if (!result.success) throw new Error("Worker upload failed");
+      if (!result.success) {
+        throw new Error(`Worker upload failed with exit ${result.code}`);
+      }
     });
   } finally {
     if (directory) await Deno.remove(directory, { recursive: true });
