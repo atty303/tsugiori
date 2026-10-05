@@ -218,7 +218,7 @@ operational audit.
 
 ## Package release boundary
 
-`.github/tsugiori.ts` owns CI and both release workflows; generated YAML stays
+`.github/tsugiori.ts` owns CI and the release workflow; generated YAML stays
 visible and checked in. Regular releases delegate version selection, tag/Release
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,
@@ -231,11 +231,9 @@ workspace and import-map settings; sources use explicit relative, `node:` or
 `jsr:` imports. Adding publish-time transformations requires updating this
 comparison contract. Registry versions are never removed on failure.
 
-The temporary bootstrap workflow reserves `v0.1.0` on its input commit and
-retains partial resources for recovery. It resumes only an identical tag and
-marked Release with identical assets; it never replaces existing resources. A
-shared Actions concurrency group serializes initial and regular releases.
-Regular release activation is an explicit source change after bootstrap.
+An Actions concurrency group serializes releases. The main branch condition
+allows automatic publication after repository checks; manual dispatch supports
+retries. Release tags define the SemVer baseline.
 
 Release task diagnostics retain up to 32 runs locally under
 `.release/diagnostics/`, evicting older successes first. Records contain only

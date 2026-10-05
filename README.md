@@ -23,13 +23,12 @@ provider backends are not implemented.
 
 Releases distribute `@atty303/tsugiori` on
 [JSR](https://jsr.io/@atty303/tsugiori) with a matching versioned source archive
-on GitHub Releases. The first release is `0.1.0`; later releases follow
+on GitHub Releases. Releases follow
 Conventional Commits and normal SemVer (`fix`: patch, `feat`: minor, breaking
 change: major).
 
-Publication setup, initial release, activation and recovery are described in
-[Releasing](docs/RELEASING.md). The initial release must be completed before
-regular automatic publication is enabled.
+Publication setup, regular operation and recovery are described in
+[Releasing](docs/RELEASING.md).
 
 ## Use the repository workflow
 

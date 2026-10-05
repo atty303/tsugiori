@@ -2,7 +2,6 @@ import {
   type ActionContract,
   definePipeline,
   defineTsugiori,
-  rawNode,
   runTsugiori,
 } from "@atty303/tsugiori";
 
@@ -12,7 +11,6 @@ const checkout = {
   uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   inputs: {
     "persist-credentials": { description: "Persist checkout credentials" },
-    "fetch-depth": { description: "Number of commits to fetch" },
   },
   outputs: {},
 } as const satisfies ActionContract;
@@ -63,8 +61,6 @@ const ci = definePipeline("ci", {
       },
     }));
 
-// Enable only after 0.1.0 is verified and the bootstrap definition is removed.
-const releaseEnabled = false;
 const releaseAction = {
   name: "Release",
   description: "Release repository",
@@ -81,11 +77,7 @@ const release = definePipeline("release", {
   concurrency: { group: "tsugiori-release", cancelInProgress: false },
 }).job("release", ({ job }) =>
   job.runsOn("ubuntu-24.04")
-    .when(({ github }) =>
-      github.ref.eq("refs/heads/main").and(
-        rawNode<boolean>(releaseEnabled ? "true" : "false"),
-      )
-    )
+    .when(({ github }) => github.ref.eq("refs/heads/main"))
     .permissions({ contents: "write", "id-token": "write" })
     .uses(checkout, {
       name: "Checkout",
@@ -100,51 +92,9 @@ const release = definePipeline("release", {
     .run({ name: "Run repository checks and tests", run: "mise run test" })
     .uses(releaseAction, { name: "Release", with: { versioning: "semver" } }));
 
-const initialRelease = definePipeline("release-initial", {
-  output: ".github/workflows/release-initial.yml",
-  on: { workflow_dispatch: {} },
-  permissions: { contents: "read" },
-  concurrency: { group: "tsugiori-release", cancelInProgress: false },
-}).job("release", ({ job }) =>
-  job.runsOn("ubuntu-24.04")
-    .when(({ github }) => github.ref.eq("refs/heads/main"))
-    .permissions({ contents: "write", "id-token": "write" })
-    .uses(checkout, {
-      name: "Checkout",
-      with: { "persist-credentials": "false", "fetch-depth": "0" },
-    })
-    .uses(mise, { name: "Install toolchain" })
-    .run({
-      name: "Check generated workflows",
-      run: "deno task generate:check",
-      workingDirectory: ".github",
-    })
-    .run({ name: "Run repository checks and tests", run: "mise run test" })
-    .run({
-      name: "Build 0.1.0 source archive",
-      run:
-        'mise run release:build 0.1.0 "$GITHUB_WORKSPACE/.release/artifacts"',
-    })
-    .run({
-      name: "Reserve 0.1.0 tag",
-      run: "deno run -A scripts/release/bootstrap.ts reserve",
-      env: { GH_TOKEN: ({ github }) => github.token },
-    })
-    .run({
-      name: "Publish 0.1.0 to JSR",
-      run:
-        'mise run release:publish 0.1.0 "$GITHUB_WORKSPACE/.release/artifacts"',
-    })
-    .run({
-      name: "Complete 0.1.0 GitHub Release",
-      run:
-        'deno run -A scripts/release/bootstrap.ts finish "$GITHUB_WORKSPACE/.release/artifacts"',
-      env: { GH_TOKEN: ({ github }) => github.token },
-    }));
-
 const config = defineTsugiori({
   cacheVersion: 1,
-  pipelines: [ci, release, initialRelease],
+  pipelines: [ci, release],
 });
 export default config;
 
