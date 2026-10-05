@@ -1,0 +1,17 @@
+Task: Fix Wrangler config selection for prebuilt release deploy
+Anchor: ab4da9d94db1938a6145125524818aac0564bad2
+Base: cd5e8e90389802ade55b28e1841e854d10ac440e
+Branch: main
+Commits: ab4da9d94db1938a6145125524818aac0564bad2 selects explicit absolute Worker config and verifies forwarding through fnox
+Guidance: repository AGENTS; investigate-problem; develop-repository; design-program-observability; review; Git task evidence
+Conditions: Current checkout; preserve untracked mise.local.toml; user authorized fix and push; no direct deployment or credential/resource modification; complete session history matched two human messages
+## Evidence
+GitHub run 37332262833 at cd5e8e9 verified the existing JSR 0.2.0 and failed in Wrangler 4.147.0 with missing Worker name. Official pinned CLI resolves automatic config discovery from positional script dirname, so the dist artifact bypassed the service config despite --cwd. Isolated official dry-run reproduced exit 1 without explicit config and succeeded with explicit config. No cloud deployment was performed. Standard check, focused subprocess tests and all 98 tests passed; fresh independent review reported no actionable findings. Actual release auth and deployment success remain unverified.
+Authority: Current user fix-and-push request and repository AGENTS; source and observed CLI behavior establish the local fix boundary.
+## Transcript
+- U1:
+    [https://github.com/atty303/tsugiori/actions/runs/37332262833](https://github.com/atty303/tsugiori/actions/runs/37332262833)
+  - A: Read failed-run logs and pinned Wrangler source. Located missing-name failure and automatic config discovery from the positional artifact directory. Reproduced in isolated official dry-run and confirmed explicit config passes; no code change or deployment at the diagnostic handoff.
+- U2:
+    修正してpush
+  - A: Added --config with an absolute service-config path, preserving cwd and prebuilt/secret/log behavior. Extended existing fnox subprocess test to verify config selection, correcting only macOS temporary-path canonicalization in the expectation. Standard check and all 98 tests passed; independent review found no issues. Created local commit and prepared task note before authorized main and notes push.
