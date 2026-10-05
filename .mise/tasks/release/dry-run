@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Validate publishing from an existing source archive without uploading"
+set -euo pipefail
+exec deno run -A scripts/release/package.ts dry-run "$@"

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Build and validate the versioned JSR source archive"
+set -euo pipefail
+exec deno run -A scripts/release/package.ts build "$@"

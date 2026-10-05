@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="List or clear local release diagnostic records"
+set -euo pipefail
+exec deno run -A scripts/release/diagnostics.ts "$@"

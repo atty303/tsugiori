@@ -5,3 +5,4 @@ dist/
 .wrangler/
 services/type-service/.dev.vars*
 services/type-service/.env*
+.release/

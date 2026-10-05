@@ -19,6 +19,18 @@ in field callbacks. `rawNode<T>()` embeds a raw expression inside an AST;
 `rawExpression()` remains an explicit whole-expression escape hatch. Other CI
 provider backends are not implemented.
 
+## Package releases
+
+Releases distribute `@atty303/tsugiori` on
+[JSR](https://jsr.io/@atty303/tsugiori) with a matching versioned source archive
+on GitHub Releases. The first release is `0.1.0`; later releases follow
+Conventional Commits and normal SemVer (`fix`: patch, `feat`: minor, breaking
+change: major).
+
+Publication setup, initial release, activation and recovery are described in
+[Releasing](docs/RELEASING.md). The initial release must be completed before
+regular automatic publication is enabled.
+
 ## Use the repository workflow
 
 The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for

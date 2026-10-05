@@ -212,3 +212,33 @@ store exposes listing and deletion in process and has no public route or
 remote exporter. `DIAGNOSTICS=off` disables Worker recording. Isolate teardown
 loses these bounded diagnostic records. This is local diagnosis, not a durable
 operational audit.
+
+## Package release boundary
+
+`.github/tsugiori.ts` owns CI and both release workflows; generated YAML stays
+visible and checked in. Regular releases delegate version selection, tag/Release
+ownership, artifact validation and rollback to the commit-pinned
+repository-template action. Root mise release tasks own source selection,
+version injection and JSR publication from the extracted archive. Development
+metadata is never written back by a release.
+
+JSR retries compare the complete registry file manifest (path, byte count and
+SHA-256) and exports against the source archive. The publication config excludes
+workspace and import-map settings; sources use explicit relative, `node:` or
+`jsr:` imports. Adding publish-time transformations requires updating this
+comparison contract. Registry versions are never removed on failure.
+
+The temporary bootstrap workflow reserves `v0.1.0` on its input commit and
+retains partial resources for recovery. It resumes only an identical tag and
+marked Release with identical assets; it never replaces existing resources. A
+shared Actions concurrency group serializes initial and regular releases.
+Regular release activation is an explicit source change after bootstrap.
+
+Release task diagnostics retain up to 32 runs locally under
+`.release/diagnostics/`, evicting older successes first. Records contain only
+stage names, timings, status and stable error classes; incomplete runs remain
+partial after abrupt termination. `RELEASE_DIAGNOSTICS=off` disables recording;
+`mise run release:diagnostics list` and `clear` inspect or delete records. Store
+failure does not change release results. There is no diagnostic exporter. GitHub
+Actions owns hosted step logs and their configured retention; the common action
+owns its own release diagnostics and cleanup journal.

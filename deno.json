@@ -1,6 +1,7 @@
 {
   "name": "@atty303/tsugiori",
   "version": "0.1.0",
+  "license": "MIT",
   "workspace": [".github"],
   "exports": {
     ".": "./packages/core/src/mod.ts",
