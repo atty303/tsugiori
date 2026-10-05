@@ -1,3 +1,5 @@
+import { generateG1 } from "../services/type-service/src/github/actions/g1.ts";
+import { yaml } from "../services/type-service/tests/fixtures.ts";
 import { assert, assertEquals } from "@std/assert";
 
 type JsonRpcMessage = Readonly<{
@@ -318,6 +320,76 @@ const flow = definePipeline("ci", { output: "ci.yml", on: {
           [...expected].sort(),
           hover,
         );
+      }
+
+      const metadataUri =
+        new URL("./__action_metadata.ts", import.meta.url).href;
+      await writeMessage(writer, {
+        jsonrpc: "2.0",
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: metadataUri,
+            languageId: "typescript",
+            version: 1,
+            text: generateG1(
+              yaml,
+              "acme/publish@v3",
+              "https://github.com/acme/publish/blob/sha/action.yml",
+            ),
+          },
+        },
+      });
+      await notificationFor(
+        stream,
+        "textDocument/publishDiagnostics",
+        metadataUri,
+      );
+      const actionSource =
+        `import { defineAction, definePipeline } from "../packages/core/src/github_actions/mod.ts";
+import contract from "./__action_metadata.ts";
+const publish = defineAction({ contract });`;
+      const actionLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        60,
+        "action-input-completion",
+        `${actionSource}\npublish({ /*completion*/ });`,
+      );
+      assertEquals(
+        actionLabels.filter((key) => ["destination", "mode"].includes(key))
+          .sort(),
+        ["destination", "mode"],
+      );
+      for (
+        const [index, [source, expected]] of [
+          [
+            `${actionSource}\npublish({ destination/*completion*/: "web" });`,
+            "Publish destination.",
+          ],
+          [
+            `${actionSource}\npublish({ destination: "web", mode/*completion*/: "fast" });`,
+            "Use destination instead.",
+          ],
+          [`${actionSource}\ncontract/*completion*/;`, "Publish artifacts"],
+          [
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => { const state = job.runsOn("ubuntu-latest").uses({ id: "publish", name: "Publish", uses: publish({ destination: "web" }) }); state.steps.publish.outputs.url/*completion*/; return state; });`,
+            "Published URL.",
+          ],
+          [
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses({ id: "publish", name: "Publish", uses: publish({ destination: "web" }) }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
+            "Published URL.",
+          ],
+        ].entries()
+      ) {
+        const hover = await sourceHover(
+          writer,
+          stream,
+          61 + index,
+          `action-doc-${index}`,
+          source,
+        );
+        assert(hover.includes(expected), `Expected ${expected} in ${hover}`);
       }
 
       await writeMessage(writer, {

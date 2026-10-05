@@ -26,7 +26,7 @@ immutable facades: `definePipeline()` groups trigger settings under a native
 `on` object; job methods become available as the definition advances, and
 only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
 Jobs are authored in dependency order, so a new job can reference completed
-jobs. Typed action contracts bind a pinned `uses` value to declared inputs and
+jobs. Typed action definitions bind a selected `uses` value to declared inputs and
 outputs; `rawAction()` is the explicit path for an unregistered action.
 
 Authoring and task execution share a config file. The file exports a config
@@ -171,3 +171,38 @@ secret, env, expression or fixture values enter the sink. A missing or failing
 sink does not affect results. The library owns no provider, recording store or
 exporter. Deterministic compiler/schema failures retain operation-specific typed
 diagnostics and can be rerun safely from the same authoring input.
+
+## Type service
+
+`services/type-service/` owns one Cloudflare Worker independently of the
+consumer package. Its current resource is `/github/actions/`; it does not
+execute actions or workflows. GitHub requests resolve a ref first and read
+`action.yml` (then `action.yaml` on a 404) at that SHA. A pure, versioned
+metadata validator/emitter produces standalone TypeScript data, omitting
+`runs`. The plain structural contract types live in the GitHub Actions core;
+no Tsugiori runtime identity crosses the distribution boundary.
+
+The HTTP layer redirects original references to URLs containing generator
+version, resolved SHA, and original reference. These immutable identities
+retain the original `uses` default. Cloudflare's default Cache API holds
+five-minute ref redirects and year-long modules; neither is durable storage.
+Cache failure permits normal upstream retrieval, while an upstream failure
+after redirect expiry returns an error. The generator's version owns its
+emitted bytes and parser dependency; changing either output requires a new
+version and retaining the old generator. Unknown versions fail explicitly.
+
+The service uses unauthenticated GitHub API requests and accepts no user
+credentials. Public hosting still requires rate-limit and authentication
+planning before deployment. The deployment configuration owns no domain or
+bindings, disables remote log export, and uploads a browser-targeted Deno
+bundle. Consumer imports never load Worker code. The loopback development
+entry uses the same HTTP service with no persistent cache.
+
+Requests retain at most 32 causal stage records per run and 128 runs per
+isolate, evicting successful runs first. Records contain operation names,
+parent IDs, durations, completion and error classes; no requested URL, metadata,
+headers, input values or raw exceptions are stored. The host-owned diagnostic
+store exposes listing and deletion in process and has no public route or
+remote exporter. `DIAGNOSTICS=off` disables Worker recording. Isolate teardown
+loses these bounded diagnostic records. This is local diagnosis, not a durable
+operational audit.

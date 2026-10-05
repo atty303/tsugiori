@@ -1,0 +1,8 @@
+{
+  "name": "tsugiori-type-service",
+  "main": "../../dist/type-service/worker.js",
+  "compatibility_date": "2026-10-05",
+  "no_bundle": true,
+  "build": { "command": "mise run type-service:build", "cwd": "../.." },
+  "observability": { "enabled": false }
+}

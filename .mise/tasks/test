@@ -3,4 +3,5 @@
 set -euo pipefail
 
 hk check --all
+mise run type-service:build
 deno task test

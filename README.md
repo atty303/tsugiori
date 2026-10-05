@@ -267,6 +267,72 @@ assertion without runtime validation. `.and()` retains the falsy branch of its l
 while `.or()` retains the truthy branch; GitHub Actions performs the actual
 comparison, truthiness, and logical operator evaluation.
 
+## Action metadata contracts
+
+Import a metadata contract from a hosted type service and pass it to
+`defineAction()`. Replace `<host>` with the service's configured host; this
+repository does not supply a deployed endpoint.
+
+```ts
+import { defineAction } from "@atty303/tsugiori";
+import checkoutV4 from "https://<host>/github/actions/actions/checkout@v4";
+
+const checkout = defineAction({ contract: checkoutV4 });
+// In a pipeline job callback:
+job.runsOn("ubuntu-latest").uses({
+  id: "checkout",
+  name: "Checkout",
+  uses: ({ github }) => checkout({ ref: github.sha }),
+});
+
+const customCheckout = defineAction({
+  contract: checkoutV4,
+  uses: "my-org/checkout@<ref>",
+});
+```
+
+Contracts infer input names, requiredness, and output names. Inputs accept
+strings and string expressions. Only `required: true` inputs without a default
+must be supplied. Tsugiori passes supplied inputs through and leaves defaults
+to the action. Descriptions, default information, and deprecation messages are
+available in editor documentation. Outputs remain strings even when an action
+serializes JSON. The existing `defineAction({ uses, inputs, outputs })` and
+`actionInput` declarations remain available for hand-written contracts.
+
+The import's original action and ref supply the default `uses`: importing
+`@v4` emits `@v4`, even though the metadata was fetched at a particular SHA.
+An explicit `uses` replaces the entire reference, including local actions or
+forks. Tsugiori does not verify that the selected implementation matches the
+contract, and locking the imported contract does **not** lock the executed
+action. Pin `uses` to a SHA separately when that is desired.
+
+The service accepts public GitHub.com repositories, including subdirectory
+actions. The URL is `/github/actions/<owner/repo[/path]@ref>` without a `.ts`
+suffix. Encode each owner/repository/path segment individually and the whole
+ref with `encodeURIComponent`; for example,
+`/github/actions/acme/tools/publish@release%2Fv3` specifies branch `release/v3`.
+Tags, branches, and full commit SHAs use the same route. Local actions, private
+repositories, GHES and Docker image references cannot be metadata sources.
+
+The entry redirects to
+`/_resolved/g1/<SHA>/github/actions/<original-uses>`. `g1` identifies the
+immutable generator; `original-uses` uses the same encoding. The generated
+module contains metadata except `runs`, plus the original `uses`, with no
+Tsugiori import. YAML scalar defaults (including boolean, number, and null)
+are retained as data; they do not change the string input type. Ref resolutions
+are cached for five minutes, and immutable modules for up to one year. GitHub
+availability and API rate limits still apply. A cache miss regenerates from
+GitHub; deletion of upstream data can make old imports unavailable. Failed
+fetches or invalid metadata produce errors rather than widened contracts or
+expired ref resolutions.
+
+Commit your Deno lockfile. Deno 2.9.5 records both the redirect and the resolved
+module checksum; a cold fetch with `--frozen=true` uses that fixed URL. To
+refresh a mutable ref deliberately, remove **that entry URL's mapping** from
+`redirects` in the lockfile, then rerun your entrypoint with `--reload` and
+`--frozen=false`, and review the resulting lockfile change. `--reload` alone
+retains the locked redirect. An import ref change creates a new entry URL.
+
 ## Reusable workflows and the specification basis
 
 Tsugiori emits native reusable workflow files and caller jobs. Include each

@@ -119,10 +119,10 @@ function assertAuthoringContracts(): void {
     outputs: ["revision"],
   });
   const widenedOutputs: string[] = ["revision"];
+  // @ts-expect-error action outputs must be a finite literal tuple.
   defineAction({
     uses: "actions/checkout@revision",
     inputs: {},
-    // @ts-expect-error action outputs must be a finite literal tuple.
     outputs: widenedOutputs,
   });
 

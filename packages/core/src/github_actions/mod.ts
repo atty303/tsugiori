@@ -1,3 +1,9 @@
+import type { ActionContract, ActionContractInput } from "./action_contract.ts";
+export type {
+  ActionContract,
+  ActionContractInput,
+  ActionContractOutput,
+} from "./action_contract.ts";
 // GitHub specification descriptions are copied or adapted from GitHub Docs (CC BY 4.0).
 // Attribution, modifications and fixed source basis: docs/GITHUB_ACTIONS_SPEC.md.
 export { githubActionsSpec } from "./github_spec.ts";
@@ -1759,6 +1765,42 @@ export const actionInput: Readonly<{
   boolean: booleanInput,
 });
 
+type ContractInputs<C extends ActionContract> = C extends
+  { inputs: infer I extends Readonly<Record<string, ActionContractInput>> } ? I
+  : Record<never, never>;
+type ContractOutputs<C extends ActionContract> = C extends
+  { outputs: infer O extends object } ? O : Record<never, never>;
+type ContractArguments<
+  I extends Readonly<Record<string, ActionContractInput>>,
+> = keyof I extends never ? Readonly<Record<string, never>> : Readonly<
+  & {
+    [
+      K in keyof I as I[K] extends { required: true }
+        ? I[K] extends { default: unknown } ? never : K
+        : never
+    ]: string | Expression<string>;
+  }
+  & {
+    [
+      K in keyof I as I[K] extends { required: true }
+        ? I[K] extends { default: unknown } ? K : never
+        : K
+    ]?: string | Expression<string>;
+  }
+>;
+type ContractOutputNames<O extends object> = readonly (keyof O & string)[] & {
+  readonly __actionMetadata: O;
+};
+
+/** Uses metadata input names and requiredness; defaults are applied by the action itself.
+ * An explicit uses replaces the complete implementation reference without checking compatibility.
+ */
+export function defineAction<const C extends ActionContract>(
+  definition: Readonly<{ contract: C; uses?: string }>,
+): (
+  inputs: ContractArguments<ContractInputs<C>>,
+) => ActionInvocation<ContractOutputNames<ContractOutputs<C>>>;
+
 /** Actions accept named inputs and expose named string outputs. A commit SHA in uses pins the action implementation.
  * Tsugiori: declares input/output contracts for local type checking without verifying external action metadata or behavior.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
@@ -1853,15 +1895,50 @@ export function defineAction<
   }>,
 ): (
   inputs: ActionArguments<Definitions>,
-) => ActionInvocation<Outputs> {
-  assertPlainRecord(definition.inputs, "Action input definitions");
-  validateActionOutputs(definition.outputs);
-  const definitions = Object.freeze({ ...definition.inputs });
-  const outputs = Object.freeze([...definition.outputs]) as unknown as Outputs;
-  return (inputs) => {
+) => ActionInvocation<Outputs>;
+export function defineAction(
+  definition: Readonly<{
+    contract?: ActionContract;
+    uses?: string;
+    inputs?: ActionInputDefinitions;
+    outputs?: readonly string[];
+  }>,
+): (inputs: never) => ActionInvocation {
+  const contract = definition.contract;
+  const inputDefinitions = contract === undefined
+    ? definition.inputs
+    : Object.fromEntries(
+      Object.entries(contract.inputs ?? {}).map((
+        [key, input],
+      ) => [
+        key,
+        inputDefinition<string>("string", {
+          required: input.required === true && input.default === undefined,
+        }),
+      ]),
+    );
+  const outputNames = contract === undefined
+    ? definition.outputs
+    : Object.keys(contract.outputs ?? {});
+  const uses = definition.uses ?? contract?.uses;
+  if (
+    inputDefinitions === undefined || outputNames === undefined ||
+    uses === undefined
+  ) {
+    throw new TypeError(
+      "Action definition requires uses, inputs, and outputs.",
+    );
+  }
+  assertPlainRecord(inputDefinitions, "Action input definitions");
+  validateActionOutputs(outputNames);
+  const definitions = Object.freeze({ ...inputDefinitions });
+  const outputs = Object.freeze([...outputNames]);
+  return (inputs: ActionInputs) => {
     assertPlainRecord(inputs, "Action inputs");
     for (const [key, value] of Object.entries(inputs)) {
-      const input = definitions[key];
+      const input = Object.hasOwn(definitions, key)
+        ? definitions[key]
+        : undefined;
       if (input === undefined) {
         throw new TypeError(
           `Action input ${JSON.stringify(key)} is not declared.`,
@@ -1879,13 +1956,13 @@ export function defineAction<
       }
     }
     for (const [key, input] of Object.entries(definitions)) {
-      if (input.required && !(key in inputs)) {
+      if (input.required && !Object.hasOwn(inputs, key)) {
         throw new TypeError(
           `Required action input ${JSON.stringify(key)} is missing.`,
         );
       }
     }
-    return freezeActionInvocation(definition.uses, inputs, outputs);
+    return freezeActionInvocation(uses, inputs, outputs);
   };
 }
 
@@ -2084,7 +2161,11 @@ export type StepReference<
    * ```
    */
   outputs: Readonly<
-    { [OutputName in Outputs[number]]: ActionOutputReference<Id, OutputName> }
+    Outputs extends { readonly __actionMetadata: infer M }
+      ? { [K in keyof M]: ActionOutputReference<Id, K & string> }
+      : {
+        [OutputName in Outputs[number]]: ActionOutputReference<Id, OutputName>;
+      }
   >;
   outputNames: Outputs;
   contracts?: Readonly<Record<string, ReferenceBinding>>;

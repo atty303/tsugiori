@@ -298,10 +298,11 @@ export type Ref<T, Path extends string = string> =
     ? Readonly<{ [index: number]: Ref<U, `${Path}[${number}]`> }>
     : T extends object ? Readonly<
         {
-          [K in Exclude<keyof T, keyof Expression<T>>]: AsReference<
-            T[K],
-            `${Path}.${K & string}`
-          >;
+          [K in keyof T as K extends keyof Expression<T> ? never : K]:
+            AsReference<
+              T[K],
+              `${Path}.${K & string}`
+            >;
         }
       >
     : Record<never, never>);
@@ -1243,12 +1244,14 @@ export type StepContext<
    * ```
    */
   outputs: Readonly<
-    {
-      [K in Outputs[number]]: Outputs extends Readonly<{ __typed: infer M }>
-        ? K extends keyof M ? Proven<M[K], `${Prefix}.outputs.${K}`, Proof>
-        : string
-        : string;
-    }
+    Outputs extends { readonly __actionMetadata: infer M }
+      ? { [K in keyof M]: string }
+      : {
+        [K in Outputs[number]]: Outputs extends Readonly<{ __typed: infer M }>
+          ? K extends keyof M ? Proven<M[K], `${Prefix}.outputs.${K}`, Proof>
+          : string
+          : string;
+      }
   >;
   /** The result of a step before continue-on-error: success, failure, cancelled or skipped. A failing continued step has failure outcome and success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context

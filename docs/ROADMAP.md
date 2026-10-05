@@ -17,6 +17,10 @@ behavior is documented in the [README](../README.md) and
 - Extend validation and tests when new provider-native fields or expression
   forms are added. Preserve a readable, reviewable generated workflow.
 
+- Before deploying the type service, verify Cloudflare runtime behavior and
+  public GitHub API rate limits/authentication with the authorized deployment
+  environment; no public endpoint is currently provided.
+
 ## Future candidates
 
 ### Task execution
@@ -25,6 +29,12 @@ behavior is documented in the [README](../README.md) and
   working directories, and exit status when concrete task use calls for them.
 - Revisit standalone task registration only if a provider-specific handwritten
   workflow integration needs it.
+
+### Type service resources
+
+- Evaluate external reusable workflow contracts under `/github/workflows/`
+  when requested. Share hosting, ref retrieval, and caching with actions;
+  workflow generation is not currently implemented.
 
 ### Further dogfooding and providers
 

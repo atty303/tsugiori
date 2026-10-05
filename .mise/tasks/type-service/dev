@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Serve type imports on loopback without deploying (GitHub requests are uncached)"
+set -euo pipefail
+deno run --allow-net=127.0.0.1:8787,api.github.com services/type-service/local.ts
