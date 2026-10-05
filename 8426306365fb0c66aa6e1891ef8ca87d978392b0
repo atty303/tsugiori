@@ -1,0 +1,19 @@
+Task: Fix the initial release repository API endpoint and push
+Anchor: 8426306365fb0c66aa6e1891ef8ca87d978392b0
+Base: ac3c1ee98a73ca155e10fba676b5cb53b548504e
+Branch: main
+Commits: 8426306365fb0c66aa6e1891ef8ca87d978392b0
+Guidance: User AGENTS.md; investigate-problem; develop-repository; design-program-observability applicability; design-review; independent review
+Conditions: Current checkout; fix and push explicitly authorized; no workflow dispatch, registry publication, tag/Release creation, credential or permission changes
+## Evidence
+- Actions run 37316864469, job 111785693519 at base failed before tag reservation with Bootstrap requires main as default branch; later publication steps were skipped. Read-only observations found no v0.1.0 tag, no Releases and registry version metadata404.
+- GitHub canonical repository endpoint returned default_branch main while its trailing-slash spelling returned404. Corrected exact endpoint fixture reproduced the original error before implementation; unchanged scenario passed after the URL fix.
+- Actual Github.get empty-path caller performed anonymous read-only live lookup after the fix and returned main. This verifies lookup only, not hosted authorization or successful publication.
+- Focused checks and three bootstrap tests passed, generated YAML remained current, and mise run test passed98 tests. Fresh reviewer bootstrap_url_review found no actionable findings; final diff matched the reviewed snapshot.
+- Complete runtime thread JSONL retrieved and compared; this repair cycle begins with the explicit fix-and-push instruction after the preceding read-only investigation. Existing note absence checked before CAS creation.
+Authority: Latest human fix-and-push instruction and user AGENTS.md authorize code and notes push. Actual release remains an operator action; prior local-only release constraints continue for registry and tag/Release side effects.
+## Transcript
+- U1:
+    修正してpush
+    
+  - A: Corrected repository API URL assembly for an empty path and made existing retry fixtures match exact endpoints. Verified the original failure before the change and success after, including actual read-only GitHub lookup. Passed98 tests and generated check, collected independent review, committed the reviewed two-file patch as 8426306365fb0c66aa6e1891ef8ca87d978392b0. Prepared this normalized note before push; no release workflow or publication executed.
