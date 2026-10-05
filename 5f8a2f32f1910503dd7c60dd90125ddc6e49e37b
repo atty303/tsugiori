@@ -1,0 +1,85 @@
+Task: Add typed DSL authoring examples for IDE documentation
+Anchor: 5f8a2f32f1910503dd7c60dd90125ddc6e49e37b
+Base: c9fb597c15f311fb6396923ae9107b9e85c1884c
+Branch: main
+Commits: 5f8a2f32f1910503dd7c60dd90125ddc6e49e37b (doc comments only)
+Guidance: user implementation request; common/project AGENTS; dig; develop-repository; atty303 profile; investigate-problem; Git task evidence
+Conditions: macOS current checkout; mise-managed Deno 2.9.5; workspace-write sandbox; Git metadata writes required escalation; no worktree, push, PR or durable example-validation infrastructure
+## Evidence
+- All 354 extracted @example blocks type-check: 222 in github_actions/mod.ts, 108 in expression.ts, 24 in task/mod.ts. Harness supplies public imports and the documented job callback only.
+- Deno LSP confirms six hovers (definePipeline, runsOn, output, task, eq, actionInput.string) and completionItem/resolve documentation for runsOn and output. Property-only actionInput comments initially failed; call-signature documentation fixed the same probe. github.sha exposes Ref<string, "github.sha"> without mapped-property docs.
+- mise run check passed; mise run test: 82 passed, 0 failed. Final focused check and git diff --check passed. Existing documentation retained; type/runtime comparison unchanged except a property separator.
+Authority: human request and common/project AGENTS; invoked dig and development/evidence skills; memory is descriptive only
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) typed dslのdoc commentに記述例を追加する。IDEのTS型情報表示が複雑すぎて何をどう書いたらいいのかパッと見でわからない
+    
+  - A: Read dig skill and current public entrypoints, authoring docs, task contracts and LSP completion/hover helpers. Consulted prior IDE authoring preferences as context. Asked scope question Q1; no edits.
+- U2:
+    A
+    
+  - A: Accepted full pipeline-authoring API coverage, excluding internal implementation APIs and scenario testing. Asked Q2 about snippet prerequisites.
+- U3:
+    A
+    
+  - A: Accepted short local examples with necessary order and reference setup. Asked Q3 about one-time versus durable validation.
+- U4:
+    B
+    
+  - A: Accepted one-time type checking and no durable extraction framework or copied tests. Asked Q4 to confirm English @example blocks, preserved explanations/links, unchanged APIs and LSP checks.
+- U5:
+    A
+    
+  - A: Produced the agreed implementation prompt only. No implementation occurred during dig.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori のtyped DSLのdoc commentに、IDEで記述方法を理解できる具体例を追加してください。
+    
+    ## 目的
+    - 複雑なTypeScript型情報を読み解かなくても、IDEのhoverや補完詳細から何をどう書くか把握できるようにする。
+    
+    ## 成功条件
+    - pipeline authoringの公開API全体について、設定プロパティ、builderメソッド、式、型付きI/Oに具体的な記述例がある。
+    - 順序や参照が重要な例では、必要な前段と参照元の作り方がわかる。
+    - 追加した例を今回の作業で型チェックし、正しい記述であることを確認する。
+    - 既存のLSP検証手段を利用して、代表的な関数・メソッド・設定プロパティの例がIDEに渡るdocumentationに含まれることを確認する。
+    - APIの挙動と型の設計を変更しない。
+    
+    ## 決定事項
+    - 複雑な箇所だけでなく、pipeline authoringの公開API全体を対象にする。
+      - 理由: IDEで記述している場所から一貫して使い方を確認できるようにするため。
+      - 主な棄却案: 複雑なAPIだけに限定する案。単純な設定も含めた案内の一貫性を優先する。
+    - 英語の説明と`@example`のTypeScriptコードを使う。
+      - 理由: 既存コメントの言語に合わせ、IDEでコードとして読みやすくするため。
+      - 主な棄却案: なし。
+    - 通常はそのAPIの短い例にし、順序や参照が重要な場合は必要な前段も含める。
+      - 理由: IDEで見渡せる長さと、記述に必要な文脈を両立するため。
+      - 主な棄却案: 全例にimportやpipeline定義を含める案は冗長。呼び出し部分だけの案は参照元や順序が伝わりにくい。
+    - 例の型チェックは今回実施し、継続的な例検証の仕組みは追加しない。
+      - 理由: 例の正しさを確認しつつ、変更と保守負担を小さく保つため。
+      - 主な棄却案: doc commentの例を抽出する恒久的な検証基盤や、例を複製したテストの追加。
+    
+    ## 制約
+    - 既存の動作説明とGitHub仕様リンクを保つ。
+    - APIの挙動、型の設計、runtime、生成workflow、CI設定は変更しない。
+    - 例には現在の実装で有効な記述を使う。
+    
+    ## 対象外
+    - `scenario()`などテスト用DSLへの記述例追加。
+    - 内部実装用APIへの記述例追加。
+    - TypeScript型表示そのものを単純化する設計変更。
+    - 恒久的な例抽出・検証基盤の追加。
+    
+    ## 未検証の前提
+    - 既存のLSP検証手段で`@example`を含むdocumentationを取得できるかは実装前に確認する。確認できない場合は、実施できた検証と未確認の範囲を報告する。
+    
+    ## 実装時の指示
+    - 主な調査先は`packages/core/src/github_actions/mod.ts`、`packages/core/src/github_actions/expression.ts`、`packages/core/src/task/mod.ts`。公開entrypointを追い、利用者向けAPIの対象を確認する。
+    - `tests/language_server_completion_test.ts`の既存検証手段を確認する。
+    - 同じメソッドが複数のtypestateやoverloadに現れる場合、利用者が見る宣言に例が届くようにする。
+    - 単純なプロパティは最小限の例、matrix・条件式・task入出力・job間参照・reusable workflowなどは必要な文脈を含む例にする。
+    - 型チェック用に短い断片の前提を補う場合、その補完内容を確認し、例そのものの誤りを隠さないようにする。
+    
+  - A: Read develop-repository, atty303 profile and project design context. Started on clean main at the recorded base and fetched origin code and commits notes. Confirmed @example reaches hover with a temporary extension of the existing LSP test. Added 354 examples across settings, repeated typestates/overloads, expressions and typed task I/O. Extracted all snippets, supplying only public imports and the documented job callback; type checked all and corrected per-job matrix assertions and overload-specific examples. Applied investigate-problem to missing actionInput.string hover docs: call-signature comments fixed the same failing probe. Mapped github.sha references still omit docs, so builder examples also show reference syntax. All original descriptions and source links retained; stripped source comparison confirmed unchanged type/runtime code apart from property separator formatting. Six representative authoring hovers and runsOn/output completion details passed LSP checks. mise run check and all 82 tests passed; focused check and diff check passed after review. Removed temporary repository fixtures. Committed only the three doc-comment source files as 5f8a2f32f1910503dd7c60dd90125ddc6e49e37b. No dependency, runtime path, generated workflow, CI, type design or remote ref change. Retrieved complete thread and compared all six actual human messages; injected Page/skill/AGENTS/environment messages excluded. Normalized evidence note prepared after classifying content; no secrets or confidential values included.
