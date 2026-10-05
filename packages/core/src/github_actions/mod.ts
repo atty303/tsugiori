@@ -48,6 +48,13 @@ export type { Expression, RawExpression, Scope } from "./expression.ts";
 /** Events determine when a workflow runs. Multiple events are alternatives; each matching event can start a separate run.
  * Tsugiori: the supported event names are limited to this union; see githubActionsSpec for the fixed specification basis.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {}, pull_request: {} },
+ * });
+ * ```
  */
 export type PipelineEvent =
   | "pull_request"
@@ -58,15 +65,45 @@ export type PipelineEvent =
 /** Manual workflow dispatch accepts named inputs and displays them in the run form. choice inputs use a single selection and return a string. GitHub allows at most 10 top-level inputs with a total payload of 65,535 characters.
  * Tsugiori: supports string and choice inputs; other GitHub dispatch input types are not implemented.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+ * @example
+ * ```ts
+ * const value = {
+ *   type: "choice",
+ *   description: "Deployment stage",
+ *   required: true,
+ *   options: ["dev", "prd"],
+ *   default: "dev",
+ * } satisfies WorkflowDispatchInput;
+ * ```
  */
 export type WorkflowDispatchInput =
   & Readonly<{
     /** A human-readable explanation of this input, secret or output for workflow authors.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     * @example
+     * ```ts
+     * const value = {
+     *   type: "choice",
+     *   description: "Deployment stage",
+     *   required: true,
+     *   options: ["dev", "prd"],
+     *   default: "dev",
+     * } satisfies WorkflowDispatchInput;
+     * ```
      */
     description?: string;
     /** Whether the caller must supply this value. Defaults to false when omitted.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     * @example
+     * ```ts
+     * const value = {
+     *   type: "choice",
+     *   description: "Deployment stage",
+     *   required: true,
+     *   options: ["dev", "prd"],
+     *   default: "dev",
+     * } satisfies WorkflowDispatchInput;
+     * ```
      */
     required?: boolean;
   }>
@@ -75,10 +112,24 @@ export type WorkflowDispatchInput =
       /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
        * Tsugiori: boolean, number and environment dispatch inputs are not supported.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = {
+       *   type: "string",
+       *   default: "dev",
+       * } satisfies WorkflowDispatchInput;
+       * ```
        */
       type: "string";
       /** The preselected or initial value on the manual-run form when the caller does not supply one. For choice inputs, use one of options.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+       * @example
+       * ```ts
+       * const value = {
+       *   type: "string",
+       *   default: "dev",
+       * } satisfies WorkflowDispatchInput;
+       * ```
        */
       default?: string;
     }>
@@ -86,55 +137,152 @@ export type WorkflowDispatchInput =
       /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
        * Tsugiori: boolean, number and environment dispatch inputs are not supported.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = {
+       *   type: "choice",
+       *   description: "Deployment stage",
+       *   required: true,
+       *   options: ["dev", "prd"],
+       *   default: "dev",
+       * } satisfies WorkflowDispatchInput;
+       * ```
        */
       type: "choice";
       /** The choices displayed in the manual-run UI. The selected choice is a string input value.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = {
+       *   type: "choice",
+       *   description: "Deployment stage",
+       *   required: true,
+       *   options: ["dev", "prd"],
+       *   default: "dev",
+       * } satisfies WorkflowDispatchInput;
+       * ```
        */
       options: readonly string[];
       /** The preselected or initial value on the manual-run form when the caller does not supply one. For choice inputs, use one of options.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+       * @example
+       * ```ts
+       * const value = {
+       *   type: "choice",
+       *   description: "Deployment stage",
+       *   required: true,
+       *   options: ["dev", "prd"],
+       *   default: "dev",
+       * } satisfies WorkflowDispatchInput;
+       * ```
        */
       default?: string;
     }>
   );
 /** For each GITHUB_TOKEN permission, read grants read-only access, write grants read and write access, and none disables access. Once any permission is specified, unspecified permissions become none.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+ * @example
+ * ```ts
+ * const value = {
+ *   contents: "read",
+ *   "id-token": "write",
+ *   "pull-requests": "read",
+ *   actions: "read",
+ * } satisfies WorkflowPermissions;
+ * ```
  */
 export type PermissionLevel = "none" | "read" | "write";
 /** OIDC uses write to allow token requests, or none to disable them; it has no read level.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+ * @example
+ * ```ts
+ * const value = {
+ *   contents: "read",
+ *   "id-token": "write",
+ *   "pull-requests": "read",
+ *   actions: "read",
+ * } satisfies WorkflowPermissions;
+ * ```
  */
 export type OidcPermissionLevel = "none" | "write";
+/** GITHUB_TOKEN permission settings for pipelines and jobs.
+ * @example
+ * ```ts
+ * const value = { contents: "read" } satisfies WorkflowPermissions;
+ * ```
+ */
 export type WorkflowPermissions = Readonly<{
   /** Controls GITHUB_TOKEN access to repository contents: read allows checkout; write allows content changes and releases.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   * @example
+   * ```ts
+   * const value = { contents: "read" } satisfies WorkflowPermissions;
+   * ```
    */
   contents?: PermissionLevel;
   /** Allows requesting an OpenID Connect token for authentication to an external provider. write permits token requests, not writes to that provider.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   * @example
+   * ```ts
+   * const value = { "id-token": "write" } satisfies WorkflowPermissions;
+   * ```
    */
   "id-token"?: OidcPermissionLevel;
   /** Controls GITHUB_TOKEN access to pull requests, including reading metadata or writing labels and comments.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   * @example
+   * ```ts
+   * const value = { "pull-requests": "read" } satisfies WorkflowPermissions;
+   * ```
    */
   "pull-requests"?: PermissionLevel;
   /** Controls GITHUB_TOKEN access to GitHub Actions, including reading runs or cancelling workflow runs with write.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   * @example
+   * ```ts
+   * const value = { actions: "read" } satisfies WorkflowPermissions;
+   * ```
    */
   actions?: PermissionLevel;
 }>;
 /** Reusable input defaults are literals; GitHub supplies false, 0 or an empty string when omitted.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+ * @example
+ * ```ts
+ * const value = {
+ *   type: "string",
+ *   description: "Release version",
+ *   required: true,
+ *   default: "latest",
+ * } satisfies WorkflowCallInput;
+ * ```
  */
 export type WorkflowCallInput =
   & Readonly<{
     /** A human-readable explanation of this input, secret or output for workflow authors.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+     * @example
+     * ```ts
+     * const value = {
+     *   type: "string",
+     *   description: "Release version",
+     *   required: true,
+     *   default: "latest",
+     * } satisfies WorkflowCallInput;
+     * ```
      */
     description?: string;
     /** Whether the caller must supply this value. Defaults to false when omitted.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+     * @example
+     * ```ts
+     * const value = {
+     *   type: "string",
+     *   description: "Release version",
+     *   required: true,
+     *   default: "latest",
+     * } satisfies WorkflowCallInput;
+     * ```
      */
     required?: boolean;
   }>
@@ -142,30 +290,54 @@ export type WorkflowCallInput =
     | Readonly<{
       /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = { type: "string", default: "latest" } satisfies WorkflowCallInput;
+       * ```
        */
       type: "string";
       /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       * @example
+       * ```ts
+       * const value = { type: "string", default: "latest" } satisfies WorkflowCallInput;
+       * ```
        */
       default?: string;
     }>
     | Readonly<{
       /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = { type: "boolean", default: false } satisfies WorkflowCallInput;
+       * ```
        */
       type: "boolean";
       /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       * @example
+       * ```ts
+       * const value = { type: "boolean", default: false } satisfies WorkflowCallInput;
+       * ```
        */
       default?: boolean;
     }>
     | Readonly<{
       /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputsinput_idtype
+       * @example
+       * ```ts
+       * const value = { type: "number", default: 1 } satisfies WorkflowCallInput;
+       * ```
        */
       type: "number";
       /** The input value used when none is supplied. Reusable workflows without a default receive an empty string, false or 0 according to the input type.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+       * @example
+       * ```ts
+       * const value = { type: "number", default: 1 } satisfies WorkflowCallInput;
+       * ```
        */
       default?: number;
     }>
@@ -173,14 +345,37 @@ export type WorkflowCallInput =
 /** A reusable workflow declares inputs and secrets accepted from its caller. Required secrets must be supplied; declaring a secret does not grant access to it.
  * Tsugiori: validates explicit local call contracts, but cannot verify repository authorization.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
+ * @example
+ * ```ts
+ * const value = {
+ *   type: "string",
+ *   description: "Release version",
+ *   required: true,
+ *   default: "latest",
+ * } satisfies WorkflowCallInput;
+ * ```
  */
 export type WorkflowCall = Readonly<{
   /** Named typed values accepted by this reusable workflow. The caller supplies them with with; undeclared names or mismatched primitive types are invalid.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
+   * @example
+   * ```ts
+   * const value = {
+   *   inputs: { version: { type: "string", required: true } },
+   *   secrets: { token: { description: "Release token", required: true } },
+   * } satisfies WorkflowCall;
+   * ```
    */
   inputs?: Readonly<Record<string, WorkflowCallInput>>;
   /** Named secrets the caller may pass to this reusable workflow. Undeclared explicit secrets cause an error; inherit permits using inherited secrets without a declaration. Environment secrets are selected by a callee job environment rather than passed via workflow_call.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
+   * @example
+   * ```ts
+   * const value = {
+   *   inputs: { version: { type: "string", required: true } },
+   *   secrets: { token: { description: "Release token", required: true } },
+   * } satisfies WorkflowCall;
+   * ```
    */
   secrets?: Readonly<
     Record<
@@ -188,10 +383,24 @@ export type WorkflowCall = Readonly<{
       Readonly<{
         /** A description of the secret expected by this reusable workflow.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecrets
+         * @example
+         * ```ts
+         * const value = {
+         *   inputs: { version: { type: "string", required: true } },
+         *   secrets: { token: { description: "Release token", required: true } },
+         * } satisfies WorkflowCall;
+         * ```
          */
         description?: string;
         /** Whether the caller must supply this secret. Defaults to false.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callsecretssecret_idrequired
+         * @example
+         * ```ts
+         * const value = {
+         *   inputs: { version: { type: "string", required: true } },
+         *   secrets: { token: { description: "Release token", required: true } },
+         * } satisfies WorkflowCall;
+         * ```
          */
         required?: boolean;
       }>
@@ -200,6 +409,20 @@ export type WorkflowCall = Readonly<{
 }>;
 /** Outputs returned by a reusable workflow are available to downstream jobs in its caller. Each output has an identifier, optional description and value mapped to a job output within the callee.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+ * @example
+ * ```ts
+ * const reusable = definePipeline("release", {
+ *   output: ".github/workflows/release.yml",
+ *   on: { workflow_call: { inputs: {
+ *     version: { type: "string", required: true },
+ *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build", name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })));
+ * ```
  */
 export type WorkflowCallOutputs = Readonly<
   Record<
@@ -207,10 +430,31 @@ export type WorkflowCallOutputs = Readonly<
     Readonly<{
       /** A human-readable explanation of this input, secret or output for workflow authors.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       * @example
+       * ```ts
+       * const value = {
+       *   inputs: { version: { type: "string", required: true } },
+       *   secrets: { token: { description: "Release token", required: true } },
+       * } satisfies WorkflowCall;
+       * ```
        */
       description?: string;
       /** The expression defining the workflow output, usually a job output such as `${{ jobs.build.outputs.version }}`. The caller reads it through `needs.<caller_job>.outputs`.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       * @example
+       * ```ts
+       * const reusable = definePipeline("release", {
+       *   output: ".github/workflows/release.yml",
+       *   on: { workflow_call: { inputs: {
+       *     version: { type: "string", required: true },
+       *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
+       * }).job("build", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     id: "build", name: "Build",
+       *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+       *     outputs: ["version"],
+       *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })));
+       * ```
        */
       value: string;
     }>
@@ -218,42 +462,192 @@ export type WorkflowCallOutputs = Readonly<
 >;
 /** Supported native trigger settings; use an object even for an event without settings.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: {
+ *     push: { branches: ["main"], tags: ["v*"] },
+ *     pull_request: { types: ["opened", "synchronize"] },
+ *     pull_request_target: { types: ["labeled"] },
+ *   },
+ * });
+ * ```
  */
 export type PipelineTriggers = Readonly<{
+  /** Push trigger settings. Use an empty object for every push.
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * });
+   * ```
+   */
   push?: Readonly<{
     /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: {
+     *     push: { branches: ["main"], tags: ["v*"] },
+     *     pull_request: { types: ["opened", "synchronize"] },
+     *     pull_request_target: { types: ["labeled"] },
+     *   },
+     * });
+     * ```
      */
     branches?: readonly string[];
     /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: {
+     *     push: { branches: ["main"], tags: ["v*"] },
+     *     pull_request: { types: ["opened", "synchronize"] },
+     *     pull_request_target: { types: ["labeled"] },
+     *   },
+     * });
+     * ```
      */
     tags?: readonly string[];
   }>;
+  /** Pull request trigger settings.
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { pull_request: { types: ["opened", "synchronize"] } },
+   * });
+   * ```
+   */
   pull_request?: Readonly<{
     /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: {
+     *     push: { branches: ["main"], tags: ["v*"] },
+     *     pull_request: { types: ["opened", "synchronize"] },
+     *     pull_request_target: { types: ["labeled"] },
+     *   },
+     * });
+     * ```
      */
     types?: readonly string[];
   }>;
+  /** Pull request trigger in the base-repository context.
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { pull_request_target: { types: ["labeled"] } },
+   * });
+   * ```
+   */
   pull_request_target?: Readonly<{
     /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: {
+     *     push: { branches: ["main"], tags: ["v*"] },
+     *     pull_request: { types: ["opened", "synchronize"] },
+     *     pull_request_target: { types: ["labeled"] },
+     *   },
+     * });
+     * ```
      */
     types?: readonly string[];
   }>;
+  /** Manual trigger with typed input declarations.
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: {
+   *     workflow_dispatch: {
+   *       inputs: { stage: { type: "choice", options: ["dev", "prd"] } },
+   *     },
+   *   },
+   * });
+   * ```
+   */
   workflow_dispatch?: Readonly<{
     /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: {
+     *     workflow_dispatch: {
+     *       inputs: {
+     *         stage: { type: "choice", options: ["dev", "prd"], default: "dev" },
+     *       },
+     *     },
+     *   },
+     * });
+     * ```
      */
     inputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   }>;
+  /** Reusable workflow trigger and caller contract.
+   * @example
+   * ```ts
+   * const reusable = definePipeline("release", {
+   *   output: ".github/workflows/release.yml",
+   *   on: {
+   *     workflow_call: {
+   *       inputs: {
+   *         version: { type: "string", required: true },
+   *       },
+   *     },
+   *   },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+   * ```
+   */
   workflow_call?:
     & WorkflowCall
     & Readonly<{
       /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
        * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       * @example
+       * ```ts
+       * const reusable = definePipeline("release", {
+       *   output: ".github/workflows/release.yml",
+       *   on: {
+       *     workflow_call: {
+       *       inputs: {
+       *         version: { type: "string", required: true },
+       *       },
+       *     },
+       *   },
+       * }).job("build", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     id: "build",
+       *     name: "Build",
+       *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+       *     outputs: ["version"],
+       *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+       *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+       * ```
        */
       outputs?: WorkflowCallOutputs;
     }>;
@@ -281,6 +675,17 @@ type InputNames<On> = { [E in keyof On]-?: keyof EventInputs<On, E> }[keyof On];
 type EventInputValue<I, K> = K extends keyof I ? InputValue<I[K]> : "";
 /** Missing properties evaluate to an empty string, including on non-input triggers.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: {
+ *     push: { branches: ["main"], tags: ["v*"] },
+ *     pull_request: { types: ["opened", "synchronize"] },
+ *     pull_request_target: { types: ["labeled"] },
+ *   },
+ * });
+ * ```
  */
 export type PipelineInputValues<On extends PipelineTriggers> = {
   readonly [K in InputNames<On>]: {
@@ -293,6 +698,36 @@ type PipelineOutputNames<On> = On extends
   { workflow_call: { outputs: infer O } } ? keyof O & string : never;
 
 const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
+/** A completed reusable pipeline accepted by call().
+ * @example
+ * ```ts
+ * const reusable = definePipeline("release", {
+ *   output: ".github/workflows/release.yml",
+ *   on: {
+ *     workflow_call: {
+ *       inputs: {
+ *         version: { type: "string", required: true },
+ *       },
+ *     },
+ *   },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+ * const caller = definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "release",
+ *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ * );
+ * defineTsugiori({ pipelines: [reusable, caller] });
+ * ```
+ */
 export type ReusablePipeline<
   C extends WorkflowCall = WorkflowCall,
   O extends string = string,
@@ -329,17 +764,101 @@ type SecretValues<C extends WorkflowCall> = Readonly<
 >;
 /** Inherit is forwarded one hop; availability and organization/enterprise eligibility need GitHub validation.
  * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
+ * @example
+ * ```ts
+ * const reusable = definePipeline("release", {
+ *   output: ".github/workflows/release.yml",
+ *   on: {
+ *     workflow_call: {
+ *       inputs: {
+ *         version: { type: "string", required: true },
+ *       },
+ *     },
+ *   },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+ * const caller = definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "release",
+ *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ * );
+ * defineTsugiori({ pipelines: [reusable, caller] });
+ * ```
  */
 export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
   & (RequiredKeys<CallInputs<C>> extends never ? {
       /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+       * @example
+       * ```ts
+       * const reusable = definePipeline("release", {
+       *   output: ".github/workflows/release.yml",
+       *   on: {
+       *     workflow_call: {
+       *       inputs: {
+       *         version: { type: "string", required: true },
+       *       },
+       *     },
+       *   },
+       * }).job("build", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     id: "build",
+       *     name: "Build",
+       *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+       *     outputs: ["version"],
+       *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+       *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+       * const caller = definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       * }).job(
+       *   "release",
+       *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+       * );
+       * defineTsugiori({ pipelines: [reusable, caller] });
+       * ```
        */
       with?: CallValues<C>;
     }
     : {
       /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+       * @example
+       * ```ts
+       * const reusable = definePipeline("release", {
+       *   output: ".github/workflows/release.yml",
+       *   on: {
+       *     workflow_call: {
+       *       inputs: {
+       *         version: { type: "string", required: true },
+       *       },
+       *     },
+       *   },
+       * }).job("build", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     id: "build",
+       *     name: "Build",
+       *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+       *     outputs: ["version"],
+       *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+       *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+       * const caller = definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       * }).job(
+       *   "release",
+       *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+       * );
+       * defineTsugiori({ pipelines: [reusable, caller] });
+       * ```
        */
       with: CallValues<C>;
     })
@@ -347,6 +866,27 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
       /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
        * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+       * @example
+       * ```ts
+       * const deploy = definePipeline("deploy", {
+       *   output: ".github/workflows/deploy.yml",
+       *   on: { workflow_call: { secrets: { token: { required: true } } } },
+       * }).job("deploy", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     name: "Deploy",
+       *     run: "deploy",
+       *     env: { TOKEN: ({ secrets }) => secrets.token },
+       *   }));
+       * const caller = definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       *   secrets: ["DEPLOY_TOKEN"],
+       * }).job("release", ({ job }) =>
+       *   job.reusable().call(deploy, ({ secrets }) => ({
+       *     secrets: { token: secrets.DEPLOY_TOKEN },
+       *   })));
+       * defineTsugiori({ pipelines: [deploy, caller] });
+       * ```
        */
       secrets?: SecretValues<C> | "inherit";
     }
@@ -354,26 +894,85 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
       /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
        * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+       * @example
+       * ```ts
+       * const deploy = definePipeline("deploy", {
+       *   output: ".github/workflows/deploy.yml",
+       *   on: { workflow_call: { secrets: { token: { required: true } } } },
+       * }).job("deploy", ({ job }) =>
+       *   job.runsOn("ubuntu-latest").run({
+       *     name: "Deploy",
+       *     run: "deploy",
+       *     env: { TOKEN: ({ secrets }) => secrets.token },
+       *   }));
+       * const caller = definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       *   secrets: ["DEPLOY_TOKEN"],
+       * }).job("release", ({ job }) =>
+       *   job.reusable().call(deploy, ({ secrets }) => ({
+       *     secrets: { token: secrets.DEPLOY_TOKEN },
+       *   })));
+       * defineTsugiori({ pipelines: [deploy, caller] });
+       * ```
        */
       secrets: SecretValues<C> | "inherit";
     })
 >;
 /** Job run defaults choose the shell and working directory for run steps. Step-level settings override the job defaults. They do not affect uses steps.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
+ * @example
+ * ```ts
+ * const value = {
+ *   shell: "bash",
+ *   workingDirectory: "packages/core",
+ * } satisfies RunDefaults;
+ * ```
  */
 export type RunDefaults = Readonly<
   {
     /** The default command interpreter (for example bash, pwsh or cmd) for run steps in this job. An explicit step value overrides it; this does not configure action steps.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunshell
+     * @example
+     * ```ts
+     * const value = {
+     *   shell: "bash",
+     *   workingDirectory: "packages/core",
+     * } satisfies RunDefaults;
+     * ```
      */
     shell?: string;
     /** The default execution directory, which must exist on the runner for run steps in this job. An explicit step value overrides it; this does not configure action steps.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunworking-directory
+     * @example
+     * ```ts
+     * const value = {
+     *   shell: "bash",
+     *   workingDirectory: "packages/core",
+     * } satisfies RunDefaults;
+     * ```
      */
     workingDirectory?: string;
   }
 >;
+/** Primitive values in a static matrix.
+ * @example
+ * ```ts
+ * const value = {
+ *   os: ["ubuntu-latest", "macos-latest"],
+ *   node: [20, 22],
+ * } satisfies StaticMatrix;
+ * ```
+ */
 export type MatrixValue = string | number | boolean;
+/** Static GitHub matrix axes or include rows.
+ * @example
+ * ```ts
+ * const value = {
+ *   include: [{ os: "ubuntu-latest", node: 22 }],
+ * } satisfies StaticMatrix;
+ * ```
+ */
 export type StaticMatrix = Readonly<
   Record<
     string,
@@ -382,6 +981,12 @@ export type StaticMatrix = Readonly<
     | readonly Readonly<Record<string, MatrixValue>>[]
   >
 >;
+/** A primitive action input or a GitHub runtime expression.
+ * @example
+ * ```ts
+ * const value = { ref: literal("main"), "fetch-depth": 0 } satisfies ActionInputs;
+ * ```
+ */
 export type ActionInput =
   | string
   | number
@@ -390,27 +995,67 @@ export type ActionInput =
 /** An action receives named parameters from the step with map, using the input names declared by the action.
  * Tsugiori: registered primitive input types are author assertions, not verification of action metadata.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+ * @example
+ * ```ts
+ * const value = { "fetch-depth": 0, ref: literal("main") } satisfies ActionInputs;
+ * ```
  */
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 /** More-specific job/step values override workflow env; values in one env map cannot refer to each other.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+ * @example
+ * ```ts
+ * const value = { CI: "true", NODE_ENV: "test" } satisfies EnvironmentVariables;
+ * ```
  */
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 /** Concurrency restricts jobs or workflow runs sharing a group to one running member. By default, a new pending member replaces the existing pending member.
  * Tsugiori: queue max is supported only with cancellation disabled; scenarios do not simulate scheduling.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+ * @example
+ * ```ts
+ * const value = {
+ *   group: "deploy-production",
+ *   cancelInProgress: false,
+ *   queue: "max",
+ * } satisfies Concurrency;
+ * ```
  */
 export type Concurrency = Readonly<{
   /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   * @example
+   * ```ts
+   * const value = {
+   *   group: "deploy-production",
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * } satisfies Concurrency;
+   * ```
    */
   group: string;
   /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   * @example
+   * ```ts
+   * const value = {
+   *   group: "deploy-production",
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * } satisfies Concurrency;
+   * ```
    */
   cancelInProgress: boolean;
   /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   * @example
+   * ```ts
+   * const value = {
+   *   group: "deploy-production",
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * } satisfies Concurrency;
+   * ```
    */
   queue?: "max";
 }>;
@@ -468,6 +1113,10 @@ type JobOptions = Readonly<{
 /** GitHub evaluates expressions enclosed by `${{ }}` in workflow fields using contexts, operators and functions.
  * Tsugiori: inserts caller-asserted syntax without checking context availability or evaluating it during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
+ * @example
+ * ```ts
+ * const branch = rawExpression("github.ref");
+ * ```
  */
 export function rawExpression(expression: string): RawExpression {
   if (expression.trim().length === 0) {
@@ -475,6 +1124,12 @@ export function rawExpression(expression: string): RawExpression {
   }
   return `\${{ ${expression} }}` as RawExpression;
 }
+/** A tuple with at least one entry.
+ * @example
+ * ```ts
+ * const runners: NonEmptyReadonlyArray<string> = ["self-hosted", "linux"];
+ * ```
+ */
 export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 
 /** A uses step executes an action with its declared inputs and exposes its outputs to later steps.
@@ -705,6 +1360,14 @@ export type TsugioriConfig = Readonly<{
 
 /** Workflow settings define triggers, names, environment variables and the default token permissions. Reusable workflows exchange inputs, secrets and outputs; workflow environment variables do not cross the call boundary.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ *   permissions: { contents: "read" },
+ * });
+ * ```
  */
 export type PipelineOptions<
   On extends PipelineTriggers = NonEmptyTriggers,
@@ -714,15 +1377,37 @@ export type PipelineOptions<
   /** The workflow display name in the Actions tab.
    * Tsugiori: omission uses the pipeline id rather than GitHub's workflow-file-path fallback.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   name: "CI",
+   * });
+   * ```
    */
   name?: string;
   /** The workflow YAML file path. GitHub discovers .yml and .yaml files under .github/workflows.
    * Tsugiori: generate writes this path relative to the configuration root.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * });
+   * ```
    */
   output: string;
   /** Supported event settings. Use {} for an event without settings; shorthand forms are not accepted.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * });
+   * ```
    */
   on:
     & On
@@ -732,27 +1417,75 @@ export type PipelineOptions<
   /** Repository, organization or environment configuration variables are read through vars.<name>. Unset variables evaluate to an empty string.
    * Tsugiori: this list narrows reference names; it neither creates variables nor changes GitHub configuration.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   vars: ["REGION"],
+   * });
+   * ```
    */
   vars?: Vars;
   /** Repository, organization or environment secrets are read through secrets.<name>. Unset secrets evaluate to an empty string.
    * Tsugiori: this list narrows reference names; it does not create, populate or authorize secrets.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   secrets: ["DEPLOY_TOKEN"],
+   * });
+   * ```
    */
   secrets?: Secrets;
   /** The display name of an individual workflow run. Supports GitHub runtime expressions. When absent or whitespace-only, GitHub uses event-specific information such as a commit message or pull request title.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   runName: "CI for ${{ github.ref_name }}",
+   * });
+   * ```
    */
   runName?: string;
   /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   env: { CI: "true" },
+   * });
+   * ```
    */
   env?: EnvironmentVariables;
   /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   concurrency: { group: "ci-${{ github.ref }}", cancelInProgress: true },
+   * });
+   * ```
    */
   concurrency?: Concurrency;
   /** Permissions granted to GITHUB_TOKEN for jobs in this workflow. A job can override this map. Once any permission is specified, unspecified permissions become none; repository and fork policies may further restrict access.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   *   permissions: { contents: "read" },
+   * });
+   * ```
    */
   permissions?: WorkflowPermissions;
 }>;
@@ -767,16 +1500,57 @@ const actionOutputs = Symbol("tsugiori.action-outputs");
 /** Action outputs are string values supplied by the action, accessible through steps.<id>.outputs.<name>.
  * Tsugiori: the invocation retains declared output names for typed references; generation does not run the action.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * });
+ * ```
  */
 export type ActionInvocation<
   Outputs extends readonly string[] = readonly string[],
 > = Readonly<{
   /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const checkout = defineAction({
+   *   uses: "actions/checkout@v4",
+   *   inputs: {
+   *     ref: actionInput.string(),
+   *     "fetch-depth": actionInput.number(),
+   *     "persist-credentials": actionInput.boolean(),
+   *   },
+   *   outputs: ["commit"],
+   * });
+   * job.runsOn("ubuntu-latest").uses({
+   *   id: "checkout",
+   *   name: "Checkout",
+   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * });
+   * ```
    */
   uses: string;
   /** Named input values passed to the action, using the names declared by its metadata.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const checkout = defineAction({
+   *   uses: "actions/checkout@v4",
+   *   inputs: {
+   *     ref: actionInput.string(),
+   *     "fetch-depth": actionInput.number(),
+   *     "persist-credentials": actionInput.boolean(),
+   *   },
+   *   outputs: ["commit"],
+   * });
+   * job.runsOn("ubuntu-latest").uses({
+   *   id: "checkout",
+   *   name: "Checkout",
+   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * });
+   * ```
    */
   with?: ActionInputs;
   [actionOutputs]: Outputs;
@@ -787,6 +1561,23 @@ const actionInputDefinition = Symbol("tsugiori.action-input-definition");
 /** Actions declare input names, descriptions, defaults and required flags in action metadata; input values are passed through with.
  * Tsugiori: this declaration adds primitive type checking to the author's contract without inspecting action metadata.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
  */
 export type ActionInputDefinition<
   Value extends ActionInput,
@@ -796,6 +1587,15 @@ export type ActionInputDefinition<
   /** Whether an action invocation must supply this input.
    * Tsugiori: validates this declared contract before generation; it does not inspect the action metadata.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+   * @example
+   * ```ts
+   * const publish = defineAction({
+   *   uses: "./.github/actions/publish",
+   *   inputs: { version: actionInput.string({ required: true }) },
+   *   outputs: [],
+   * });
+   * publish({ version: "1.0.0" });
+   * ```
    */
   required: Required;
   [actionInputDefinition]: Value;
@@ -819,6 +1619,25 @@ type RequiredActionInputKeys<Definitions extends ActionInputDefinitions> = {
 type OptionalActionInputKeys<Definitions extends ActionInputDefinitions> =
   Exclude<keyof Definitions, RequiredActionInputKeys<Definitions>>;
 
+/** Argument names and primitive types inferred from defineAction().
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
+ */
 export type ActionArguments<Definitions extends ActionInputDefinitions> =
   Readonly<
     & {
@@ -849,11 +1668,35 @@ function inputDefinition<Value extends ActionInput>(
 
 type Type = "string" | "number" | "boolean";
 type ActionInputFactory<Value extends ActionInput> = {
+  /** Declares an optional primitive action input.
+   * @example
+   * ```ts
+   * actionInput.string();
+   * actionInput.number();
+   * actionInput.boolean();
+   * ```
+   */
   (): ActionInputDefinition<Value, false>;
+  /** Declares an optional primitive action input.
+   * @example
+   * ```ts
+   * actionInput.string({ required: false });
+   * actionInput.number({ required: false });
+   * actionInput.boolean({ required: false });
+   * ```
+   */
   (options: Readonly<{ required?: false }>): ActionInputDefinition<
     Value,
     false
   >;
+  /** Declares a required primitive action input.
+   * @example
+   * ```ts
+   * actionInput.string({ required: true });
+   * actionInput.number({ required: true });
+   * actionInput.boolean({ required: true });
+   * ```
+   */
   (options: Readonly<{ required: true }>): ActionInputDefinition<Value, true>;
 };
 
@@ -869,9 +1712,46 @@ const booleanInput =
       boolean
     >;
 
+/** Primitive contracts for typed action inputs.
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
+ */
 export const actionInput: Readonly<{
+  /** A text action input; required defaults to false.
+   * @example
+   * ```ts
+   * actionInput.string({ required: true });
+   * ```
+   */
   string: ActionInputFactory<string>;
+  /** A numeric action input; required defaults to false.
+   * @example
+   * ```ts
+   * actionInput.number();
+   * ```
+   */
   number: ActionInputFactory<number>;
+  /** A boolean action input; required defaults to false.
+   * @example
+   * ```ts
+   * actionInput.boolean();
+   * ```
+   */
   boolean: ActionInputFactory<boolean>;
 }> = Object.freeze({
   string: stringInput,
@@ -882,6 +1762,23 @@ export const actionInput: Readonly<{
 /** Actions accept named inputs and expose named string outputs. A commit SHA in uses pins the action implementation.
  * Tsugiori: declares input/output contracts for local type checking without verifying external action metadata or behavior.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
  */
 export function defineAction<
   const Definitions extends ActionInputDefinitions,
@@ -890,16 +1787,67 @@ export function defineAction<
   definition: Readonly<{
     /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * const checkout = defineAction({
+     *   uses: "actions/checkout@v4",
+     *   inputs: {
+     *     ref: actionInput.string(),
+     *     "fetch-depth": actionInput.number(),
+     *     "persist-credentials": actionInput.boolean(),
+     *   },
+     *   outputs: ["commit"],
+     * });
+     * job.runsOn("ubuntu-latest").uses({
+     *   id: "checkout",
+     *   name: "Checkout",
+     *   uses: ({ github }) => checkout({ ref: github.sha }),
+     * });
+     * ```
      */
     uses: string;
     /** Inputs accepted by this action. Names follow the action metadata.
      * Tsugiori: primitive contracts are author assertions and validated locally; they do not verify the external action.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * const checkout = defineAction({
+     *   uses: "actions/checkout@v4",
+     *   inputs: {
+     *     ref: actionInput.string(),
+     *     "fetch-depth": actionInput.number(),
+     *     "persist-credentials": actionInput.boolean(),
+     *   },
+     *   outputs: ["commit"],
+     * });
+     * job.runsOn("ubuntu-latest").uses({
+     *   id: "checkout",
+     *   name: "Checkout",
+     *   uses: ({ github }) => checkout({ ref: github.sha }),
+     * });
+     * ```
      */
     inputs: Definitions;
     /** Named string outputs produced by this action, read by later steps as steps.<id>.outputs.<name>.
      * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * const checkout = defineAction({
+     *   uses: "actions/checkout@v4",
+     *   inputs: {
+     *     ref: actionInput.string(),
+     *     "fetch-depth": actionInput.number(),
+     *     "persist-credentials": actionInput.boolean(),
+     *   },
+     *   outputs: ["commit"],
+     * });
+     * job.runsOn("ubuntu-latest").uses({
+     *   id: "checkout",
+     *   name: "Checkout",
+     *   uses: ({ github }) => checkout({ ref: github.sha }),
+     * });
+     * ```
      */
     outputs: LiteralActionOutputs<Outputs>;
   }>,
@@ -944,10 +1892,34 @@ export function defineAction<
 /** Runs an action selected by its uses reference with named input values. GitHub resolves and executes the referenced action.
  * Tsugiori: bypasses registered input/output contracts and exposes no declared output names.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").uses({
+ *   name: "Checkout",
+ *   uses: rawAction("actions/checkout@v4", { "fetch-depth": 0 }),
+ * });
+ * ```
  */
 export function rawAction(
   /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const checkout = defineAction({
+   *   uses: "actions/checkout@v4",
+   *   inputs: {
+   *     ref: actionInput.string(),
+   *     "fetch-depth": actionInput.number(),
+   *     "persist-credentials": actionInput.boolean(),
+   *   },
+   *   outputs: ["commit"],
+   * });
+   * job.runsOn("ubuntu-latest").uses({
+   *   id: "checkout",
+   *   name: "Checkout",
+   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * });
+   * ```
    */
   uses: string,
   withInputs?: ActionInputs,
@@ -962,6 +1934,23 @@ export function rawAction(
 
 /** Declared outputs are available to dependent jobs through needs, not through host-language values.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
  */
 export type JobReference<
   PipelineId extends string = string,
@@ -972,6 +1961,31 @@ export type JobReference<
   {
     /** The job identifier used in needs dependencies and needs.<id> output/result references. It is separate from the display name.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job("build", ({ job }) =>
+     *   job.runsOn("ubuntu-latest").run({
+     *     id: "build",
+     *     name: "Build",
+     *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+     *     outputs: ["version"],
+     *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+     *   .job(
+     *     "deploy",
+     *     ({ job, jobs }) =>
+     *       job.needs(jobs.build).runsOn("ubuntu-latest")
+     *         .run({
+     *           name: "Deploy",
+     *           run: "deploy",
+     *           env: {
+     *             VERSION: ({ needs }) => needs.build.outputs.version,
+     *           },
+     *         }),
+     *   );
+     * ```
      */
     id: JobId;
     pipelineId: PipelineId;
@@ -1011,6 +2025,15 @@ type JobReferences = Readonly<
 >;
 /** Native action/run outputs are strings, including JSON serialized by the action itself.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").run({
+ *   id: "build",
+ *   name: "Build",
+ *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *   outputs: ["version"],
+ * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+ * ```
  */
 export type ActionOutputReference<
   StepId extends string = string,
@@ -1019,6 +2042,15 @@ export type ActionOutputReference<
 /** Earlier step outputs are accessible as steps.<id>.outputs.<name>.
  * Tsugiori: exposes only declared step ids and output names.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").run({
+ *   id: "build",
+ *   name: "Build",
+ *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *   outputs: ["version"],
+ * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+ * ```
  */
 export type StepReference<
   Id extends string = string,
@@ -1027,11 +2059,29 @@ export type StepReference<
 > = Readonly<{
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+   * ```
    */
   id: Id;
   /** String output references from an earlier action or run step, read as steps.<id>.outputs.<name>.
    * Tsugiori: this map contains runtime expression references, not values evaluated during generation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+   * ```
    */
   outputs: Readonly<
     { [OutputName in Outputs[number]]: ActionOutputReference<Id, OutputName> }
@@ -1159,14 +2209,34 @@ type StepCommon<
 > = Readonly<{
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   id: "build",
+   * });
+   * ```
    */
   id?: string;
   /** The step display name shown in the GitHub Actions run UI. It does not identify outputs; use id for references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsname
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
+   * ```
    */
   name: string;
   /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   if: ({ github }) => github.ref.eq("refs/heads/main"),
+   * });
+   * ```
    */
   if?: StepField<
     "jobs.<job_id>.steps.if",
@@ -1179,11 +2249,27 @@ type StepCommon<
   >;
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   continueOnError: true,
+   * });
+   * ```
    */
   continueOnError?: boolean;
   /** The maximum execution time in whole minutes before GitHub cancels the step. A step has no separate timeout when omitted; the job timeout still applies.
    * Tsugiori: literal values must be integers from 1 to 360; expression results are checked by GitHub. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   timeoutMinutes: 10,
+   * });
+   * ```
    */
   timeoutMinutes?:
     | number
@@ -1198,12 +2284,37 @@ type StepCommon<
     >;
   /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   env: { SHA: ({ github }) => github.sha },
+   * });
+   * ```
    */
   env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets, InputValues>;
 }>;
 /** A uses step runs an action with named inputs. GitHub evaluates conditions and input expressions at runtime.
  * Tsugiori: scenarios use fixtures rather than executing actions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * const checkout = defineAction({
+ *   uses: "actions/checkout@v4",
+ *   inputs: {
+ *     ref: actionInput.string(),
+ *     "fetch-depth": actionInput.number(),
+ *     "persist-credentials": actionInput.boolean(),
+ *   },
+ *   outputs: ["commit"],
+ * });
+ * job.runsOn("ubuntu-latest").uses({
+ *   id: "checkout",
+ *   name: "Checkout",
+ *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * });
+ * ```
  */
 export type UsesStepDefinition<
   Id extends string | undefined = undefined,
@@ -1220,10 +2331,35 @@ export type UsesStepDefinition<
     {
       /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Build",
+       *   run: "deno test",
+       *   id: "build",
+       * });
+       * ```
        */
       id?: Id;
       /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * const checkout = defineAction({
+       *   uses: "actions/checkout@v4",
+       *   inputs: {
+       *     ref: actionInput.string(),
+       *     "fetch-depth": actionInput.number(),
+       *     "persist-credentials": actionInput.boolean(),
+       *   },
+       *   outputs: ["commit"],
+       * });
+       * job.runsOn("ubuntu-latest").uses({
+       *   id: "checkout",
+       *   name: "Checkout",
+       *   uses: ({ github }) => checkout({ ref: github.sha }),
+       * });
+       * ```
        */
       uses:
         | ActionInvocation<Outputs>
@@ -1243,6 +2379,15 @@ export type UsesStepDefinition<
 /** A run step executes commands in a new shell process. Step shell and working-directory settings override job defaults. Values written to GITHUB_OUTPUT become string outputs.
  * Tsugiori: outputs declares reference names; scenarios do not execute the script.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").run({
+ *   id: "build",
+ *   name: "Build",
+ *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *   outputs: ["version"],
+ * });
+ * ```
  */
 export type RunStepDefinition<
   Id extends string | undefined = undefined,
@@ -1259,23 +2404,60 @@ export type RunStepDefinition<
     {
       /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Build",
+       *   run: "deno test",
+       *   id: "build",
+       * });
+       * ```
        */
       id?: Id;
       /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
+       * ```
        */
       run: string;
       /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
        * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   id: "build",
+       *   name: "Build",
+       *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+       *   outputs: ["version"],
+       * });
+       * ```
        */
       outputs?: Outputs;
       /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Build",
+       *   run: "deno test",
+       *   workingDirectory: "packages/core",
+       * });
+       * ```
        */
       workingDirectory?: string;
       /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Build",
+       *   run: "deno test",
+       *   shell: "bash",
+       * });
+       * ```
        */
       shell?: string;
     }
@@ -1283,6 +2465,19 @@ export type RunStepDefinition<
 /** A step condition can skip execution, and continue-on-error can prevent a step failure from failing the job.
  * Tsugiori: typed task input/output contracts and the task callback are additional runtime contracts, not GitHub workflow fields.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").task({
+ *   id: "version",
+ *   name: "Read version",
+ *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   outputs: { version: { contract: textValue(), required: true } },
+ *   run: async ({ inputs, outputs, logger }) => {
+ *     logger.info(inputs.sha);
+ *     await outputs.set("version", "1.0.0");
+ *   },
+ * });
+ * ```
  */
 export type TaskStepDefinition<
   Id extends string | undefined = undefined,
@@ -1309,15 +2504,125 @@ export type TaskStepDefinition<
 > =
   & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if">
   & Readonly<{
+    /** Unique step ID for typed output references.
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").task({
+     *   id: "version",
+     *   name: "Read version",
+     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   outputs: { version: { contract: textValue(), required: true } },
+     *   run: async ({ inputs, outputs, logger }) => {
+     *     logger.info(inputs.sha);
+     *     await outputs.set("version", "1.0.0");
+     *   },
+     * });
+     * ```
+     */
     id?: Id;
+    /** A GitHub step condition; present() can guard optional task inputs.
+     * @example
+     * ```ts
+     * const stages = jsonValue({
+     *   parse(value: unknown): readonly string[] {
+     *     if (
+     *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
+     *     ) {
+     *       throw new TypeError("Expected stage names");
+     *     }
+     *     return value;
+     *   },
+     * });
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job("prepare", ({ job }) =>
+     *   job.runsOn("ubuntu-latest").task({
+     *     id: "plan",
+     *     name: "Plan",
+     *     inputs: {},
+     *     outputs: { stages: { contract: stages, required: false } },
+     *     run: async ({ outputs }) => {
+     *       await outputs.set("stages", ["dev", "prd"]);
+     *     },
+     *   }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })))
+     *   .job(
+     *     "deploy",
+     *     ({ job, jobs }) =>
+     *       job.needs(jobs.prepare).runsOn("ubuntu-latest")
+     *         .when(({ needs }) => present(needs.prepare.outputs.stages))
+     *         .strategy(({ needs }) => ({
+     *           matrix: { stage: fromJSON(needs.prepare.outputs.stages) },
+     *         }))
+     *         .task({
+     *           name: "Deploy",
+     *           inputs: {
+     *             stage: {
+     *               contract: textValue(),
+     *               from: ({ matrix }) => matrix.stage,
+     *             },
+     *           },
+     *           outputs: {},
+     *           run: ({ inputs, logger }) => {
+     *             logger.info(inputs.stage);
+     *           },
+     *         }),
+     *   );
+     * ```
+     */
     if?: Condition;
+    /** Pairs each input contract with its runtime expression source.
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").task({
+     *   id: "version",
+     *   name: "Read version",
+     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   outputs: { version: { contract: textValue(), required: true } },
+     *   run: async ({ inputs, outputs, logger }) => {
+     *     logger.info(inputs.sha);
+     *     await outputs.set("version", "1.0.0");
+     *   },
+     * });
+     * ```
+     */
     inputs:
       & Inputs
       & Readonly<
         Record<
           string,
           Readonly<{
+            /** Use the same contract object as the producing task for direct passthrough.
+             * @example In a `definePipeline().job()` callback with `{ job }`.
+             * ```ts
+             * job.runsOn("ubuntu-latest").task({
+             *   id: "version",
+             *   name: "Read version",
+             *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+             *   outputs: { version: { contract: textValue(), required: true } },
+             *   run: async ({ inputs, outputs, logger }) => {
+             *     logger.info(inputs.sha);
+             *     await outputs.set("version", "1.0.0");
+             *   },
+             * });
+             * ```
+             */
             contract: ValueContract<unknown>;
+            /** Use a callback to read contexts available at this step.
+             * @example In a `definePipeline().job()` callback with `{ job }`.
+             * ```ts
+             * job.runsOn("ubuntu-latest").task({
+             *   id: "version",
+             *   name: "Read version",
+             *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+             *   outputs: { version: { contract: textValue(), required: true } },
+             *   run: async ({ inputs, outputs, logger }) => {
+             *     logger.info(inputs.sha);
+             *     await outputs.set("version", "1.0.0");
+             *   },
+             * });
+             * ```
+             */
             from:
               | ExpressionInput
               | ((
@@ -1335,7 +2640,37 @@ export type TaskStepDefinition<
           }>
         >
       >;
+    /** Declares native output contracts and whether each write is required.
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").task({
+     *   id: "version",
+     *   name: "Read version",
+     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   outputs: { version: { contract: textValue(), required: true } },
+     *   run: async ({ inputs, outputs, logger }) => {
+     *     logger.info(inputs.sha);
+     *     await outputs.set("version", "1.0.0");
+     *   },
+     * });
+     * ```
+     */
     outputs: Outputs;
+    /** Runs in the compiled task runtime with native values; await output writes.
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").task({
+     *   id: "version",
+     *   name: "Read version",
+     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   outputs: { version: { contract: textValue(), required: true } },
+     *   run: async ({ inputs, outputs, logger }) => {
+     *     logger.info(inputs.sha);
+     *     await outputs.set("version", "1.0.0");
+     *   },
+     * });
+     * ```
+     */
     run: (
       context: TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>,
     ) => void | Promise<void>;
@@ -1443,6 +2778,16 @@ type EffectiveOutputs<
 /** A job selects a runner and executes steps. Matrix expansion creates job variants with their own runtime matrix values.
  * Tsugiori: configure strategy before fields that reference its inferred matrix.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest")
+ *   .strategy({
+ *     matrix: { os: ["ubuntu-latest", "macos-latest"] },
+ *     failFast: false,
+ *   })
+ *   .runsOn(({ matrix }) => matrix.os)
+ *   .run({ name: "Test", run: "deno test" });
+ * ```
  */
 export interface ExecutionJobState<
   PipelineId extends string,
@@ -1457,6 +2802,10 @@ export interface ExecutionJobState<
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(["self-hosted", "linux", "x64"]);
+   * ```
    */
   runsOn(
     runner:
@@ -1485,6 +2834,10 @@ export interface ExecutionJobState<
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").name("Build and test");
+   * ```
    */
   name(
     value:
@@ -1510,6 +2863,10 @@ export interface ExecutionJobState<
   >;
   /** Job env overrides workflow env; values within one map cannot depend on one another.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenv
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").env({ SHA: ({ github }) => github.sha });
+   * ```
    */
   env(
     value: JobEnv<Needs, Matrix, Vars, Secrets, InputValues>,
@@ -1525,12 +2882,26 @@ export interface ExecutionJobState<
   >;
   /** Run defaults apply to run steps; explicit step shell/directory wins.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").defaultsRun({
+   *   shell: "bash",
+   *   workingDirectory: "packages/core",
+   * });
+   * ```
    */
   defaultsRun(
     value: Readonly<
       {
         /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest").defaultsRun({
+         *   shell: "bash",
+         *   workingDirectory: "packages/core",
+         * });
+         * ```
          */
         shell?:
           | string
@@ -1545,6 +2916,13 @@ export interface ExecutionJobState<
           >;
         /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest").defaultsRun({
+         *   shell: "bash",
+         *   workingDirectory: "packages/core",
+         * });
+         * ```
          */
         workingDirectory?:
           | string
@@ -1571,6 +2949,12 @@ export interface ExecutionJobState<
   >;
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").when(({ github }) =>
+   *   github.ref.eq("refs/heads/main")
+   * );
+   * ```
    */
   when<
     const C extends Field<
@@ -1597,22 +2981,50 @@ export interface ExecutionJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest")
+   *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
+   *   .runsOn(({ matrix }) => matrix.os)
+   *   .run({ name: "Test", run: "deno test" });
+   * ```
    */
   strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
     definition: Readonly<
       {
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         matrix: Readonly<{
           /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest")
+           *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
+           *   .runsOn(({ matrix }) => matrix.os)
+           *   .run({ name: "Test", run: "deno test" });
+           * ```
            */
           include: Rows;
         }>;
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori: scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         failFast?: boolean;
       }
@@ -1630,6 +3042,15 @@ export interface ExecutionJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest")
+   *   .strategy(() => ({
+   *     matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
+   *   }))
+   *   .runsOn(({ matrix }) => matrix.os)
+   *   .run({ name: "Test", run: "deno test" });
+   * ```
    */
   strategy<const Shape extends object>(
     definition: (
@@ -1646,11 +3067,25 @@ export interface ExecutionJobState<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest")
+       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
+       *   .runsOn(({ matrix }) => matrix.os)
+       *   .run({ name: "Test", run: "deno test" });
+       * ```
        */
       matrix: Expression<Shape>;
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori: scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest")
+       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
+       *   .runsOn(({ matrix }) => matrix.os)
+       *   .run({ name: "Test", run: "deno test" });
+       * ```
        */
       failFast?: boolean;
     }>,
@@ -1667,6 +3102,14 @@ export interface ExecutionJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest")
+   *   .strategy(() => ({
+   *     matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')'),
+   *   }))
+   *   .run({ name: "Test", run: "deno test" });
+   * ```
    */
   strategy(
     definition: (
@@ -1683,11 +3126,23 @@ export interface ExecutionJobState<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest")
+       *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
+       *   .run({ name: "Test", run: "deno test" });
+       * ```
        */
       matrix: RawExpression;
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori: scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest")
+       *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
+       *   .run({ name: "Test", run: "deno test" });
+       * ```
        */
       failFast?: boolean;
     }>,
@@ -1704,6 +3159,16 @@ export interface ExecutionJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest")
+   *   .strategy({
+   *     matrix: { os: ["ubuntu-latest", "macos-latest"] },
+   *     failFast: false,
+   *   })
+   *   .runsOn(({ matrix }) => matrix.os)
+   *   .run({ name: "Test", run: "deno test" });
+   * ```
    */
   strategy<
     const Axes extends Readonly<
@@ -1719,11 +3184,25 @@ export interface ExecutionJobState<
       | Readonly<{
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         matrix: Axes;
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori: scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         failFast?: boolean;
       }>
@@ -1741,11 +3220,25 @@ export interface ExecutionJobState<
       ) => Readonly<{
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         matrix: Axes;
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori: scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest")
+         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
+         *   .runsOn(({ matrix }) => matrix.os)
+         *   .run({ name: "Test", run: "deno test" });
+         * ```
          */
         failFast?: boolean;
       }>),
@@ -1767,12 +3260,28 @@ export interface ExecutionJobState<
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Tsugiori: queue max requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").concurrency({
+   *   group: ({ github }) => format("ci-{0}", github.ref),
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * });
+   * ```
    */
   concurrency(
     definition: Readonly<
       {
         /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest").concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         group: Field<
           "jobs.<job_id>.concurrency",
@@ -1785,10 +3294,26 @@ export interface ExecutionJobState<
         >;
         /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest").concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         cancelInProgress: boolean;
         /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.runsOn("ubuntu-latest").concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         queue?: "max";
       }
@@ -1806,6 +3331,10 @@ export interface ExecutionJobState<
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").permissions({ contents: "read" });
+   * ```
    */
   permissions(
     value: WorkflowPermissions,
@@ -1822,6 +3351,10 @@ export interface ExecutionJobState<
   /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
    * Tsugiori: literal values retain a 1–360 integer limit; expression values pass through. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").timeoutMinutes(15);
+   * ```
    */
   timeoutMinutes(
     value:
@@ -1848,6 +3381,10 @@ export interface ExecutionJobState<
   /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
    * Tsugiori: supports the name only, not the structured name/url form; scenarios do not enforce protections.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").environment("production");
+   * ```
    */
   environment(
     value: string,
@@ -1864,6 +3401,23 @@ export interface ExecutionJobState<
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori: scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const checkout = defineAction({
+   *   uses: "actions/checkout@v4",
+   *   inputs: {
+   *     ref: actionInput.string(),
+   *     "fetch-depth": actionInput.number(),
+   *     "persist-credentials": actionInput.boolean(),
+   *   },
+   *   outputs: ["commit"],
+   * });
+   * job.runsOn("ubuntu-latest").uses({
+   *   id: "checkout",
+   *   name: "Checkout",
+   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * });
+   * ```
    */
   uses<
     const D extends UsesStepDefinition<
@@ -1893,6 +3447,16 @@ export interface ExecutionJobState<
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori: preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   *   env: { SHA: ({ github }) => github.sha },
+   * });
+   * ```
    */
   run<
     const D extends RunStepDefinition<
@@ -1922,6 +3486,19 @@ export interface ExecutionJobState<
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori: creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   id: "version",
+   *   name: "Read version",
+   *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+   *   outputs: { version: { contract: textValue(), required: true } },
+   *   run: async ({ inputs, outputs, logger }) => {
+   *     logger.info(inputs.sha);
+   *     await outputs.set("version", "1.0.0");
+   *   },
+   * });
+   * ```
    */
   task<
     const Id extends string | undefined,
@@ -1970,6 +3547,15 @@ export interface ExecutionJobState<
 }
 /** Outputs become the needs surface of dependent jobs; GitHub can suppress outputs containing secrets.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+ * @example In a `definePipeline().job()` callback with `{ job }`.
+ * ```ts
+ * job.runsOn("ubuntu-latest").run({
+ *   id: "build",
+ *   name: "Build",
+ *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *   outputs: ["version"],
+ * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+ * ```
  */
 export interface NonEmptyStepState<
   PipelineId extends string,
@@ -1983,9 +3569,29 @@ export interface NonEmptyStepState<
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
 > extends FinalizedJobState<PipelineId, JobId, Outputs, Steps, Matrix> {
+  /** References to earlier named steps in this immutable job.
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const built = job.runsOn("ubuntu-latest").run({
+   *   id: "build", name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   * });
+   * built.steps.build.outputs.version;
+   * ```
+   */
   readonly steps: Steps;
   /** Maps step values to string outputs for dependent jobs; GitHub can suppress outputs containing secrets.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+   * ```
    */
   outputs<
     const Names extends Readonly<
@@ -2025,6 +3631,23 @@ export interface NonEmptyStepState<
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori: scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const checkout = defineAction({
+   *   uses: "actions/checkout@v4",
+   *   inputs: {
+   *     ref: actionInput.string(),
+   *     "fetch-depth": actionInput.number(),
+   *     "persist-credentials": actionInput.boolean(),
+   *   },
+   *   outputs: ["commit"],
+   * });
+   * job.runsOn("ubuntu-latest").uses({
+   *   id: "checkout",
+   *   name: "Checkout",
+   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * });
+   * ```
    */
   uses<
     const D extends UsesStepDefinition<
@@ -2054,6 +3677,16 @@ export interface NonEmptyStepState<
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori: preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   *   env: { SHA: ({ github }) => github.sha },
+   * });
+   * ```
    */
   run<
     const D extends RunStepDefinition<
@@ -2083,6 +3716,33 @@ export interface NonEmptyStepState<
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori: creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * const version = textValue();
+   * job.runsOn("ubuntu-latest")
+   *   .task({
+   *     id: "make",
+   *     name: "Make version",
+   *     inputs: {},
+   *     outputs: { version: { contract: version, required: true } },
+   *     run: async ({ outputs }) => {
+   *       await outputs.set("version", "1.0.0");
+   *     },
+   *   })
+   *   .task({
+   *     name: "Consume version",
+   *     inputs: {
+   *       version: {
+   *         contract: version,
+   *         from: ({ steps }) => steps.make.outputs.version,
+   *       },
+   *     },
+   *     outputs: {},
+   *     run: ({ inputs, logger }) => {
+   *       logger.info(inputs.version);
+   *     },
+   *   });
+   * ```
    */
   task<
     const Id extends string | undefined,
@@ -2121,18 +3781,56 @@ export interface NonEmptyStepState<
           /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
            * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").run({
+           *   id: "build",
+           *   name: "Build",
+           *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+           *   outputs: ["version"],
+           * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
+           * ```
            */
           outputs: O;
           /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").run({
+           *   name: "Build",
+           *   run: "deno test",
+           *   if: ({ github }) => github.ref.eq("refs/heads/main"),
+           * });
+           * ```
            */
           if?: C;
           /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").run({
+           *   name: "Build",
+           *   run: "deno test",
+           *   continueOnError: true,
+           * });
+           * ```
            */
           continueOnError?: F;
           /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").task({
+           *   id: "version",
+           *   name: "Read version",
+           *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+           *   outputs: { version: { contract: textValue(), required: true } },
+           *   run: async ({ inputs, outputs, logger }) => {
+           *     logger.info(inputs.sha);
+           *     await outputs.set("version", "1.0.0");
+           *   },
+           * });
+           * ```
            */
           id?: Exclude<Id, keyof Steps>;
         }
@@ -2152,6 +3850,34 @@ export interface NonEmptyStepState<
 }
 /** Native caller jobs contain uses/with/secrets, never runs-on or steps.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#supported-keywords-for-jobs-that-call-a-reusable-workflow
+ * @example
+ * ```ts
+ * const reusable = definePipeline("release", {
+ *   output: ".github/workflows/release.yml",
+ *   on: {
+ *     workflow_call: {
+ *       inputs: {
+ *         version: { type: "string", required: true },
+ *       },
+ *     },
+ *   },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+ * const caller = definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "release",
+ *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ * );
+ * defineTsugiori({ pipelines: [reusable, caller] });
+ * ```
  */
 export type ReusableJobState<
   P extends string,
@@ -2164,6 +3890,10 @@ export type ReusableJobState<
 > = {
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().when(({ github }) => github.ref.eq("refs/heads/main"));
+   * ```
    */
   when(
     value: Field<
@@ -2179,6 +3909,13 @@ export type ReusableJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable()
+   *   .strategy(() => ({
+   *     matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
+   *   }));
+   * ```
    */
   strategy<const Shape extends object>(
     value: (
@@ -2194,11 +3931,21 @@ export type ReusableJobState<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
+       * ```
        */
       matrix: Expression<Shape>;
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori: scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
+       * ```
        */
       failFast?: boolean;
     }>,
@@ -2206,6 +3953,10 @@ export type ReusableJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
+   * ```
    */
   strategy<
     const Axes extends Readonly<
@@ -2228,11 +3979,21 @@ export type ReusableJobState<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
+       * ```
        */
       matrix: Axes;
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori: scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
+       * ```
        */
       failFast?: boolean;
     }>,
@@ -2253,22 +4014,42 @@ export type ReusableJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable()
+   *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
+   * ```
    */
   strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
     value: Readonly<
       {
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.reusable()
+         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
+         * ```
          */
         matrix: Readonly<{
           /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable()
+           *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
+           * ```
            */
           include: Rows;
         }>;
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori: scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.reusable()
+         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
+         * ```
          */
         failFast?: boolean;
       }
@@ -2277,16 +4058,30 @@ export type ReusableJobState<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
+   * ```
    */
   strategy<const Axes extends Readonly<Record<string, readonly string[]>>>(
     value: Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
+       * ```
        */
       matrix: Axes;
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori: scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
+       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * ```ts
+       * job.reusable()
+       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
+       * ```
        */
       failFast?: boolean;
     }>,
@@ -2301,6 +4096,10 @@ export type ReusableJobState<
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().name("Build and test");
+   * ```
    */
   name(
     value:
@@ -2318,6 +4117,10 @@ export type ReusableJobState<
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().permissions({ contents: "read" });
+   * ```
    */
   permissions(
     value: WorkflowPermissions,
@@ -2325,12 +4128,28 @@ export type ReusableJobState<
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Tsugiori: queue max requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().concurrency({
+   *   group: ({ github }) => format("ci-{0}", github.ref),
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * });
+   * ```
    */
   concurrency(
     value: Readonly<
       {
         /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.reusable().concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         group: Field<
           "jobs.<job_id>.concurrency",
@@ -2343,10 +4162,26 @@ export type ReusableJobState<
         >;
         /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.reusable().concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         cancelInProgress: boolean;
         /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+         * @example In a `definePipeline().job()` callback with `{ job }`.
+         * ```ts
+         * job.reusable().concurrency({
+         *   group: ({ github }) => format("ci-{0}", github.ref),
+         *   cancelInProgress: false,
+         *   queue: "max",
+         * });
+         * ```
          */
         queue?: "max";
       }
@@ -2355,11 +4190,67 @@ export type ReusableJobState<
   /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
    * Tsugiori: requires the callee in the same config and validates its explicit contract; inherit cannot prove GitHub secret availability.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+   * @example
+   * ```ts
+   * const reusable = definePipeline("release", {
+   *   output: ".github/workflows/release.yml",
+   *   on: {
+   *     workflow_call: {
+   *       inputs: {
+   *         version: { type: "string", required: true },
+   *       },
+   *     },
+   *   },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+   * const caller = definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job(
+   *   "release",
+   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   * );
+   * defineTsugiori({ pipelines: [reusable, caller] });
+   * ```
    */
   call<const C extends WorkflowCall, O extends string>(
     /** A reusable workflow runs as a separate workflow with its own jobs and steps.
      * Tsugiori: retains the local pipeline definition for typed validation and scenario interpretation.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     * @example
+     * ```ts
+     * const reusable = definePipeline("release", {
+     *   output: ".github/workflows/release.yml",
+     *   on: {
+     *     workflow_call: {
+     *       inputs: {
+     *         version: { type: "string", required: true },
+     *       },
+     *     },
+     *   },
+     * }).job("build", ({ job }) =>
+     *   job.runsOn("ubuntu-latest").run({
+     *     id: "build",
+     *     name: "Build",
+     *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+     *     outputs: ["version"],
+     *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+     *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+     * const caller = definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job(
+     *   "release",
+     *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+     * );
+     * defineTsugiori({ pipelines: [reusable, caller] });
+     * ```
      */
     callee: ReusablePipeline<C, O>,
     args:
@@ -2392,10 +4283,34 @@ export type ReusableJobState<
   /** Runs a reusable workflow referenced by owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; external references select a SHA, tag or branch and cannot use expressions.
    * Tsugiori: input/output contracts are caller assertions; scenarios require a call fixture.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+   *   with: { version: "1.0.0" },
+   *   secrets: "inherit",
+   * });
+   * ```
    */
   rawCall(
     /** The reusable workflow to invoke: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; a SHA pins an external version. Expressions are not allowed.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * ```ts
+     * const checkout = defineAction({
+     *   uses: "actions/checkout@v4",
+     *   inputs: {
+     *     ref: actionInput.string(),
+     *     "fetch-depth": actionInput.number(),
+     *     "persist-credentials": actionInput.boolean(),
+     *   },
+     *   outputs: ["commit"],
+     * });
+     * job.runsOn("ubuntu-latest").uses({
+     *   id: "checkout",
+     *   name: "Checkout",
+     *   uses: ({ github }) => checkout({ ref: github.sha }),
+     * });
+     * ```
      */
     uses: string,
     args?:
@@ -2403,11 +4318,25 @@ export type ReusableJobState<
         {
           /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+           *   with: { version: "1.0.0" },
+           *   secrets: "inherit",
+           * });
+           * ```
            */
           with?: ActionInputs;
           /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
            * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+           *   with: { version: "1.0.0" },
+           *   secrets: "inherit",
+           * });
+           * ```
            */
           secrets?:
             | "inherit"
@@ -2441,11 +4370,25 @@ export type ReusableJobState<
         {
           /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+           *   with: { version: "1.0.0" },
+           *   secrets: "inherit",
+           * });
+           * ```
            */
           with?: ActionInputs;
           /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
            * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
+           * @example In a `definePipeline().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+           *   with: { version: "1.0.0" },
+           *   secrets: "inherit",
+           * });
+           * ```
            */
           secrets?:
             | "inherit"
@@ -2456,6 +4399,17 @@ export type ReusableJobState<
 };
 /** Choose regular runner execution or a native reusable caller job.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "test",
+ *   ({ job }) =>
+ *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+ * );
+ * ```
  */
 export interface IndependentJobState<
   PipelineId extends string,
@@ -2466,6 +4420,34 @@ export interface IndependentJobState<
 > {
   /** Selects a native caller job; inputs and secrets travel one hop and caller workflow env does not propagate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+   * @example
+   * ```ts
+   * const reusable = definePipeline("release", {
+   *   output: ".github/workflows/release.yml",
+   *   on: {
+   *     workflow_call: {
+   *       inputs: {
+   *         version: { type: "string", required: true },
+   *       },
+   *     },
+   *   },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+   * const caller = definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job(
+   *   "release",
+   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   * );
+   * defineTsugiori({ pipelines: [reusable, caller] });
+   * ```
    */
   reusable(): ReusableJobState<
     PipelineId,
@@ -2479,6 +4461,10 @@ export interface IndependentJobState<
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(["self-hosted", "linux", "x64"]);
+   * ```
    */
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
@@ -2494,6 +4480,17 @@ export interface IndependentJobState<
 }
 /** needs supplies status and declared outputs; failed dependencies skip jobs unless a status condition admits them.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "test",
+ *   ({ job }) =>
+ *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+ * );
+ * ```
  */
 export interface DependentJobState<
   PipelineId extends string,
@@ -2505,6 +4502,34 @@ export interface DependentJobState<
 > {
   /** Selects a native caller job; inputs and secrets travel one hop and caller workflow env does not propagate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
+   * @example
+   * ```ts
+   * const reusable = definePipeline("release", {
+   *   output: ".github/workflows/release.yml",
+   *   on: {
+   *     workflow_call: {
+   *       inputs: {
+   *         version: { type: "string", required: true },
+   *       },
+   *     },
+   *   },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+   * const caller = definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job(
+   *   "release",
+   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   * );
+   * defineTsugiori({ pipelines: [reusable, caller] });
+   * ```
    */
   reusable(): ReusableJobState<
     PipelineId,
@@ -2518,6 +4543,10 @@ export interface DependentJobState<
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
+   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(["self-hosted", "linux", "x64"]);
+   * ```
    */
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
@@ -2541,6 +4570,31 @@ export interface JobStartState<
 > extends IndependentJobState<PipelineId, JobId, Vars, Secrets, InputValues> {
   /** Names declared dependencies; unsuccessful dependencies skip execution unless an explicit status condition admits the job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .job(
+   *     "deploy",
+   *     ({ job, jobs }) =>
+   *       job.needs(jobs.build).runsOn("ubuntu-latest")
+   *         .run({
+   *           name: "Deploy",
+   *           run: "deploy",
+   *           env: {
+   *             VERSION: ({ needs }) => needs.build.outputs.version,
+   *           },
+   *         }),
+   *   );
+   * ```
    */
   needs<
     const Dependencies extends readonly [
@@ -2558,6 +4612,33 @@ export interface JobStartState<
     InputValues
   >;
 }
+/** The callback job exposes needs() only after earlier jobs exist.
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .job(
+ *     "deploy",
+ *     ({ job, jobs }) =>
+ *       job.needs(jobs.build).runsOn("ubuntu-latest")
+ *         .run({
+ *           name: "Deploy",
+ *           run: "deploy",
+ *           env: {
+ *             VERSION: ({ needs }) => needs.build.outputs.version,
+ *           },
+ *         }),
+ *   );
+ * ```
+ */
 export type AvailableJobState<
   PipelineId extends string,
   JobId extends string,
@@ -2568,6 +4649,33 @@ export type AvailableJobState<
 > = keyof Jobs extends never
   ? IndependentJobState<PipelineId, JobId, Vars, Secrets, InputValues>
   : JobStartState<PipelineId, JobId, Jobs, Vars, Secrets, InputValues>;
+/** The job callback receives the new job and references to earlier jobs.
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .job(
+ *     "deploy",
+ *     ({ job, jobs }) =>
+ *       job.needs(jobs.build).runsOn("ubuntu-latest")
+ *         .run({
+ *           name: "Deploy",
+ *           run: "deploy",
+ *           env: {
+ *             VERSION: ({ needs }) => needs.build.outputs.version,
+ *           },
+ *         }),
+ *   );
+ * ```
+ */
 export type JobDefinitionScope<
   PipelineId extends string,
   JobId extends string,
@@ -2577,7 +4685,47 @@ export type JobDefinitionScope<
   InputValues extends object = Readonly<Record<string, string>>,
 > = Readonly<
   {
+    /** Start the new job with runsOn() or reusable().
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job(
+     *   "test",
+     *   ({ job }) =>
+     *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+     * );
+     * ```
+     */
     job: AvailableJobState<PipelineId, JobId, Jobs, Vars, Secrets, InputValues>;
+    /** Earlier jobs available for explicit needs() dependencies.
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job("build", ({ job }) =>
+     *   job.runsOn("ubuntu-latest").run({
+     *     id: "build",
+     *     name: "Build",
+     *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+     *     outputs: ["version"],
+     *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+     *   .job(
+     *     "deploy",
+     *     ({ job, jobs }) =>
+     *       job.needs(jobs.build).runsOn("ubuntu-latest")
+     *         .run({
+     *           name: "Deploy",
+     *           run: "deploy",
+     *           env: {
+     *             VERSION: ({ needs }) => needs.build.outputs.version,
+     *           },
+     *         }),
+     *   );
+     * ```
+     */
     jobs: Jobs;
   }
 >;
@@ -2600,6 +4748,19 @@ type AddJobReference<
 >;
 type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
   JobId extends keyof Jobs ? never : JobId;
+/** Add a completed job before passing the pipeline to defineTsugiori().
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "test",
+ *   ({ job }) =>
+ *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+ * );
+ * ```
+ */
 export interface EmptyPipelineState<
   PipelineId extends string,
   Vars extends string = string,
@@ -2610,6 +4771,18 @@ export interface EmptyPipelineState<
 > {
   /** Typed input references; GitHub supplies values and defaults at runtime.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
+   * @example
+   * ```ts
+   * const flow = definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: {
+   *     workflow_dispatch: {
+   *       inputs: { stage: { type: "string", default: "dev" } },
+   *     },
+   *   },
+   * });
+   * flow.inputs.stage;
+   * ```
    */
   readonly inputs: import("./expression.ts").Ref<
     InputValues,
@@ -2618,6 +4791,17 @@ export interface EmptyPipelineState<
   /** Jobs run independently unless needs declares dependencies. A job id identifies it in dependency and output references; name controls its display label.
    * Tsugiori: adds jobs in declaration order and exposes declared outputs for later definitions.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job(
+   *   "test",
+   *   ({ job }) =>
+   *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+   * );
+   * ```
    */
   job<
     const JobId extends string,
@@ -2629,6 +4813,17 @@ export interface EmptyPipelineState<
   >(
     /** The job identifier used for needs dependencies and output references. It must start with a letter or underscore and contain only letters, digits, hyphens or underscores.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job(
+     *   "test",
+     *   ({ job }) =>
+     *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+     * );
+     * ```
      */
     id: JobId,
     define: (
@@ -2651,6 +4846,33 @@ export interface EmptyPipelineState<
     InputValues
   >;
 }
+/** An immutable pipeline with at least one completed job.
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job("build", ({ job }) =>
+ *   job.runsOn("ubuntu-latest").run({
+ *     id: "build",
+ *     name: "Build",
+ *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+ *     outputs: ["version"],
+ *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+ *   .job(
+ *     "deploy",
+ *     ({ job, jobs }) =>
+ *       job.needs(jobs.build).runsOn("ubuntu-latest")
+ *         .run({
+ *           name: "Deploy",
+ *           run: "deploy",
+ *           env: {
+ *             VERSION: ({ needs }) => needs.build.outputs.version,
+ *           },
+ *         }),
+ *   );
+ * ```
+ */
 export interface NonEmptyPipelineState<
   PipelineId extends string,
   Jobs extends JobReferences,
@@ -2662,6 +4884,18 @@ export interface NonEmptyPipelineState<
 > {
   /** Typed input references; GitHub supplies values and defaults at runtime.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
+   * @example
+   * ```ts
+   * const flow = definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: {
+   *     workflow_dispatch: {
+   *       inputs: { stage: { type: "string", default: "dev" } },
+   *     },
+   *   },
+   * });
+   * flow.inputs.stage;
+   * ```
    */
   readonly inputs: import("./expression.ts").Ref<
     InputValues,
@@ -2671,6 +4905,26 @@ export interface NonEmptyPipelineState<
   /** Defines reusable workflow outputs mapped to outputs of jobs within the callee. Callers read them as needs.<caller_job>.outputs.<name>.
    * Tsugiori: exposes typed callee job references and only allows this on reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+   * @example
+   * ```ts
+   * const reusable = definePipeline("release", {
+   *   output: ".github/workflows/release.yml",
+   *   on: {
+   *     workflow_call: {
+   *       inputs: {
+   *         version: { type: "string", required: true },
+   *       },
+   *     },
+   *   },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
+   * ```
    */
   workflowOutputs<
     const Values extends Readonly<Record<string, ExpressionInput>>,
@@ -2705,6 +4959,17 @@ export interface NonEmptyPipelineState<
   /** Jobs run independently unless needs declares dependencies. A job id identifies it in dependency and output references; name controls its display label.
    * Tsugiori: adds jobs in declaration order and exposes declared outputs for later definitions.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   * @example
+   * ```ts
+   * definePipeline("ci", {
+   *   output: ".github/workflows/ci.yml",
+   *   on: { push: {} },
+   * }).job(
+   *   "test",
+   *   ({ job }) =>
+   *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+   * );
+   * ```
    */
   job<
     const JobId extends string,
@@ -2716,6 +4981,17 @@ export interface NonEmptyPipelineState<
   >(
     /** The unique job identifier used in needs dependencies and output/result references. It must start with a letter or underscore and contain only letters, digits, hyphens or underscores.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+     * @example
+     * ```ts
+     * definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * }).job(
+     *   "test",
+     *   ({ job }) =>
+     *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+     * );
+     * ```
      */
     id: AvailableJobId<JobId, Jobs>,
     define: (
@@ -2769,6 +5045,17 @@ type JobDraft = Readonly<{
 /** A workflow defines event triggers and jobs in a YAML file under .github/workflows.
  * Tsugiori: constructs immutable authoring state; expressions and step bodies are not executed during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+ * @example
+ * ```ts
+ * definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "test",
+ *   ({ job }) =>
+ *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+ * );
+ * ```
  */
 export function definePipeline<
   const PipelineId extends string,
@@ -2780,7 +5067,27 @@ export function definePipeline<
   options:
     & PipelineOptions<On, Vars, Secrets>
     & Readonly<{
+      /** Declared names available in expression callbacks.
+       * @example
+       * ```ts
+       * definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       *   vars: ["REGION"],
+       * });
+       * ```
+       */
       vars?: LiteralNames<Vars>;
+      /** Declared names available in expression callbacks.
+       * @example
+       * ```ts
+       * definePipeline("ci", {
+       *   output: ".github/workflows/ci.yml",
+       *   on: { push: {} },
+       *   secrets: ["DEPLOY_TOKEN"],
+       * });
+       * ```
+       */
       secrets?: LiteralNames<Secrets>;
     }>,
 ): EmptyPipelineState<
@@ -2855,13 +5162,58 @@ export function definePipeline<
 
 /** Materializes completed pipeline definitions; generation validates caller/callee configuration membership.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobs
+ * @example
+ * ```ts
+ * const ci = definePipeline("ci", {
+ *   output: ".github/workflows/ci.yml",
+ *   on: { push: {} },
+ * }).job(
+ *   "test",
+ *   ({ job }) =>
+ *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+ * );
+ * defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+ * ```
  */
 export function defineTsugiori<
   const Pipelines extends NonEmptyReadonlyArray<
     Readonly<{ [pipelineDefinition]: AuthoringPipeline }>
   >,
 >(
-  input: Readonly<{ cacheVersion?: number; pipelines: Pipelines }>,
+  input: Readonly<{
+    /** Increase when inputs outside the tracked source graph change the task binary.
+     * @example
+     * ```ts
+     * const ci = definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * })
+     *   .job(
+     *     "test",
+     *     ({ job }) =>
+     *       job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+     *   );
+     * defineTsugiori({ cacheVersion: 2, pipelines: [ci] });
+     * ```
+     */
+    cacheVersion?: number;
+    /** Completed pipelines to generate together, including local reusable callees.
+     * @example
+     * ```ts
+     * const ci = definePipeline("ci", {
+     *   output: ".github/workflows/ci.yml",
+     *   on: { push: {} },
+     * })
+     *   .job(
+     *     "test",
+     *     ({ job }) =>
+     *       job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+     *   );
+     * defineTsugiori({ pipelines: [ci] });
+     * ```
+     */
+    pipelines: Pipelines;
+  }>,
 ): TsugioriConfig {
   const cacheVersion = input.cacheVersion ?? 1;
   if (!Number.isSafeInteger(cacheVersion) || cacheVersion <= 0) {
