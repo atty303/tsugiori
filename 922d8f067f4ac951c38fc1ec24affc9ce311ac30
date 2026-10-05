@@ -11,6 +11,7 @@ Conditions: Current checkout; operator completed initial0.1.0 publication; remov
 - Generated check and95 tests passed. Fresh reviewer release_activation_review found no actionable findings. Staged diff byte-matched the frozen reviewed candidate on retry.
 - Two initial signed commit attempts failed with 1Password agent error; preserved staged changes. Human retry produced signed local commit 922d8f067f4ac951c38fc1ec24affc9ce311ac30; no signing or credential settings changed.
 - Complete runtime thread JSONL retrieved and compared: both-operations request and retry. Runtime-injected context excluded. This activation cycle follows the successful publication observation.
+- Main and notes were pushed successfully; hosted release run37322319370 and CI run37322319873 both succeeded. The common action reported no relevant commits since the latest release tag; public Release inventory still contained only v0.1.0.
 Authority: Latest human both-operations request and retry, continuing the explicit main+notes push authorization, with user AGENTS.md and development guidance. Automatic main release activation is requested; no additional manual release is dispatched.
 ## Transcript
 - U1:
@@ -20,4 +21,4 @@ Authority: Latest human both-operations request and retry, continuing the explic
 - U2:
     retry
     
-  - A: Rechecked the eight staged files against the reviewed patch, retried signing successfully as 922d8f067f4ac951c38fc1ec24affc9ce311ac30, and prepared this normalized task note from complete runtime history before delivery.
+  - A: Rechecked the eight staged files against the reviewed patch, retried signing successfully as 922d8f067f4ac951c38fc1ec24affc9ce311ac30, prepared the normalized task note from complete runtime history, pushed main and notes, and observed both hosted release and CI success. The regular release correctly produced no new version for the ci commit; current public Release remained v0.1.0.
