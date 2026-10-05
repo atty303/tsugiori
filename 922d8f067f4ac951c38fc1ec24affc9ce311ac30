@@ -1,0 +1,23 @@
+Task: Remove the completed bootstrap and enable regular SemVer releases
+Anchor: 922d8f067f4ac951c38fc1ec24affc9ce311ac30
+Base: 8426306365fb0c66aa6e1891ef8ca87d978392b0
+Branch: main
+Commits: 922d8f067f4ac951c38fc1ec24affc9ce311ac30
+Guidance: User AGENTS.md; develop-repository; design-review; design-program-observability applicability; independent review
+Conditions: Current checkout; operator completed initial0.1.0 publication; remove initial workflow and enable regular releases; existing main+notes delivery authorization; no manual release dispatch or registry configuration change
+## Evidence
+- Operator Actions run37318193287 succeeded at base. Read-only confirmation found v0.1.0 pointing at base, a public non-draft/non-prerelease Release, uploaded source archive digest matching its bootstrap marker, and JSR version0.1.0 nonyanked with rekorLogId3088825328.
+- Deleted initial pipeline/YAML/controller/test and the activation flag. Regular workflow retains pinned generic semver action, main push/manual triggers, checks/tests before release, contents/id-token permissions, shared build/publish tasks and concurrency.
+- Generated check and95 tests passed. Fresh reviewer release_activation_review found no actionable findings. Staged diff byte-matched the frozen reviewed candidate on retry.
+- Two initial signed commit attempts failed with 1Password agent error; preserved staged changes. Human retry produced signed local commit 922d8f067f4ac951c38fc1ec24affc9ce311ac30; no signing or credential settings changed.
+- Complete runtime thread JSONL retrieved and compared: both-operations request and retry. Runtime-injected context excluded. This activation cycle follows the successful publication observation.
+Authority: Latest human both-operations request and retry, continuing the explicit main+notes push authorization, with user AGENTS.md and development guidance. Automatic main release activation is requested; no additional manual release is dispatched.
+## Transcript
+- U1:
+    両方やって
+    
+  - A: Confirmed initial publication and provenance record read-only, removed the initial workflow source/generated YAML/bootstrap files and one-time flag, updated current docs, generated two workflows, passed95 tests and generated check, completed independent review. Signature agent failed twice during commit; preserved staged changes and requested readiness.
+- U2:
+    retry
+    
+  - A: Rechecked the eight staged files against the reviewed patch, retried signing successfully as 922d8f067f4ac951c38fc1ec24affc9ce311ac30, and prepared this normalized task note from complete runtime history before delivery.
