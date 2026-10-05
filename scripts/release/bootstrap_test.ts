@@ -65,12 +65,19 @@ Deno.test("bootstrap tag retries do not mutate existing tags and reject conflict
   globalThis.fetch = (input, init) => {
     methods.push(init?.method ?? "GET");
     const url = String(input);
-    const value = url.includes("git/ref/")
-      ? { object: { type: "commit", sha: tagSha } }
-      : url.includes("tags?")
-      ? [{ name: "v0.1.0" }]
-      : { default_branch: "main" };
-    return Promise.resolve(Response.json(value));
+    const root = "https://api.github.com/repos/atty303/tsugiori";
+    if (url === root) {
+      return Promise.resolve(Response.json({ default_branch: "main" }));
+    }
+    if (url === `${root}/tags?per_page=100&page=1`) {
+      return Promise.resolve(Response.json([{ name: "v0.1.0" }]));
+    }
+    if (url === `${root}/git/ref/tags/v0.1.0`) {
+      return Promise.resolve(
+        Response.json({ object: { type: "commit", sha: tagSha } }),
+      );
+    }
+    return Promise.resolve(new Response(null, { status: 404 }));
   };
   try {
     const github = new Github("a".repeat(40), "fixture-noncredential");

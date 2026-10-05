@@ -29,7 +29,7 @@ export class Github {
     body?: unknown,
   ): Promise<Response> {
     const response = await fetch(
-      `https://api.github.com/repos/atty303/tsugiori/${path}`,
+      `https://api.github.com/repos/atty303/tsugiori${path ? `/${path}` : ""}`,
       {
         method,
         headers: {
