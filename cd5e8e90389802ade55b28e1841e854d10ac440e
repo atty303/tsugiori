@@ -1,0 +1,17 @@
+Task: Restore normal Worker release tool diagnostics
+Anchor: cd5e8e90389802ade55b28e1841e854d10ac440e
+Base: 7f15ca1226f4afa9850b666f41a8bd2f3767e753
+Branch: main
+Commits: cd5e8e90389802ade55b28e1841e854d10ac440e restores tool output and exit codes, tests and architecture prose
+Guidance: repository AGENTS; investigate-problem; develop-repository; design-program-observability; review; Git task evidence
+Conditions: Current checkout; preserve untracked mise.local.toml; no push, deploy, cloud-resource or credential changes; full session history enumerated and two human messages matched this cycle
+## Evidence
+Run 37330214140 job 111831119224 built Worker successfully and published JSR @atty303/tsugiori@0.2.0 before Worker deployment failed. Both tool output streams were discarded; no diagnostic artifact was retained. Root cause cannot be established from retained logs. Configuration structure has two recipients; fnox configuration check passed, but CI decryption and Cloudflare credential validity remain unconfirmed. Standard check and all 98 tests passed; fresh independent review found no actionable findings. Remote notes were an ancestor of local notes, whose existing content was preserved.
+Authority: Latest user logging request and repository AGENTS; source and CI observations establish mechanisms, not deployment success.
+## Transcript
+- U1:
+    [https://github.com/atty303/tsugiori/actions/runs/37330214140/job/111831119224](https://github.com/atty303/tsugiori/actions/runs/37330214140/job/111831119224) こけた
+  - A: Investigated retained GitHub job logs and source revision. Confirmed successful JSR publication followed by Worker failure with tool output suppressed. Checked only secret registration names and configuration structure; did not read personal key configuration or call Cloudflare.
+- U2:
+    tokenが出るかもしれないってログを出さない判断をしたんだろうが、こういう失敗で苦労するから普通は出すべきだ。wranglerが出すかもしれないは懸念であって常識的なソフトウェアなら出さないことを期待していいだろ
+  - A: Acknowledged blanket suppression prevented diagnosis. Restored inherited fnox and Wrangler stdout/stderr with exit codes, preserving existing sanitization and secret cleanup. Added production CLI regression checks with isolated fixture credentials; updated architecture, passed standard check and 98 tests, completed independent review and local commit. No push or deployment rerun; original failure cause remains unknown.
