@@ -1,0 +1,31 @@
+Task: Enable Worker invocation logs, Issues and pre-execution cache
+Anchor: 6d66249574f16c0a1942b8d9f7aaeba10ef3bac1
+Base: ab4da9d94db1938a6145125524818aac0564bad2
+Branch: main
+Commits: 6d66249574f16c0a1942b8d9f7aaeba10ef3bac1 adds standard Wrangler log/Issues/cache settings and updates current architecture
+Guidance: repository AGENTS; develop-repository; design-program-observability; review; Git task evidence
+Conditions: Current checkout; preserve untracked mise.local.toml; no push, direct deployment, cloud-resource or credential modifications; complete session history retrieved and four human messages matched this cycle
+## Evidence
+User screenshot attachment codex-clipboard-190b39ae-6610-4bf9-9130-fee589979056.png SHA256 033a8c7727d405d8faa2c04699de30935cdec0bd06f6787724d5550f7ff3cdf4 shows Production Runtime Cache Disabled. Official documentation distinguishes pre-execution Workers Cache from the internal Cache API and documents cache.enabled and observability.issues.enabled. Pinned Wrangler 4.147.0 supports these settings. Focused repository check and official deploy dry-run passed; fresh independent review found no issues. First dry-run omitted --cwd and failed its custom-build cwd; correcting the observation command to match existing release invocation passed without source changes. Existing TTL/no-store and Cache API implementation unchanged. Actual deployment, cache hits and log/Issues collection remain unverified for this commit.
+Authority: Current user requests and repository AGENTS; official Cloudflare documentation and pinned CLI define configuration behavior.
+## Transcript
+- U1:
+    {
+      "observability": {
+        "logs": {
+          "enabled": true,
+          "invocation_logs": true
+        }
+      }
+    }
+    有効にして
+  - A: Added the explicitly requested standard invocation log settings. Examined existing observability and application logging boundary and validated through repository check and pinned Wrangler dry-run.
+- U2:
+    cacheがdisabledになっているが意図どおりか？ cache使うはずでは？
+  - A: Examined the supplied dashboard image, source and official documentation. Explained that Disabled refers to Workers Cache before execution, independent of caches.default. Existing code stores ref results for five minutes and immutable contracts for one year; live hit behavior remained unverified. No cache change was inferred from the question alone.
+- U3:
+    worker実行前cacheも有効にしたいがwranglerで設定するものではないのか？
+  - A: Confirmed cache.enabled=true is the Wrangler setting and added it following the expressed intent to enable pre-execution caching. Existing response directives and internal cache implementation were preserved.
+- U4:
+    issuesもdashboardで有効にしたが、これも設定可能か？
+  - A: Confirmed observability.issues.enabled=true is supported. Official docs state dashboard-only enablement is disabled by the next Wrangler deployment without that key, so added it to preserve the user-enabled behavior. Updated architecture, passed focused check and official dry-run, completed fresh independent review and made a local commit. No push or direct deployment.
