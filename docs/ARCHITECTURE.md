@@ -195,8 +195,14 @@ The service uses unauthenticated GitHub API requests and accepts no user
 credentials. Public hosting still requires rate-limit and authentication
 planning before deployment. The deployment configuration owns no domain or
 bindings, disables remote log export, and uploads a browser-targeted Deno
-bundle. Consumer imports never load Worker code. The loopback development
-entry uses the same HTTP service with no persistent cache.
+bundle. Consumer imports never load Worker code. Wrangler and its Node runtime
+are pinned in the repository's mise toolchain. Wrangler's official custom build
+hook owns bundling for local development, dry-run upload validation, and deploy.
+Local development runs the Worker in workerd on loopback with remote bindings
+disabled. The standard verification path validates the upload without publishing.
+Authentication and publication remain explicit operator actions through separate
+tasks; the repository contains no account ID or credential. Wrangler usage metrics
+are disabled by default.
 
 Requests retain at most 32 causal stage records per run and 128 runs per
 isolate, evicting successful runs first. Records contain operation names,

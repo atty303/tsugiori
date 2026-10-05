@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Authorize Wrangler using the official Cloudflare browser login"
+set -euo pipefail
+exec wrangler login "$@"

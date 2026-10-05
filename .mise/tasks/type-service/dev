@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Serve type imports on loopback without deploying (GitHub requests are uncached)"
+#MISE description="Run the Worker locally with Wrangler and remote bindings disabled"
 set -euo pipefail
-deno run --allow-net=127.0.0.1:8787,api.github.com services/type-service/local.ts
+exec wrangler dev --cwd services/type-service --local --ip 127.0.0.1 --port 8787 "$@"

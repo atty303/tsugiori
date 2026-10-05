@@ -2,3 +2,6 @@
 .tsugiori/
 dist/
 .DS_Store
+.wrangler/
+services/type-service/.dev.vars*
+services/type-service/.env*

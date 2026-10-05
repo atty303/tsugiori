@@ -236,3 +236,45 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
     ),
   );
 });
+
+Deno.test("GitHub redirects are rejected in Workers-compatible manual mode", async () => {
+  const service = createService({
+    github: new GitHubClient((request) => {
+      assertEquals(request.redirect, "manual");
+      return Promise.resolve(
+        new Response(null, {
+          status: 301,
+          headers: { Location: "https://example.com/redirect" },
+        }),
+      );
+    }),
+  });
+  assertEquals(
+    (await service.fetch(new Request("https://t/github/actions/a/b@v1")))
+      .status,
+    502,
+  );
+});
+
+Deno.test("default GitHub transport preserves native fetch invocation", async () => {
+  const nativeFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = function (
+      this: unknown,
+      _request: RequestInfo | URL,
+    ): Promise<Response> {
+      assert(
+        this === undefined || this === globalThis,
+        "Native fetch must not receive the client as its receiver",
+      );
+      return Promise.resolve(Response.json({ sha: shaA }));
+    };
+    const client = new GitHubClient();
+    assertEquals(
+      await client.resolve(parseUses("a/b@v1"), new Diagnostics().begin()),
+      shaA,
+    );
+  } finally {
+    globalThis.fetch = nativeFetch;
+  }
+});

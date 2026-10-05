@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Deploy the type service to the authenticated Cloudflare account"
+set -euo pipefail
+exec wrangler deploy --cwd services/type-service "$@"

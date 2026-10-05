@@ -6,7 +6,10 @@ export type Fetcher = (request: Request) => Promise<Response>;
 const MAX_BYTES = 1_048_576;
 
 export class GitHubClient {
-  constructor(readonly fetcher: Fetcher = fetch, readonly timeoutMs = 15_000) {}
+  constructor(
+    readonly fetcher: Fetcher = (request) => fetch(request),
+    readonly timeoutMs = 15_000,
+  ) {}
   async resolve(source: ActionSource, recording: Recording): Promise<string> {
     return await recording.operation("resolve_ref", async () => {
       const response = await this.get(
@@ -69,7 +72,7 @@ export class GitHubClient {
             "X-GitHub-Api-Version": "2022-11-28",
           },
           signal: controller.signal,
-          redirect: "error",
+          redirect: "manual",
         }),
       );
       if (!response.ok) {

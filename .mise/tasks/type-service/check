@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Validate the Worker upload with Wrangler without deploying"
+set -euo pipefail
+exec wrangler deploy --cwd services/type-service --dry-run --outdir ../../dist/type-service/upload
