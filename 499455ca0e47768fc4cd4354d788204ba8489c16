@@ -1,0 +1,110 @@
+Task: Implement SemVer JSR and source archive releases through Tsugiori
+Anchor: 499455ca0e47768fc4cd4354d788204ba8489c16
+Base: de7f71107962126f793c309ab3f541177a3c3e83
+Branch: main
+Commits: 499455ca0e47768fc4cd4354d788204ba8489c16
+Guidance: User AGENTS.md; develop-repository; design-review; design-program-observability; investigate-problem; independent review
+Conditions: Current checkout only; initial release disabled for automatic publication; no push, remote tags, PR, JSR configuration or actual publication; user chose MIT; signed local commit after signing agent retry
+## Evidence
+- mise run check passed; mise run test passed 98 tests; generated YAML check and Deno publish dry-run passed, including slow types validation.
+- Version injection verified archive 0.2.0 while root source remained 0.1.0; native tar read the deterministic archive. Registry comparison tests enforce exact file set, sizes, hashes and exports.
+- Fresh reviewer release_review found no actionable findings in initial and delta review. All 19 staged files were compared byte-for-byte with the reviewed final candidate.
+- Signed commit initially failed twice with 1Password signing agent errors, preserving staged changes. Human retry produced local commit 499455ca0e47768fc4cd4354d788204ba8489c16; no signing or credential settings changed.
+- Complete runtime thread JSONL retrieved and compared: current implementation request, MIT answer and retry. Preceding dig design completed before this implementation cycle. Runtime-injected context excluded; human answer preserved from transport envelope.
+Authority: Current implementation request, MIT selection and retry; user AGENTS.md limits external effects. The required local commit and normalized task note follow develop-repository. JSR ownership, linkage, hosted OIDC/provenance and publication remain unverified.
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    `/Users/a13400/src/atty303/tsugiori` に、`atty303/repository-template` の汎用release actionを使ったSemVer releaseを実装してください。
+    
+    通常releaseと初回 `0.1.0` 公開の専用workflowは、両方とも `.github/tsugiori.ts` で記述し、生成したYAMLをcommit対象として整備してください。
+    
+    ## 目的
+    - TsugioriをJSRパッケージとして公開し、対応する公開用ソースアーカイブをGitHub Releaseへ配布する。
+    - 初回だけ `0.1.0` とし、以降は共通actionの通常のSemVer計算を利用する。
+    - 独自version計算や初回専用処理の恒久的な保守を避ける。
+    
+    ## 成功条件
+    - 通常releaseが汎用actionをfull commit SHA固定、`versioning: semver` で呼び出す。
+    - 初回専用workflowを手動起動し、固定version `0.1.0` を公開できる構成になっている。
+    - 初回公開が完了する前に、通常releaseが別versionを自動公開しない。
+    - 初回完了後、専用workflowのTsugiori定義を削除・再生成し、通常releaseを有効化する手順がある。
+    - 通常releaseはチェック・テスト成功後、`main`へのpushで実行され、再試行用の手動起動にも対応する。
+    - release版のversionを注入した公開用ソースアーカイブが生成され、その内容からJSRへ公開される。
+    - JSR公開はGitHub ActionsのOIDCを使用する。
+    - 同じversionの再試行では公開済み内容との一致を確認し、不一致なら失敗する。
+    - 必要なローカル検証、生成YAMLの整合性確認、公開dry-runが成功する。実公開を確認したとは報告しない。
+    - README等に導入前提、初回公開、通常運用、部分失敗時の再試行手順が記載される。
+    
+    ## 決定事項
+    - `atty303/repository-template/.github/actions/release` の汎用actionを採用し、repository-template自体は変更しない。
+      - 理由: 共通のversion計算、成果物検証、公開およびownershipに基づくcleanupを利用するため。
+      - 主な棄却案: 共通actionへの`0.x`維持機能追加、Tsugiori専用release controller。公式からの差と保守対象が増えるため。
+    - 初回だけ別途 `0.1.0` を公開し、そのtagを以降の計算基準にする。
+      - 理由: 希望する初回versionを満たし、継続的な独自計算を避けるため。
+      - 主な棄却案: 初回 `1.0.0`、`0.x`維持。前者は初回versionの意図に合わず、後者は不要な拡張になるため。
+    - 初回以降は通常計算とし、`fix`はpatch、`feat`はminor、breaking changeはmajor更新とする。
+      - 理由: semantic-releaseの通常動作に従うため。
+      - 主な棄却案: breaking changeをminorへ変換する方針。採用しない。
+    - 初回専用workflowは手動起動し、初回公開後に削除する。
+      - 理由: 一度だけ使う処理を恒久的な分岐として残さないため。
+      - 主な棄却案: 通常workflowへの恒久的な初回モード追加。
+    - 通常・初回の両workflowをTsugioriで記述する。
+      - 理由: workflowの定義元を統一し、生成結果を既存のcheckで検証するため。
+      - 主な棄却案: 手書きrelease YAML。
+    - 配布対象はJSRパッケージとGitHub Releaseの公開用ソースアーカイブとする。
+      - 理由: パッケージ利用を提供し、公開内容をGitHubにも残すため。
+      - 主な棄却案: CLIバイナリ配布、manifestだけの添付。
+    - 初回と通常releaseでビルド・JSR公開taskを共有する。
+      - 理由: version注入と公開内容を一致させるため。
+      - 主な棄却案: 初回専用の別ビルド・公開実装。
+    - versionは公開用ソースへ注入し、Gitへ書き戻さない。
+      - 理由: 共通actionの契約を維持し、tagを入力commitに対応させるため。
+      - 主な棄却案: version更新commitの自動作成。
+    - JSR認証にはOIDCを使用する。
+      - 理由: 長期公開tokenを管理せず、GitHub Actionsから公開するため。
+      - 主な棄却案: JSR tokenをGitHub Secretへ保存する方式。
+    
+    ## 制約
+    - 現在のcheckoutで作業する。
+    - repository-templateを変更しない。
+    - Push、remote tag作成、PR作成、JSR設定変更、実際のパッケージ公開・GitHub Release作成は行わない。今回の範囲は実装、ローカル検証、運用手順の整備までとする。
+    - 公開済みJSR versionをrollbackで削除しない。
+    - 初回専用処理では、既存のtagやReleaseを無条件に削除・上書きしない。
+    - workflow YAMLはTsugiori定義から生成する。
+    
+    ## 対象外
+    - CLIバイナリ配布。
+    - `0.x`または`0.1.x`を維持する独自version計算。
+    - npm等への追加公開。
+    - Cloudflare type-serviceのdeploy。
+    - 今回の作業中の初回実公開、およびその実公開後に行う専用workflow削除。
+    
+    ## 未検証の前提
+    - JSRの `@atty303/tsugiori` の存在、所有権、既存version、GitHubリポジトリとの紐付け状態。
+    - 現在のexportsと依存関係がJSRの公開要件を満たすか。
+    - 公開用ソースに必要なファイル範囲と、アーカイブ展開先からの公開・OIDC provenanceの成立条件。
+    - JSR公開済み内容との一致確認に使えるregistry metadataと、公開時の変換を考慮した比較方法。
+    - 実装時点の汎用actionのrevisionと契約。
+    - 実装開始時のGit tag、GitHub Release、checkoutの状態。
+    
+    ## 実装時の指示
+    - 現在のpackage名は `@atty303/tsugiori`、root `deno.json` のversionは `0.1.0`。package identityはこのmetadataを参照している。
+    - 現在のworkflow定義は `.github/tsugiori.ts`。既存CIと生成checkを維持する。
+    - 汎用actionの契約は `https://github.com/atty303/repository-template/blob/main/docs/release-action.md` を確認する。
+    - root mise taskの `release:build` と `release:publish` を整備し、共通actionが渡すversionとartifact directoryを使用する。
+    - 初回専用workflowも同じtaskと公開用アーカイブを使用する。
+    - 再試行時に「versionが存在する」という理由だけで成功扱いしない。内容一致を確認する。
+    - JSRのパッケージ作成・リポジトリ紐付けは運用上の前提として説明し、未確認の設定を完了扱いしない。
+    - 初回公開後の削除手順は、Tsugiori定義の削除、YAML再生成、通常releaseの有効化まで具体的に記載する。
+    
+  - A: Applied development, observability and design review guidance; fetched origin and standard notes; confirmed clean main at base with no version tags or GitHub Releases. Verified the pinned common release action contract and official JSR/Deno publication implementation. Initial dry-run identified the missing mandatory license and requested the intended SPDX license.
+- U2:
+    MIT
+  - A: Implemented both generated release workflows, fixed bootstrap 0.1.0 with existing-resource protection, disabled regular release activation, shared source archive/build/publish tasks, full registry content equality, bounded local diagnostics and operator instructions. Diagnosed and corrected Buffer versus Uint8Array archive round-trip behavior. Passed 98 tests, generated check, publish dry-runs and independent full/delta review; staged only reviewed changes. Signed commit failed twice with 1Password agent errors; preserved staged changes and requested signing readiness. Removed owned temporary artifacts and logs; no public writes performed.
+- U3:
+    retry
+    
+  - A: Rechecked staged state and retried the same signed local commit successfully as 499455ca0e47768fc4cd4354d788204ba8489c16. Read complete runtime history, confirmed all human messages in this cycle and existing note absence, and prepared this normalized record at the pre-handoff checkpoint.
