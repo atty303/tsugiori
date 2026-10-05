@@ -5,5 +5,12 @@
   "compatibility_date": "2026-10-05",
   "no_bundle": true,
   "build": { "command": "mise run type-service:build", "cwd": "../..", "watch_dir": "src" },
-  "observability": { "enabled": false }
+  "cache": { "enabled": true },
+  "observability": {
+    "issues": { "enabled": true },
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  }
 }

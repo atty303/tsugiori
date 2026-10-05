@@ -202,7 +202,10 @@ contract generation or diagnostic records. Public hosting still requires
 verification of effective API limits and account permissions.
 
 The deployment configuration names the Worker `tsugiori`, enables workers.dev,
-disables remote log export, and uploads a browser-targeted Deno bundle. Consumer
+Workers Cache before execution, Cloudflare Workers Logs including invocation
+logs, and Issues for grouped production failures. Response Cache-Control headers
+govern cache lifetime; the Worker's Cache API remains independent. The service
+uploads a browser-targeted Deno bundle. Consumer
 imports never load Worker code. Wrangler and its Node runtime are pinned in the
 repository's mise toolchain. Wrangler's custom build hook builds and watches
 source for local development and dry-run upload validation. Release builds
