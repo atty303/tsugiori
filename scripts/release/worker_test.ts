@@ -102,6 +102,7 @@ const stat = await Deno.stat(path);
 await Deno.writeTextFile(Deno.env.get("PROBE")!, JSON.stringify({
   path,
   artifact: args[1],
+  config: args[args.indexOf("--config") + 1],
   mode: stat.mode! & 0o777,
   secret: secrets.GITHUB_OAUTH_CLIENT_SECRET === "fixture-oauth-secret",
   onlyRuntimeSecret: Object.keys(secrets).join() === "GITHUB_OAUTH_CLIENT_SECRET",
@@ -129,6 +130,10 @@ Deno.exit(Deno.env.get("PROBE_FAIL") === "true" ? 1 : 0);
       await record.finish("ok");
       const probe = JSON.parse(await Deno.readTextFile(env.PROBE));
       assertEquals(probe.artifact, join(root, "dist/type-service/worker.js"));
+      assertEquals(
+        probe.config,
+        join(await Deno.realPath(root), "services/type-service/wrangler.jsonc"),
+      );
       assertEquals(probe.mode, 0o600);
       for (
         const field of [

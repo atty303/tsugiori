@@ -129,6 +129,8 @@ export async function uploadWorker(
         args: [
           "deploy",
           artifact,
+          "--config",
+          resolve("services/type-service/wrangler.jsonc"),
           "--cwd",
           "services/type-service",
           "--secrets-file",
