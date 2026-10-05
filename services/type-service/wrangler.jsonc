@@ -1,5 +1,6 @@
 {
-  "name": "tsugiori-type-service",
+  "name": "tsugiori",
+  "workers_dev": true,
   "main": "../../dist/type-service/worker.js",
   "compatibility_date": "2026-10-05",
   "no_bundle": true,

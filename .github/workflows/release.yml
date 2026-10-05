@@ -36,6 +36,8 @@ jobs:
           mise run test
 
       - name: Release
+        env:
+          FNOX_AGE_KEY: "${{ secrets.FNOX_AGE_KEY }}"
         uses: atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724
         with:
           versioning: semver

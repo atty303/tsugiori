@@ -1,0 +1,13 @@
+root = true
+if_missing = "error"
+env = "exec"
+
+[providers.age]
+type = "age"
+recipients = []
+
+[secrets]
+CLOUDFLARE_ACCOUNT_ID = { default = "" }
+GITHUB_OAUTH_CLIENT_ID = { default = "" }
+CLOUDFLARE_API_TOKEN = { provider = "age" }
+GITHUB_OAUTH_CLIENT_SECRET = { provider = "age" }

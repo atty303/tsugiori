@@ -2,6 +2,8 @@ export class ServiceError extends Error {
   constructor(
     readonly code:
       | "invalid_request"
+      | "configuration_missing"
+      | "authentication_failed"
       | "not_found"
       | "metadata_invalid"
       | "upstream_failure"

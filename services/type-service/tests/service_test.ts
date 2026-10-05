@@ -5,7 +5,7 @@ import { Diagnostics, Recording } from "../src/diagnostics.ts";
 import { generateG1 } from "../src/github/actions/g1.ts";
 import { encodeUses, parseUses } from "../src/github/reference.ts";
 
-import { MemoryCache, shaA, shaB, yaml } from "./fixtures.ts";
+import { MemoryCache, oauth, shaA, shaB, yaml } from "./fixtures.ts";
 
 Deno.test("HTTP resolves refs before metadata, caches with TTL and regenerates immutable bytes", async () => {
   const cache = new MemoryCache();
@@ -14,9 +14,12 @@ Deno.test("HTTP resolves refs before metadata, caches with TTL and regenerates i
   const urls: string[] = [];
   const service = createService({
     cache,
-    github: new GitHubClient((request) => {
+    github: new GitHubClient(oauth, (request) => {
       urls.push(request.url);
-      assert(!request.headers.has("authorization"));
+      assertEquals(
+        request.headers.get("authorization"),
+        `Basic ${btoa(`${oauth.clientId}:${oauth.clientSecret}`)}`,
+      );
       if (fail) return Promise.resolve(new Response(null, { status: 503 }));
       if (request.url.includes("/commits/")) {
         return Promise.resolve(Response.json({ sha }));
@@ -84,8 +87,9 @@ Deno.test("failure contracts, encoding, recording bounds and opt-out", async () 
   const diagnostics = new Diagnostics(2);
   const service = createService({
     diagnostics,
-    github: new GitHubClient(() =>
-      Promise.resolve(new Response(null, { status: 429 }))
+    github: new GitHubClient(
+      oauth,
+      () => Promise.resolve(new Response(null, { status: 429 })),
     ),
   });
   assertEquals(
@@ -110,8 +114,9 @@ Deno.test("failure contracts, encoding, recording bounds and opt-out", async () 
       match: () => Promise.reject(new Error("store")),
       put: () => Promise.reject(new Error("store")),
     },
-    github: new GitHubClient(() =>
-      Promise.resolve(Response.json({ sha: shaA }))
+    github: new GitHubClient(
+      oauth,
+      () => Promise.resolve(Response.json({ sha: shaA })),
     ),
   });
   assertEquals(
@@ -130,8 +135,9 @@ Deno.test("failure contracts, encoding, recording bounds and opt-out", async () 
   recording.finish("ok");
   assertEquals(diagnostics.list()[0].completeness, "partial");
   assertEquals(diagnostics.list()[0].operations.length, 32);
-  const timeoutClient = new GitHubClient(() =>
-    Promise.reject(new Error("network"))
+  const timeoutClient = new GitHubClient(
+    oauth,
+    () => Promise.reject(new Error("network")),
   );
   await assertRejects(
     () => timeoutClient.resolve(parseUses("a/b@v1"), diagnostics.begin()),
@@ -173,7 +179,7 @@ Deno.test("generator faithfully roundtrips strings and escapes comment terminato
 Deno.test("invalid metadata, unknown versions and deadlines fail without contracts", async () => {
   let calls = 0;
   const service = createService({
-    github: new GitHubClient(() => {
+    github: new GitHubClient(oauth, () => {
       calls++;
       return Promise.resolve(new Response("name: invalid"));
     }),
@@ -194,6 +200,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
   assertEquals(calls, before);
   const deadline = createService({
     github: new GitHubClient(
+      oauth,
       (request) =>
         new Promise((_resolve, reject) =>
           request.signal.addEventListener(
@@ -223,7 +230,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
   const cache = new MemoryCache();
   const headService = createService({
     cache,
-    github: new GitHubClient(() => Promise.resolve(new Response(yaml))),
+    github: new GitHubClient(oauth, () => Promise.resolve(new Response(yaml))),
   });
   const head = await headService.fetch(
     new Request(immutable, { method: "HEAD" }),
@@ -239,7 +246,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
 
 Deno.test("GitHub redirects are rejected in Workers-compatible manual mode", async () => {
   const service = createService({
-    github: new GitHubClient((request) => {
+    github: new GitHubClient(oauth, (request) => {
       assertEquals(request.redirect, "manual");
       return Promise.resolve(
         new Response(null, {
@@ -269,7 +276,7 @@ Deno.test("default GitHub transport preserves native fetch invocation", async ()
       );
       return Promise.resolve(Response.json({ sha: shaA }));
     };
-    const client = new GitHubClient();
+    const client = new GitHubClient(oauth);
     assertEquals(
       await client.resolve(parseUses("a/b@v1"), new Diagnostics().begin()),
       shaA,

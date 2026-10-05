@@ -1,5 +1,10 @@
 import type { ServiceCache } from "../src/service.ts";
 
+export const oauth = {
+  clientId: "fixture-app",
+  clientSecret: "fixture-secret",
+};
+
 export const shaA = "a".repeat(40);
 export const shaB = "b".repeat(40);
 export const yaml = `name: Publish

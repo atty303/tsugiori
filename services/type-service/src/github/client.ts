@@ -3,10 +3,15 @@ import type { Recording } from "../diagnostics.ts";
 import type { ActionSource } from "./reference.ts";
 
 export type Fetcher = (request: Request) => Promise<Response>;
+export type OAuthCredentials = Readonly<{
+  clientId: string;
+  clientSecret: string;
+}>;
 const MAX_BYTES = 1_048_576;
 
 export class GitHubClient {
   constructor(
+    private readonly oauth: OAuthCredentials,
     readonly fetcher: Fetcher = (request) => fetch(request),
     readonly timeoutMs = 15_000,
   ) {}
@@ -62,9 +67,15 @@ export class GitHubClient {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
+      if (!this.oauth.clientId || !this.oauth.clientSecret) {
+        throw new ServiceError("configuration_missing", 503);
+      }
       const response = await this.fetcher(
         new Request(`https://api.github.com${path}`, {
           headers: {
+            Authorization: `Basic ${
+              btoa(`${this.oauth.clientId}:${this.oauth.clientSecret}`)
+            }`,
             Accept: raw
               ? "application/vnd.github.raw+json"
               : "application/vnd.github+json",
@@ -78,6 +89,9 @@ export class GitHubClient {
       if (!response.ok) {
         await response.body?.cancel();
         if (response.status === 404) throw new ServiceError("not_found", 404);
+        if (response.status === 401) {
+          throw new ServiceError("authentication_failed", 502);
+        }
         if (
           response.status === 429 ||
           (response.status === 403 &&

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
 #MISE description="Bundle the type service for Cloudflare Workers without deploying"
 set -euo pipefail
-deno bundle --platform browser --format esm --check services/type-service/src/worker.ts --output dist/type-service/worker.js
+unset FNOX_AGE_KEY FNOX_AGE_KEY_FILE CLOUDFLARE_API_TOKEN GITHUB_OAUTH_CLIENT_SECRET
+if [[ "${TSUGIORI_WORKER_PREBUILT:-}" == "true" ]]; then
+  exit 0
+fi
+deno bundle --platform browser --format esm --check services/type-service/src/worker.ts --output "${1:-dist/type-service/worker.js}"

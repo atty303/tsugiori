@@ -1,7 +1,7 @@
 import { assert, assertEquals } from "@std/assert";
 import { GitHubClient } from "../src/github/client.ts";
 import { createService } from "../src/service.ts";
-import { MemoryCache, shaA, shaB, yaml } from "./fixtures.ts";
+import { MemoryCache, oauth, shaA, shaB, yaml } from "./fixtures.ts";
 
 Deno.test("Deno URL import preserves redirects on cold locked fetch and supports explicit refresh", async () => {
   const directory = await Deno.makeTempDir({ prefix: "tsugiori-type-import-" });
@@ -11,7 +11,7 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
   const cache = new MemoryCache();
   const service = createService({
     cache,
-    github: new GitHubClient((request) =>
+    github: new GitHubClient(oauth, (request) =>
       Promise.resolve(
         request.url.includes("/commits/")
           ? Response.json({ sha })
@@ -23,8 +23,7 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
                 : "Publish artifacts",
             ),
           ),
-      )
-    ),
+      )),
   });
   const server = Deno.serve({
     hostname: "127.0.0.1",

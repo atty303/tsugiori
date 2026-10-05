@@ -16,7 +16,10 @@ export function createService(
     diagnostics?: Diagnostics;
   } = {},
 ) {
-  const github = options.github ?? new GitHubClient();
+  const github = options.github ?? new GitHubClient({
+    clientId: "",
+    clientSecret: "",
+  });
   const diagnostics = options.diagnostics ?? new Diagnostics();
   async function cached(
     request: Request,

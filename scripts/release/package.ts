@@ -1,6 +1,7 @@
 import { isAbsolute, join, resolve } from "node:path";
 import { archive, digest, type Files, unarchive } from "./archive.ts";
 import { main, type Recording } from "./diagnostics.ts";
+import { buildEnvironment } from "./worker.ts";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -31,6 +32,8 @@ export async function command(
   const result = await new Deno.Command(Deno.execPath(), {
     args: [...args],
     cwd,
+    clearEnv: true,
+    env: buildEnvironment(),
     stdout: "inherit",
     stderr: "inherit",
   }).output();

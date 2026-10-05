@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-#MISE description="Publish the source archive through GitHub Actions OIDC or verify an identical version"
+#MISE description="Publish or verify the JSR archive, then deploy the type service"
 set -euo pipefail
-exec deno run -A scripts/release/package.ts publish "$@"
+exec deno run -A scripts/release/publish.ts "$@"

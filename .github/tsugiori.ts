@@ -90,7 +90,11 @@ const release = definePipeline("release", {
       workingDirectory: ".github",
     })
     .run({ name: "Run repository checks and tests", run: "mise run test" })
-    .uses(releaseAction, { name: "Release", with: { versioning: "semver" } }));
+    .uses(releaseAction, {
+      name: "Release",
+      with: { versioning: "semver" },
+      env: { FNOX_AGE_KEY: ({ secrets }) => secrets.FNOX_AGE_KEY },
+    }));
 
 const config = defineTsugiori({
   cacheVersion: 1,

@@ -194,18 +194,23 @@ after redirect expiry returns an error. The generator's version owns its
 emitted bytes and parser dependency; changing either output requires a new
 version and retaining the old generator. Unknown versions fail explicitly.
 
-The service uses unauthenticated GitHub API requests and accepts no user
-credentials. Public hosting still requires rate-limit and authentication
-planning before deployment. The deployment configuration owns no domain or
-bindings, disables remote log export, and uploads a browser-targeted Deno
-bundle. Consumer imports never load Worker code. Wrangler and its Node runtime
-are pinned in the repository's mise toolchain. Wrangler's official custom build
-hook owns bundling for local development, dry-run upload validation, and deploy.
-Local development runs the Worker in workerd on loopback with remote bindings
-disabled. The standard verification path validates the upload without publishing.
-Authentication and publication remain explicit operator actions through separate
-tasks; the repository contains no account ID or credential. Wrangler usage metrics
-are disabled by default.
+The service authenticates public GitHub API requests with a dedicated OAuth
+App's client ID and client secret and accepts no user credentials. Missing
+bindings or failed authentication fail explicitly without unauthenticated
+fallback. Credentials are used only in GitHub API headers; they never enter
+contract generation or diagnostic records. Public hosting still requires
+verification of effective API limits and account permissions.
+
+The deployment configuration names the Worker `tsugiori`, enables workers.dev,
+disables remote log export, and uploads a browser-targeted Deno bundle. Consumer
+imports never load Worker code. Wrangler and its Node runtime are pinned in the
+repository's mise toolchain. Wrangler's custom build hook builds and watches
+source for local development and dry-run upload validation. Release builds
+retain a local bundle for later deployment without adding it to GitHub Release
+assets; deployment skips the custom build using this prebuilt bundle. Local
+development runs the Worker in workerd on loopback with remote bindings disabled. The standard
+verification path validates the upload without publishing. Wrangler usage
+metrics are disabled by default.
 
 Requests retain at most 32 causal stage records per run and 128 runs per
 isolate, evicting successful runs first. Records contain operation names,
@@ -224,6 +229,29 @@ ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,
 version injection and JSR publication from the extracted archive. Development
 metadata is never written back by a release.
+
+`release:build` also builds the Worker into ignored local `dist/` storage before
+any publication. `release:publish` publishes or verifies the JSR version, then
+deploys that bundle with Wrangler. Deployment failure fails the release; JSR
+versions remain published and identical-source retries can retry deployment. The
+common action alone decides whether a release is needed. Old release reruns may
+replace current Worker code and secrets; package, Worker and GitHub Release
+publication are not atomic.
+
+fnox owns age-encrypted deployment and OAuth secrets in `fnox.toml`. Public
+recipients permit both a dedicated CI identity and a personal identity to
+decrypt the same ciphertext. Account and OAuth client IDs are separate plaintext
+configuration. The release action receives only `FNOX_AGE_KEY` from Actions;
+other steps do not receive that key. Noninteractive fnox execution uses the
+repository config without global configuration, strips the decryption identity
+from its child, and supplies a Cloudflare account API token for deployment. The
+OAuth secret goes into a mode-0600 temporary secrets file for Wrangler's
+code-and-secret deployment and is removed on success or failure. The build
+receives neither decrypted secrets nor the decryption identity. Subprocess
+secret-resolution and upload output is discarded and Wrangler disk logs are
+disabled; bounded release diagnostics retain stage and status only. Real
+recipients and credentials are operator
+configuration, not repository defaults.
 
 JSR retries compare the complete registry file manifest (path, byte count and
 SHA-256) and exports against the source archive. The publication config excludes
