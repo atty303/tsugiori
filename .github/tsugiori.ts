@@ -1,26 +1,29 @@
 import {
-  actionInput,
-  defineAction,
+  type ActionContract,
   definePipeline,
   defineTsugiori,
   rawNode,
   runTsugiori,
 } from "@atty303/tsugiori";
 
-const checkout = defineAction({
+const checkout = {
+  name: "Checkout",
+  description: "Checkout repository",
   uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
   inputs: {
-    "persist-credentials": actionInput.boolean(),
-    "fetch-depth": actionInput.number({ required: false }),
+    "persist-credentials": { description: "Persist checkout credentials" },
+    "fetch-depth": { description: "Number of commits to fetch" },
   },
-  outputs: [],
-});
+  outputs: {},
+} as const satisfies ActionContract;
 
-const mise = defineAction({
+const mise = {
+  name: "mise",
+  description: "Install toolchain",
   uses: "jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
   inputs: {},
-  outputs: [],
-});
+  outputs: {},
+} as const satisfies ActionContract;
 
 const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -32,13 +35,12 @@ const ci = definePipeline("ci", {
     .when(({ github }) =>
       github.event_name.eq("push").or(github.event_name.eq("pull_request"))
     )
-    .uses({
+    .uses(checkout, {
       name: "Checkout",
-      uses: checkout({ "persist-credentials": false }),
+      with: { "persist-credentials": "false" },
     })
-    .uses({
+    .uses(mise, {
       name: "Install toolchain",
-      uses: mise({}),
     })
     .run({
       name: "Check generated workflow",
@@ -63,12 +65,14 @@ const ci = definePipeline("ci", {
 
 // Enable only after 0.1.0 is verified and the bootstrap definition is removed.
 const releaseEnabled = false;
-const releaseAction = defineAction({
+const releaseAction = {
+  name: "Release",
+  description: "Release repository",
   uses:
     "atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724",
-  inputs: { versioning: actionInput.string() },
-  outputs: [],
-});
+  inputs: { versioning: { description: "Release versioning scheme" } },
+  outputs: {},
+} as const satisfies ActionContract;
 
 const release = definePipeline("release", {
   output: ".github/workflows/release.yml",
@@ -83,18 +87,18 @@ const release = definePipeline("release", {
       )
     )
     .permissions({ contents: "write", "id-token": "write" })
-    .uses({
+    .uses(checkout, {
       name: "Checkout",
-      uses: checkout({ "persist-credentials": false }),
+      with: { "persist-credentials": "false" },
     })
-    .uses({ name: "Install toolchain", uses: mise({}) })
+    .uses(mise, { name: "Install toolchain" })
     .run({
       name: "Check generated workflows",
       run: "deno task generate:check",
       workingDirectory: ".github",
     })
     .run({ name: "Run repository checks and tests", run: "mise run test" })
-    .uses({ name: "Release", uses: releaseAction({ versioning: "semver" }) }));
+    .uses(releaseAction, { name: "Release", with: { versioning: "semver" } }));
 
 const initialRelease = definePipeline("release-initial", {
   output: ".github/workflows/release-initial.yml",
@@ -105,11 +109,11 @@ const initialRelease = definePipeline("release-initial", {
   job.runsOn("ubuntu-24.04")
     .when(({ github }) => github.ref.eq("refs/heads/main"))
     .permissions({ contents: "write", "id-token": "write" })
-    .uses({
+    .uses(checkout, {
       name: "Checkout",
-      uses: checkout({ "persist-credentials": false, "fetch-depth": 0 }),
+      with: { "persist-credentials": "false", "fetch-depth": "0" },
     })
-    .uses({ name: "Install toolchain", uses: mise({}) })
+    .uses(mise, { name: "Install toolchain" })
     .run({
       name: "Check generated workflows",
       run: "deno task generate:check",

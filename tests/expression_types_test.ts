@@ -1,6 +1,4 @@
 import {
-  actionInput,
-  defineAction,
   definePipeline,
   defineTsugiori,
   type Expression,
@@ -24,11 +22,13 @@ function assertContracts(): void {
     secrets: widenedNames,
   });
   const name = "dev";
-  const deploy = defineAction({
+  const deploy = {
+    name: "Action",
+    description: "Action metadata",
     uses: "example/deploy@sha",
-    inputs: { stage: actionInput.string({ required: true }) },
-    outputs: ["name"],
-  });
+    inputs: { stage: { description: "Input", required: true } },
+    outputs: { "name": { description: "Output" } },
+  } as const;
   definePipeline("logic", {
     output: ".github/workflows/logic.yml",
     on: {
@@ -36,14 +36,14 @@ function assertContracts(): void {
       workflow_dispatch: { inputs: { commit: { type: "string" } } },
     },
   }).job("test", ({ job }) =>
-    job.runsOn("ubuntu-latest").uses({
+    job.runsOn("ubuntu-latest").uses(deploy, {
       name: "Conditional action input",
-      uses: ({ github, inputs }) => {
+      with: ({ github, inputs }) => {
         const primary = github.event_name.eq("push").and(github.sha);
         const maybePrimary: Expression<false | string> = primary;
         const chosen: Expression<string> = primary.or(inputs.commit);
         void maybePrimary;
-        return deploy({ stage: chosen });
+        return { stage: chosen };
       },
     }));
   const broad = rawNode<NonNullable<unknown>>("false").and("run");
@@ -161,10 +161,10 @@ function assertContracts(): void {
           group: ({ matrix }) => matrix.stage,
           cancelInProgress: false,
         })
-        .uses({
+        .uses(deploy, {
           id: "deploy",
           name: "Deploy",
-          uses: ({ matrix }) => deploy({ stage: matrix.stage }),
+          with: ({ matrix }) => ({ stage: matrix.stage }),
         })
         .run({
           name: "Check",

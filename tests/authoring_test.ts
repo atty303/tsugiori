@@ -6,12 +6,9 @@ import {
   assertThrows,
 } from "@std/assert";
 import {
-  actionInput,
-  defineAction,
   definePipeline,
   defineTsugiori,
   literal,
-  rawAction,
   rawExpression,
 } from "@atty303/tsugiori/github-actions";
 import {
@@ -77,9 +74,8 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
     on: { workflow_dispatch: {} },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest")
-      .uses({
+      .uses("actions/checkout@v4", {
         name: "Optional action",
-        uses: rawAction("actions/checkout@v4"),
         continueOnError: true,
       })
       .run({
@@ -160,13 +156,15 @@ Deno.test("workflow dispatch string inputs are emitted from authoring options", 
 });
 
 Deno.test("task-backed steps lower to visible preparation and runtime steps", async () => {
-  const checkout = defineAction({
+  const checkout = {
+    name: "Action",
+    description: "Action metadata",
     uses: "actions/checkout@v4",
     inputs: {
-      "persist-credentials": actionInput.boolean(),
+      "persist-credentials": { description: "Input" },
     },
-    outputs: [],
-  });
+    outputs: {},
+  } as const;
   const ci = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
     on: { push: {} },
@@ -174,9 +172,9 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   }).job("test", ({ job }) =>
     job
       .runsOn("ubuntu-latest")
-      .uses({
+      .uses(checkout, {
         name: "Checkout",
-        uses: checkout({ "persist-credentials": false }),
+        with: { "persist-credentials": "false" },
       })
       .task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
       .run({ name: "Inspect", run: "echo inspected" })
@@ -197,7 +195,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, "name: Cache task artifact");
   assertStringIncludes(yaml, "name: Prepare task artifact");
   assertStringIncludes(yaml, "permissions:\n  contents: read");
-  assertStringIncludes(yaml, "persist-credentials: false");
+  assertStringIncludes(yaml, 'persist-credentials: "false"');
   assertStringIncludes(
     yaml,
     "deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout 'ci/test=sha256:",
@@ -348,63 +346,6 @@ Deno.test("pipeline states are immutable and dependencies use prior job referenc
   assertEquals(second.pipelines[0].workflow.jobs[0].steps[0].id, "verify");
 });
 
-Deno.test("typed actions validate declared inputs at runtime", () => {
-  const action = defineAction({
-    uses: "owner/action@revision",
-    inputs: {
-      required: actionInput.string({ required: true }),
-      count: actionInput.number(),
-    },
-    outputs: ["result"],
-  });
-
-  assertThrows(
-    () => action({} as never),
-    TypeError,
-    'Required action input "required" is missing.',
-  );
-  assertThrows(
-    () => action({ required: "value", count: Infinity }),
-    TypeError,
-    'Action input "count" must be finite.',
-  );
-  assertThrows(
-    () => action({ required: "value", extra: true } as never),
-    TypeError,
-    'Action input "extra" is not declared.',
-  );
-  assertThrows(
-    () =>
-      defineAction({
-        uses: "owner/action@revision",
-        inputs: {},
-        outputs: ["bad output"],
-      }),
-    TypeError,
-    "Action output names must start with a letter or underscore",
-  );
-
-  const ci = definePipeline("ci", {
-    output: ".github/workflows/ci.yml",
-    on: { push: {} },
-  }).job("action-output", ({ job }) => {
-    const invoked = job.runsOn("ubuntu-latest").uses({
-      id: "action",
-      name: "Action",
-      uses: action({ required: "value" }),
-    });
-    assertEquals(
-      invoked.steps.action.outputs.result,
-      "${{ steps.action.outputs.result }}",
-    );
-    return invoked;
-  });
-  assertEquals(
-    defineTsugiori({ pipelines: [ci] }).pipelines[0].jobs[0].id,
-    "action-output",
-  );
-});
-
 Deno.test("authoring rejects runtime-invalid provider-native values", () => {
   const ci = definePipeline("cache-version", {
     output: ".github/workflows/cache-version.yml",
@@ -439,11 +380,14 @@ Deno.test("authoring rejects runtime-invalid provider-native values", () => {
 
   assertThrows(
     () =>
-      rawAction(
-        "actions/checkout@v7",
-        new (class Inputs {
-          token = "value";
-        })() as never,
+      definePipeline("bad", { output: "bad.yml", on: { push: {} } }).job(
+        "test",
+        ({ job }) =>
+          job.runsOn("ubuntu-latest").uses("actions/checkout@v7", {
+            with: new (class Inputs {
+              token = "value";
+            })() as never,
+          }),
       ),
     TypeError,
     "Action inputs must be an object.",

@@ -8,8 +8,6 @@ import type {
   NonEmptyStepState,
 } from "../packages/core/src/github_actions/mod.ts";
 import {
-  actionInput,
-  defineAction,
   definePipeline,
   defineTsugiori,
 } from "../packages/core/src/github_actions/mod.ts";
@@ -110,31 +108,16 @@ type _StepRunScope = Expect<
 >;
 
 function assertAuthoringContracts(): void {
-  const checkout = defineAction({
+  const checkout = {
     uses: "actions/checkout@revision",
+    name: "Checkout",
+    description: "Checkout repository",
     inputs: {
-      required: actionInput.string({ required: true }),
-      optional: actionInput.boolean(),
+      required: { description: "Required", required: true },
+      optional: { description: "Optional" },
     },
-    outputs: ["revision"],
-  });
-  const widenedOutputs: string[] = ["revision"];
-  // @ts-expect-error action outputs must be a finite literal tuple.
-  defineAction({
-    uses: "actions/checkout@revision",
-    inputs: {},
-    outputs: widenedOutputs,
-  });
-
-  checkout({ required: "value" });
-  // @ts-expect-error required action inputs cannot be omitted.
-  checkout({});
-  // @ts-expect-error undeclared action inputs are not accepted.
-  checkout({ required: "value", unknown: true });
-  const dynamicInput = (required: boolean) =>
-    // @ts-expect-error input requiredness must be statically known.
-    actionInput.string({ required });
-  void dynamicInput;
+    outputs: { revision: { description: "Revision" } },
+  } as const;
 
   const empty = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
@@ -146,10 +129,10 @@ function assertAuthoringContracts(): void {
   const withTest = empty.job("test", ({ job }) => {
     const checkedOut = job
       .runsOn("ubuntu-latest")
-      .uses({
+      .uses(checkout, {
         id: "checkout",
         name: "Checkout",
-        uses: checkout({ required: "value" }),
+        with: { required: "value" },
       });
     const revision = checkedOut.steps.checkout.outputs.revision;
     // @ts-expect-error undeclared action outputs are unavailable.

@@ -281,35 +281,67 @@ comparison, truthiness, and logical operator evaluation.
 
 ## Action metadata contracts
 
-Import a metadata contract from a hosted type service and pass it to
-`defineAction()`. Replace `<host>` with the service's configured host; this
-repository does not supply a deployed endpoint.
+Import a metadata contract from a hosted type service and pass it directly to
+`job.uses(contract, options?)`. Replace `<host>` with the service's configured
+host; this repository does not supply a deployed endpoint.
 
 ```ts
-import { defineAction } from "@atty303/tsugiori";
-import checkoutV4 from "https://<host>/github/actions/actions/checkout@v4";
+import checkout from "https://<host>/github/actions/actions/checkout@v4";
 
-const checkout = defineAction({ contract: checkoutV4 });
 // In a pipeline job callback:
-job.runsOn("ubuntu-latest").uses({
+job.runsOn("ubuntu-latest").uses(checkout, {
   id: "checkout",
   name: "Checkout",
-  uses: ({ github }) => checkout({ ref: github.sha }),
+  with: ({ github }) => ({ ref: github.sha }),
 });
-
-const customCheckout = defineAction({
-  contract: checkoutV4,
+job.runsOn("ubuntu-latest").uses(checkout);
+job.runsOn("ubuntu-latest").uses(checkout, {
   uses: "my-org/checkout@<ref>",
+});
+job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+  with: { "fetch-depth": "0" },
 });
 ```
 
-Contracts infer input names, requiredness, and output names. Inputs accept
-strings and string expressions. Only `required: true` inputs without a default
-must be supplied. Tsugiori passes supplied inputs through and leaves defaults
-to the action. Descriptions, default information, and deprecation messages are
-available in editor documentation. Outputs remain strings even when an action
-serializes JSON. The existing `defineAction({ uses, inputs, outputs })` and
-`actionInput` declarations remain available for hand-written contracts.
+Contracts infer input names, requiredness, and output names. All action inputs
+accept strings and `Expression<string>` values, including when no contract is
+provided. Convert boolean or number expressions explicitly with `toJSON()` or
+`format()`; static values use strings such as `"false"` or `"0"`. Reusable
+workflow and dispatch inputs retain their declared primitive types.
+
+Only `required: true` inputs without a default must be supplied. These require
+the second argument, `with`, and the named input. Otherwise both options and
+`with` may be omitted. `with` accepts an object or a callback receiving the
+step input expression scope. Tsugiori leaves defaults to the action and emits
+no `with` when it is omitted. Descriptions, default information, and
+deprecation messages are available in editor documentation. Outputs remain
+strings even when an action serializes JSON; a step `id` exposes declared
+outputs to later steps. A string reference checks input values but has no
+input-name contract or declared output names, and cannot specify `uses` again
+in options.
+
+Handwritten contracts use the same metadata shape:
+
+```ts
+import type { ActionContract } from "@atty303/tsugiori";
+
+const checkout = {
+  uses: "actions/checkout@v4",
+  name: "Checkout",
+  description: "Checkout the repository",
+  inputs: {
+    ref: { description: "Ref to checkout" },
+    "fetch-depth": { description: "Number of commits to fetch", default: "1" },
+  },
+  outputs: { commit: { description: "Checked out commit SHA" } },
+} as const satisfies ActionContract;
+```
+
+Contracts are caller declarations; Tsugiori does not inspect the selected
+action during workflow generation. Type checks enforce string expressions.
+Runtime validation also rejects invalid primitive values and provably
+non-string expression nodes. Raw expressions and `.as<T>()` remain caller
+assertions without runtime value-type validation.
 
 The import's original action and ref supply the default `uses`: importing
 `@v4` emits `@v4`, even though the metadata was fetched at a particular SHA.

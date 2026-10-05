@@ -990,20 +990,22 @@ export type StaticMatrix = Readonly<
 /** A primitive action input or a GitHub runtime expression.
  * @example
  * ```ts
- * const value = { ref: literal("main"), "fetch-depth": 0 } satisfies ActionInputs;
+ * const value = { ref: literal("main"), "fetch-depth": "0" } satisfies ActionInputs;
  * ```
  */
-export type ActionInput =
-  | string
-  | number
-  | boolean
-  | Expression<string | number | boolean>;
+export type ActionInput = string | Expression<string>;
+type RawCallInputs = Readonly<
+  Record<
+    string,
+    string | number | boolean | Expression<string | number | boolean>
+  >
+>;
 /** An action receives named parameters from the step with map, using the input names declared by the action.
- * Tsugiori: registered primitive input types are author assertions, not verification of action metadata.
+ * Tsugiori: contract names and requiredness are checked without verifying the action implementation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  * @example
  * ```ts
- * const value = { "fetch-depth": 0, ref: literal("main") } satisfies ActionInputs;
+ * const value = { "fetch-depth": "0", ref: literal("main") } satisfies ActionInputs;
  * ```
  */
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
@@ -1151,7 +1153,7 @@ export type AuthoringUsesStep = Readonly<{
   /** The job display name in the run UI. If omitted, GitHub uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    */
-  name: string;
+  name?: string;
   /** The reusable workflow invoked by this job: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. A local path uses the caller commit; expressions are not allowed.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    */
@@ -1159,7 +1161,7 @@ export type AuthoringUsesStep = Readonly<{
   /** Named input values passed to the action, using the names declared by its metadata.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
    */
-  with?: Readonly<Record<string, string | number | boolean>>;
+  with?: Readonly<Record<string, string>>;
   /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    */
@@ -1501,270 +1503,6 @@ type LiteralNames<Values extends readonly string[] | undefined> = Values extends
   : Values
   : Values;
 
-const actionOutputs = Symbol("tsugiori.action-outputs");
-
-/** Action outputs are string values supplied by the action, accessible through steps.<id>.outputs.<name>.
- * Tsugiori: the invocation retains declared output names for typed references; generation does not run the action.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
- * @example
- * ```ts
- * definePipeline("ci", {
- *   output: ".github/workflows/ci.yml",
- *   on: { push: {} },
- * });
- * ```
- */
-export type ActionInvocation<
-  Outputs extends readonly string[] = readonly string[],
-> = Readonly<{
-  /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-   * @example In a `definePipeline().job()` callback with `{ job }`.
-   * ```ts
-   * const checkout = defineAction({
-   *   uses: "actions/checkout@v4",
-   *   inputs: {
-   *     ref: actionInput.string(),
-   *     "fetch-depth": actionInput.number(),
-   *     "persist-credentials": actionInput.boolean(),
-   *   },
-   *   outputs: ["commit"],
-   * });
-   * job.runsOn("ubuntu-latest").uses({
-   *   id: "checkout",
-   *   name: "Checkout",
-   *   uses: ({ github }) => checkout({ ref: github.sha }),
-   * });
-   * ```
-   */
-  uses: string;
-  /** Named input values passed to the action, using the names declared by its metadata.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
-   * @example In a `definePipeline().job()` callback with `{ job }`.
-   * ```ts
-   * const checkout = defineAction({
-   *   uses: "actions/checkout@v4",
-   *   inputs: {
-   *     ref: actionInput.string(),
-   *     "fetch-depth": actionInput.number(),
-   *     "persist-credentials": actionInput.boolean(),
-   *   },
-   *   outputs: ["commit"],
-   * });
-   * job.runsOn("ubuntu-latest").uses({
-   *   id: "checkout",
-   *   name: "Checkout",
-   *   uses: ({ github }) => checkout({ ref: github.sha }),
-   * });
-   * ```
-   */
-  with?: ActionInputs;
-  [actionOutputs]: Outputs;
-}>;
-
-const actionInputDefinition = Symbol("tsugiori.action-input-definition");
-
-/** Actions declare input names, descriptions, defaults and required flags in action metadata; input values are passed through with.
- * Tsugiori: this declaration adds primitive type checking to the author's contract without inspecting action metadata.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
- * @example In a `definePipeline().job()` callback with `{ job }`.
- * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
- * });
- * ```
- */
-export type ActionInputDefinition<
-  Value extends ActionInput,
-  Required extends boolean = false,
-> = Readonly<{
-  type: "string" | "number" | "boolean";
-  /** Whether an action invocation must supply this input.
-   * Tsugiori: validates this declared contract before generation; it does not inspect the action metadata.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
-   * @example
-   * ```ts
-   * const publish = defineAction({
-   *   uses: "./.github/actions/publish",
-   *   inputs: { version: actionInput.string({ required: true }) },
-   *   outputs: [],
-   * });
-   * publish({ version: "1.0.0" });
-   * ```
-   */
-  required: Required;
-  [actionInputDefinition]: Value;
-}>;
-
-type ActionInputDefinitions = Readonly<
-  Record<string, ActionInputDefinition<ActionInput, boolean>>
->;
-type LiteralActionOutputs<Outputs extends readonly string[]> = string extends
-  Outputs[number] ? never : Outputs;
-type ActionInputValue<Definition> = Definition extends ActionInputDefinition<
-  infer Value,
-  boolean
-> ? Value | Expression<Value>
-  : never;
-type RequiredActionInputKeys<Definitions extends ActionInputDefinitions> = {
-  [Key in keyof Definitions]-?: Definitions[Key] extends
-    ActionInputDefinition<ActionInput, true> ? Key
-    : never;
-}[keyof Definitions];
-type OptionalActionInputKeys<Definitions extends ActionInputDefinitions> =
-  Exclude<keyof Definitions, RequiredActionInputKeys<Definitions>>;
-
-/** Argument names and primitive types inferred from defineAction().
- * @example In a `definePipeline().job()` callback with `{ job }`.
- * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
- * });
- * ```
- */
-export type ActionArguments<Definitions extends ActionInputDefinitions> =
-  Readonly<
-    & {
-      [Key in RequiredActionInputKeys<Definitions>]: ActionInputValue<
-        Definitions[Key]
-      >;
-    }
-    & {
-      [Key in OptionalActionInputKeys<Definitions>]?: ActionInputValue<
-        Definitions[Key]
-      >;
-    }
-  >;
-
-function inputDefinition<Value extends ActionInput>(
-  type: Type,
-  /** The choices displayed in the manual-run UI. The selected choice is a string input value.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
-   */
-  options?: Readonly<{ required?: boolean }>,
-): ActionInputDefinition<Value, boolean> {
-  return Object.freeze({
-    type,
-    required: options?.required ?? false,
-    [actionInputDefinition]: undefined as unknown as Value,
-  });
-}
-
-type Type = "string" | "number" | "boolean";
-type ActionInputFactory<Value extends ActionInput> = {
-  /** Declares an optional primitive action input.
-   * @example
-   * ```ts
-   * actionInput.string();
-   * actionInput.number();
-   * actionInput.boolean();
-   * ```
-   */
-  (): ActionInputDefinition<Value, false>;
-  /** Declares an optional primitive action input.
-   * @example
-   * ```ts
-   * actionInput.string({ required: false });
-   * actionInput.number({ required: false });
-   * actionInput.boolean({ required: false });
-   * ```
-   */
-  (options: Readonly<{ required?: false }>): ActionInputDefinition<
-    Value,
-    false
-  >;
-  /** Declares a required primitive action input.
-   * @example
-   * ```ts
-   * actionInput.string({ required: true });
-   * actionInput.number({ required: true });
-   * actionInput.boolean({ required: true });
-   * ```
-   */
-  (options: Readonly<{ required: true }>): ActionInputDefinition<Value, true>;
-};
-
-const stringInput =
-  ((options?: Readonly<{ required?: boolean }>) =>
-    inputDefinition<string>("string", options)) as ActionInputFactory<string>;
-const numberInput =
-  ((options?: Readonly<{ required?: boolean }>) =>
-    inputDefinition<number>("number", options)) as ActionInputFactory<number>;
-const booleanInput =
-  ((options?: Readonly<{ required?: boolean }>) =>
-    inputDefinition<boolean>("boolean", options)) as ActionInputFactory<
-      boolean
-    >;
-
-/** Primitive contracts for typed action inputs.
- * @example In a `definePipeline().job()` callback with `{ job }`.
- * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
- * });
- * ```
- */
-export const actionInput: Readonly<{
-  /** A text action input; required defaults to false.
-   * @example
-   * ```ts
-   * actionInput.string({ required: true });
-   * ```
-   */
-  string: ActionInputFactory<string>;
-  /** A numeric action input; required defaults to false.
-   * @example
-   * ```ts
-   * actionInput.number();
-   * ```
-   */
-  number: ActionInputFactory<number>;
-  /** A boolean action input; required defaults to false.
-   * @example
-   * ```ts
-   * actionInput.boolean();
-   * ```
-   */
-  boolean: ActionInputFactory<boolean>;
-}> = Object.freeze({
-  string: stringInput,
-  number: numberInput,
-  boolean: booleanInput,
-});
-
 type ContractInputs<C extends ActionContract> = C extends
   { inputs: infer I extends Readonly<Record<string, ActionContractInput>> } ? I
   : Record<never, never>;
@@ -1792,240 +1530,13 @@ type ContractOutputNames<O extends object> = readonly (keyof O & string)[] & {
   readonly __actionMetadata: O;
 };
 
-/** Uses metadata input names and requiredness; defaults are applied by the action itself.
- * An explicit uses replaces the complete implementation reference without checking compatibility.
- */
-export function defineAction<const C extends ActionContract>(
-  definition: Readonly<{ contract: C; uses?: string }>,
-): (
-  inputs: ContractArguments<ContractInputs<C>>,
-) => ActionInvocation<ContractOutputNames<ContractOutputs<C>>>;
-
-/** Actions accept named inputs and expose named string outputs. A commit SHA in uses pins the action implementation.
- * Tsugiori: declares input/output contracts for local type checking without verifying external action metadata or behavior.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
- * @example In a `definePipeline().job()` callback with `{ job }`.
- * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
- * });
- * ```
- */
-export function defineAction<
-  const Definitions extends ActionInputDefinitions,
-  const Outputs extends readonly string[],
->(
-  definition: Readonly<{
-    /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-     * @example In a `definePipeline().job()` callback with `{ job }`.
-     * ```ts
-     * const checkout = defineAction({
-     *   uses: "actions/checkout@v4",
-     *   inputs: {
-     *     ref: actionInput.string(),
-     *     "fetch-depth": actionInput.number(),
-     *     "persist-credentials": actionInput.boolean(),
-     *   },
-     *   outputs: ["commit"],
-     * });
-     * job.runsOn("ubuntu-latest").uses({
-     *   id: "checkout",
-     *   name: "Checkout",
-     *   uses: ({ github }) => checkout({ ref: github.sha }),
-     * });
-     * ```
-     */
-    uses: string;
-    /** Inputs accepted by this action. Names follow the action metadata.
-     * Tsugiori: primitive contracts are author assertions and validated locally; they do not verify the external action.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
-     * @example In a `definePipeline().job()` callback with `{ job }`.
-     * ```ts
-     * const checkout = defineAction({
-     *   uses: "actions/checkout@v4",
-     *   inputs: {
-     *     ref: actionInput.string(),
-     *     "fetch-depth": actionInput.number(),
-     *     "persist-credentials": actionInput.boolean(),
-     *   },
-     *   outputs: ["commit"],
-     * });
-     * job.runsOn("ubuntu-latest").uses({
-     *   id: "checkout",
-     *   name: "Checkout",
-     *   uses: ({ github }) => checkout({ ref: github.sha }),
-     * });
-     * ```
-     */
-    inputs: Definitions;
-    /** Named string outputs produced by this action, read by later steps as steps.<id>.outputs.<name>.
-     * Tsugiori: this list declares output names for typed references; it does not write values or execute the script.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-     * @example In a `definePipeline().job()` callback with `{ job }`.
-     * ```ts
-     * const checkout = defineAction({
-     *   uses: "actions/checkout@v4",
-     *   inputs: {
-     *     ref: actionInput.string(),
-     *     "fetch-depth": actionInput.number(),
-     *     "persist-credentials": actionInput.boolean(),
-     *   },
-     *   outputs: ["commit"],
-     * });
-     * job.runsOn("ubuntu-latest").uses({
-     *   id: "checkout",
-     *   name: "Checkout",
-     *   uses: ({ github }) => checkout({ ref: github.sha }),
-     * });
-     * ```
-     */
-    outputs: LiteralActionOutputs<Outputs>;
-  }>,
-): (
-  inputs: ActionArguments<Definitions>,
-) => ActionInvocation<Outputs>;
-export function defineAction(
-  definition: Readonly<{
-    contract?: ActionContract;
-    uses?: string;
-    inputs?: ActionInputDefinitions;
-    outputs?: readonly string[];
-  }>,
-): (inputs: never) => ActionInvocation {
-  const contract = definition.contract;
-  const inputDefinitions = contract === undefined
-    ? definition.inputs
-    : Object.fromEntries(
-      Object.entries(contract.inputs ?? {}).map((
-        [key, input],
-      ) => [
-        key,
-        inputDefinition<string>("string", {
-          required: input.required === true && input.default === undefined,
-        }),
-      ]),
-    );
-  const outputNames = contract === undefined
-    ? definition.outputs
-    : Object.keys(contract.outputs ?? {});
-  const uses = definition.uses ?? contract?.uses;
-  if (
-    inputDefinitions === undefined || outputNames === undefined ||
-    uses === undefined
-  ) {
-    throw new TypeError(
-      "Action definition requires uses, inputs, and outputs.",
-    );
-  }
-  assertPlainRecord(inputDefinitions, "Action input definitions");
-  validateActionOutputs(outputNames);
-  const definitions = Object.freeze({ ...inputDefinitions });
-  const outputs = Object.freeze([...outputNames]);
-  return (inputs: ActionInputs) => {
-    assertPlainRecord(inputs, "Action inputs");
-    for (const [key, value] of Object.entries(inputs)) {
-      const input = Object.hasOwn(definitions, key)
-        ? definitions[key]
-        : undefined;
-      if (input === undefined) {
-        throw new TypeError(
-          `Action input ${JSON.stringify(key)} is not declared.`,
-        );
-      }
-      if (!matchesActionInputType(value, input.type)) {
-        throw new TypeError(
-          `Action input ${JSON.stringify(key)} must be a ${input.type}.`,
-        );
-      }
-      if (typeof value === "number" && !Number.isFinite(value)) {
-        throw new TypeError(
-          `Action input ${JSON.stringify(key)} must be finite.`,
-        );
-      }
-    }
-    for (const [key, input] of Object.entries(definitions)) {
-      if (input.required && !Object.hasOwn(inputs, key)) {
-        throw new TypeError(
-          `Required action input ${JSON.stringify(key)} is missing.`,
-        );
-      }
-    }
-    return freezeActionInvocation(uses, inputs, outputs);
-  };
-}
-
-/** Runs an action selected by its uses reference with named input values. GitHub resolves and executes the referenced action.
- * Tsugiori: bypasses registered input/output contracts and exposes no declared output names.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
- * @example In a `definePipeline().job()` callback with `{ job }`.
- * ```ts
- * job.runsOn("ubuntu-latest").uses({
- *   name: "Checkout",
- *   uses: rawAction("actions/checkout@v4", { "fetch-depth": 0 }),
- * });
- * ```
- */
-export function rawAction(
-  /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-   * @example In a `definePipeline().job()` callback with `{ job }`.
-   * ```ts
-   * const checkout = defineAction({
-   *   uses: "actions/checkout@v4",
-   *   inputs: {
-   *     ref: actionInput.string(),
-   *     "fetch-depth": actionInput.number(),
-   *     "persist-credentials": actionInput.boolean(),
-   *   },
-   *   outputs: ["commit"],
-   * });
-   * job.runsOn("ubuntu-latest").uses({
-   *   id: "checkout",
-   *   name: "Checkout",
-   *   uses: ({ github }) => checkout({ ref: github.sha }),
-   * });
-   * ```
-   */
-  uses: string,
-  withInputs?: ActionInputs,
-): ActionInvocation<readonly []> {
-  if (withInputs !== undefined) validateActionInputs(withInputs);
-  return freezeActionInvocation(
-    uses,
-    withInputs,
-    Object.freeze([]) as readonly [],
-  );
-}
-
 /** Declared outputs are available to dependent jobs through needs, not through host-language values.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  * @example In a `definePipeline().job()` callback with `{ job }`.
  * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+ *   id: "checkout", name: "Checkout",
+ *   with: ({ github }) => ({ ref: github.sha }),
  * });
  * ```
  */
@@ -2381,25 +1892,15 @@ type StepCommon<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
  * @example In a `definePipeline().job()` callback with `{ job }`.
  * ```ts
- * const checkout = defineAction({
- *   uses: "actions/checkout@v4",
- *   inputs: {
- *     ref: actionInput.string(),
- *     "fetch-depth": actionInput.number(),
- *     "persist-credentials": actionInput.boolean(),
- *   },
- *   outputs: ["commit"],
- * });
- * job.runsOn("ubuntu-latest").uses({
- *   id: "checkout",
- *   name: "Checkout",
- *   uses: ({ github }) => checkout({ ref: github.sha }),
+ * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+ *   id: "checkout", name: "Checkout",
+ *   with: ({ github }) => ({ ref: github.sha }),
  * });
  * ```
  */
-export type UsesStepDefinition<
+type ObjectUsesStepOptions<
+  C extends ActionContract | string = string,
   Id extends string | undefined = undefined,
-  Outputs extends readonly string[] = readonly string[],
   Needs extends Record<string, readonly string[]> = Record<never, never>,
   Steps extends StepReferences = Record<never, never>,
   Matrix extends object = Record<never, never>,
@@ -2407,56 +1908,98 @@ export type UsesStepDefinition<
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
 > =
-  & StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>
-  & Readonly<
-    {
-      /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-       * @example In a `definePipeline().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({
-       *   name: "Build",
-       *   run: "deno test",
-       *   id: "build",
-       * });
-       * ```
-       */
-      id?: Id;
-      /** The action to execute: owner/repository[/path]@ref, a repository-local ./path or a docker:// image. A commit SHA pins the action implementation. Local actions require the repository to be checked out first.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-       * @example In a `definePipeline().job()` callback with `{ job }`.
-       * ```ts
-       * const checkout = defineAction({
-       *   uses: "actions/checkout@v4",
-       *   inputs: {
-       *     ref: actionInput.string(),
-       *     "fetch-depth": actionInput.number(),
-       *     "persist-credentials": actionInput.boolean(),
-       *   },
-       *   outputs: ["commit"],
-       * });
-       * job.runsOn("ubuntu-latest").uses({
-       *   id: "checkout",
-       *   name: "Checkout",
-       *   uses: ({ github }) => checkout({ ref: github.sha }),
-       * });
-       * ```
-       */
-      uses:
-        | ActionInvocation<Outputs>
-        | ((
-          context: Scope<
-            "jobs.<job_id>.steps.with",
-            Needs,
-            OutputMap<Steps>,
-            Matrix,
-            Vars,
-            Secrets,
-            InputValues
-          >,
-        ) => ActionInvocation<Outputs>);
-    }
-  >;
+  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "name">
+  & Readonly<{ name?: string; id?: Id extends keyof Steps ? never : Id }>
+  & (C extends ActionContract ? Readonly<{ uses?: string }>
+    : Readonly<{ uses?: never }>)
+  & (RequiredContractKeys<C> extends never
+    ? Readonly<{ with?: ActionValues<C> }>
+    : Readonly<{ with: ActionValues<C> }>);
+
+/** Step settings for a direct action contract or implementation reference. */
+export type UsesStepOptions<
+  C extends ActionContract | string = string,
+  Id extends string | undefined = undefined,
+  Needs extends Record<string, readonly string[]> = Record<never, never>,
+  Steps extends StepReferences = Record<never, never>,
+  Matrix extends object = Record<never, never>,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> =
+  & Omit<
+    ObjectUsesStepOptions<
+      C,
+      Id,
+      Needs,
+      Steps,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >,
+    "with"
+  >
+  & (RequiredContractKeys<C> extends never ? Readonly<
+      {
+        with?:
+          | ActionValues<C>
+          | ((
+            context: Scope<
+              "jobs.<job_id>.steps.with",
+              Needs,
+              OutputMap<Steps>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => ActionValues<C>);
+      }
+    >
+    : Readonly<
+      {
+        with:
+          | ActionValues<C>
+          | ((
+            context: Scope<
+              "jobs.<job_id>.steps.with",
+              Needs,
+              OutputMap<Steps>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => ActionValues<C>);
+      }
+    >);
+
+type RequiredContractKeys<C extends ActionContract | string> = C extends
+  ActionContract ? {
+    [K in keyof ContractInputs<C>]-?: ContractInputs<C>[K] extends
+      { required: true }
+      ? ContractInputs<C>[K] extends { default: unknown } ? never : K
+      : never;
+  }[keyof ContractInputs<C>]
+  : never;
+type ActionValues<C extends ActionContract | string> = C extends ActionContract
+  ? ContractArguments<ContractInputs<C>>
+  : ActionInputs;
+type CheckedActionValues<C extends ActionContract | string, R> = C extends
+  ActionContract ? R extends Readonly<Record<string, never>> ? unknown
+  : Exclude<keyof R, keyof ContractInputs<C>> extends never ? unknown
+  : never
+  : unknown;
+type ActionStepDefinition<
+  C extends ActionContract | string,
+  Id extends string | undefined,
+> = Readonly<{
+  id: Id;
+  actionOutputNames: C extends ActionContract
+    ? ContractOutputNames<ContractOutputs<C>>
+    : readonly [];
+}>;
 /** A run step executes commands in a new shell process. Step shell and working-directory settings override job defaults. Values written to GITHUB_OUTPUT become string outputs.
  * Tsugiori: outputs declares reference names; scenarios do not execute the script.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
@@ -2790,18 +2333,16 @@ type AvailableStepDefinition<Definition, Steps extends StepReferences> =
   [DefinitionStepId<Definition>] extends [never] ? Definition
     : DefinitionStepId<Definition> extends keyof Steps ? never
     : Definition;
-type Invocation<Definition> = Definition extends Readonly<{ uses: infer Value }>
-  ? Value extends ActionInvocation<infer O> ? O
-  : Value extends (...args: never[]) => ActionInvocation<infer O> ? O
-  : readonly []
-  : readonly [];
+type Invocation<Definition> = Definition extends
+  { actionOutputNames: infer O extends readonly string[] } ? O : readonly [];
 type TaskOutputs<Definition> = Definition extends
   Readonly<{ outputs: infer O extends OutputDefinitions }> ? TypedNames<O>
   : readonly [];
 type DefinitionStepReference<Definition> = Definition extends
   Readonly<{ id: infer Id extends string }> ? StepReference<
     Id,
-    Definition extends Readonly<{ uses: unknown }> ? Invocation<Definition>
+    Definition extends Readonly<{ actionOutputNames: unknown }>
+      ? Invocation<Definition>
       : Definition extends
         Readonly<{ run: string; outputs: infer O extends readonly string[] }>
         ? O
@@ -2809,7 +2350,7 @@ type DefinitionStepReference<Definition> = Definition extends
     TestStepShape<
       Record<string, unknown>,
       Record<
-        Definition extends Readonly<{ uses: unknown }>
+        Definition extends Readonly<{ actionOutputNames: unknown }>
           ? Invocation<Definition>[number]
           : Definition extends
             Readonly<{ outputs: infer O extends readonly string[] }> ? O[number]
@@ -3484,39 +3025,100 @@ export interface ExecutionJobState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    * @example In a `definePipeline().job()` callback with `{ job }`.
    * ```ts
-   * const checkout = defineAction({
-   *   uses: "actions/checkout@v4",
-   *   inputs: {
-   *     ref: actionInput.string(),
-   *     "fetch-depth": actionInput.number(),
-   *     "persist-credentials": actionInput.boolean(),
-   *   },
-   *   outputs: ["commit"],
-   * });
-   * job.runsOn("ubuntu-latest").uses({
-   *   id: "checkout",
-   *   name: "Checkout",
-   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+   *   id: "checkout", name: "Checkout",
+   *   with: ({ github }) => ({ ref: github.sha }),
    * });
    * ```
    */
   uses<
-    const D extends UsesStepDefinition<
-      string | undefined,
-      readonly string[],
-      Needs,
-      Record<never, never>,
-      Matrix,
-      Vars,
-      Secrets,
-      InputValues
-    >,
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
   >(
-    definition: D,
+    action: C,
+    ...options: RequiredContractKeys<NoInfer<C>> extends never ? [
+        options?:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Record<never, never>,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>,
+      ]
+      : [
+        options:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Record<never, never>,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>,
+      ]
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddStepReference<D, Record<never, never>>,
+    AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    readonly [],
+    Proof
+  >;
+  uses<
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+  >(
+    action: C,
+    options:
+      & Omit<
+        ObjectUsesStepOptions<
+          NoInfer<C>,
+          Id,
+          Needs,
+          Record<never, never>,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >,
+        "with"
+      >
+      & Readonly<
+        {
+          with: (
+            context: Scope<
+              "jobs.<job_id>.steps.with",
+              Needs,
+              OutputMap<Record<never, never>>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => R;
+        }
+      >
+      & CheckedActionValues<C, NoInfer<R>>,
+  ): NonEmptyStepState<
+    PipelineId,
+    JobId,
+    AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
     Needs,
     Matrix,
     Vars,
@@ -3714,39 +3316,100 @@ export interface NonEmptyStepState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    * @example In a `definePipeline().job()` callback with `{ job }`.
    * ```ts
-   * const checkout = defineAction({
-   *   uses: "actions/checkout@v4",
-   *   inputs: {
-   *     ref: actionInput.string(),
-   *     "fetch-depth": actionInput.number(),
-   *     "persist-credentials": actionInput.boolean(),
-   *   },
-   *   outputs: ["commit"],
-   * });
-   * job.runsOn("ubuntu-latest").uses({
-   *   id: "checkout",
-   *   name: "Checkout",
-   *   uses: ({ github }) => checkout({ ref: github.sha }),
+   * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+   *   id: "checkout", name: "Checkout",
+   *   with: ({ github }) => ({ ref: github.sha }),
    * });
    * ```
    */
   uses<
-    const D extends UsesStepDefinition<
-      string | undefined,
-      readonly string[],
-      Needs,
-      Steps,
-      Matrix,
-      Vars,
-      Secrets,
-      InputValues
-    >,
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
   >(
-    definition: AvailableStepDefinition<D, Steps>,
+    action: C,
+    ...options: RequiredContractKeys<NoInfer<C>> extends never ? [
+        options?:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Steps,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>,
+      ]
+      : [
+        options:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Steps,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>,
+      ]
   ): NonEmptyStepState<
     PipelineId,
     JobId,
-    AddStepReference<D, Steps>,
+    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
+  uses<
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+  >(
+    action: C,
+    options:
+      & Omit<
+        ObjectUsesStepOptions<
+          NoInfer<C>,
+          Id,
+          Needs,
+          Steps,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >,
+        "with"
+      >
+      & Readonly<
+        {
+          with: (
+            context: Scope<
+              "jobs.<job_id>.steps.with",
+              Needs,
+              OutputMap<Steps>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => R;
+        }
+      >
+      & CheckedActionValues<C, NoInfer<R>>,
+  ): NonEmptyStepState<
+    PipelineId,
+    JobId,
+    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
     Needs,
     Matrix,
     Vars,
@@ -4377,19 +4040,9 @@ export type ReusableJobState<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
      * @example In a `definePipeline().job()` callback with `{ job }`.
      * ```ts
-     * const checkout = defineAction({
-     *   uses: "actions/checkout@v4",
-     *   inputs: {
-     *     ref: actionInput.string(),
-     *     "fetch-depth": actionInput.number(),
-     *     "persist-credentials": actionInput.boolean(),
-     *   },
-     *   outputs: ["commit"],
-     * });
-     * job.runsOn("ubuntu-latest").uses({
-     *   id: "checkout",
-     *   name: "Checkout",
-     *   uses: ({ github }) => checkout({ ref: github.sha }),
+     * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
+     *   id: "checkout", name: "Checkout",
+     *   with: ({ github }) => ({ ref: github.sha }),
      * });
      * ```
      */
@@ -4407,7 +4060,7 @@ export type ReusableJobState<
            * });
            * ```
            */
-          with?: ActionInputs;
+          with?: RawCallInputs;
           /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
            * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
@@ -4459,7 +4112,7 @@ export type ReusableJobState<
            * });
            * ```
            */
-          with?: ActionInputs;
+          with?: RawCallInputs;
           /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
            * Tsugiori: inherit cannot statically prove secret availability or GitHub authorization.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
@@ -5551,7 +5204,7 @@ function createReusableJobFacade(
       needs: draft.needs,
       ...draft.options,
       uses,
-      with: value.with && copyActionInputs(value.with),
+      with: value.with && copyCallInputs(value.with),
       callSecrets: value.secrets === "inherit"
         ? "inherit"
         : evaluateEnv(value.secrets),
@@ -5726,15 +5379,72 @@ function createExecutionJobFacade(
           options: { ...draft.options, environment: value },
         }),
       ),
-    uses: (definition: UsesStepDefinition<string | undefined>) => {
-      const invocation = typeof definition.uses === "function"
-        ? definition.uses(scope("jobs.<job_id>.steps.with"))
-        : definition.uses;
-      return appendStep(
-        draft,
-        usesStep({ ...definition, uses: invocation }),
-        invocation[actionOutputs],
-      );
+    uses: (
+      action: ActionContract | string,
+      options:
+        & Omit<
+          ObjectUsesStepOptions<ActionContract | string, string | undefined>,
+          "with"
+        >
+        & {
+          with?:
+            | ActionInputs
+            | ((context: Scope<"jobs.<job_id>.steps.with">) => ActionInputs);
+        } = {},
+    ) => {
+      assertPlainRecord(options, "Action step options");
+      const contract = typeof action === "string" ? undefined : action;
+      if (contract !== undefined) {
+        assertPlainRecord(contract, "Action contract");
+        if (
+          typeof contract.name !== "string" ||
+          typeof contract.description !== "string"
+        ) {
+          throw new TypeError("Action contract requires name and description.");
+        }
+      } else if (Object.hasOwn(options, "uses")) {
+        throw new TypeError(
+          "A string action reference cannot be overridden in options.",
+        );
+      }
+      if (options.uses !== undefined && typeof options.uses !== "string") {
+        throw new TypeError("Action uses override must be a string.");
+      }
+      const uses = options.uses ??
+        (contract === undefined ? action : contract.uses);
+      if (typeof uses !== "string" || uses.trim() === "") {
+        throw new TypeError("Action uses must be a nonempty string.");
+      }
+      const inputs = typeof options.with === "function"
+        ? options.with(scope("jobs.<job_id>.steps.with"))
+        : options.with;
+      if (inputs !== undefined) validateActionInputs(inputs);
+      if (contract !== undefined) {
+        const definitions = contract.inputs ?? {};
+        assertPlainRecord(definitions, "Action contract inputs");
+        for (const key of Object.keys(inputs ?? {})) {
+          if (!Object.hasOwn(definitions, key)) {
+            throw new TypeError(
+              `Action input ${JSON.stringify(key)} is not declared.`,
+            );
+          }
+        }
+        for (const [key, input] of Object.entries(definitions)) {
+          assertPlainRecord(input, "Action input metadata");
+          if (
+            input.required === true && !Object.hasOwn(input, "default") &&
+            !Object.hasOwn(inputs ?? {}, key)
+          ) {
+            throw new TypeError(
+              `Required action input ${JSON.stringify(key)} is missing.`,
+            );
+          }
+        }
+        assertPlainRecord(contract.outputs ?? {}, "Action contract outputs");
+      }
+      const outputs = Object.keys(contract?.outputs ?? {});
+      validateActionOutputs(outputs);
+      return appendStep(draft, usesStep(options, uses, inputs), outputs);
     },
     run: (
       definition: RunStepDefinition<string | undefined, readonly string[]>,
@@ -5888,19 +5598,19 @@ function stepFields(
   };
 }
 function usesStep(
-  definition: UsesStepDefinition<string | undefined> & {
-    uses: ActionInvocation;
-  },
+  definition:
+    & Parameters<typeof stepFields>[0]
+    & Readonly<{ id?: string; name?: string }>,
+  uses: string,
+  inputs: ActionInputs | undefined,
 ): AuthoringUsesStep {
   return Object.freeze({
     type: "uses",
     ...(definition.id === undefined ? {} : { id: definition.id }),
-    name: definition.name,
-    uses: definition.uses.uses,
+    ...(definition.name === undefined ? {} : { name: definition.name }),
+    uses,
     ...stepFields(definition),
-    ...(definition.uses.with === undefined
-      ? {}
-      : { with: copyActionInputs(definition.uses.with) }),
+    ...(inputs === undefined ? {} : { with: copyActionInputs(inputs) }),
   });
 }
 function runStep(
@@ -6048,21 +5758,6 @@ function materializePipeline(draft: PipelineDraft): AuthoringPipeline {
     jobs: draft.jobs,
   });
 }
-function freezeActionInvocation<const Outputs extends readonly string[]>(
-  uses: string,
-  withInputs: ActionInputs | undefined,
-  outputs: Outputs,
-): ActionInvocation<Outputs> {
-  const withValues =
-    withInputs === undefined || Object.keys(withInputs).length === 0
-      ? undefined
-      : copyActionInputs(withInputs);
-  return Object.freeze({
-    uses,
-    ...(withValues === undefined ? {} : { with: withValues }),
-    [actionOutputs]: outputs,
-  });
-}
 function stepReference(
   id: string,
   outputNames: readonly string[],
@@ -6100,16 +5795,95 @@ function copyPermissions(
 }
 function validateActionInputs(inputs: ActionInputs): void {
   assertPlainRecord(inputs, "Action inputs");
-  for (const value of Object.values(inputs)) {
-    if (
-      typeof value !== "string" && !(value instanceof Expression) &&
-      typeof value !== "boolean" &&
-      !(typeof value === "number" && Number.isFinite(value))
-    ) {
+  for (const [key, value] of Object.entries(inputs)) {
+    if (typeof value !== "string" && !(value instanceof Expression)) {
       throw new TypeError(
-        "Action input must be a string, boolean, or finite number.",
+        `Action input ${
+          JSON.stringify(key)
+        } must be a string or string expression.`,
       );
     }
+    if (value instanceof Expression && nonStringExpression(value.node)) {
+      throw new TypeError(
+        `Action input ${
+          JSON.stringify(key)
+        } must be a string or string expression.`,
+      );
+    }
+  }
+}
+// Raw nodes and caller assertions carry no runtime value type. Track known non-string results
+// separately from opaque references, including values selected by && and ||.
+type ExpressionResults = Readonly<{
+  falsy: boolean;
+  truthy: boolean;
+  falsyNonString: boolean;
+  truthyNonString: boolean;
+}>;
+function nonStringExpression(node: Expression["node"]): boolean {
+  const result = expressionResults(node);
+  return result.falsyNonString || result.truthyNonString;
+}
+function expressionResults(node: Expression["node"]): ExpressionResults {
+  const unknownResult = {
+    falsy: true,
+    truthy: true,
+    falsyNonString: false,
+    truthyNonString: false,
+  };
+  const booleanResult = {
+    falsy: true,
+    truthy: true,
+    falsyNonString: true,
+    truthyNonString: true,
+  };
+  switch (node.kind) {
+    case "literal": {
+      const truthy = Boolean(node.value);
+      const nonString = typeof node.value !== "string";
+      return {
+        falsy: !truthy,
+        truthy,
+        falsyNonString: !truthy && nonString,
+        truthyNonString: truthy && nonString,
+      };
+    }
+    case "unary":
+      return booleanResult;
+    case "binary": {
+      if (!["&&", "||"].includes(node.operator)) return booleanResult;
+      const left = expressionResults(node.left);
+      const right = expressionResults(node.right);
+      return node.operator === "&&"
+        ? {
+          falsy: left.falsy || (left.truthy && right.falsy),
+          truthy: left.truthy && right.truthy,
+          falsyNonString: left.falsyNonString ||
+            (left.truthy && right.falsyNonString),
+          truthyNonString: left.truthy && right.truthyNonString,
+        }
+        : {
+          falsy: left.falsy && right.falsy,
+          truthy: left.truthy || (left.falsy && right.truthy),
+          falsyNonString: left.falsy && right.falsyNonString,
+          truthyNonString: left.truthyNonString ||
+            (left.falsy && right.truthyNonString),
+        };
+    }
+    case "call":
+      return [
+          "contains",
+          "startsWith",
+          "endsWith",
+          "success",
+          "failure",
+          "always",
+          "cancelled",
+        ].includes(node.name)
+        ? booleanResult
+        : unknownResult;
+    default:
+      return unknownResult;
   }
 }
 function validateActionOutputs(outputs: readonly string[]): void {
@@ -6134,23 +5908,9 @@ function validateActionOutputs(outputs: readonly string[]): void {
     seen.add(output);
   }
 }
-function matchesActionInputType(
-  value: unknown,
-  type: "string" | "number" | "boolean",
-): value is ActionInput {
-  if (value instanceof Expression) return true;
-  switch (type) {
-    case "string":
-      return typeof value === "string" || value instanceof Expression;
-    case "number":
-      return typeof value === "number";
-    case "boolean":
-      return typeof value === "boolean";
-  }
-}
 function copyActionInputs(
   inputs: ActionInputs,
-): Readonly<Record<string, string | number | boolean>> {
+): Readonly<Record<string, string>> {
   validateActionInputs(inputs);
   return Object.freeze(
     Object.fromEntries(
@@ -6158,7 +5918,30 @@ function copyActionInputs(
         [key, value],
       ) => [key, value instanceof Expression ? emitExpression(value) : value]),
     ),
-  ) as Readonly<Record<string, string | number | boolean>>;
+  );
+}
+function copyCallInputs(
+  inputs: RawCallInputs,
+): Readonly<Record<string, string | number | boolean>> {
+  assertPlainRecord(inputs, "Workflow call inputs");
+  for (const value of Object.values(inputs)) {
+    if (
+      typeof value !== "string" && typeof value !== "boolean" &&
+      !(value instanceof Expression) &&
+      !(typeof value === "number" && Number.isFinite(value))
+    ) {
+      throw new TypeError(
+        "Workflow call input must be a string, boolean, or finite number.",
+      );
+    }
+  }
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(inputs).map((
+        [key, value],
+      ) => [key, value instanceof Expression ? emitExpression(value) : value]),
+    ),
+  );
 }
 function isRecord(value: unknown): value is Record<PropertyKey, unknown> {
   return typeof value === "object" && value !== null;
@@ -6185,7 +5968,7 @@ function copyNative<T>(value: T): T {
   return value;
 }
 
-function validateCallExpressionInputs(values: ActionInputs | undefined): void {
+function validateCallExpressionInputs(values: RawCallInputs | undefined): void {
   const allowed = new Set([
     "github",
     "needs",

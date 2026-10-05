@@ -346,15 +346,15 @@ const flow = definePipeline("ci", { output: "ci.yml", on: {
         metadataUri,
       );
       const actionSource =
-        `import { defineAction, definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
 import contract from "./__action_metadata.ts";
-const publish = defineAction({ contract });`;
+const publish = contract;`;
       const actionLabels = await sourceCompletionLabels(
         writer,
         stream,
         60,
         "action-input-completion",
-        `${actionSource}\npublish({ /*completion*/ });`,
+        `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { /*completion*/ } }));`,
       );
       assertEquals(
         actionLabels.filter((key) => ["destination", "mode"].includes(key))
@@ -364,20 +364,20 @@ const publish = defineAction({ contract });`;
       for (
         const [index, [source, expected]] of [
           [
-            `${actionSource}\npublish({ destination/*completion*/: "web" });`,
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination/*completion*/: "web" } }));`,
             "Publish destination.",
           ],
           [
-            `${actionSource}\npublish({ destination: "web", mode/*completion*/: "fast" });`,
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination: "web", mode/*completion*/: "fast" } }));`,
             "Use destination instead.",
           ],
           [`${actionSource}\ncontract/*completion*/;`, "Publish artifacts"],
           [
-            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => { const state = job.runsOn("ubuntu-latest").uses({ id: "publish", name: "Publish", uses: publish({ destination: "web" }) }); state.steps.publish.outputs.url/*completion*/; return state; });`,
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => { const state = job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }); state.steps.publish.outputs.url/*completion*/; return state; });`,
             "Published URL.",
           ],
           [
-            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses({ id: "publish", name: "Publish", uses: publish({ destination: "web" }) }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
+            `${actionSource}\ndefinePipeline("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
             "Published URL.",
           ],
         ].entries()

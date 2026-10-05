@@ -1,8 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
-  actionInput,
   always,
-  defineAction,
   definePipeline,
   defineTsugiori,
   jsonValue,
@@ -19,11 +17,13 @@ const countValue = jsonValue({
     return value;
   },
 });
-const action = defineAction({
+const action = {
+  name: "Action",
+  description: "Action metadata",
   uses: "example/action@0123456789abcdef0123456789abcdef01234567",
-  inputs: { value: actionInput.string({ required: true }) },
-  outputs: ["token"],
-});
+  inputs: { value: { description: "Input", required: true } },
+  outputs: { "token": { description: "Output" } },
+} as const;
 const taskMustNotRun = () => {
   throw new Error("Task body was executed");
 };
@@ -60,10 +60,10 @@ const wired = definePipeline("wired", {
           outputs: {},
           run: taskMustNotRun,
         })
-        .uses({
+        .uses(action, {
           id: "action",
           name: "Use action",
-          uses: ({ inputs }) => action({ value: inputs.value }),
+          with: ({ inputs }) => ({ value: inputs.value }),
         })
         .task({
           id: "after",
@@ -296,10 +296,10 @@ const mergedOutputs = definePipeline("merged-outputs", {
     .outputs(({ steps }) => ({ value: steps.emit.outputs.value })))
   .job("after", ({ job, jobs }) =>
     job.needs(jobs.split).runsOn("ubuntu-latest")
-      .uses({
+      .uses(action, {
         id: "consume",
         name: "Consume",
-        uses: ({ needs }) => action({ value: needs.split.outputs.value }),
+        with: ({ needs }) => ({ value: needs.split.outputs.value }),
       }));
 
 Deno.test("harness propagates deterministic matrix job outputs to needs", async () => {

@@ -55,7 +55,7 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
             type: "uses",
             name: "Checkout",
             uses: "actions/checkout@v6",
-            with: { "persist-credentials": false, "fetch-depth": 1 },
+            with: { "persist-credentials": "false", "fetch-depth": "1" },
           },
           { type: "run", name: "Build", run: "deno task build" },
         ],
@@ -418,6 +418,10 @@ Deno.test("reports structural validation diagnostics", () => {
       },
       {
         code: "step.with.key.empty",
+        path: ["jobs", 1, "steps", 0, "with", " "],
+      },
+      {
+        code: "step.with.value.invalid",
         path: ["jobs", 1, "steps", 0, "with", " "],
       },
       {

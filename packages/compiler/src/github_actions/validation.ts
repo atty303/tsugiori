@@ -389,11 +389,11 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
               "Action input name must not be empty.",
             ));
           }
-          if (!isActionInput(value)) {
+          if (typeof value !== "string") {
             diagnostics.push(diagnostic(
               "step.with.value.invalid",
               [...stepPath, "with", key],
-              "Action input must be a string, boolean, or finite number.",
+              "Action input must be a string.",
             ));
           }
         });

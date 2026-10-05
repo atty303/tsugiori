@@ -30,7 +30,8 @@ export type JobOptions = Readonly<{
   concurrency?: Concurrency;
 }>;
 
-export type ActionInput = string | number | boolean;
+export type ActionInput = string;
+type WorkflowCallInputs = Readonly<Record<string, string | number | boolean>>;
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 
 export type StepMetadata = Readonly<{
@@ -83,7 +84,7 @@ export type Job =
     runsOn?: RunnerSelection;
     uses?: string;
     callOutputNames?: readonly string[];
-    with?: ActionInputs;
+    with?: WorkflowCallInputs;
     callSecrets?: "inherit" | EnvironmentVariables;
     needs: readonly string[];
     steps: readonly Step[];

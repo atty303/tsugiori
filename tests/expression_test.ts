@@ -1,11 +1,9 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
-  actionInput,
   always,
   cancelled,
   caseOf,
   contains,
-  defineAction,
   definePipeline,
   defineTsugiori,
   endsWith,
@@ -25,11 +23,13 @@ import { parse } from "../packages/core/src/deps.ts";
 import { emitExpression } from "../packages/core/src/github_actions/expression.ts";
 
 Deno.test("typed expressions compose across job and step fields", async () => {
-  const action = defineAction({
+  const action = {
+    name: "Action",
+    description: "Action metadata",
     uses: "example/action@sha",
-    inputs: { value: actionInput.string({ required: true }) },
-    outputs: ["result"],
-  });
+    inputs: { value: { description: "Input", required: true } },
+    outputs: { "result": { description: "Output" } },
+  } as const;
   const first = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
     on: { push: {} },
@@ -68,14 +68,14 @@ Deno.test("typed expressions compose across job and step fields", async () => {
               group: ({ matrix }) => format("deploy-{0}", matrix.stage),
               cancelInProgress: false,
             })
-            .uses({
+            .uses(action, {
               id: "run",
               name: "Run",
-              uses: ({ matrix }) => action({ value: matrix.stage }),
               env: {
                 STAGE: ({ matrix }) => matrix.stage,
                 TOKEN: ({ secrets }) => secrets.token,
               },
+              with: ({ matrix }) => ({ value: matrix.stage }),
             })
             .run({
               name: "Check",
