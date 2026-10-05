@@ -14,7 +14,7 @@ import {
 Deno.test("emits canonical GitHub Actions YAML", async (t) => {
   const workflow: Workflow = {
     name: "CI",
-    events: ["push", "pull_request"],
+    on: { push: {}, pull_request: {} },
     permissions: { contents: "read" },
     jobs: [
       {
@@ -81,7 +81,7 @@ Deno.test("run blocks and separators preserve command values", () => {
   ];
   const result = validateWorkflow({
     name: "Readable",
-    events: ["push"],
+    on: { push: {} },
     jobs: [
       {
         id: "first",
@@ -127,7 +127,7 @@ Deno.test("run blocks and separators preserve command values", () => {
 Deno.test("emits job scoped OIDC permission", () => {
   const result = validateWorkflow({
     name: "OIDC",
-    events: ["push"],
+    on: { push: {} },
     permissions: { contents: "read" },
     jobs: [{
       id: "deploy",
@@ -152,7 +152,7 @@ Deno.test("emits job scoped OIDC permission", () => {
 Deno.test("rejects invalid job permissions", () => {
   const result = validateWorkflow({
     name: "OIDC",
-    events: ["push"],
+    on: { push: {} },
     jobs: [{
       id: "deploy",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -177,7 +177,7 @@ Deno.test("rejects invalid job permissions", () => {
 Deno.test("rejects run commands that require YAML escapes", () => {
   const result = validateWorkflow({
     name: "Unsupported",
-    events: ["push"],
+    on: { push: {} },
     jobs: [{
       id: "test",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -196,7 +196,7 @@ Deno.test("rejects run commands that require YAML escapes", () => {
 Deno.test("matrix run axis does not affect run step formatting", () => {
   const result = validateWorkflow({
     name: "Matrix",
-    events: ["push"],
+    on: { push: {} },
     jobs: [{
       id: "test",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -247,7 +247,7 @@ Deno.test("normalizes semantically unordered input", () => {
 Deno.test("emits jobs by dependency layer in definition order", () => {
   const result = validateWorkflow({
     name: "Layered",
-    events: ["push"],
+    on: { push: {} },
     jobs: [
       job("publish", ["build", "verify"]),
       job("lint", []),
@@ -274,8 +274,8 @@ Deno.test("emits jobs by dependency layer in definition order", () => {
 Deno.test("rejects invalid deployment-specific native fields", () => {
   const result = validateWorkflow({
     name: "Deploy",
-    events: ["pull_request"],
-    pushBranches: ["master"],
+    on: { pull_request: {}, push: { branches: [] } },
+
     concurrency: { group: " ", cancelInProgress: false },
     jobs: [{
       id: "deploy",
@@ -313,7 +313,7 @@ Deno.test("rejects invalid deployment-specific native fields", () => {
 Deno.test("rejects queue max with cancelInProgress true", () => {
   const result = validateWorkflow({
     name: "Deploy",
-    events: ["workflow_dispatch"],
+    on: { workflow_dispatch: {} },
     concurrency: { group: "deploy", cancelInProgress: true, queue: "max" },
     jobs: [{
       id: "deploy",
@@ -331,21 +331,14 @@ Deno.test("rejects queue max with cancelInProgress true", () => {
 Deno.test("rejects dispatch inputs without dispatch event or valid definitions", () => {
   const base: Workflow = {
     name: "Dispatch",
-    events: ["push"],
+    on: { push: {} },
     jobs: [job("test", [])],
   };
-  const absentEvent = validateWorkflow({
-    ...base,
-    workflowDispatchInputs: { commit: { type: "string" } },
-  });
-  assert(!absentEvent.ok);
-  assertEquals(absentEvent.diagnostics.map(({ code }) => code), [
-    "workflow.dispatch-inputs.invalid",
-  ]);
   const invalid = validateWorkflow({
     ...base,
-    events: ["workflow_dispatch"],
-    workflowDispatchInputs: { commit: { type: "choice", default: 1 } },
+    on: {
+      workflow_dispatch: { inputs: { commit: { type: "choice", default: 1 } } },
+    },
   } as unknown as Workflow);
   assert(!invalid.ok);
   assertEquals(invalid.diagnostics.map(({ code }) => code), [
@@ -353,13 +346,16 @@ Deno.test("rejects dispatch inputs without dispatch event or valid definitions",
   ]);
   const tooMany = validateWorkflow({
     ...base,
-    events: ["workflow_dispatch"],
-    workflowDispatchInputs: Object.fromEntries(
-      Array.from({ length: 26 }, (_, index) => [
-        `input_${index}`,
-        { type: "string" },
-      ]),
-    ),
+    on: {
+      workflow_dispatch: {
+        inputs: Object.fromEntries(
+          Array.from({ length: 26 }, (_, index) => [
+            `input_${index}`,
+            { type: "string" },
+          ]),
+        ),
+      },
+    },
   });
   assert(!tooMany.ok);
   assertEquals(tooMany.diagnostics.map(({ code }) => code), [
@@ -370,7 +366,7 @@ Deno.test("rejects dispatch inputs without dispatch event or valid definitions",
 Deno.test("reports structural validation diagnostics", () => {
   const workflow = {
     name: " ",
-    events: ["push", "push"],
+    on: { push: {} },
     jobs: [
       {
         id: "1invalid",
@@ -396,7 +392,6 @@ Deno.test("reports structural validation diagnostics", () => {
     result.diagnostics.map(({ code, path }) => ({ code, path })),
     [
       { code: "workflow.name.empty", path: ["name"] },
-      { code: "workflow.events.duplicate", path: ["events", 1] },
       { code: "job.id.invalid", path: ["jobs", 0, "id"] },
       {
         code: "job.runs-on.labels.duplicate",
@@ -444,7 +439,7 @@ Deno.test("reports structural validation diagnostics", () => {
 Deno.test("reports each cyclic dependency component", () => {
   const result = validateWorkflow({
     name: "Cycles",
-    events: ["push"],
+    on: { push: {} },
     jobs: [
       job("gamma", ["beta"]),
       job("independent", []),
@@ -471,7 +466,7 @@ Deno.test("reports each cyclic dependency component", () => {
 Deno.test("rejects invalid permissions and action input values", () => {
   const result = validateWorkflow({
     name: "Invalid values",
-    events: ["push"],
+    on: { push: {} },
     permissions: { contents: "admin", "id-token": "read", discussions: "read" },
     jobs: [{
       id: "test",
@@ -519,7 +514,7 @@ Deno.test("rejects invalid permissions and action input values", () => {
 Deno.test("rejects invalid and duplicate step metadata", () => {
   const result = validateWorkflow({
     name: "Invalid steps",
-    events: ["push"],
+    on: { push: {} },
     jobs: [{
       id: "test",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -556,13 +551,13 @@ Deno.test("rejects invalid and duplicate step metadata", () => {
 });
 
 function canonicalizationWorkflow(
-  events: Workflow["events"],
+  events: readonly (keyof Workflow["on"])[],
   runnerLabels: readonly [string, ...string[]],
   needs: readonly string[],
 ): Workflow {
   return {
     name: "Canonical",
-    events,
+    on: Object.fromEntries(events.map((event) => [event, {}])),
     jobs: [
       job("test", ["build"]),
       job("build", []),

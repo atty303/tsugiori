@@ -12,7 +12,7 @@ const RUN_PLACEHOLDER = "tsugiori-run-placeholder";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
-    [...workflow.events]
+    Object.keys(workflow.on)
       .sort(compareText)
       .map((
         event,
@@ -20,35 +20,35 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
         event,
         event === "push"
           ? {
-            ...(workflow.pushBranches === undefined
+            ...(workflow.on.push?.branches === undefined
               ? {}
-              : { branches: [...workflow.pushBranches] }),
-            ...(workflow.pushTags === undefined
+              : { branches: [...workflow.on.push?.branches] }),
+            ...(workflow.on.push?.tags === undefined
               ? {}
-              : { tags: [...workflow.pushTags] }),
+              : { tags: [...workflow.on.push?.tags] }),
           }
           : event === "pull_request"
-          ? (workflow.pullRequestTypes
-            ? { types: workflow.pullRequestTypes }
+          ? (workflow.on.pull_request?.types
+            ? { types: workflow.on.pull_request?.types }
             : {})
           : event === "pull_request_target"
-          ? (workflow.pullRequestTargetTypes
-            ? { types: workflow.pullRequestTargetTypes }
+          ? (workflow.on.pull_request_target?.types
+            ? { types: workflow.on.pull_request_target?.types }
             : {})
           : event === "workflow_dispatch"
-          ? (workflow.workflowDispatchInputs
-            ? { inputs: emitDefinitions(workflow.workflowDispatchInputs) }
+          ? (workflow.on.workflow_dispatch?.inputs
+            ? { inputs: emitDefinitions(workflow.on.workflow_dispatch?.inputs) }
             : {})
           : event === "workflow_call"
           ? {
-            ...(workflow.workflowCall?.inputs === undefined
+            ...(workflow.on.workflow_call?.inputs === undefined
               ? {}
-              : { inputs: emitDefinitions(workflow.workflowCall.inputs) }),
-            ...(workflow.workflowCall?.secrets === undefined
-              ? {}
-              : { secrets: emitDefinitions(workflow.workflowCall.secrets) }),
-            ...(workflow.workflowCallOutputs
-              ? { outputs: emitDefinitions(workflow.workflowCallOutputs) }
+              : { inputs: emitDefinitions(workflow.on.workflow_call.inputs) }),
+            ...(workflow.on.workflow_call?.secrets === undefined ? {} : {
+              secrets: emitDefinitions(workflow.on.workflow_call.secrets),
+            }),
+            ...(workflow.on.workflow_call?.outputs
+              ? { outputs: emitDefinitions(workflow.on.workflow_call?.outputs) }
               : {}),
           }
           : {},

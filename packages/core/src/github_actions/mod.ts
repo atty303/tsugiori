@@ -216,6 +216,82 @@ export type WorkflowCallOutputs = Readonly<
     }>
   >
 >;
+/** Supported native trigger settings; use an object even for an event without settings.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
+ */
+export type PipelineTriggers = Readonly<{
+  push?: Readonly<{
+    /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+     */
+    branches?: readonly string[];
+    /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+     */
+    tags?: readonly string[];
+  }>;
+  pull_request?: Readonly<{
+    /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+     */
+    types?: readonly string[];
+  }>;
+  pull_request_target?: Readonly<{
+    /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
+     */
+    types?: readonly string[];
+  }>;
+  workflow_dispatch?: Readonly<{
+    /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
+     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
+     */
+    inputs?: Readonly<Record<string, WorkflowDispatchInput>>;
+  }>;
+  workflow_call?:
+    & WorkflowCall
+    & Readonly<{
+      /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
+       * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
+       */
+      outputs?: WorkflowCallOutputs;
+    }>;
+}>;
+type ExactTriggers<On extends PipelineTriggers> = On extends readonly unknown[]
+  ? never
+  : {
+    [E in keyof On]: E extends keyof PipelineTriggers ?
+        & On[E]
+        & Record<
+          Exclude<keyof On[E], keyof NonNullable<PipelineTriggers[E]>>,
+          never
+        >
+      : never;
+  };
+type NonEmptyTriggers = {
+  [K in keyof PipelineTriggers]-?:
+    & PipelineTriggers
+    & Required<Pick<PipelineTriggers, K>>;
+}[keyof PipelineTriggers];
+type TriggerInputs<T> = T extends { inputs?: infer I } ? NonNullable<I>
+  : Record<never, never>;
+type EventInputs<On, E extends keyof On> = TriggerInputs<On[E]>;
+type InputNames<On> = { [E in keyof On]-?: keyof EventInputs<On, E> }[keyof On];
+type EventInputValue<I, K> = K extends keyof I ? InputValue<I[K]> : "";
+/** Missing properties evaluate to an empty string, including on non-input triggers.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts
+ */
+export type PipelineInputValues<On extends PipelineTriggers> = {
+  readonly [K in InputNames<On>]: {
+    [E in keyof On]-?: EventInputValue<EventInputs<On, E>, K>;
+  }[keyof On];
+};
+type PipelineCall<On> = On extends
+  { workflow_call: infer C extends WorkflowCall } ? C : Record<never, never>;
+type PipelineOutputNames<On> = On extends
+  { workflow_call: { outputs: infer O } } ? keyof O & string : never;
+
 const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
 export type ReusablePipeline<
   C extends WorkflowCall = WorkflowCall,
@@ -599,22 +675,10 @@ export type AuthoringPipeline = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
   output: string;
-  /** Events that trigger independent workflow runs; any listed event can start a run. workflow_call makes this file callable by another workflow, and workflow_dispatch permits manual invocation.
+  /** Supported events and their native settings; every configured event can start a separate run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
-  events: readonly PipelineEvent[];
-  /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-   */
-  pushTags?: readonly string[];
-  /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-   */
-  pullRequestTypes?: readonly string[];
-  /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-   */
-  pullRequestTargetTypes?: readonly string[];
+  on: PipelineTriggers;
   /** The display name of an individual workflow run. Supports GitHub runtime expressions. When absent or whitespace-only, GitHub uses event-specific information such as a commit message or pull request title.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
    */
@@ -623,23 +687,6 @@ export type AuthoringPipeline = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    */
   env?: EnvironmentVariables;
-  /** Declares the inputs and secrets accepted when another workflow calls this file. The workflow must also enable the workflow_call event. Inputs are available through inputs and secrets through secrets.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_call
-   */
-  workflowCall?: WorkflowCall;
-  /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
-   * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
-   */
-  workflowCallOutputs?: WorkflowCallOutputs;
-  /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-   */
-  pushBranches?: readonly string[];
-  /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
-   */
-  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    */
@@ -660,12 +707,9 @@ export type TsugioriConfig = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
 export type PipelineOptions<
-  Events extends NonEmptyReadonlyArray<PipelineEvent> = NonEmptyReadonlyArray<
-    PipelineEvent
-  >,
+  On extends PipelineTriggers = NonEmptyTriggers,
   Vars extends readonly string[] | undefined = undefined,
   Secrets extends readonly string[] | undefined = undefined,
-  C extends WorkflowCall = WorkflowCall,
 > = Readonly<{
   /** The workflow display name in the Actions tab.
    * Tsugiori: omission uses the pipeline id rather than GitHub's workflow-file-path fallback.
@@ -677,10 +721,14 @@ export type PipelineOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
   output: string;
-  /** Events that trigger independent workflow runs; any listed event can start a run. workflow_call makes this file callable by another workflow, and workflow_dispatch permits manual invocation.
+  /** Supported event settings. Use {} for an event without settings; shorthand forms are not accepted.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
-  events: Events;
+  on:
+    & On
+    & NonEmptyTriggers
+    & ExactTriggers<On>
+    & Readonly<Record<string, unknown>>;
   /** Repository, organization or environment configuration variables are read through vars.<name>. Unset variables evaluate to an empty string.
    * Tsugiori: this list narrows reference names; it neither creates variables nor changes GitHub configuration.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
@@ -691,18 +739,6 @@ export type PipelineOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    */
   secrets?: Secrets;
-  /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-   */
-  pushTags?: readonly string[];
-  /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-   */
-  pullRequestTypes?: readonly string[];
-  /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-   */
-  pullRequestTargetTypes?: readonly string[];
   /** The display name of an individual workflow run. Supports GitHub runtime expressions. When absent or whitespace-only, GitHub uses event-specific information such as a commit message or pull request title.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
    */
@@ -711,23 +747,6 @@ export type PipelineOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    */
   env?: EnvironmentVariables;
-  /** Declares the inputs and secrets accepted when another workflow calls this file. The workflow must also enable the workflow_call event. Inputs are available through inputs and secrets through secrets.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_call
-   */
-  workflowCall?: C;
-  /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
-   * Tsugiori: workflowOutputs() provides typed job references as an alternative to raw expression strings.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
-   */
-  workflowCallOutputs?: WorkflowCallOutputs;
-  /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-   */
-  pushBranches?: readonly string[];
-  /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
-   */
-  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    */
@@ -1063,10 +1082,11 @@ type Field<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > =
   | ExpressionInput
   | ((
-    context: Scope<S, Needs, Steps, Matrix, Vars, Secrets>,
+    context: Scope<S, Needs, Steps, Matrix, Vars, Secrets, InputValues>,
   ) => ExpressionInput);
 type ConditionProof<C> = C extends Expression<boolean, infer P> ? P
   : C extends (...args: never[]) => Expression<boolean, infer P> ? P
@@ -1078,13 +1098,15 @@ type StepField<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
-> = Field<S, Needs, OutputMap<Steps>, Matrix, Vars, Secrets>;
+  InputValues extends object = Readonly<Record<string, string>>,
+> = Field<S, Needs, OutputMap<Steps>, Matrix, Vars, Secrets, InputValues>;
 type StepEnv<
   Needs extends Record<string, readonly string[]>,
   Steps extends StepReferences,
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = Readonly<
   Record<
     string,
@@ -1097,7 +1119,8 @@ type StepEnv<
         OutputMap<Steps>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >,
     ) => Expression<unknown>)
   >
@@ -1107,6 +1130,7 @@ type JobEnv<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = Readonly<
   Record<
     string,
@@ -1119,7 +1143,8 @@ type JobEnv<
         Record<never, never>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >,
     ) => Expression<unknown>)
   >
@@ -1130,6 +1155,7 @@ type StepCommon<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = Readonly<{
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
@@ -1142,7 +1168,15 @@ type StepCommon<
   /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
    */
-  if?: StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>;
+  if?: StepField<
+    "jobs.<job_id>.steps.if",
+    Needs,
+    Steps,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues
+  >;
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
    */
@@ -1159,12 +1193,13 @@ type StepCommon<
       Steps,
       Matrix,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >;
   /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    */
-  env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets>;
+  env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets, InputValues>;
 }>;
 /** A uses step runs an action with named inputs. GitHub evaluates conditions and input expressions at runtime.
  * Tsugiori: scenarios use fixtures rather than executing actions.
@@ -1178,8 +1213,9 @@ export type UsesStepDefinition<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > =
-  & StepCommon<Needs, Steps, Matrix, Vars, Secrets>
+  & StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>
   & Readonly<
     {
       /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
@@ -1198,7 +1234,8 @@ export type UsesStepDefinition<
             OutputMap<Steps>,
             Matrix,
             Vars,
-            Secrets
+            Secrets,
+            InputValues
           >,
         ) => ActionInvocation<Outputs>);
     }
@@ -1215,8 +1252,9 @@ export type RunStepDefinition<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > =
-  & StepCommon<Needs, Steps, Matrix, Vars, Secrets>
+  & StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>
   & Readonly<
     {
       /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
@@ -1255,12 +1293,21 @@ export type TaskStepDefinition<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
   Condition extends
-    | StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>
+    | StepField<
+      "jobs.<job_id>.steps.if",
+      Needs,
+      Steps,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >
     | undefined = undefined,
 > =
-  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets>, "if">
+  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if">
   & Readonly<{
     id?: Id;
     if?: Condition;
@@ -1281,6 +1328,7 @@ export type TaskStepDefinition<
                   Matrix,
                   Vars,
                   Secrets,
+                  InputValues,
                   Proof | ConditionProof<Condition>
                 >,
               ) => ExpressionInput);
@@ -1403,6 +1451,7 @@ export interface ExecutionJobState<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
 > {
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
@@ -1420,10 +1469,20 @@ export interface ExecutionJobState<
           Record<never, never>,
           Matrix,
           Vars,
-          Secrets
+          Secrets,
+          InputValues
         >,
       ) => Expression<string> | string | NonEmptyReadonlyArray<string>),
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    */
@@ -1436,15 +1495,34 @@ export interface ExecutionJobState<
         Record<never, never>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Job env overrides workflow env; values within one map cannot depend on one another.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenv
    */
   env(
-    value: JobEnv<Needs, Matrix, Vars, Secrets>,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+    value: JobEnv<Needs, Matrix, Vars, Secrets, InputValues>,
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Run defaults apply to run steps; explicit step shell/directory wins.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
    */
@@ -1462,7 +1540,8 @@ export interface ExecutionJobState<
             Record<never, never>,
             Matrix,
             Vars,
-            Secrets
+            Secrets,
+            InputValues
           >;
         /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
@@ -1475,11 +1554,21 @@ export interface ExecutionJobState<
             Record<never, never>,
             Matrix,
             Vars,
-            Secrets
+            Secrets,
+            InputValues
           >;
       }
     >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    */
@@ -1490,7 +1579,8 @@ export interface ExecutionJobState<
       Record<never, never>,
       Record<never, never>,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >,
   >(
     condition: C,
@@ -1501,6 +1591,7 @@ export interface ExecutionJobState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     ConditionProof<C>
   >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
@@ -1533,6 +1624,7 @@ export interface ExecutionJobState<
     Rows[number],
     Vars,
     Secrets,
+    InputValues,
     Proof
   >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
@@ -1548,6 +1640,7 @@ export interface ExecutionJobState<
         Record<never, never>,
         Vars,
         Secrets,
+        InputValues,
         Proof
       >,
     ) => Readonly<{
@@ -1561,7 +1654,16 @@ export interface ExecutionJobState<
        */
       failFast?: boolean;
     }>,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Shape, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Shape,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -1575,6 +1677,7 @@ export interface ExecutionJobState<
         Record<never, never>,
         Vars,
         Secrets,
+        InputValues,
         Proof
       >,
     ) => Readonly<{
@@ -1595,6 +1698,7 @@ export interface ExecutionJobState<
     Record<never, never>,
     Vars,
     Secrets,
+    InputValues,
     Proof
   >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
@@ -1631,6 +1735,7 @@ export interface ExecutionJobState<
           Record<never, never>,
           Vars,
           Secrets,
+          InputValues,
           Proof
         >,
       ) => Readonly<{
@@ -1656,6 +1761,7 @@ export interface ExecutionJobState<
     },
     Vars,
     Secrets,
+    InputValues,
     Proof
   >;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
@@ -1674,7 +1780,8 @@ export interface ExecutionJobState<
           Record<never, never>,
           Matrix,
           Vars,
-          Secrets
+          Secrets,
+          InputValues
         >;
         /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
@@ -1686,14 +1793,32 @@ export interface ExecutionJobState<
         queue?: "max";
       }
     >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    */
   permissions(
     value: WorkflowPermissions,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
    * Tsugiori: literal values retain a 1–360 integer limit; expression values pass through. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
@@ -1707,16 +1832,35 @@ export interface ExecutionJobState<
         Record<never, never>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
    * Tsugiori: supports the name only, not the structured name/url form; scenarios do not enforce protections.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
    */
   environment(
     value: string,
-  ): ExecutionJobState<PipelineId, JobId, Needs, Matrix, Vars, Secrets, Proof>;
+  ): ExecutionJobState<
+    PipelineId,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori: scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
@@ -1729,7 +1873,8 @@ export interface ExecutionJobState<
       Record<never, never>,
       Matrix,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >,
   >(
     definition: D,
@@ -1741,6 +1886,7 @@ export interface ExecutionJobState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     readonly [],
     Proof
   >;
@@ -1756,7 +1902,8 @@ export interface ExecutionJobState<
       Record<never, never>,
       Matrix,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >,
   >(
     definition: D,
@@ -1768,6 +1915,7 @@ export interface ExecutionJobState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     readonly [],
     Proof
   >;
@@ -1786,7 +1934,8 @@ export interface ExecutionJobState<
         Record<never, never>,
         Matrix,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >
       | undefined,
     const F extends boolean | undefined = undefined,
@@ -1801,6 +1950,7 @@ export interface ExecutionJobState<
         Matrix,
         Vars,
         Secrets,
+        InputValues,
         Proof,
         C
       >
@@ -1813,6 +1963,7 @@ export interface ExecutionJobState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     readonly [],
     Proof
   >;
@@ -1828,6 +1979,7 @@ export interface NonEmptyStepState<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
 > extends FinalizedJobState<PipelineId, JobId, Outputs, Steps, Matrix> {
@@ -1845,7 +1997,8 @@ export interface NonEmptyStepState<
           OutputMap<Steps>,
           Matrix,
           Vars,
-          Secrets
+          Secrets,
+          InputValues
         >
       >
     >,
@@ -1858,6 +2011,7 @@ export interface NonEmptyStepState<
         Matrix,
         Vars,
         Secrets,
+        InputValues,
         Proof
       >,
     ) => Names,
@@ -1880,7 +2034,8 @@ export interface NonEmptyStepState<
       Steps,
       Matrix,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >,
   >(
     definition: AvailableStepDefinition<D, Steps>,
@@ -1892,6 +2047,7 @@ export interface NonEmptyStepState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     Outputs,
     Proof
   >;
@@ -1907,7 +2063,8 @@ export interface NonEmptyStepState<
       Steps,
       Matrix,
       Vars,
-      Secrets
+      Secrets,
+      InputValues
     >,
   >(
     definition: AvailableStepDefinition<D, Steps>,
@@ -1919,6 +2076,7 @@ export interface NonEmptyStepState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     Outputs,
     Proof
   >;
@@ -1931,7 +2089,15 @@ export interface NonEmptyStepState<
     const I extends InputDefinitions,
     const O extends OutputDefinitions,
     const C extends
-      | StepField<"jobs.<job_id>.steps.if", Needs, Steps, Matrix, Vars, Secrets>
+      | StepField<
+        "jobs.<job_id>.steps.if",
+        Needs,
+        Steps,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues
+      >
       | undefined,
     const F extends boolean | undefined = undefined,
   >(
@@ -1945,6 +2111,7 @@ export interface NonEmptyStepState<
         Matrix,
         Vars,
         Secrets,
+        InputValues,
         Proof,
         C
       >
@@ -1978,6 +2145,7 @@ export interface NonEmptyStepState<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     Outputs,
     Proof
   >;
@@ -1992,6 +2160,7 @@ export type ReusableJobState<
   M extends object = Record<never, never>,
   V extends string = string,
   S extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = {
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
@@ -2003,9 +2172,10 @@ export type ReusableJobState<
       Record<never, never>,
       Record<never, never>,
       V,
-      S
+      S,
+      InputValues
     >,
-  ): ReusableJobState<P, J, N, M, V, S>;
+  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -2018,7 +2188,8 @@ export type ReusableJobState<
         Record<never, never>,
         Record<never, never>,
         V,
-        S
+        S,
+        InputValues
       >,
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
@@ -2031,7 +2202,7 @@ export type ReusableJobState<
        */
       failFast?: boolean;
     }>,
-  ): ReusableJobState<P, J, N, Shape, V, S>;
+  ): ReusableJobState<P, J, N, Shape, V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -2051,7 +2222,8 @@ export type ReusableJobState<
         Record<never, never>,
         Record<never, never>,
         V,
-        S
+        S,
+        InputValues
       >,
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
@@ -2075,7 +2247,8 @@ export type ReusableJobState<
         : string;
     },
     V,
-    S
+    S,
+    InputValues
   >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
@@ -2100,7 +2273,7 @@ export type ReusableJobState<
         failFast?: boolean;
       }
     >,
-  ): ReusableJobState<P, J, N, Rows[number], V, S>;
+  ): ReusableJobState<P, J, N, Rows[number], V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori: supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -2123,7 +2296,8 @@ export type ReusableJobState<
     N,
     { readonly [K in keyof Axes]: Axes[K][number] },
     V,
-    S
+    S,
+    InputValues
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
@@ -2131,13 +2305,23 @@ export type ReusableJobState<
   name(
     value:
       | string
-      | Field<"jobs.<job_id>.name", N, Record<never, never>, M, V, S>,
-  ): ReusableJobState<P, J, N, M, V, S>;
+      | Field<
+        "jobs.<job_id>.name",
+        N,
+        Record<never, never>,
+        M,
+        V,
+        S,
+        InputValues
+      >,
+  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori: supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    */
-  permissions(value: WorkflowPermissions): ReusableJobState<P, J, N, M, V, S>;
+  permissions(
+    value: WorkflowPermissions,
+  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Tsugiori: queue max requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
@@ -2154,7 +2338,8 @@ export type ReusableJobState<
           Record<never, never>,
           M,
           V,
-          S
+          S,
+          InputValues
         >;
         /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
@@ -2166,7 +2351,7 @@ export type ReusableJobState<
         queue?: "max";
       }
     >,
-  ): ReusableJobState<P, J, N, M, V, S>;
+  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
    * Tsugiori: requires the callee in the same config and validates its explicit contract; inherit cannot prove GitHub secret availability.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
@@ -2187,7 +2372,8 @@ export type ReusableJobState<
             Record<never, never>,
             M,
             V,
-            S
+            S,
+            InputValues
           >
           & Pick<
             Scope<
@@ -2196,7 +2382,8 @@ export type ReusableJobState<
               Record<never, never>,
               M,
               V,
-              S
+              S,
+              InputValues
             >,
             "secrets"
           >,
@@ -2235,7 +2422,8 @@ export type ReusableJobState<
             Record<never, never>,
             M,
             V,
-            S
+            S,
+            InputValues
           >
           & Pick<
             Scope<
@@ -2244,7 +2432,8 @@ export type ReusableJobState<
               Record<never, never>,
               M,
               V,
-              S
+              S,
+              InputValues
             >,
             "secrets"
           >,
@@ -2273,6 +2462,7 @@ export interface IndependentJobState<
   JobId extends string,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > {
   /** Selects a native caller job; inputs and secrets travel one hop and caller workflow env does not propagate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
@@ -2283,7 +2473,8 @@ export interface IndependentJobState<
     Record<never, never>,
     Record<never, never>,
     Vars,
-    Secrets
+    Secrets,
+    InputValues
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
@@ -2297,7 +2488,8 @@ export interface IndependentJobState<
     Record<never, never>,
     Record<never, never>,
     Vars,
-    Secrets
+    Secrets,
+    InputValues
   >;
 }
 /** needs supplies status and declared outputs; failed dependencies skip jobs unless a status condition admits them.
@@ -2309,6 +2501,7 @@ export interface DependentJobState<
   Needs extends Record<string, readonly string[]>,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > {
   /** Selects a native caller job; inputs and secrets travel one hop and caller workflow env does not propagate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
@@ -2319,7 +2512,8 @@ export interface DependentJobState<
     Needs,
     Record<never, never>,
     Vars,
-    Secrets
+    Secrets,
+    InputValues
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Tsugiori: configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
@@ -2333,7 +2527,8 @@ export interface DependentJobState<
     Needs,
     Record<never, never>,
     Vars,
-    Secrets
+    Secrets,
+    InputValues
   >;
 }
 export interface JobStartState<
@@ -2342,7 +2537,8 @@ export interface JobStartState<
   Jobs extends JobReferences,
   Vars extends string,
   Secrets extends string,
-> extends IndependentJobState<PipelineId, JobId, Vars, Secrets> {
+  InputValues extends object = Readonly<Record<string, string>>,
+> extends IndependentJobState<PipelineId, JobId, Vars, Secrets, InputValues> {
   /** Names declared dependencies; unsuccessful dependencies skip execution unless an explicit status condition admits the job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
    */
@@ -2358,7 +2554,8 @@ export interface JobStartState<
     JobId,
     NeedsMap<Dependencies>,
     Vars,
-    Secrets
+    Secrets,
+    InputValues
   >;
 }
 export type AvailableJobState<
@@ -2367,17 +2564,22 @@ export type AvailableJobState<
   Jobs extends JobReferences,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = keyof Jobs extends never
-  ? IndependentJobState<PipelineId, JobId, Vars, Secrets>
-  : JobStartState<PipelineId, JobId, Jobs, Vars, Secrets>;
+  ? IndependentJobState<PipelineId, JobId, Vars, Secrets, InputValues>
+  : JobStartState<PipelineId, JobId, Jobs, Vars, Secrets, InputValues>;
 export type JobDefinitionScope<
   PipelineId extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
 > = Readonly<
-  { job: AvailableJobState<PipelineId, JobId, Jobs, Vars, Secrets>; jobs: Jobs }
+  {
+    job: AvailableJobState<PipelineId, JobId, Jobs, Vars, Secrets, InputValues>;
+    jobs: Jobs;
+  }
 >;
 type AddJobReference<
   PipelineId extends string,
@@ -2404,12 +2606,13 @@ export interface EmptyPipelineState<
   Secrets extends string = string,
   C extends WorkflowCall = WorkflowCall,
   O extends string = never,
+  InputValues extends object = Readonly<Record<string, string>>,
 > {
   /** Typed input references; GitHub supplies values and defaults at runtime.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    */
   readonly inputs: import("./expression.ts").Ref<
-    { readonly [K in keyof CallInputs<C>]: InputValue<CallInputs<C>[K]> },
+    InputValues,
     "inputs"
   >;
   /** Jobs run independently unless needs declares dependencies. A job id identifies it in dependency and output references; name controls its display label.
@@ -2434,7 +2637,8 @@ export interface EmptyPipelineState<
         JobId,
         Record<never, never>,
         Vars,
-        Secrets
+        Secrets,
+        InputValues
       >,
     ) => Result,
   ): NonEmptyPipelineState<
@@ -2443,7 +2647,8 @@ export interface EmptyPipelineState<
     Vars,
     Secrets,
     C,
-    O
+    O,
+    InputValues
   >;
 }
 export interface NonEmptyPipelineState<
@@ -2453,12 +2658,13 @@ export interface NonEmptyPipelineState<
   Secrets extends string = string,
   C extends WorkflowCall = WorkflowCall,
   O extends string = never,
+  InputValues extends object = Readonly<Record<string, string>>,
 > {
   /** Typed input references; GitHub supplies values and defaults at runtime.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    */
   readonly inputs: import("./expression.ts").Ref<
-    { readonly [K in keyof CallInputs<C>]: InputValue<CallInputs<C>[K]> },
+    InputValues,
     "inputs"
   >;
   readonly [workflowContract]: Readonly<{ call: C; outputs: readonly O[] }>;
@@ -2491,7 +2697,8 @@ export interface NonEmptyPipelineState<
     Vars,
     Secrets,
     C,
-    keyof Values & string
+    keyof Values & string,
+    InputValues
   >;
   readonly [pipelineDefinition]: AuthoringPipeline;
   readonly [testPipelineShape]?: Jobs;
@@ -2512,7 +2719,14 @@ export interface NonEmptyPipelineState<
      */
     id: AvailableJobId<JobId, Jobs>,
     define: (
-      scope: JobDefinitionScope<PipelineId, JobId, Jobs, Vars, Secrets>,
+      scope: JobDefinitionScope<
+        PipelineId,
+        JobId,
+        Jobs,
+        Vars,
+        Secrets,
+        InputValues
+      >,
     ) => Result,
   ): NonEmptyPipelineState<
     PipelineId,
@@ -2520,7 +2734,8 @@ export interface NonEmptyPipelineState<
     Vars,
     Secrets,
     C,
-    O
+    O,
+    InputValues
   >;
 }
 
@@ -2528,16 +2743,9 @@ type PipelineDraft = Readonly<{
   id: string;
   name: string;
   output: string;
-  events: readonly PipelineEvent[];
-  pushTags?: readonly string[];
-  pullRequestTypes?: readonly string[];
-  pullRequestTargetTypes?: readonly string[];
+  on: PipelineTriggers;
   runName?: string;
   env?: EnvironmentVariables;
-  workflowCall?: WorkflowCall;
-  workflowCallOutputs?: WorkflowCallOutputs;
-  pushBranches?: readonly string[];
-  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
@@ -2562,21 +2770,53 @@ type JobDraft = Readonly<{
  * Tsugiori: constructs immutable authoring state; expressions and step bodies are not executed during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
-export function pipeline<
+export function definePipeline<
   const PipelineId extends string,
-  const Events extends NonEmptyReadonlyArray<PipelineEvent>,
+  const On extends PipelineTriggers,
   const Vars extends readonly string[] | undefined = undefined,
   const Secrets extends readonly string[] | undefined = undefined,
-  const C extends WorkflowCall = Record<never, never>,
 >(
   id: PipelineId,
   options:
-    & PipelineOptions<Events, Vars, Secrets, C>
+    & PipelineOptions<On, Vars, Secrets>
     & Readonly<{
       vars?: LiteralNames<Vars>;
       secrets?: LiteralNames<Secrets>;
     }>,
-): EmptyPipelineState<PipelineId, Names<Vars>, Names<Secrets>, C> {
+): EmptyPipelineState<
+  PipelineId,
+  Names<Vars>,
+  Names<Secrets>,
+  PipelineCall<On>,
+  PipelineOutputNames<On>,
+  PipelineInputValues<On>
+> {
+  if (
+    !isRecord(options.on) || Array.isArray(options.on) ||
+    Object.keys(options.on).length === 0
+  ) {
+    throw new TypeError(
+      "Pipeline on must be a nonempty event settings object.",
+    );
+  }
+  for (
+    const field of [
+      "events",
+      "pushBranches",
+      "pushTags",
+      "pullRequestTypes",
+      "pullRequestTargetTypes",
+      "workflowDispatchInputs",
+      "workflowCall",
+      "workflowCallOutputs",
+    ]
+  ) {
+    if (Object.hasOwn(options, field)) {
+      throw new TypeError(
+        `Unsupported pipeline option ${field}. Use on event settings.`,
+      );
+    }
+  }
   for (
     const [label, names] of [["vars", options.vars], [
       "secrets",
@@ -2590,26 +2830,9 @@ export function pipeline<
     id,
     name: options.name ?? id,
     output: options.output,
-    events: Object.freeze([...options.events]),
-    pushTags: options.pushTags && Object.freeze([...options.pushTags]),
-    pullRequestTypes: options.pullRequestTypes &&
-      Object.freeze([...options.pullRequestTypes]),
-    pullRequestTargetTypes: options.pullRequestTargetTypes &&
-      Object.freeze([...options.pullRequestTargetTypes]),
+    on: copyNative(options.on),
     runName: options.runName,
     env: options.env && Object.freeze({ ...options.env }),
-    workflowCall: options.workflowCall && copyNative(options.workflowCall),
-    ...(options.pushBranches === undefined ? {} : {
-      pushBranches: Object.freeze([...options.pushBranches]),
-    }),
-    ...(options.workflowDispatchInputs === undefined ? {} : {
-      workflowDispatchInputs: Object.freeze(Object.fromEntries(
-        Object.entries(options.workflowDispatchInputs).map(([name, input]) => [
-          name,
-          copyNative(input),
-        ]),
-      )),
-    }),
     ...(options.concurrency === undefined ? {} : {
       concurrency: Object.freeze({ ...options.concurrency }),
     }),
@@ -2624,7 +2847,9 @@ export function pipeline<
     PipelineId,
     Names<Vars>,
     Names<Secrets>,
-    C
+    PipelineCall<On>,
+    PipelineOutputNames<On>,
+    PipelineInputValues<On>
   >;
 }
 
@@ -2658,13 +2883,15 @@ function createPipelineFacade(
   const facade = {
     inputs: scope("jobs.<job_id>.with.<with_id>").inputs,
     [workflowContract]: Object.freeze({
-      call: draft.workflowCall ?? {},
-      outputs: Object.freeze(Object.keys(draft.workflowCallOutputs ?? {})),
+      call: draft.on.workflow_call ?? {},
+      outputs: Object.freeze(
+        Object.keys(draft.on.workflow_call?.outputs ?? {}),
+      ),
     }),
     workflowOutputs(
       define: (context: unknown) => Record<string, ExpressionInput>,
     ) {
-      if (!draft.events.includes("workflow_call")) {
+      if (!draft.on.workflow_call) {
         throw new TypeError("Workflow outputs require workflow_call.");
       }
       const values = define(
@@ -2674,13 +2901,19 @@ function createPipelineFacade(
       return createPipelineFacade(
         Object.freeze({
           ...draft,
-          workflowCallOutputs: Object.freeze(
-            Object.fromEntries(
-              Object.entries(values).map((
-                [k, v],
-              ) => [k, Object.freeze({ value: emitExpression(v) })]),
-            ),
-          ),
+          on: Object.freeze({
+            ...draft.on,
+            workflow_call: Object.freeze({
+              ...draft.on.workflow_call,
+              outputs: Object.freeze(
+                Object.fromEntries(
+                  Object.entries(values).map((
+                    [k, v],
+                  ) => [k, Object.freeze({ value: emitExpression(v) })]),
+                ),
+              ),
+            }),
+          }),
         }),
         true,
       );
@@ -2693,7 +2926,8 @@ function createPipelineFacade(
           string,
           JobReferences,
           string,
-          string
+          string,
+          Readonly<Record<string, string>>
         >,
       ) => FinalizedJobState<string, string>,
     ) {
@@ -2716,7 +2950,14 @@ function createPipelineFacade(
       const result = define(Object.freeze({
         job: state,
         jobs: draft.references,
-      }) as JobDefinitionScope<string, string, JobReferences, string, string>);
+      }) as JobDefinitionScope<
+        string,
+        string,
+        JobReferences,
+        string,
+        string,
+        Readonly<Record<string, string>>
+      >);
       if (!isRecord(result) || !(jobDefinition in result)) {
         throw new TypeError(
           `Job ${JSON.stringify(id)} did not return a completed definition.`,
@@ -2808,7 +3049,14 @@ function createJobStartFacade(
   dependenciesAvailable: boolean,
 ):
   | IndependentJobState<string, string>
-  | JobStartState<string, string, JobReferences, string, string> {
+  | JobStartState<
+    string,
+    string,
+    JobReferences,
+    string,
+    string,
+    Readonly<Record<string, string>>
+  > {
   const start = (value: JobDraft) => ({
     runsOn: (runner: string | NonEmptyReadonlyArray<string>) =>
       createExecutionJobFacade(Object.freeze({ ...value, runsOn: runner })),
@@ -2836,7 +3084,14 @@ function createJobStartFacade(
           }))),
       }
       : {}),
-  }) as JobStartState<string, string, JobReferences, string, string>;
+  }) as JobStartState<
+    string,
+    string,
+    JobReferences,
+    string,
+    string,
+    Readonly<Record<string, string>>
+  >;
 }
 function createReusableJobFacade(
   draft: JobDraft,
@@ -2897,7 +3152,7 @@ function createReusableJobFacade(
       }),
     call: (callee: ReusablePipeline, args: unknown) => {
       const pipeline = callee[pipelineDefinition];
-      if (!pipeline.events.includes("workflow_call")) {
+      if (!pipeline.on.workflow_call) {
         throw new TypeError("Called pipeline must declare workflow_call.");
       }
       return invoke(
@@ -2963,7 +3218,8 @@ function createExecutionJobFacade(
         Record<never, never>,
         Record<never, never>,
         string,
-        string
+        string,
+        Readonly<Record<string, string>>
       >,
     ) =>
       createExecutionJobFacade({
@@ -3347,20 +3603,9 @@ function materializePipeline(draft: PipelineDraft): AuthoringPipeline {
     id: draft.id,
     name: draft.name,
     output: draft.output,
-    events: draft.events,
-    pushTags: draft.pushTags,
-    pullRequestTypes: draft.pullRequestTypes,
-    pullRequestTargetTypes: draft.pullRequestTargetTypes,
+    on: draft.on,
     runName: draft.runName,
     env: draft.env,
-    workflowCall: draft.workflowCall,
-    workflowCallOutputs: draft.workflowCallOutputs,
-    ...(draft.pushBranches === undefined
-      ? {}
-      : { pushBranches: draft.pushBranches }),
-    ...(draft.workflowDispatchInputs === undefined
-      ? {}
-      : { workflowDispatchInputs: draft.workflowDispatchInputs }),
     ...(draft.concurrency === undefined
       ? {}
       : { concurrency: draft.concurrency }),

@@ -1,10 +1,10 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
+  definePipeline,
   fromJSON,
   hashFiles,
   jsonValue,
-  pipeline,
   present,
   scenario,
   textValue,
@@ -27,10 +27,9 @@ const stageValue = jsonValue({
     return value;
   },
 });
-const detected = pipeline("sample", {
+const detected = definePipeline("sample", {
   output: ".github/workflows/sample.yml",
-  events: ["push"],
-  pushBranches: ["main"],
+  on: { push: { branches: ["main"] } },
 }).job("detect", ({ job }) =>
   job.runsOn("ubuntu-24.04").task({
     id: "plan",
@@ -182,9 +181,9 @@ Deno.test("scenario distinguishes expectation failures from fixture errors", asy
   assertEquals((invalid as { kind?: string }).kind, "fixture_missing");
 });
 
-const unsupported = pipeline("unsupported", {
+const unsupported = definePipeline("unsupported", {
   output: ".github/workflows/unsupported.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("check", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .run({

@@ -1,8 +1,8 @@
 import {
+  definePipeline,
   type Expression,
   fromJSON,
   jsonValue,
-  pipeline,
   present,
   rawNode,
   textValue,
@@ -15,9 +15,9 @@ function assertTypedIO(): void {
       return value as string[];
     },
   });
-  const first = pipeline("typed", {
+  const first = definePipeline("typed", {
     output: ".github/workflows/typed.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .task({
@@ -195,9 +195,9 @@ function assertTypedIO(): void {
         }),
   );
 
-  const conditional = pipeline("conditional", {
+  const conditional = definePipeline("conditional", {
     output: ".github/workflows/conditional.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("produce", ({ job }) =>
     job.runsOn("ubuntu-latest").task({
       id: "value",
@@ -228,9 +228,9 @@ function assertTypedIO(): void {
   );
 
   const text = textValue();
-  const textJob = pipeline("text", {
+  const textJob = definePipeline("text", {
     output: ".github/workflows/text.yml",
-    events: ["push"],
+    on: { push: {} },
   })
     .job("produce", ({ job }) =>
       job.runsOn("ubuntu-latest").task({

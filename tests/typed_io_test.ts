@@ -1,9 +1,9 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
+  definePipeline,
   defineTsugiori,
   fromJSON,
   jsonValue,
-  pipeline,
   present,
   textValue,
 } from "../packages/core/src/github_actions/mod.ts";
@@ -48,9 +48,9 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
 });
 
 Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps", async () => {
-  const first = pipeline("deploy", {
+  const first = definePipeline("deploy", {
     output: ".github/workflows/deploy.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .task({
@@ -105,9 +105,9 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
 
 Deno.test("typed input requires the source contract object and rejects env collision", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = pipeline("check", {
+  const first = definePipeline("check", {
     output: ".github/workflows/check.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("source", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .task({
@@ -189,9 +189,9 @@ Deno.test("typed input requires the source contract object and rejects env colli
 
 Deno.test("typed contracts follow bracket-rendered job and step references", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = pipeline("check", {
+  const first = definePipeline("check", {
     output: ".github/workflows/check.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("source-job", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .task({
@@ -230,9 +230,9 @@ Deno.test("typed contracts follow bracket-rendered job and step references", () 
 
 Deno.test("computed job outputs do not retain task contracts", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = pipeline("computed", {
+  const first = definePipeline("computed", {
     output: ".github/workflows/computed.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("source", ({ job }) =>
     job.runsOn("ubuntu-latest").task({
       id: "produce",
@@ -270,12 +270,12 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
         .href;
     const runner =
       new URL("../packages/runner/src/main.ts", import.meta.url).href;
-    const program = `import {defineTsugiori,pipeline,jsonValue} from ${
+    const program = `import {defineTsugiori,definePipeline,jsonValue} from ${
       JSON.stringify(core)
     };
 import {runTsugiori} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value))throw new TypeError();return value;}});
-const first=pipeline("ci",{output:".github/workflows/ci.yml",events:["push"]}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
+const first=definePipeline("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
 const config=defineTsugiori({pipelines:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
       JSON.stringify(resultPath)
     },JSON.stringify(inputs.targets));}}))]});
@@ -295,7 +295,10 @@ Deno.exitCode=await runTsugiori({config,configUrl:import.meta.url,root:import.me
       ]
     ) {
       const skippable = program
-        .replace("pipeline,jsonValue}", "pipeline,jsonValue,rawNode}")
+        .replace(
+          "definePipeline,jsonValue}",
+          "definePipeline,jsonValue,rawNode}",
+        )
         .replace('name:"Emit",inputs:', `name:"Emit",${producerOption}inputs:`)
         .replace("required:false", "required:true");
       const result = await new Deno.Command(Deno.execPath(), {
@@ -308,8 +311,8 @@ Deno.exitCode=await runTsugiori({config,configUrl:import.meta.url,root:import.me
       assertEquals(await Deno.readTextFile(resultPath), "null");
     }
     const withPresent = program.replace(
-      "pipeline,jsonValue}",
-      "pipeline,jsonValue,present}",
+      "definePipeline,jsonValue}",
+      "definePipeline,jsonValue,present}",
     );
     const guardedPrograms = [
       withPresent.replace(
@@ -348,14 +351,15 @@ Deno.test("runner parses JSON input and rejects absent or invalid wire values", 
         .href;
     const runner =
       new URL("../packages/runner/src/main.ts", import.meta.url).href;
-    const program = `import {defineTsugiori,pipeline,jsonValue,rawNode} from ${
-      JSON.stringify(core)
-    };
+    const program =
+      `import {defineTsugiori,definePipeline,jsonValue,rawNode} from ${
+        JSON.stringify(core)
+      };
 import {runTsugiori} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value)||!value.every(item=>typeof item==="string"))throw new TypeError("invalid names");return value;}});
-const config=defineTsugiori({pipelines:[pipeline("ci",{output:".github/workflows/ci.yml",events:["push"]}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
-      JSON.stringify(resultPath)
-    },JSON.stringify(inputs.targets));}}))]});
+const config=defineTsugiori({pipelines:[definePipeline("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+        JSON.stringify(resultPath)
+      },JSON.stringify(inputs.targets));}}))]});
 Deno.exitCode=await runTsugiori({config,configUrl:import.meta.url,root:import.meta.url},["ci/consumer/task-1"]);`;
     for (
       const [wire, expectedCode] of [["[]", 0], ["", 1], ["null", 1], [

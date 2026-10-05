@@ -1,10 +1,8 @@
 import type {
   PipelineEvent,
+  PipelineTriggers,
   RunDefaults,
   StaticMatrix,
-  WorkflowCall,
-  WorkflowCallOutputs,
-  WorkflowDispatchInput,
   WorkflowPermissions,
 } from "../../../core/src/github_actions/mod.ts";
 export type {
@@ -94,16 +92,9 @@ export type Job =
 
 export type Workflow = Readonly<{
   name: string;
-  events: readonly WorkflowEvent[];
-  pushTags?: readonly string[];
-  pullRequestTypes?: readonly string[];
-  pullRequestTargetTypes?: readonly string[];
+  on: PipelineTriggers;
   runName?: string;
   env?: EnvironmentVariables;
-  workflowCall?: WorkflowCall;
-  workflowCallOutputs?: WorkflowCallOutputs;
-  pushBranches?: readonly string[];
-  workflowDispatchInputs?: Readonly<Record<string, WorkflowDispatchInput>>;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
   jobs: readonly Job[];

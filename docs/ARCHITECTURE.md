@@ -22,7 +22,8 @@ step model and no second delivery backend.
 The root `deno.json` defines one Deno package with root, `github-actions`,
 `task`, `testing`, and `run` exports. The root re-exports the full GitHub Actions API and
 `runTsugiori()`; the subpath exports remain available. The authoring API uses
-immutable facades: job methods become available as the definition advances, and
+immutable facades: `definePipeline()` groups trigger settings under a native
+`on` object; job methods become available as the definition advances, and
 only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
 Jobs are authored in dependency order, so a new job can reference completed
 jobs. Typed action contracts bind a pinned `uses` value to declared inputs and
@@ -41,7 +42,8 @@ prepared task artifact.
 The public API supports push, PR, PR-target, dispatch and reusable-workflow
 triggers and the native fields listed in the
 [specification coverage](GITHUB_ACTIONS_SPEC.md). Local reusable references
-retain input/secret/output contracts and emit normal caller jobs with
+retain the `on.workflow_call` input/secret/output contract separately from
+the input reference union across configured events, and emit normal caller jobs with
 uses/with/secrets. The config contains both callers and callees; lowering checks
 membership, contracts, nesting and output references. Workflow env stays within
 each workflow. Run defaults remain native job settings and per-step overrides

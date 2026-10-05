@@ -6,6 +6,7 @@ import {
   caseOf,
   contains,
   defineAction,
+  definePipeline,
   defineTsugiori,
   endsWith,
   failure,
@@ -13,7 +14,6 @@ import {
   fromJSON,
   hashFiles,
   join,
-  pipeline,
   rawNode,
   startsWith,
   success,
@@ -30,9 +30,9 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     inputs: { value: actionInput.string({ required: true }) },
     outputs: ["result"],
   });
-  const first = pipeline("ci", {
+  const first = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
-    events: ["push"],
+    on: { push: {} },
     secrets: ["token"],
   })
     .job("prepare", ({ job }) => {
@@ -126,9 +126,9 @@ Deno.test("expression nodes cannot be interpolated as host strings", () => {
 Deno.test("a step ID colliding with an expression method is addressable", async () => {
   const config = defineTsugiori({
     pipelines: [
-      pipeline("ci", {
+      definePipeline("ci", {
         output: ".github/workflows/ci.yml",
-        events: ["push"],
+        on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")
           .run({ id: "eq", name: "Produce", run: "true", outputs: ["result"] })
@@ -194,9 +194,9 @@ Deno.test("operators and built-ins retain GitHub expression syntax", () => {
 Deno.test("a complete matrix can come from one typed expression", async () => {
   const config = defineTsugiori({
     pipelines: [
-      pipeline("ci", {
+      definePipeline("ci", {
         output: ".github/workflows/ci.yml",
-        events: ["push"],
+        on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")
           .strategy(() => ({

@@ -1,19 +1,20 @@
 import {
+  definePipeline,
   defineTsugiori,
-  pipeline,
 } from "../packages/core/src/github_actions/mod.ts";
 
 function assertReusableTypes(): void {
-  const definition = pipeline("callee", {
+  const definition = definePipeline("callee", {
     output: ".github/workflows/callee.yml",
-    events: ["workflow_call"],
-    workflowCall: {
-      inputs: {
-        flag: { type: "boolean", required: true },
-        count: { type: "number" },
-        label: { type: "string", required: true },
+    on: {
+      workflow_call: {
+        inputs: {
+          flag: { type: "boolean", required: true },
+          count: { type: "number" },
+          label: { type: "string", required: true },
+        },
+        secrets: { token: { required: true }, optional: {} },
       },
-      secrets: { token: { required: true }, optional: {} },
     },
   });
   const callee = definition.job(
@@ -26,9 +27,9 @@ function assertReusableTypes(): void {
         outputs: ["message"],
       }).outputs(({ steps }) => ({ message: steps.out.outputs.message })),
   ).workflowOutputs(({ jobs }) => ({ message: jobs.job.outputs.message }));
-  const caller = pipeline("caller", {
+  const caller = definePipeline("caller", {
     output: ".github/workflows/caller.yml",
-    events: ["push"],
+    on: { push: {} },
   });
   caller.job(
     "call",

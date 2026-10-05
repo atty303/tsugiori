@@ -96,8 +96,8 @@ Deno.test({
         stream,
         4,
         "empty-pipeline",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-const empty = pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] });
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty./*completion*/`,
       );
       assertRelevantExactly(emptyPipelineLabels, ["job"], [
@@ -115,8 +115,8 @@ empty./*completion*/`,
         stream,
         5,
         "job-state",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-const empty = pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] });
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   job./*completion*/
   return job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });
@@ -136,8 +136,8 @@ empty.job("test", ({ job }) => {
         stream,
         6,
         "execution-state",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-const empty = pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] });
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const execution = job.runsOn("ubuntu-latest");
   execution./*completion*/
@@ -162,8 +162,8 @@ empty.job("test", ({ job }) => {
         stream,
         7,
         "step-state",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-const empty = pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] });
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const configured = job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });
   configured./*completion*/
@@ -184,8 +184,8 @@ empty.job("test", ({ job }) => {
         stream,
         8,
         "prior-jobs",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-const base = pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] });
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+const base = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 const withTest = base.job("test", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }));
 withTest.job("build", ({ job, jobs }) => {
   jobs./*completion*/
@@ -199,8 +199,8 @@ withTest.job("build", ({ job, jobs }) => {
         stream,
         9,
         "typed-job-if",
-        `import { pipeline } from "../packages/core/src/github_actions/mod.ts";
-pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] })
+        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
   .job("test", ({ job }) => job.runsOn("ubuntu-latest")
     .when((context) => { context./*completion*/; return context.github.ref.eq("main"); })
     .run({ name: "Test", run: "true" }));`,
@@ -215,6 +215,110 @@ pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] })
         "success",
         "vars",
       ]);
+
+      const triggerNames = [
+        "push",
+        "pull_request",
+        "pull_request_target",
+        "workflow_dispatch",
+        "workflow_call",
+      ];
+      const importPipeline =
+        'import { definePipeline } from "../packages/core/src/github_actions/mod.ts";';
+      for (
+        const [index, [name, source, expected]] of [
+          [
+            "trigger",
+            `definePipeline("ci", { output: "ci.yml", on: { /*completion*/ } });`,
+            triggerNames,
+          ],
+          [
+            "push-settings",
+            `definePipeline("ci", { output: "ci.yml", on: { push: { /*completion*/ } } });`,
+            ["branches", "tags"],
+          ],
+          [
+            "pr-settings",
+            `definePipeline("ci", { output: "ci.yml", on: { pull_request: { /*completion*/ } } });`,
+            ["types"],
+          ],
+          [
+            "dispatch-settings",
+            `definePipeline("ci", { output: "ci.yml", on: { workflow_dispatch: { /*completion*/ } } });`,
+            ["inputs"],
+          ],
+          [
+            "call-settings",
+            `definePipeline("ci", { output: "ci.yml", on: { workflow_call: { /*completion*/ } } });`,
+            ["inputs", "secrets", "outputs"],
+          ],
+          [
+            "dispatch-input",
+            `definePipeline("ci", { output: "ci.yml", on: { workflow_dispatch: { inputs: { stage: { /*completion*/ } } } } });`,
+            ["type", "description", "required", "default", "options"],
+          ],
+          [
+            "call-input",
+            `definePipeline("ci", { output: "ci.yml", on: { workflow_call: { inputs: { flag: { /*completion*/ } } } } });`,
+            ["type", "description", "required", "default"],
+          ],
+        ].entries()
+      ) {
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          20 + index,
+          name as string,
+          `${importPipeline}\n${source}`,
+        );
+        assertEquals([...labels].sort(), [...expected].sort(), name as string);
+      }
+      const inputSource = `${importPipeline}
+const flow = definePipeline("ci", { output: "ci.yml", on: {
+  push: {},
+  workflow_dispatch: { inputs: { shared: { type: "choice", options: ["x"] }, dispatchOnly: { type: "string" } } },
+  workflow_call: { inputs: { shared: { type: "boolean" }, callOnly: { type: "number" } } }
+} });`;
+      for (
+        const [index, source] of [
+          "flow.inputs./*completion*/",
+          'flow.job("run", ({job}) => job.runsOn("ubuntu-latest").run({name: "Run", run: "true", env: { VALUE: ({inputs}) => inputs./*completion*/ }}));',
+        ].entries()
+      ) {
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          30 + index,
+          `input-names-${index}`,
+          `${inputSource}\n${source}`,
+        );
+        assertEquals(
+          labels.filter((label) =>
+            ["shared", "dispatchOnly", "callOnly", "missing"].includes(label)
+          ).sort(),
+          ["callOnly", "dispatchOnly", "shared"],
+        );
+      }
+      for (
+        const [index, [key, expected]] of [
+          ["shared", ["string", "false", "true"]],
+          ["dispatchOnly", ["string"]],
+          ["callOnly", ['""', "number"]],
+        ].entries()
+      ) {
+        const hover = await sourceHover(
+          writer,
+          stream,
+          40 + index,
+          `input-value-${index}`,
+          `${inputSource}\nflow.inputs.${key}/*completion*/;`,
+        );
+        assertEquals(
+          [...hover.matchAll(/Ref<([^,]+),/g)].map((match) => match[1]).sort(),
+          [...expected].sort(),
+          hover,
+        );
+      }
 
       await writeMessage(writer, {
         jsonrpc: "2.0",
@@ -250,6 +354,46 @@ pipeline("ci", { output: ".github/workflows/ci.yml", events: ["push"] })
     }
   },
 });
+
+async function sourceHover(
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  stream: LanguageServerStream,
+  id: number,
+  fixtureName: string,
+  source: string,
+): Promise<string> {
+  const before = source.slice(0, source.indexOf("/*completion*/"));
+  const lines = before.split("\n");
+  const uri = new URL(`./__${fixtureName}.ts`, import.meta.url).href;
+  await writeMessage(writer, {
+    jsonrpc: "2.0",
+    method: "textDocument/didOpen",
+    params: {
+      textDocument: {
+        uri,
+        languageId: "typescript",
+        version: 1,
+        text: source.replace("/*completion*/", ""),
+      },
+    },
+  });
+  await notificationFor(stream, "textDocument/publishDiagnostics", uri);
+  await writeMessage(writer, {
+    jsonrpc: "2.0",
+    id,
+    method: "textDocument/hover",
+    params: {
+      textDocument: { uri },
+      position: {
+        line: lines.length - 1,
+        character: (lines.at(-1)?.length ?? 0) - 2,
+      },
+    },
+  });
+  const response = await responseFor(stream, id);
+  assert(response.error === undefined, JSON.stringify(response.error));
+  return (response.result as { contents: { value: string } }).contents.value;
+}
 
 async function completionLabels(
   writer: WritableStreamDefaultWriter<Uint8Array>,
@@ -321,7 +465,7 @@ async function sourceCompletionLabels(
     | null;
   assert(result !== null, JSON.stringify(response));
   const items = "items" in result ? result.items : result;
-  return items.map((item) => item.label);
+  return items.map((item) => item.label.replace(/\?$/, ""));
 }
 
 function assertRelevantExactly(

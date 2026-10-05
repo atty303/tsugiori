@@ -1,8 +1,8 @@
 import { scenario } from "../packages/testing/src/mod.ts";
 import {
+  definePipeline,
   fromJSON,
   jsonValue,
-  pipeline,
   present,
   toJSON,
 } from "../packages/core/src/mod.ts";
@@ -14,8 +14,8 @@ function assertScenarioTypes(): void {
       return value;
     },
   });
-  const flow = pipeline("typed-scenario", {
-    events: ["push"],
+  const flow = definePipeline("typed-scenario", {
+    on: { push: {} },
     output: ".github/workflows/typed-scenario.yml",
   }).job("count", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -61,8 +61,8 @@ function assertTypedMatrixFromOutput(): void {
       });
     },
   });
-  const detected = pipeline("matrix-output", {
-    events: ["push"],
+  const detected = definePipeline("matrix-output", {
+    on: { push: {} },
     output: ".github/workflows/matrix-output.yml",
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")

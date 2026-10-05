@@ -44,12 +44,12 @@ Deno.test({
       );
       const configSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTsugiori, pipeline, textValue } from "@atty303/tsugiori/github-actions";
+import { defineTsugiori, definePipeline, textValue } from "@atty303/tsugiori/github-actions";
 import { runTsugiori } from "@atty303/tsugiori/run";
 
-const base = pipeline("ci", {
+const base = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["push"],
+  on: { push: {  } },
 });
 try {
   Deno.statSync("fail-config");
@@ -618,14 +618,14 @@ Deno.test({
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
       const configSource =
-        `import { defineTsugiori, pipeline, runTsugiori } from "@atty303/tsugiori";
+        `import { defineTsugiori, definePipeline, runTsugiori } from "@atty303/tsugiori";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;
 void remoteMarker;
-const ci = pipeline("ci", {
+const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["push"],
+  on: { push: {  } },
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
@@ -749,10 +749,10 @@ Deno.test({
         resolve(project, "tsugiori.ts"),
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTsugiori, pipeline } from "@atty303/tsugiori/github-actions";
+import { defineTsugiori, definePipeline } from "@atty303/tsugiori/github-actions";
 import { runTsugiori } from "@atty303/tsugiori/run";
-const config = defineTsugiori({ pipelines: [pipeline("ci", {
-  output: ".github/workflows/ci.yml", events: ["push"],
+const config = defineTsugiori({ pipelines: [definePipeline("ci", {
+  output: ".github/workflows/ci.yml", on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
 }))] });

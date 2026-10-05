@@ -1,8 +1,8 @@
 import {
   actionInput,
   defineAction,
+  definePipeline,
   defineTsugiori,
-  pipeline,
   runTsugiori,
 } from "@atty303/tsugiori";
 
@@ -20,9 +20,9 @@ const mise = defineAction({
   outputs: [],
 });
 
-const ci = pipeline("ci", {
+const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["pull_request", "push"],
+  on: { pull_request: {}, push: {} },
   permissions: { contents: "read" },
 }).job("test", ({ job }) =>
   job

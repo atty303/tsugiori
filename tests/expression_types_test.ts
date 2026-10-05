@@ -1,25 +1,25 @@
 import {
   actionInput,
   defineAction,
+  definePipeline,
   defineTsugiori,
   type Expression,
   fromJSON,
-  pipeline,
   rawNode,
   textValue,
 } from "@atty303/tsugiori/github-actions";
 
 function assertContracts(): void {
   const widenedNames: string[] = ["env"];
-  pipeline("bad-vars", {
+  definePipeline("bad-vars", {
     output: ".github/workflows/bad-vars.yml",
-    events: ["push"],
+    on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     vars: widenedNames,
   });
-  pipeline("bad-secrets", {
+  definePipeline("bad-secrets", {
     output: ".github/workflows/bad-secrets.yml",
-    events: ["push"],
+    on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     secrets: widenedNames,
   });
@@ -29,9 +29,12 @@ function assertContracts(): void {
     inputs: { stage: actionInput.string({ required: true }) },
     outputs: ["name"],
   });
-  pipeline("logic", {
+  definePipeline("logic", {
     output: ".github/workflows/logic.yml",
-    events: ["push", "workflow_dispatch"],
+    on: {
+      push: {},
+      workflow_dispatch: { inputs: { commit: { type: "string" } } },
+    },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest").uses({
       name: "Conditional action input",
@@ -48,9 +51,9 @@ function assertContracts(): void {
   const impossible: Expression<string> = broad;
   void impossible;
   const matrixContract = textValue();
-  pipeline("inline", {
+  definePipeline("inline", {
     output: ".github/workflows/inline.yml",
-    events: ["push"],
+    on: { push: {} },
   })
     .job(
       "test",
@@ -64,9 +67,9 @@ function assertContracts(): void {
           },
         }),
     );
-  pipeline("collision", {
+  definePipeline("collision", {
     output: ".github/workflows/collision.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .run({
@@ -80,9 +83,9 @@ function assertContracts(): void {
         steps.eq.outputs.result;
         return { result: steps.at("eq").at("outputs").at("result") };
       }));
-  const first = pipeline("ci", {
+  const first = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
-    events: ["push"],
+    on: { push: {} },
     vars: ["env"],
     secrets: ["token"],
   })

@@ -11,8 +11,8 @@ Tsugiori authors GitHub Actions workflows in TypeScript and emits ordinary
 into one task artifact and invoke each task from a separate, visible Actions
 step. GitHub Actions still runs the jobs and steps.
 
-The current authoring API covers `push`, `pull_request`, and
-`workflow_dispatch` events; jobs, dependencies, runners, permissions,
+The current authoring API covers `push`, `pull_request`, `pull_request_target`,
+`workflow_dispatch`, and `workflow_call` events; jobs, dependencies, runners, permissions,
 concurrency, environments, matrix strategy, conditions, outputs, and `uses`,
 `run`, and task steps. A typed expression AST builds GitHub runtime expressions
 in field callbacks. `rawNode<T>()` embeds a raw expression inside an AST;
@@ -48,11 +48,11 @@ An authoring file imports the GitHub Actions API and runner from the package
 root. It exports the config and calls `runTsugiori()` when executed:
 
 ```ts
-import { defineTsugiori, pipeline, runTsugiori } from "@atty303/tsugiori";
+import { definePipeline, defineTsugiori, runTsugiori } from "@atty303/tsugiori";
 
-const ci = pipeline("ci", {
+const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["push", "pull_request"],
+  on: { push: {}, pull_request: {} },
   permissions: { contents: "read" },
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-24.04").task({
@@ -174,7 +174,7 @@ as `job.step("build").expression("if", true)` or
 `job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
 an error. Generated task preparation steps succeed by default and can be
 overridden with `job.internal("prepare", "failure")`. Failures identify the
-pipeline, job, matrix, step, and field, and distinguish missing or invalid
+definePipeline, job, matrix, step, and field, and distinguish missing or invalid
 fixtures, expression errors, and expectation mismatches.
 
 This test covers trigger filters, conditions, matrix expansion, `needs`,
@@ -190,7 +190,7 @@ contexts available at its GitHub Actions field. Step callbacks see only earlier
 step IDs; dependent jobs see only declared outputs from their dependencies.
 
 ```ts
-import { fromJSON, jsonValue, pipeline, present, rawNode } from "@atty303/tsugiori";
+import { definePipeline, fromJSON, jsonValue, present, rawNode } from "@atty303/tsugiori";
 
 const stages = jsonValue({
   parse(value: unknown): readonly string[] {
@@ -201,9 +201,9 @@ const stages = jsonValue({
   },
 });
 
-const first = pipeline("deploy", {
+const first = definePipeline("deploy", {
   output: ".github/workflows/deploy.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("prepare", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .task({
@@ -276,14 +276,15 @@ references. `secrets: "inherit"` forwards one hop; it cannot prove repository
 secret availability or organization/enterprise eligibility.
 
 ```ts
-import { defineTsugiori, pipeline } from "@atty303/tsugiori";
+import { definePipeline, defineTsugiori } from "@atty303/tsugiori";
 
-const definition = pipeline("build", {
+const definition = definePipeline("build", {
   output: ".github/workflows/build.yml",
-  events: ["workflow_call"],
-  workflowCall: {
-    inputs: { module: { type: "string", required: true } },
-    secrets: { token: { required: true } },
+  on: {
+    workflow_call: {
+      inputs: { module: { type: "string", required: true } },
+      secrets: { token: { required: true } },
+    },
   },
 });
 const build = definition.job("build", ({ job }) =>
@@ -299,11 +300,9 @@ const build = definition.job("build", ({ job }) =>
     .outputs(({ steps }) => ({ message: steps.build.outputs.message })))
   .workflowOutputs(({ jobs }) => ({ message: jobs.build.outputs.message }));
 
-const ci = pipeline("ci", {
+const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["push"],
-  pushBranches: ["main"],
-  pushTags: ["v*"],
+  on: { push: { branches: ["main"], tags: ["v*"] } },
 }).job("build", ({ job }) =>
   job.reusable().call(build, {
     with: { module: "app" },
@@ -313,10 +312,19 @@ const ci = pipeline("ci", {
 export default defineTsugiori({ pipelines: [ci, build] });
 ```
 
-`definition.inputs` provides references with the declared boolean, number or
-string type. The existing field callback `inputs` context retains its string
-reference surface; use the definition's typed references for boolean/number
-inputs. Workflow outputs use the callee's `jobs` context. Caller outputs become
+`definePipeline()` takes a nonempty `on` object with supported event keys;
+use `{}` for an event without settings. String and array trigger shorthands
+are not accepted. Dispatch inputs belong in `on.workflow_dispatch.inputs`;
+call inputs, secrets and outputs belong in `on.workflow_call`.
+
+`definition.inputs` and field callback `inputs` infer declared input names
+and value types from both dispatch and call definitions. Dispatch `choice`
+values are strings. When events declare different types, references use their
+union; an event without that input contributes `""`, matching GitHub's
+[missing property evaluation](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts).
+Event conditions do not narrow this union. Reusable call arguments and secrets
+are checked against only the `workflow_call` contract. `.workflowOutputs()`
+replaces the complete `on.workflow_call.outputs` map after jobs are defined. Workflow outputs use the callee's `jobs` context. Caller outputs become
 the ordinary `needs.<job>.outputs` surface. Expressions/raw nodes are evaluated
 by GitHub; runtime expression values cannot all be statically guaranteed.
 

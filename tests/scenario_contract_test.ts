@@ -3,8 +3,9 @@ import {
   actionInput,
   always,
   defineAction,
+  definePipeline,
+  defineTsugiori,
   jsonValue,
-  pipeline,
   rawExpression,
   scenario,
   textValue,
@@ -27,10 +28,13 @@ const taskMustNotRun = () => {
   throw new Error("Task body was executed");
 };
 
-const wired = pipeline("wired", {
+const wired = definePipeline("wired", {
   output: ".github/workflows/wired.yml",
-  events: ["workflow_dispatch"],
-  workflowDispatchInputs: { value: { type: "string", required: true } },
+  on: {
+    workflow_dispatch: {
+      inputs: { value: { type: "string", required: true } },
+    },
+  },
 }).job("produce", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .task({
@@ -126,9 +130,9 @@ Deno.test("harness rejects missing dispatch inputs and invalid task output contr
   );
 });
 
-const statuses = pipeline("statuses", {
+const statuses = definePipeline("statuses", {
   output: ".github/workflows/statuses.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("first", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .run({
@@ -193,9 +197,9 @@ Deno.test("harness keeps outcome and conclusion distinct and overrides raw field
   );
 });
 
-const matrix = pipeline("matrix", {
+const matrix = definePipeline("matrix", {
   output: ".github/workflows/matrix.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] as const }, failFast: false })
@@ -226,9 +230,9 @@ Deno.test("harness chooses fixture and expectation independently for each matrix
   });
 });
 
-const includedMatrix = pipeline("included-matrix", {
+const includedMatrix = definePipeline("included-matrix", {
   output: ".github/workflows/included-matrix.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .strategy(() => ({ matrix: rawExpression("customMatrix()") }))
@@ -282,9 +286,9 @@ Deno.test("harness applies matrix include to every compatible original combinati
   assertEquals(excludedThenIncluded.jobs.split.instances.length, 2);
 });
 
-const mergedOutputs = pipeline("merged-outputs", {
+const mergedOutputs = definePipeline("merged-outputs", {
   output: ".github/workflows/merged-outputs.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] as const } })
@@ -326,9 +330,9 @@ Deno.test("harness propagates deterministic matrix job outputs to needs", async 
   assertEquals((ambiguous as { kind?: string }).kind, "expression_unsupported");
 });
 
-const distinctOutputs = pipeline("distinct-outputs", {
+const distinctOutputs = definePipeline("distinct-outputs", {
   output: ".github/workflows/distinct-outputs.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] as const } })
@@ -358,14 +362,17 @@ Deno.test("harness combines distinct nonempty matrix output names", async () => 
   });
 });
 
-const filtered = pipeline("filtered", {
+const filtered = definePipeline("filtered", {
   output: ".github/workflows/filtered.yml",
-  events: ["push"],
-  pushBranches: [
-    "releases/**",
-    "!releases/**-alpha",
-    "releases/reinclude-alpha",
-  ],
+  on: {
+    push: {
+      branches: [
+        "releases/**",
+        "!releases/**-alpha",
+        "releases/reinclude-alpha",
+      ],
+    },
+  },
 }).job("check", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .run({ id: "inspect", name: "Inspect", run: "true" }));
@@ -386,10 +393,9 @@ Deno.test("harness respects ordered positive and negative branch filters", async
   assertEquals(included.result, "success");
 });
 
-const versionFiltered = pipeline("version-filtered", {
+const versionFiltered = definePipeline("version-filtered", {
   output: ".github/workflows/version-filtered.yml",
-  events: ["push"],
-  pushBranches: ["v[12].[0-9]+.[0-9]+"],
+  on: { push: { branches: ["v[12].[0-9]+.[0-9]+"] } },
 }).job("check", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .run({ id: "inspect", name: "Inspect", run: "true" }));
@@ -402,9 +408,9 @@ Deno.test("harness evaluates GitHub branch character classes and repetition", as
   assertEquals(result.result, "success");
 });
 
-const matrixRaw = pipeline("matrix-raw", {
+const matrixRaw = definePipeline("matrix-raw", {
   output: ".github/workflows/matrix-raw.yml",
-  events: ["push"],
+  on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] as const } })
@@ -437,4 +443,79 @@ Deno.test("harness selects unsupported expression values at each matrix step", a
     result.jobs.split.instances[1].steps.conditional.outcome,
     "skipped",
   );
+});
+
+Deno.test("common input references follow each trigger and call defaults", async () => {
+  const mixed = definePipeline("mixed", {
+    output: ".github/workflows/mixed.yml",
+    on: {
+      push: {},
+      workflow_dispatch: {
+        inputs: {
+          shared: { type: "string", default: "dispatch" },
+          dispatchOnly: { type: "choice", options: ["x"], default: "x" },
+        },
+      },
+      workflow_call: {
+        inputs: {
+          shared: { type: "boolean", default: false },
+          count: { type: "number", default: 7 },
+        },
+      },
+    },
+  }).job(
+    "read",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").run({
+        id: "read",
+        name: "Read",
+        run: "true",
+        env: {
+          shared: ({ inputs }) => inputs.shared,
+          dispatchOnly: ({ inputs }) => inputs.dispatchOnly,
+          count: ({ inputs }) => inputs.count,
+        },
+      }),
+  );
+  for (
+    const [event, expected] of [["push", {
+      shared: "",
+      dispatchOnly: "",
+      count: "",
+    }], ["workflow_dispatch", {
+      shared: "dispatch",
+      dispatchOnly: "x",
+      count: "",
+    }]] as const
+  ) {
+    await scenario(mixed, (test) => {
+      test.github({ event_name: event });
+      test.inputs({});
+      test.job("read", (job) =>
+        job.step("read").fixture(({ env }) => {
+          assertEquals(env, expected);
+          return {};
+        }));
+    });
+  }
+  const caller = definePipeline("caller-defaults", {
+    output: ".github/workflows/caller-defaults.yml",
+    on: { push: {} },
+  })
+    .job("call", ({ job }) => job.reusable().call(mixed, {}));
+  await scenario(caller, (test) => {
+    test.github({ event_name: "push" });
+    test.job("call", (job) =>
+      job.call(mixed, (child) => {
+        child.job("read", (job) =>
+          job.step("read").fixture(({ env }) => {
+            assertEquals(env, {
+              shared: "false",
+              dispatchOnly: "",
+              count: "7",
+            });
+            return {};
+          }));
+      }));
+  }, { config: defineTsugiori({ pipelines: [mixed, caller] }) });
 });

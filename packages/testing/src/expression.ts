@@ -207,7 +207,10 @@ function pathValue(parts: readonly string[], context: Context): unknown {
       return values.map((value) => visit(value, index + 1));
     }
     if (current === null || typeof current !== "object" || !(part in current)) {
-      if (parts[0] === "steps" || parts[0] === "needs") return "";
+      if (
+        parts[0] === "steps" || parts[0] === "needs" ||
+        parts[0] === "inputs" && index > 0
+      ) return "";
       throw new MissingContextError(parts.slice(0, index + 1).join("."));
     }
     return visit((current as Record<string, unknown>)[part], index + 1);

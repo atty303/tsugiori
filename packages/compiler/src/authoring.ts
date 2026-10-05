@@ -87,7 +87,9 @@ export async function lowerConfig(
           id: job.id,
           needs: job.needs,
           uses: job.uses,
-          callOutputNames: Object.keys(job.callee?.workflowCallOutputs ?? {}),
+          callOutputNames: Object.keys(
+            job.callee?.on.workflow_call?.outputs ?? {},
+          ),
           with: job.with,
           callSecrets: job.callSecrets,
           if: job.if,
@@ -236,20 +238,9 @@ export async function lowerConfig(
 
     const workflow: Workflow = {
       name: pipeline.name,
-      events: pipeline.events,
-      pushTags: pipeline.pushTags,
-      pullRequestTypes: pipeline.pullRequestTypes,
-      pullRequestTargetTypes: pipeline.pullRequestTargetTypes,
+      on: pipeline.on,
       runName: pipeline.runName,
       env: pipeline.env,
-      workflowCall: pipeline.workflowCall,
-      workflowCallOutputs: pipeline.workflowCallOutputs,
-      ...(pipeline.pushBranches === undefined
-        ? {}
-        : { pushBranches: pipeline.pushBranches }),
-      ...(pipeline.workflowDispatchInputs === undefined
-        ? {}
-        : { workflowDispatchInputs: pipeline.workflowDispatchInputs }),
       ...(pipeline.concurrency === undefined
         ? {}
         : { concurrency: pipeline.concurrency }),
@@ -436,7 +427,7 @@ function validateCalls(config: TsugioriConfig, diagnostics: string[]): void {
           `${location}: called pipeline must be included in the same config.`,
         );
       }
-      if (!target.events.includes("workflow_call")) {
+      if (!Object.hasOwn(target.on, "workflow_call")) {
         diagnostics.push(`${location}: target requires workflow_call.`);
       }
       const check = (
@@ -477,9 +468,13 @@ function validateCalls(config: TsugioriConfig, diagnostics: string[]): void {
           }
         }
       };
-      check(target.workflowCall?.inputs ?? {}, job.with ?? {}, false);
+      check(target.on.workflow_call?.inputs ?? {}, job.with ?? {}, false);
       if (job.callSecrets !== "inherit") {
-        check(target.workflowCall?.secrets ?? {}, job.callSecrets ?? {}, true);
+        check(
+          target.on.workflow_call?.secrets ?? {},
+          job.callSecrets ?? {},
+          true,
+        );
       }
       visit(target, [...ancestors, pipeline]);
     }

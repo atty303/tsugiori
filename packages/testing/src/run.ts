@@ -637,13 +637,13 @@ function triggered(config: TsugioriConfig, program: Program): boolean {
       "github.event_name is required.",
     );
   }
-  if (!pipeline.events.includes(event as typeof pipeline.events[number])) {
+  if (!Object.hasOwn(pipeline.on, event)) {
     return false;
   }
   if (event === "pull_request" || event === "pull_request_target") {
     const types = event === "pull_request"
-      ? pipeline.pullRequestTypes
-      : pipeline.pullRequestTargetTypes;
+      ? pipeline.on.pull_request?.types
+      : pipeline.on.pull_request_target?.types;
     const action =
       (values.event as Record<string, unknown> | undefined)?.action ??
         (types ? undefined : "opened");
@@ -657,7 +657,9 @@ function triggered(config: TsugioriConfig, program: Program): boolean {
     }
     if (!allowed.includes(action)) return false;
   }
-  if (event === "push" && (pipeline.pushBranches || pipeline.pushTags)) {
+  if (
+    event === "push" && (pipeline.on.push?.branches || pipeline.on.push?.tags)
+  ) {
     if (typeof values.ref !== "string") {
       throw new ScenarioError(
         "fixture_missing",
@@ -666,7 +668,7 @@ function triggered(config: TsugioriConfig, program: Program): boolean {
       );
     }
     const tag = values.ref.startsWith("refs/tags/");
-    const filters = tag ? pipeline.pushTags : pipeline.pushBranches;
+    const filters = tag ? pipeline.on.push?.tags : pipeline.on.push?.branches;
     if (!filters) return false;
     const name = values.ref.replace(/^refs\/(heads|tags)\//, "");
     let included = false;
@@ -681,7 +683,7 @@ function triggered(config: TsugioriConfig, program: Program): boolean {
   if (event === "workflow_dispatch") {
     for (
       const [name, input] of Object.entries(
-        pipeline.workflowDispatchInputs ?? {},
+        pipeline.on.workflow_dispatch?.inputs ?? {},
       )
     ) {
       const supplied = program.external.inputs as
@@ -882,7 +884,9 @@ async function interpretScenario(
             );
           }
           for (
-            const [name, d] of Object.entries(callee.workflowCall?.inputs ?? {})
+            const [name, d] of Object.entries(
+              callee.on.workflow_call?.inputs ?? {},
+            )
           ) {
             if (!Object.hasOwn(inputs, name)) {
               if (d.required) {
@@ -906,7 +910,7 @@ async function interpretScenario(
           }
           for (
             const [name, d] of Object.entries(
-              callee.workflowCall?.secrets ?? {},
+              callee.on.workflow_call?.secrets ?? {},
             )
           ) {
             if (d.required && !Object.hasOwn(secrets, name)) {
@@ -1062,7 +1066,9 @@ async function interpretScenario(
     expectValue(result, program.expectedResult, `${author.id}.result`);
   }
   const outputs: Record<string, string> = {};
-  for (const [name, d] of Object.entries(author.workflowCallOutputs ?? {})) {
+  for (
+    const [name, d] of Object.entries(author.on.workflow_call?.outputs ?? {})
+  ) {
     outputs[name] = stringValue(
       evaluateAt(
         d.value,
@@ -1081,7 +1087,7 @@ async function interpretScenario(
   return {
     result,
     jobs: results,
-    ...(author.workflowCallOutputs ? { outputs } : {}),
+    ...(author.on.workflow_call?.outputs ? { outputs } : {}),
   };
 }
 

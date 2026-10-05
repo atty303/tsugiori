@@ -12,8 +12,7 @@ export type DiagnosticCode =
   | "step.timeout.invalid"
   | "step.shell.invalid"
   | "workflow.name.empty"
-  | "workflow.events.empty"
-  | "workflow.events.duplicate"
+  | "workflow.on.invalid"
   | "workflow.push-branches.invalid"
   | "workflow.dispatch-inputs.invalid"
   | "workflow.concurrency.invalid"
@@ -79,43 +78,58 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     ));
   }
 
-  if (workflow.events.length === 0) {
-    diagnostics.push(diagnostic(
-      "workflow.events.empty",
-      ["events"],
-      "Workflow must declare at least one event.",
-    ));
+  if (
+    !isPlainRecord(workflow.on) || Object.keys(workflow.on).length === 0 ||
+    Object.entries(workflow.on).some(([key, value]) =>
+      ![
+        "push",
+        "pull_request",
+        "pull_request_target",
+        "workflow_dispatch",
+        "workflow_call",
+      ].includes(key) ||
+      !isPlainRecord(value) || Object.keys(value).some((field) =>
+        !(key === "push"
+          ? ["branches", "tags"]
+          : key === "pull_request" || key === "pull_request_target"
+          ? ["types"]
+          : key === "workflow_dispatch"
+          ? ["inputs"]
+          : ["inputs", "secrets", "outputs"]).includes(field)
+      )
+    )
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "workflow.on.invalid",
+        ["on"],
+        "Workflow must declare a nonempty object of supported event settings.",
+      ),
+    );
+    return { ok: false, diagnostics };
   }
-  validateDuplicates(
-    workflow.events,
-    ["events"],
-    "workflow.events.duplicate",
-    "Workflow event",
-    diagnostics,
-  );
 
   if (
-    workflow.pushBranches !== undefined &&
-    (!workflow.events.includes("push") ||
-      !Array.isArray(workflow.pushBranches) ||
-      workflow.pushBranches.length === 0 ||
-      workflow.pushBranches.some((branch) =>
+    workflow.on.push?.branches !== undefined &&
+    (!Array.isArray(workflow.on.push?.branches) ||
+      workflow.on.push?.branches.length === 0 ||
+      workflow.on.push?.branches.some((branch) =>
         typeof branch !== "string" || isBlank(branch)
       ) ||
-      new Set(workflow.pushBranches).size !== workflow.pushBranches.length)
+      new Set(workflow.on.push?.branches).size !==
+        workflow.on.push?.branches.length)
   ) {
     diagnostics.push(
       diagnostic(
         "workflow.push-branches.invalid",
-        ["pushBranches"],
+        ["on", "push", "branches"],
         "Push branches require a push event and nonempty unique branch names.",
       ),
     );
   }
-  if (workflow.workflowDispatchInputs !== undefined) {
-    const inputs = workflow.workflowDispatchInputs;
+  if (workflow.on.workflow_dispatch?.inputs !== undefined) {
+    const inputs = workflow.on.workflow_dispatch?.inputs;
     if (
-      !workflow.events.includes("workflow_dispatch") ||
       !inputs || typeof inputs !== "object" || Array.isArray(inputs) ||
       Object.keys(inputs).length > 25 ||
       Object.entries(inputs).some(([name, input]) =>
@@ -140,7 +154,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     ) {
       diagnostics.push(diagnostic(
         "workflow.dispatch-inputs.invalid",
-        ["workflowDispatchInputs"],
+        ["on", "workflow_dispatch", "inputs"],
         "Workflow dispatch inputs require workflow_dispatch and valid string input definitions.",
       ));
     }
@@ -788,17 +802,19 @@ function validateNativeFields(
   diagnostics: Diagnostic[],
 ): void {
   const invalid = (field: string, message: string) =>
-    diagnostics.push(diagnostic("workflow.native.invalid", [field], message));
+    diagnostics.push(
+      diagnostic("workflow.native.invalid", field.split("."), message),
+    );
   for (
-    const [field, event] of [["pushTags", "push"], [
-      "pullRequestTypes",
-      "pull_request",
-    ], ["pullRequestTargetTypes", "pull_request_target"]] as const
+    const [field, values] of [
+      ["on.push.tags", workflow.on.push?.tags],
+      ["on.pull_request.types", workflow.on.pull_request?.types],
+      ["on.pull_request_target.types", workflow.on.pull_request_target?.types],
+    ] as const
   ) {
-    const values = workflow[field];
     if (
       values !== undefined &&
-      (!workflow.events.includes(event) || !Array.isArray(values) ||
+      (!Array.isArray(values) ||
         !values.length || values.some((v) =>
           typeof v !== "string" || !v.trim()
         ))
@@ -810,17 +826,10 @@ function validateNativeFields(
     }
   }
   if (
-    workflow.workflowCall !== undefined ||
-    workflow.workflowCallOutputs !== undefined
+    workflow.on.workflow_call !== undefined
   ) {
-    if (!workflow.events.includes("workflow_call")) {
-      invalid(
-        "workflowCall",
-        "Workflow call declarations require workflow_call.",
-      );
-    }
     for (
-      const [name, d] of Object.entries(workflow.workflowCall?.inputs ?? {})
+      const [name, d] of Object.entries(workflow.on.workflow_call?.inputs ?? {})
     ) {
       if (
         !JOB_ID_PATTERN.test(name) || !d ||
@@ -828,29 +837,33 @@ function validateNativeFields(
         d.default !== undefined && typeof d.default !== d.type
       ) {
         invalid(
-          "workflowCall.inputs",
+          "on.workflow_call.inputs",
           "Reusable input name, type or default is invalid.",
         );
       }
     }
     for (
-      const [name, d] of Object.entries(workflow.workflowCall?.secrets ?? {})
+      const [name, d] of Object.entries(
+        workflow.on.workflow_call?.secrets ?? {},
+      )
     ) {
       if (
         !JOB_ID_PATTERN.test(name) || !d ||
         d.required !== undefined && typeof d.required !== "boolean"
       ) {
         invalid(
-          "workflowCall.secrets",
+          "on.workflow_call.secrets",
           "Reusable secret declaration is invalid.",
         );
       }
     }
     for (
-      const [name, d] of Object.entries(workflow.workflowCallOutputs ?? {})
+      const [name, d] of Object.entries(
+        workflow.on.workflow_call?.outputs ?? {},
+      )
     ) {
       if (!JOB_ID_PATTERN.test(name) || !d || typeof d.value !== "string") {
-        invalid("workflowCallOutputs", "Reusable output is invalid.");
+        invalid("on.workflow_call.outputs", "Reusable output is invalid.");
         continue;
       }
       for (const m of d.value.matchAll(/jobs\.([\w-]+)\.outputs\.([\w-]+)/g)) {
@@ -859,7 +872,12 @@ function validateNativeFields(
           !job ||
           !(job.callOutputNames?.includes(m[2]) ||
             Object.hasOwn(job.outputs ?? {}, m[2]))
-        ) invalid("workflowCallOutputs", `Unknown job output ${m[1]}.${m[2]}.`);
+        ) {
+          invalid(
+            "on.workflow_call.outputs",
+            `Unknown job output ${m[1]}.${m[2]}.`,
+          );
+        }
       }
     }
   }

@@ -10,8 +10,8 @@ import type {
 import {
   actionInput,
   defineAction,
+  definePipeline,
   defineTsugiori,
-  pipeline,
 } from "../packages/core/src/github_actions/mod.ts";
 import type { ExpressionEnvironment } from "../packages/core/src/github_actions/expression_scope.ts";
 
@@ -136,9 +136,9 @@ function assertAuthoringContracts(): void {
     actionInput.string({ required });
   void dynamicInput;
 
-  const empty = pipeline("ci", {
+  const empty = definePipeline("ci", {
     output: ".github/workflows/ci.yml",
-    events: ["push"],
+    on: { push: {} },
   });
   // @ts-expect-error an empty pipeline is not finalizable.
   defineTsugiori({ pipelines: [empty] });
@@ -177,9 +177,9 @@ function assertAuthoringContracts(): void {
   });
 
   let captured!: FinalizedJobState<"other", "captured">;
-  pipeline("other", {
+  definePipeline("other", {
     output: ".github/workflows/other.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job("captured", ({ job }) => {
     captured = job
       .runsOn("ubuntu-latest")

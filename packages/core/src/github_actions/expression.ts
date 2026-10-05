@@ -675,6 +675,7 @@ export type ScopeValues<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
 > = {
   /** Information about the workflow run and the event that triggered it. Some properties are available only within runner steps.
@@ -737,10 +738,9 @@ export type ScopeValues<
    */
   secrets: Readonly<Record<Secrets, string>>;
   /** Inputs passed to a manually dispatched or reusable workflow. Unlike github.event.inputs, this context preserves boolean values.
-   * Tsugiori: this general scope keeps the existing string reference type; reusable pipeline input references retain their declared primitive type.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    */
-  inputs: Readonly<Record<string, string>>;
+  inputs: InputValues;
   /** Path on the runner to the file that sets environment variables from workflow commands. This file is unique to the current step and is a different file for each step in a job. For more information, see [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
    */
@@ -829,6 +829,7 @@ export type Scope<
   Matrix extends object = Record<never, never>,
   Vars extends string = string,
   Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
 > =
   & {
@@ -839,8 +840,20 @@ export type Scope<
         Matrix,
         Vars,
         Secrets,
+        InputValues,
         Proof
-      >[K & keyof ScopeValues<Needs, Steps, Matrix, Vars, Secrets, Proof>],
+      >[
+        & K
+        & keyof ScopeValues<
+          Needs,
+          Steps,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues,
+          Proof
+        >
+      ],
       K & string
     >;
   }
@@ -852,11 +865,12 @@ export function scope<
   Matrix extends object,
   Vars extends string,
   Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
 >(
   key: S,
   contracts?: ReadonlyMap<string, ReferenceBinding>,
-): Scope<S, Needs, Steps, Matrix, Vars, Secrets, Proof> {
+): Scope<S, Needs, Steps, Matrix, Vars, Secrets, InputValues, Proof> {
   const definitions = githubExpressionScopes[key];
   const result: Record<string, unknown> = {};
   for (const context of definitions.contexts) {
@@ -877,6 +891,7 @@ export function scope<
     Matrix,
     Vars,
     Secrets,
+    InputValues,
     Proof
   >;
 }

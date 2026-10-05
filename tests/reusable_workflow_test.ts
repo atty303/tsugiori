@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
+  definePipeline,
   defineTsugiori,
-  pipeline,
   rawExpression,
   rawNode,
 } from "../packages/core/src/github_actions/mod.ts";
@@ -10,16 +10,18 @@ import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts
 import { scenario } from "../packages/testing/src/mod.ts";
 import { parse } from "../packages/core/src/deps.ts";
 
-const platform = pipeline("platform", {
+const platform = definePipeline("platform", {
   output: ".github/workflows/platform.yml",
-  events: ["workflow_call"],
-  workflowCall: {
-    inputs: {
-      module: { type: "string", required: true },
-      enabled: { type: "boolean", default: true },
+  on: {
+    workflow_call: {
+      inputs: {
+        module: { type: "string", required: true },
+        enabled: { type: "boolean", default: true },
+      },
+      secrets: { token: { required: true } },
     },
-    secrets: { token: { required: true } },
   },
+
   env: { ISOLATED: "callee" },
 }).job("build", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -49,12 +51,13 @@ const platform = pipeline("platform", {
     .outputs(({ steps }) => ({ result: steps.check.outputs.result })))
   .workflowOutputs(({ jobs }) => ({ result: jobs.build.outputs.result }));
 
-const ci = pipeline("ci", {
+const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
-  events: ["workflow_call"],
-  workflowCall: {
-    inputs: { module: { type: "string", required: true } },
-    secrets: { token: { required: true } },
+  on: {
+    workflow_call: {
+      inputs: { module: { type: "string", required: true } },
+      secrets: { token: { required: true } },
+    },
   },
 })
   .job(
@@ -69,11 +72,10 @@ const ci = pipeline("ci", {
       ),
   )
   .workflowOutputs(({ jobs }) => ({ result: jobs.platform.outputs.result }));
-const main = pipeline("main", {
+const main = definePipeline("main", {
   output: ".github/workflows/main.yml",
-  events: ["push"],
-  pushBranches: ["master"],
-  pushTags: ["*"],
+  on: { push: { branches: ["master"], tags: ["*"] } },
+
   env: { CALLER_ONLY: "value" },
   permissions: { actions: "read", "pull-requests": "write" },
 })
@@ -180,9 +182,9 @@ Deno.test("local references require config membership and input contracts", asyn
     Error,
     "included in the same config",
   );
-  const invalid = pipeline("invalid", {
+  const invalid = definePipeline("invalid", {
     output: ".github/workflows/invalid.yml",
-    events: ["push"],
+    on: { push: {} },
   })
     .job(
       "ci",
@@ -204,9 +206,9 @@ Deno.test("local references require config membership and input contracts", asyn
 });
 
 Deno.test("external workflow call uses explicit fixture", async () => {
-  const p = pipeline("external", {
+  const p = definePipeline("external", {
     output: ".github/workflows/external.yml",
-    events: ["push"],
+    on: { push: {} },
   })
     .job(
       "call",
@@ -228,9 +230,9 @@ Deno.test("external workflow call uses explicit fixture", async () => {
 
 Deno.test("host scenario observation preserves results and never exposes fixture values", async () => {
   const events: unknown[] = [];
-  const p = pipeline("observe", {
+  const p = definePipeline("observe", {
     output: ".github/workflows/observe.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job(
     "job",
     ({ job }) =>
@@ -279,18 +281,22 @@ Deno.test("host scenario observation preserves results and never exposes fixture
 });
 
 Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", async () => {
-  const dispatch = pipeline("release", {
+  const dispatch = definePipeline("release", {
     output: ".github/workflows/release.yml",
-    events: ["workflow_dispatch"],
-    runName: "Release ${{ inputs.into_env }}",
-    workflowDispatchInputs: {
-      into_env: {
-        type: "choice",
-        required: true,
-        options: ["stg", "prd"],
-        default: "stg",
+    on: {
+      workflow_dispatch: {
+        inputs: {
+          into_env: {
+            type: "choice",
+            required: true,
+            options: ["stg", "prd"],
+            default: "stg",
+          },
+        },
       },
     },
+    runName: "Release ${{ inputs.into_env }}",
+
     env: { TIMEOUT: "10" },
   }).job(
     "release",
@@ -335,10 +341,9 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
         return {};
       }));
   });
-  const pr = pipeline("pr", {
+  const pr = definePipeline("pr", {
     output: ".github/workflows/pr.yml",
-    events: ["pull_request_target"],
-    pullRequestTargetTypes: ["opened"],
+    on: { pull_request_target: { types: ["opened"] } },
   }).job(
     "job",
     ({ job }) =>
@@ -359,10 +364,9 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
     });
     t.job("job", (j) => j.step("run").fixture({}));
   });
-  const tags = pipeline("tags", {
+  const tags = definePipeline("tags", {
     output: ".github/workflows/tags.yml",
-    events: ["push"],
-    pushTags: ["v*", "!v*-alpha"],
+    on: { push: { tags: ["v*", "!v*-alpha"] } },
   }).job(
     "job",
     ({ job }) =>
@@ -382,9 +386,9 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
 });
 
 Deno.test("native defaults emit only specified values and tasks retain step timeout", async () => {
-  const p = pipeline("defaults", {
+  const p = definePipeline("defaults", {
     output: ".github/workflows/defaults.yml",
-    events: ["push"],
+    on: { push: {} },
   })
     .job(
       "shell",
@@ -424,17 +428,17 @@ Deno.test("native defaults emit only specified values and tasks retain step time
   assertEquals(w.jobs.directory.steps.at(-1)?.["timeout-minutes"], 1);
 });
 Deno.test("caller matrix instance expectations are checked independently", async () => {
-  const callee = pipeline("callee", {
+  const callee = definePipeline("callee", {
     output: ".github/workflows/callee.yml",
-    events: ["workflow_call"],
+    on: { workflow_call: {} },
   }).job(
     "job",
     ({ job }) =>
       job.runsOn("ubuntu-latest").run({ id: "run", name: "Run", run: "true" }),
   );
-  const caller = pipeline("caller", {
+  const caller = definePipeline("caller", {
     output: ".github/workflows/caller.yml",
-    events: ["push"],
+    on: { push: {} },
   }).job(
     "call",
     ({ job }) =>
