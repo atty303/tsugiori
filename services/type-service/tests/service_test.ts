@@ -2,7 +2,7 @@ import { assert, assertEquals, assertRejects } from "@std/assert";
 import { GitHubClient } from "../src/github/client.ts";
 import { createService } from "../src/service.ts";
 import { Diagnostics, Recording } from "../src/diagnostics.ts";
-import { generateG1 } from "../src/github/actions/g1.ts";
+import { generateV1 } from "../src/github/actions/v1.ts";
 import { encodeUses, parseUses } from "../src/github/reference.ts";
 
 import { MemoryCache, oauth, shaA, shaB, yaml } from "./fixtures.ts";
@@ -31,7 +31,7 @@ Deno.test("HTTP resolves refs before metadata, caches with TTL and regenerates i
     }),
   });
   const entry = new Request(
-    "https://types.example/github/actions/acme/publish/sub@release%2Fv3",
+    "https://types.example/github/actions/v1/acme/publish/sub@release%2Fv3",
   );
   const first = await service.fetch(entry);
   assertEquals(first.status, 302);
@@ -40,7 +40,7 @@ Deno.test("HTTP resolves refs before metadata, caches with TTL and regenerates i
   );
   assert(immutable.url.includes(shaA));
   const body = await (await service.fetch(immutable)).text();
-  assert(body.includes('"acme/publish/sub@release/v3"'));
+  assert(body.includes(`"acme/publish/sub@${shaA}"`));
   assert(!body.includes('["runs"]'));
   assert(body.includes("@deprecated Use destination instead."));
   assert(urls.at(-1)?.includes(`contents/sub/action.yaml?ref=${shaA}`));
@@ -93,11 +93,11 @@ Deno.test("failure contracts, encoding, recording bounds and opt-out", async () 
     ),
   });
   assertEquals(
-    (await service.fetch(new Request("https://t/github/actions/a/b@v3")))
+    (await service.fetch(new Request("https://t/github/actions/v1/a/b@v3")))
       .status,
     503,
   );
-  const invalid = new Request("https://t/github/actions/a/b@%ZZ");
+  const invalid = new Request("https://t/github/actions/v1/a/b@%ZZ");
   assertEquals((await service.fetch(invalid)).status, 400);
   const enabled = await service.fetch(invalid);
   const disabled = await service.fetch(invalid, false);
@@ -120,7 +120,8 @@ Deno.test("failure contracts, encoding, recording bounds and opt-out", async () 
     ),
   });
   assertEquals(
-    (await broken.fetch(new Request("https://t/github/actions/a/b@v3"))).status,
+    (await broken.fetch(new Request("https://t/github/actions/v1/a/b@v3")))
+      .status,
     302,
   );
   assert(
@@ -151,7 +152,7 @@ Deno.test("generator faithfully roundtrips strings and escapes comment terminato
     "Publish artifacts",
     '"quotes \\" and */ and \\n new line"',
   );
-  const source = generateG1(
+  const source = generateV1(
     dangerous,
     "a/b@v1",
     "https://github.com/a/b/blob/sha/action.yml",
@@ -171,8 +172,8 @@ Deno.test("generator faithfully roundtrips strings and escapes comment terminato
   );
   assert(!("runs" in module.default));
   assertEquals(
-    generateG1(dangerous, "a/b@v1", "source"),
-    generateG1(dangerous, "a/b@v1", "source"),
+    generateV1(dangerous, "a/b@v1", "source"),
+    generateV1(dangerous, "a/b@v1", "source"),
   );
 });
 
@@ -184,7 +185,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
       return Promise.resolve(new Response("name: invalid"));
     }),
   });
-  const immutable = `https://t/_resolved/g1/${shaA}/github/actions/a/b@v1`;
+  const immutable = `https://t/github/actions/v1/a/b@${shaA}?ref=v1`;
   assertEquals((await service.fetch(new Request(immutable))).status, 422);
   assert(
     service.diagnostics.list().at(-1)!.operations.some((op) =>
@@ -193,7 +194,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
   );
   const before = calls;
   assertEquals(
-    (await service.fetch(new Request(immutable.replace("/g1/", "/g2/"))))
+    (await service.fetch(new Request(immutable.replace("/v1/", "/v2/"))))
       .status,
     404,
   );
@@ -213,7 +214,7 @@ Deno.test("invalid metadata, unknown versions and deadlines fail without contrac
     ),
   });
   assertEquals(
-    (await deadline.fetch(new Request("https://t/github/actions/a/b@v1")))
+    (await deadline.fetch(new Request("https://t/github/actions/v1/a/b@v1")))
       .status,
     504,
   );
@@ -257,7 +258,7 @@ Deno.test("GitHub redirects are rejected in Workers-compatible manual mode", asy
     }),
   });
   assertEquals(
-    (await service.fetch(new Request("https://t/github/actions/a/b@v1")))
+    (await service.fetch(new Request("https://t/github/actions/v1/a/b@v1")))
       .status,
     502,
   );
@@ -284,4 +285,70 @@ Deno.test("default GitHub transport preserves native fetch invocation", async ()
   } finally {
     globalThis.fetch = nativeFetch;
   }
+});
+
+Deno.test("SHA responses skip resolution and isolate annotations in cache identity", async () => {
+  const urls: string[] = [];
+  const service = createService({
+    cache: new MemoryCache(),
+    github: new GitHubClient(oauth, (request) => {
+      urls.push(request.url);
+      return Promise.resolve(
+        request.url.includes("/commits/")
+          ? Response.json({ sha: shaA })
+          : new Response(yaml),
+      );
+    }),
+  });
+  const base = `https://t/github/actions/v1/a/b@${shaA}`;
+  for (const ref of [undefined, "release/v4", "日本語+百分%"]) {
+    const url = new URL(base);
+    if (ref !== undefined) url.searchParams.set("ref", ref);
+    const response = await service.fetch(new Request(url));
+    assertEquals(response.status, 200);
+    assertEquals(response.headers.get("location"), null);
+    const module = await import(
+      `data:application/typescript,${encodeURIComponent(await response.text())}`
+    );
+    assertEquals(module.default.uses, `a/b@${shaA}`);
+    assertEquals(module.default.originalRef, ref);
+  }
+  assertEquals(urls.length, 3);
+  assert(
+    urls.every((url) =>
+      !url.includes("/commits/") && url.includes(`ref=${shaA}`)
+    ),
+  );
+  for (
+    const suffix of [
+      "?other=x",
+      "?ref=%ZZ",
+      "?ref=%FF",
+      "?ref=",
+      "?ref=a&ref=b",
+      "?ref=a%0Ab",
+      "?ref=a%23b",
+    ]
+  ) {
+    assertEquals((await service.fetch(new Request(base + suffix))).status, 400);
+  }
+  for (
+    const path of [
+      "/github/actions/a/b@v4",
+      `/_resolved/g1/${shaA}/github/actions/a/b@v4`,
+      "/github/actions/v2/a/b@v4",
+    ]
+  ) {
+    assertEquals(
+      (await service.fetch(new Request("https://t" + path))).status,
+      404,
+    );
+  }
+  assertEquals(
+    (await service.fetch(
+      new Request("https://t/github/actions/v1/a/b@abcdef0"),
+    )).status,
+    302,
+  );
+  assert(urls.at(-1)!.includes("/commits/abcdef0"));
 });

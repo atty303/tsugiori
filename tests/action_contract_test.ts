@@ -124,3 +124,44 @@ Deno.test("direct actions reject invalid values even when type checks are bypass
     "requires name and description",
   );
 });
+
+Deno.test("action ref annotations survive lowering without changing YAML values", async () => {
+  const { lowerConfig } = await import("../src/compiler/authoring.ts");
+  const { emitWorkflow } = await import(
+    "../src/compiler/github_actions/emitter.ts"
+  );
+  const { parse } = await import("../src/deps.ts");
+  const pinned = {
+    name: "Action",
+    description: "Action",
+    uses: `a/b@${"a".repeat(40)}`,
+    originalRef: "v4",
+  };
+  const dangerous = {
+    ...pinned,
+    originalRef: "ref\nuses: malicious\u2028tail",
+  };
+  const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").uses(pinned).uses(pinned, { uses: "a/b@v5" })
+        .run({ name: "Hello", run: "echo hello" }).uses(dangerous),
+  );
+  const lowered = await lowerConfig(
+    defineProject({ workflows: [workflow] }),
+    "./workflows.ts",
+  );
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
+  assertEquals(yaml.includes(`uses: ${pinned.uses} # v4`), true);
+  assertEquals(yaml.includes("uses: a/b@v5 #"), false);
+  assertEquals(yaml.includes("\\u2028"), true);
+  const parsed = parse(yaml) as {
+    jobs: { test: { steps: { uses?: string }[] } };
+  };
+  assertEquals(parsed.jobs.test.steps.map((step) => step.uses), [
+    pinned.uses,
+    "a/b@v5",
+    undefined,
+    pinned.uses,
+  ]);
+});

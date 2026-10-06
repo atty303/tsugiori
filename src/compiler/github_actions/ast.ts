@@ -62,6 +62,7 @@ export type UsesStep =
     type: "uses";
     name?: string;
     uses: string;
+    originalRef?: string;
     with?: ActionInputs;
   }>;
 

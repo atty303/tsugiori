@@ -29,15 +29,15 @@ Deno.test("Worker bindings authenticate only GitHub API requests and never enter
       GITHUB_OAUTH_CLIENT_ID: oauth.clientId,
       GITHUB_OAUTH_CLIENT_SECRET: oauth.clientSecret,
     };
-    const entry = new Request("https://t/github/actions/a/b@v4", {
+    const entry = new Request("https://t/github/actions/v1/a/b@v4", {
       headers: { Authorization: "Bearer caller", Cookie: "caller" },
     });
     assertEquals((await worker.fetch(entry, env)).status, 302);
     const resolved = new Request(
-      `https://t/_resolved/g1/${shaA}/github/actions/a/b@v4`,
+      `https://t/github/actions/v1/a/b@${shaA}?ref=v4`,
     );
     const module = await (await worker.fetch(resolved, env)).text();
-    assert(module.includes('"a/b@v4"'));
+    assert(module.includes(`"a/b@${shaA}"`));
     assert(!module.includes(oauth.clientSecret));
     const before = requests.length;
     status = 401;

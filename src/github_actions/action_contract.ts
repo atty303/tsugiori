@@ -1,6 +1,8 @@
 /** Plain metadata exchanged by the type service; no Tsugiori runtime identity is required. */
 export type ActionContract = Readonly<{
   uses: string;
+  /** Annotation for the pinned action reference; never used to resolve or execute it. */
+  originalRef?: string;
   name: string;
   description: string;
   author?: string;

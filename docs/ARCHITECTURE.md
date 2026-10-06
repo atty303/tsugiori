@@ -197,19 +197,23 @@ diagnostics and can be rerun safely from the same authoring input.
 
 `services/type-service/` owns the official type service at
 `https://tsugiori.atty303.workers.dev`, a Cloudflare Worker independent of the
-consumer package. Its current resource is `/github/actions/`; it does not
-execute actions or workflows. GitHub requests resolve a ref first and read
-`action.yml` (then `action.yaml` on a 404) at that SHA. A pure, versioned
-metadata validator/emitter produces standalone TypeScript data, omitting
-`runs`. The plain structural contract types live in the GitHub Actions core;
-no Tsugiori runtime identity crosses the distribution boundary.
+consumer package. Its current resource is `/github/actions/v1/`; it does not
+execute actions or workflows. Mutable references resolve first; full SHA
+references skip resolution and read `action.yml` (then `action.yaml` on a 404)
+at that SHA. A pure, versioned metadata validator/emitter produces standalone
+TypeScript data, omitting `runs`. The plain structural contract types live in
+the GitHub Actions core; no Tsugiori runtime identity crosses the distribution
+boundary.
 
-The HTTP layer redirects original references to URLs containing generator
-version, resolved SHA, and original reference. These immutable identities
-retain the original `uses` default. Cloudflare's default Cache API holds
-five-minute ref redirects and year-long modules; neither is durable storage.
-Cache failure permits normal upstream retrieval, while an upstream failure
-after redirect expiry returns an error. The generator's version owns its
+The HTTP layer redirects mutable references to URLs containing generator
+version, resolved SHA, and original reference. These immutable identities pin
+the `uses` default to the SHA. The optional `ref` query becomes `originalRef`
+annotation and a safe inline YAML comment; it cannot change the metadata or
+execution target. SHA requests return directly. Different annotations have
+distinct cache identities and module checksums. Cloudflare's default Cache API
+holds five-minute ref redirects and year-long modules; neither is durable
+storage. Cache failure permits normal upstream retrieval, while an upstream
+failure after redirect expiry returns an error. The generator's version owns its
 emitted bytes and parser dependency; changing either output requires a new
 version and retaining the old generator. Unknown versions fail explicitly.
 
@@ -224,15 +228,15 @@ The deployment configuration names the Worker `tsugiori`, enables workers.dev,
 Workers Cache before execution, Cloudflare Workers Logs including invocation
 logs, and Issues for grouped production failures. Response Cache-Control headers
 govern cache lifetime; the Worker's Cache API remains independent. The service
-uploads a browser-targeted Deno bundle. Consumer
-imports never load Worker code. Wrangler and its Node runtime are pinned in the
-repository's mise toolchain. Wrangler's custom build hook builds and watches
-source for local development and dry-run upload validation. Release builds
-retain a local bundle for later deployment without adding it to GitHub Release
-assets; deployment skips the custom build using this prebuilt bundle. Local
-development runs the Worker in workerd on loopback with remote bindings disabled. The standard
-verification path validates the upload without publishing. Wrangler usage
-metrics are disabled by default.
+uploads a browser-targeted Deno bundle. Consumer imports never load Worker code.
+Wrangler and its Node runtime are pinned in the repository's mise toolchain.
+Wrangler's custom build hook builds and watches source for local development and
+dry-run upload validation. Release builds retain a local bundle for later
+deployment without adding it to GitHub Release assets; deployment skips the
+custom build using this prebuilt bundle. Local development runs the Worker in
+workerd on loopback with remote bindings disabled. The standard verification
+path validates the upload without publishing. Wrangler usage metrics are
+disabled by default.
 
 Requests retain at most 32 causal stage records per run and 128 runs per
 isolate, evicting successful runs first. Records contain operation names,

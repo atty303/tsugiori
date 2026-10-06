@@ -1130,6 +1130,8 @@ export type AuthoringUsesStep = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    */
   uses: string;
+  /** Original action ref, emitted only as a YAML comment. */
+  originalRef?: string;
   /** Named input values passed to the action, using the names declared by its metadata.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
    */
@@ -5372,9 +5374,24 @@ function createExecutionJobFacade(
         }
         assertPlainRecord(contract.outputs ?? {}, "Action contract outputs");
       }
+      if (
+        contract?.originalRef !== undefined &&
+        typeof contract.originalRef !== "string"
+      ) {
+        throw new TypeError("Action original ref must be a string.");
+      }
       const outputs = Object.keys(contract?.outputs ?? {});
       validateActionOutputs(outputs);
-      return appendStep(draft, usesStep(options, uses, inputs), outputs);
+      return appendStep(
+        draft,
+        usesStep(
+          options,
+          uses,
+          inputs,
+          uses === contract?.uses ? contract.originalRef : undefined,
+        ),
+        outputs,
+      );
     },
     run: (
       definition: RunStepDefinition<string | undefined, readonly string[]>,
@@ -5533,12 +5550,14 @@ function usesStep(
     & Readonly<{ id?: string; name?: string }>,
   uses: string,
   inputs: ActionInputs | undefined,
+  originalRef?: string,
 ): AuthoringUsesStep {
   return Object.freeze({
     type: "uses",
     ...(definition.id === undefined ? {} : { id: definition.id }),
     ...(definition.name === undefined ? {} : { name: definition.name }),
     uses,
+    ...(originalRef === undefined ? {} : { originalRef }),
     ...stepFields(definition),
     ...(inputs === undefined ? {} : { with: copyActionInputs(inputs) }),
   });

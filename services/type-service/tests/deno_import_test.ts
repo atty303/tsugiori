@@ -31,18 +31,25 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
     signal: controller.signal,
     onListen() {},
   }, (request) => {
-    requests.push(new URL(request.url).pathname);
+    requests.push(new URL(request.url).pathname + new URL(request.url).search);
     return service.fetch(request);
   });
   try {
     const origin = `http://127.0.0.1:${server.addr.port}`;
-    const entry = `${origin}/github/actions/acme/publish/sub@v3`;
-    await Deno.writeTextFile(`${directory}/deno.json`, "{}");
+    const entry = `${origin}/github/actions/v1/acme/publish/sub@v3`;
+    const direct = `${origin}/github/actions/v1/acme/publish/sub@${shaA}`;
+    await Deno.writeTextFile(
+      `${directory}/deno.json`,
+      JSON.stringify({
+        imports: {
+          "#actions/acme/publish/sub": entry,
+          "#actions/direct": direct,
+        },
+      }),
+    );
     await Deno.writeTextFile(
       `${directory}/main.ts`,
-      `import contract from ${
-        JSON.stringify(entry)
-      }; console.log(JSON.stringify({ uses: contract.uses, description: contract.description }));`,
+      `import contract from "#actions/acme/publish/sub"; import direct from "#actions/direct"; if (direct.uses !== "acme/publish/sub@${shaA}") throw new Error("SHA mismatch"); console.log(JSON.stringify({ uses: contract.uses, description: contract.description, originalRef: contract.originalRef }));`,
     );
     const run = async (cacheName: string, ...flags: string[]) =>
       await new Deno.Command(Deno.execPath(), {
@@ -55,12 +62,19 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
     const first = await run("cache-a");
     assert(first.success, new TextDecoder().decode(first.stderr));
     assertEquals(JSON.parse(new TextDecoder().decode(first.stdout)), {
-      uses: "acme/publish/sub@v3",
+      uses: `acme/publish/sub@${shaA}`,
       description: "Publish artifacts",
+      originalRef: "v3",
     });
     const lockBefore = await Deno.readTextFile(`${directory}/deno.lock`);
     const lock = JSON.parse(lockBefore);
-    assert(lock.redirects[entry].includes(shaA));
+    assertEquals(
+      lock.redirects[entry],
+      `${origin}/github/actions/v1/acme/publish/sub@${shaA}?ref=v3`,
+    );
+    assertEquals(lock.redirects[direct], undefined);
+    assert(typeof lock.remote[direct] === "string");
+    assert(typeof lock.remote[lock.redirects[entry]] === "string");
     sha = shaB;
     cache.now = 301;
     requests.length = 0;
@@ -70,16 +84,24 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
       JSON.parse(new TextDecoder().decode(cold.stdout)).description,
       "Publish artifacts",
     );
-    assertEquals(requests, [
-      `/_resolved/g1/${shaA}/github/actions/acme/publish/sub@v3`,
-    ]);
+    assertEquals(
+      requests.sort(),
+      [
+        `/github/actions/v1/acme/publish/sub@${shaA}?ref=v3`,
+        `/github/actions/v1/acme/publish/sub@${shaA}`,
+      ].sort(),
+    );
     assertEquals(await Deno.readTextFile(`${directory}/deno.lock`), lockBefore);
     requests.length = 0;
     const reloadLocked = await run("cache-b", "--reload", "--frozen=false");
     assert(reloadLocked.success, new TextDecoder().decode(reloadLocked.stderr));
-    assertEquals(requests, [
-      `/_resolved/g1/${shaA}/github/actions/acme/publish/sub@v3`,
-    ]);
+    assertEquals(
+      requests.sort(),
+      [
+        `/github/actions/v1/acme/publish/sub@${shaA}?ref=v3`,
+        `/github/actions/v1/acme/publish/sub@${shaA}`,
+      ].sort(),
+    );
     assertEquals(
       JSON.parse(new TextDecoder().decode(reloadLocked.stdout)).description,
       "Publish artifacts",
@@ -97,10 +119,14 @@ Deno.test("Deno URL import preserves redirects on cold locked fetch and supports
       JSON.parse(new TextDecoder().decode(refresh.stdout)).description,
       "Updated artifacts",
     );
-    assertEquals(requests, [
-      "/github/actions/acme/publish/sub@v3",
-      `/_resolved/g1/${shaB}/github/actions/acme/publish/sub@v3`,
-    ]);
+    assertEquals(
+      requests.sort(),
+      [
+        "/github/actions/v1/acme/publish/sub@v3",
+        `/github/actions/v1/acme/publish/sub@${shaB}?ref=v3`,
+        `/github/actions/v1/acme/publish/sub@${shaA}`,
+      ].sort(),
+    );
     assert(
       JSON.parse(await Deno.readTextFile(`${directory}/deno.lock`))
         .redirects[entry].includes(shaB),

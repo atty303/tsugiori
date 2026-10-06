@@ -126,6 +126,9 @@ export async function lowerConfig(
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
             uses: step.uses,
+            ...(step.originalRef === undefined
+              ? {}
+              : { originalRef: step.originalRef }),
             ...(step.if === undefined ? {} : { if: step.if }),
             ...(step.continueOnError === undefined ? {} : {
               continueOnError: step.continueOnError,

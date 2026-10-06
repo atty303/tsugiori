@@ -2,12 +2,12 @@ import { Diagnostics, type Recording } from "./diagnostics.ts";
 import { ServiceError } from "./errors.ts";
 import { GitHubClient } from "./github/client.ts";
 import { encodeUses, metadataUrl, parseUses } from "./github/reference.ts";
-import { generateG1 } from "./github/actions/g1.ts";
+import { generateV1 } from "./github/actions/v1.ts";
 
 export type ServiceCache = Pick<Cache, "match" | "put">;
 const REF_TTL = 300;
 const IMMUTABLE_TTL = 31_536_000;
-const PREFIX = "/github/actions/";
+const PREFIX = "/github/actions/v1/";
 
 export function createService(
   options: {
@@ -59,30 +59,46 @@ export function createService(
             });
           }
           const url = new URL(request.url);
-          if (url.search) throw new ServiceError("invalid_request", 400);
-          const resolved = url.pathname.match(
-            /^\/_resolved\/(g\d+)\/([a-f0-9]{40})\/github\/actions\/(.+)$/,
-          );
-          if (!resolved && !url.pathname.startsWith(PREFIX)) {
-            throw new ServiceError("not_found", 404);
-          }
-          if (resolved && resolved[1] !== "g1") {
+          if (!url.pathname.startsWith(PREFIX)) {
             throw new ServiceError("not_found", 404);
           }
           let uses: string;
           try {
-            uses = decodeURIComponent(
-              resolved ? resolved[3] : url.pathname.slice(PREFIX.length),
-            );
+            uses = decodeURIComponent(url.pathname.slice(PREFIX.length));
+          } catch (cause) {
+            throw new ServiceError("invalid_request", 400, { cause });
+          }
+          try {
+            decodeURIComponent(url.search.replaceAll("+", " "));
           } catch (cause) {
             throw new ServiceError("invalid_request", 400, { cause });
           }
           const source = parseUses(uses);
-          const canonical = resolved
-            ? `/_resolved/g1/${resolved[2]}${PREFIX}${encodeUses(source)}`
-            : `${PREFIX}${encodeUses(source)}`;
+          const resolved = /^[a-fA-F0-9]{40}$/.test(source.ref);
+          const refs = url.searchParams.getAll("ref");
+          if (
+            [...url.searchParams.keys()].some((key) => key !== "ref") ||
+            refs.length > 1 || (refs.length > 0 && !resolved)
+          ) {
+            throw new ServiceError("invalid_request", 400);
+          }
+          const originalRef = refs[0];
+          if (originalRef !== undefined) {
+            parseUses(`${source.owner}/${source.repo}@${originalRef}`);
+          }
+          const sha = source.ref.toLowerCase();
+          const pinned = resolved
+            ? parseUses(`${uses.slice(0, uses.indexOf("@"))}@${sha}`)
+            : source;
+          const canonicalUrl = new URL(
+            `${PREFIX}${encodeUses(pinned)}`,
+            url.origin,
+          );
+          if (originalRef !== undefined) {
+            canonicalUrl.searchParams.set("ref", originalRef);
+          }
           // Canonicalize encoding before selecting cache identity; no caller headers are forwarded.
-          const key = new Request(new URL(canonical, url.origin));
+          const key = new Request(canonicalUrl);
           const hit = await cached(key, recording);
           if (hit) {
             return request.method === "HEAD" ? new Response(null, hit) : hit;
@@ -90,26 +106,32 @@ export function createService(
           let result: Response;
           if (!resolved) {
             const sha = await github.resolve(source, recording);
+            const target = new URL(
+              `${PREFIX}${encodeUses({ ...source, ref: sha })}`,
+              url.origin,
+            );
+            target.searchParams.set("ref", source.ref);
             result = new Response(null, {
               status: 302,
               headers: {
-                Location: `/_resolved/g1/${sha}${PREFIX}${encodeUses(source)}`,
+                Location: `${target.pathname}${target.search}`,
                 "Cache-Control": `public, max-age=${REF_TTL}`,
               },
             });
           } else {
             const { yaml, filename } = await github.metadata(
               source,
-              resolved[2],
+              sha,
               recording,
             );
             const body = await recording.operation(
               "generate",
               () =>
-                generateG1(
+                generateV1(
                   yaml,
-                  source.uses,
-                  metadataUrl(source, resolved[2], filename),
+                  pinned.uses,
+                  metadataUrl(source, sha, filename),
+                  originalRef,
                 ),
             );
             result = new Response(body, {

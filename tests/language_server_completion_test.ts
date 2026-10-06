@@ -1,4 +1,4 @@
-import { generateG1 } from "../services/type-service/src/github/actions/g1.ts";
+import { generateV1 } from "../services/type-service/src/github/actions/v1.ts";
 import { yaml } from "../services/type-service/tests/fixtures.ts";
 import { assert, assertEquals } from "@std/assert";
 
@@ -332,7 +332,7 @@ const flow = defineWorkflow("ci.yml", { on: {
             uri: metadataUri,
             languageId: "typescript",
             version: 1,
-            text: generateG1(
+            text: generateV1(
               yaml,
               "acme/publish@v3",
               "https://github.com/acme/publish/blob/sha/action.yml",

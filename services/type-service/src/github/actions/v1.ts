@@ -2,11 +2,12 @@ import { parse } from "../../deps.ts";
 import type { ActionContract } from "../../../../../src/github_actions/action_contract.ts";
 import { ServiceError } from "../../errors.ts";
 
-// g1 is immutable: changes that alter emitted bytes require a new generator module.
-export function generateG1(
+// v1 is immutable: changes that alter emitted bytes require a new generator module.
+export function generateV1(
   yaml: string,
   uses: string,
   sourceUrl: string,
+  originalRef?: string,
 ): string {
   let value: unknown;
   try {
@@ -16,7 +17,12 @@ export function generateG1(
     throw new ServiceError("metadata_invalid", 422, { cause });
   }
   const { runs: _runs, ...metadata } = value;
-  const contract = { ...metadata, uses };
+  const { originalRef: _originalRef, ...fields } = metadata;
+  const contract = {
+    ...fields,
+    uses,
+    ...(originalRef === undefined ? {} : { originalRef }),
+  };
   return `${
     doc([
       metadata.name,

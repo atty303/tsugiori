@@ -7,7 +7,7 @@ export type Operation =
   | "generate";
 export type DiagnosticRun = Readonly<{
   id: string;
-  resource: "tsugiori.type-service/g1";
+  resource: "tsugiori.type-service/v1";
   started: number;
   status: "ok" | "error";
   completeness: "complete" | "partial";
@@ -102,7 +102,7 @@ export class Recording {
     try {
       this.#save?.({
         id: this.id,
-        resource: "tsugiori.type-service/g1",
+        resource: "tsugiori.type-service/v1",
         started: this.#started,
         status,
         completeness: this.#partial ? "partial" : "complete",

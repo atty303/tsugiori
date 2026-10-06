@@ -288,13 +288,14 @@ comparison, truthiness, and logical operator evaluation.
 
 ## Action metadata contracts
 
-The official type service is [tsugiori.atty303.workers.dev](https://tsugiori.atty303.workers.dev).
-Map an action metadata URL in your Deno project's `deno.json`:
+The official type service is
+[tsugiori.atty303.workers.dev](https://tsugiori.atty303.workers.dev). Map an
+action metadata URL in your Deno project's `deno.json`:
 
 ```json
 {
   "imports": {
-    "actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/actions/checkout@v4"
+    "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v4"
   }
 }
 ```
@@ -302,7 +303,7 @@ Map an action metadata URL in your Deno project's `deno.json`:
 Import the contract and pass it directly to `job.uses(contract, options?)`:
 
 ```ts
-import checkout from "actions/checkout";
+import checkout from "#actions/actions/checkout";
 
 // In a workflow job callback:
 job.runsOn("ubuntu-latest").uses(checkout, {
@@ -327,14 +328,13 @@ workflow and dispatch inputs retain their declared primitive types.
 
 Only `required: true` inputs without a default must be supplied. These require
 the second argument, `with`, and the named input. Otherwise both options and
-`with` may be omitted. `with` accepts an object or a callback receiving the
-step input expression scope. Tsugiori leaves defaults to the action and emits
-no `with` when it is omitted. Descriptions, default information, and
-deprecation messages are available in editor documentation. Outputs remain
-strings even when an action serializes JSON; a step `id` exposes declared
-outputs to later steps. A string reference checks input values but has no
-input-name contract or declared output names, and cannot specify `uses` again
-in options.
+`with` may be omitted. `with` accepts an object or a callback receiving the step
+input expression scope. Tsugiori leaves defaults to the action and emits no
+`with` when it is omitted. Descriptions, default information, and deprecation
+messages are available in editor documentation. Outputs remain strings even when
+an action serializes JSON; a step `id` exposes declared outputs to later steps.
+A string reference checks input values but has no input-name contract or
+declared output names, and cannot specify `uses` again in options.
 
 Handwritten contracts use the same metadata shape:
 
@@ -353,38 +353,46 @@ const checkout = {
 } as const satisfies ActionContract;
 ```
 
-Contracts are caller declarations; Tsugiori does not inspect the selected
-action during workflow generation. Type checks enforce string expressions.
-Runtime validation also rejects invalid primitive values and provably
-non-string expression nodes. Raw expressions and `.as<T>()` remain caller
-assertions without runtime value-type validation.
+Contracts are caller declarations; Tsugiori does not inspect the selected action
+during workflow generation. Type checks enforce string expressions. Runtime
+validation also rejects invalid primitive values and provably non-string
+expression nodes. Raw expressions and `.as<T>()` remain caller assertions
+without runtime value-type validation.
 
-The import's original action and ref supply the default `uses`: importing
-`@v4` emits `@v4`, even though the metadata was fetched at a particular SHA.
-An explicit `uses` replaces the entire reference, including local actions or
-forks. Tsugiori does not verify that the selected implementation matches the
-contract, and locking the imported contract does **not** lock the executed
-action. Pin `uses` to a SHA separately when that is desired.
+Service contracts supply a SHA-pinned default `uses`, including when the
+import URL selects a tag such as `@v4`. An
+explicit `uses` replaces the entire reference, including local actions or forks.
+Tsugiori does not verify that the selected implementation matches the contract.
+An override that changes the execution target omits the original-ref
+comment; the imported contract lock does not pin that override.
+
+The recommended import alias is `#actions/<owner>/<repo>[/path]`; this is a
+convention, not a requirement. Other aliases and direct URL imports also work.
 
 The service accepts public GitHub.com repositories, including subdirectory
-actions. The URL is `/github/actions/<owner/repo[/path]@ref>` without a `.ts`
-suffix. Encode each owner/repository/path segment individually and the whole
-ref with `encodeURIComponent`; for example,
-`/github/actions/acme/tools/publish@release%2Fv3` specifies branch `release/v3`.
-Tags, branches, and full commit SHAs use the same route. Local actions, private
-repositories, GHES and Docker image references cannot be metadata sources.
+actions. The URL is `/github/actions/v1/<owner>/<repo>[/path]@<ref>` without a
+`.ts` suffix. Encode each location segment individually and the whole ref with
+`encodeURIComponent`; `acme/tools/publish@release%2Fv3` selects `release/v3`.
+Local actions, private repositories, GHES and Docker references cannot be
+sources.
 
-The entry redirects to
-`/_resolved/g1/<SHA>/github/actions/<original-uses>`. `g1` identifies the
-immutable generator; `original-uses` uses the same encoding. The generated
-module contains metadata except `runs`, plus the original `uses`, with no
-Tsugiori import. YAML scalar defaults (including boolean, number, and null)
-are retained as data; they do not change the string input type. Ref resolutions
-are cached for five minutes, and immutable modules for up to one year. GitHub
-availability and API rate limits still apply. A cache miss regenerates from
-GitHub; deletion of upstream data can make old imports unavailable. Failed
-fetches or invalid metadata produce errors rather than widened contracts or
-expired ref resolutions.
+Full 40-digit commit SHAs return a module directly, without ref resolution or
+redirect. Tags, branches and abbreviated SHAs redirect to the resolved SHA:
+`/github/actions/v1/actions/checkout@<SHA>?ref=v4`. The query retains the
+original ref only as annotation. Metadata and the contract's `uses` refer to the
+SHA; `originalRef` becomes a comment such as
+`uses: actions/checkout@<SHA> # v4`. Direct SHA imports without this query have
+no original-ref comment.
+
+`v1` fixes the generator output and parser dependency. Future changes to those
+bytes require another version. The module contains metadata except `runs`, a
+SHA-pinned `uses` and optional `originalRef`, without a Tsugiori import. Scalar
+defaults retain their data types without changing the string input type. Ref
+redirects are cached for five minutes and SHA modules for up to one year. GitHub
+availability and rate limits still apply; cache is not durable storage. A cold
+miss regenerates from GitHub, so deleted upstream data can make imports
+unavailable. Errors never return widened contracts or expired ref resolutions.
+The unversioned and `/_resolved/g1/` routes are not supported by this contract.
 
 Commit your Deno lockfile. Deno 2.9.5 records both the redirect and the resolved
 module checksum; a cold fetch with `--frozen=true` uses that fixed URL. To

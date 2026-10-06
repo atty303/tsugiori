@@ -100,6 +100,10 @@ function formatWorkflowYaml(yaml: string, jobs: readonly Job[]): string {
   let seenStep = false;
   let inSteps = false;
   let runIndex = 0;
+  const actions = jobs.flatMap((job) =>
+    job.steps.filter((step) => step.type === "uses")
+  );
+  let actionIndex = 0;
 
   for (const line of yaml.split("\n")) {
     if (line === "jobs:") {
@@ -145,7 +149,27 @@ function formatWorkflowYaml(yaml: string, jobs: readonly Job[]): string {
       );
       continue;
     }
-    lines.push(line);
+    if (inSteps && /^(?: {6}- | {8})uses: /.test(line)) {
+      const ref = actions[actionIndex++]?.originalRef;
+      // JSON escaping keeps arbitrary contract annotations on one physical line.
+      const comment = ref === undefined
+        ? ""
+        : ` # ${
+          [...ref].some((char) =>
+              char.charCodeAt(0) < 32 ||
+              [127, 133, 8232, 8233].includes(char.charCodeAt(0))
+            )
+            ? JSON.stringify(ref).replace(
+              /[\u0085\u2028\u2029]/g,
+              (char) =>
+                `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+            )
+            : ref
+        }`;
+      lines.push(line + comment);
+    } else {
+      lines.push(line);
+    }
   }
 
   if (runIndex !== runs.length) {
