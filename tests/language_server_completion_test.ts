@@ -21,7 +21,7 @@ Deno.test({
   name: "Deno language server exposes only context-valid authoring candidates",
   sanitizeOps: false,
   sanitizeResources: false,
-  fn: async () => {
+  fn: async (t) => {
     const child = new Deno.Command(Deno.execPath(), {
       args: ["lsp", "--quiet"],
       stdin: "piped",
@@ -392,6 +392,84 @@ const publish = contract;`;
         assert(hover.includes(expected), `Expected ${expected} in ${hover}`);
       }
 
+      const displays: Record<string, string> = {};
+      for (const [index, fixture] of displayFixtures().entries()) {
+        const hover = await sourceHover(
+          writer,
+          stream,
+          100 + index,
+          `display-${fixture.name}`,
+          fixture.source,
+          true,
+          fixture.kind,
+        );
+        const code = fixture.kind === "signatureHelp"
+          ? hover
+          : hover.match(/```(?:typescript|tsx)\n([\s\S]*?)```/)?.[1]?.trim();
+        assert(code, hover);
+        displays[fixture.name] = code;
+      }
+      // These inferred states must stay fully visible, rather than appearing
+      // shorter because TypeScript hit its display truncation limit.
+      for (
+        const name of [
+          "workflow-draft",
+          "workflow",
+          "job-callback",
+          "job-needs",
+          "execution",
+          "steps",
+          "typed-task",
+          "task-callback",
+          "composite-start",
+          "composite-steps",
+          "expression-callback",
+          "simple-step-signature",
+        ]
+      ) {
+        assert(!displays[name].includes("..."), `${name}: ${displays[name]}`);
+      }
+      for (
+        const [name, limit] of [["workflow", 500], ["steps", 500], [
+          "typed-task",
+          400,
+        ], ["composite-steps", 550]] as const
+      ) {
+        assert(
+          displays[name].length <= limit,
+          `${name}: ${displays[name].length} characters exceeds ${limit}`,
+        );
+      }
+      await t.assertSnapshot(displays);
+      for (
+        const [index, [name, expected]] of ([
+          ["composite-start", ["run", "uses", "task"]],
+          ["composite-steps", ["run", "uses", "task", "outputs", "steps"]],
+        ] as const).entries()
+      ) {
+        const fixture = displayFixtures().find((fixture) =>
+          fixture.name === name
+        );
+        assert(fixture);
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          200 + index,
+          `completion-${name}`,
+          fixture.source.replace("/*completion*/", "./*completion*/"),
+        );
+        assertRelevantExactly(labels, expected, [
+          "run",
+          "uses",
+          "task",
+          "outputs",
+          "steps",
+          "needs",
+          "runsOn",
+          "strategy",
+        ]);
+      }
+
       await writeMessage(writer, {
         jsonrpc: "2.0",
         id: 10,
@@ -433,6 +511,8 @@ async function sourceHover(
   id: number,
   fixtureName: string,
   source: string,
+  valid = false,
+  kind: "hover" | "signatureHelp" = "hover",
 ): Promise<string> {
   const before = source.slice(0, source.indexOf("/*completion*/"));
   const lines = before.split("\n");
@@ -449,21 +529,38 @@ async function sourceHover(
       },
     },
   });
-  await notificationFor(stream, "textDocument/publishDiagnostics", uri);
+  const diagnostic = await notificationFor(
+    stream,
+    "textDocument/publishDiagnostics",
+    uri,
+  );
+  if (valid) {
+    assertEquals(
+      (diagnostic.params as { diagnostics: { severity: number }[] }).diagnostics
+        .filter((diagnostic) => diagnostic.severity === 1),
+      [],
+      source,
+    );
+  }
   await writeMessage(writer, {
     jsonrpc: "2.0",
     id,
-    method: "textDocument/hover",
+    method: `textDocument/${kind}`,
     params: {
       textDocument: { uri },
       position: {
         line: lines.length - 1,
-        character: (lines.at(-1)?.length ?? 0) - 2,
+        character: (lines.at(-1)?.length ?? 0) - (kind === "hover" ? 2 : 0),
       },
     },
   });
   const response = await responseFor(stream, id);
   assert(response.error === undefined, JSON.stringify(response.error));
+  if (kind === "signatureHelp") {
+    const result = response.result as { signatures: { label: string }[] };
+    assert(result?.signatures.length, JSON.stringify(response));
+    return result.signatures.map((signature) => signature.label).join("\n");
+  }
   return (response.result as { contents: { value: string } }).contents.value;
 }
 
@@ -696,4 +793,177 @@ async function withTimeout<Value>(
   } finally {
     if (timeout !== undefined) clearTimeout(timeout);
   }
+}
+
+function displayFixtures(): readonly {
+  name: string;
+  source: string;
+  kind?: "signatureHelp";
+}[] {
+  const imports =
+    `import { defineWorkflow, defineCompositeAction, textValue, literal, present } from "../src/github_actions/mod.ts";`;
+  const base = `const draft = defineWorkflow("ci.yml", { on: { push: {} } });`;
+  const build =
+    `const flow = draft.job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ id: "build", name: "Build", run: "true", outputs: ["version"] }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))`;
+  const job = `${build}; flow.job("test", ({ job, jobs }) => { BODY });`;
+  const sequence =
+    `const state = job.needs(jobs.build).runsOn("ubuntu-latest").strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] } }).run({ id: "test", name: "Test", run: "true" }).run({ id: "report", name: "Report", run: "true" });`;
+  const composite =
+    `const actionDraft = defineCompositeAction("actions/greet", { name: "Greet", description: "Greeting", inputs: { who: { description: "Recipient", required: true } }, outputs: { greeting: { description: "Greeting" } } });`;
+  const compositeBody =
+    `${composite} const action = actionDraft.steps(({ step }) => { BODY });`;
+  const compositeSequence =
+    `const state = step.run({ id: "one", name: "First", shell: "bash", run: "true", outputs: ["value"] }).task({ id: "two", name: "Second", inputs: { who: { contract: textValue(), from: actionDraft.inputs.who } }, outputs: { value: { contract: textValue(), required: true } }, run: async ({ inputs, outputs }) => { await outputs.set("value", inputs.who); } });`;
+  const cases: readonly [string, string][] = [
+    ["workflow-draft", `${base} draft/*completion*/;`],
+    [
+      "workflow",
+      `${base} ${build}.job("test", ({ job, jobs }) => job.needs(jobs.build).runsOn("ubuntu-latest").run({ id: "test", name: "Test", run: "true" })); flow/*completion*/;`,
+    ],
+    ["workflow-method", `${base} ${build}; flow.job/*completion*/;`],
+    [
+      "job-callback",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `job/*completion*/; return job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });`,
+        )
+      }`,
+    ],
+    [
+      "job-needs",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `const dependent = job.needs(jobs.build); dependent/*completion*/; return dependent.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });`,
+        )
+      }`,
+    ],
+    [
+      "execution",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `const execution = job.needs(jobs.build).runsOn("ubuntu-latest").strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] } }); execution/*completion*/; return execution.run({ name: "Test", run: "true" });`,
+        )
+      }`,
+    ],
+    [
+      "steps",
+      `${base} ${
+        job.replace("BODY", `${sequence} state/*completion*/; return state;`)
+      }`,
+    ],
+    [
+      "step-method",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `${sequence} state.run/*completion*/; return state;`,
+        )
+      }`,
+    ],
+    [
+      "expression-callback",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `${sequence} return state.run({ name: "Consume", run: "true", env: (context) => { context/*completion*/; return { OS: context.matrix.os }; } });`,
+        )
+      }`,
+    ],
+    [
+      "typed-task",
+      `${base} draft.job("task", ({ job }) => { const state = job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { contract: textValue(), from: literal("world") } }, outputs: { greeting: { contract: textValue(), required: true } }, run: async ({ inputs, outputs }) => { await outputs.set("greeting", inputs.who); } }); state/*completion*/; return state; });`,
+    ],
+    [
+      "task-callback",
+      `${base} draft.job("task", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { contract: textValue(), from: literal("world") } }, outputs: { greeting: { contract: textValue(), required: true } }, run: async (context) => { context/*completion*/; await context.outputs.set("greeting", context.inputs.who); } }));`,
+    ],
+    ["composite-draft", `${composite} actionDraft/*completion*/;`],
+    [
+      "composite-start",
+      compositeBody.replace(
+        "BODY",
+        `step/*completion*/; return step.run({ name: "Test", shell: "bash", run: "true" }).outputs(() => ({ greeting: literal("hello") }));`,
+      ),
+    ],
+    [
+      "composite-steps",
+      compositeBody.replace(
+        "BODY",
+        `${compositeSequence} state/*completion*/; return state.outputs(({ steps }) => ({ greeting: steps.two.outputs.value }));`,
+      ),
+    ],
+    [
+      "composite-method",
+      compositeBody.replace(
+        "BODY",
+        `${compositeSequence} state.task/*completion*/; return state.outputs(({ steps }) => ({ greeting: steps.two.outputs.value }));`,
+      ),
+    ],
+    [
+      "composite",
+      `${
+        compositeBody.replace(
+          "BODY",
+          `${compositeSequence} return state.outputs(({ steps }) => ({ greeting: steps.two.outputs.value }));`,
+        )
+      } action/*completion*/;`,
+    ],
+  ];
+  const reusable =
+    `const reusable = defineWorkflow("called.yml", { on: { workflow_call: { inputs: { version: { type: "string", required: true } } } } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));`;
+  const extra: readonly [string, string][] = [
+    [
+      "job-scope",
+      `${base} ${build}; flow.job("scope", (context) => { context/*completion*/; return context.job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }); });`,
+    ],
+    [
+      "reusable-job",
+      `${base} ${reusable} draft.job("caller", ({ job }) => { const caller = job.reusable(); caller/*completion*/; return caller.call("./called.yml", reusable, { with: { version: "1" } }); });`,
+    ],
+    [
+      "presence-proof",
+      `${base} const source = draft.job("source", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: {}, outputs: { value: { contract: textValue(), required: false } }, run: () => {} }).outputs(({ steps }) => ({ value: steps.emit.outputs.value }))); source.job("read", ({ job, jobs }) => { const state = job.needs(jobs.source).runsOn("ubuntu-latest").when(({ needs }) => present(needs.source.outputs.value)).task({ id: "read", name: "Read", inputs: ({ needs }) => ({ value: { contract: textValue(), from: needs.source.outputs.value } }), outputs: {}, run: ({ inputs }) => { const value: string = inputs.value; void value; } }); state/*completion*/; return state; });`,
+    ],
+  ];
+  const signatures: readonly [string, string][] = [
+    [
+      "simple-step-signature",
+      `${base} draft.job("simple", ({ job }) => job.runsOn("ubuntu-latest").run(/*completion*/{ id: "one", name: "One", run: "true" }));`,
+    ],
+
+    [
+      "workflow-signature",
+      `${base} ${build}; flow.job("next", /*completion*/({ job }) => job.runsOn("ubuntu-latest").run({ name: "Next", run: "true" }));`,
+    ],
+    [
+      "step-signature",
+      `${base} ${
+        job.replace(
+          "BODY",
+          `${sequence} return state.run(/*completion*/{ name: "Next", run: "true" });`,
+        )
+      }`,
+    ],
+    [
+      "composite-signature",
+      compositeBody.replace(
+        "BODY",
+        `${compositeSequence} return state.run(/*completion*/{ name: "Next", shell: "bash", run: "true" }).outputs(({ steps }) => ({ greeting: steps.two.outputs.value }));`,
+      ),
+    ],
+  ];
+  return [
+    ...[...cases, ...extra].map(([name, source]) => ({
+      name,
+      source: `${imports}\n${source}`,
+    })),
+    ...signatures.map(([name, source]) => ({
+      name,
+      source: `${imports}\n${source}`,
+      kind: "signatureHelp" as const,
+    })),
+  ];
 }

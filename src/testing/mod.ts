@@ -51,8 +51,8 @@ import {
   type TestJobsOf,
   type TestMatrixOf,
   type TestStepOf,
-  type TestStepShape,
   type TestStepsOf,
+  type TS,
 } from "../github_actions/mod.ts";
 import { runScenario } from "./run.ts";
 
@@ -333,10 +333,12 @@ export type Program = {
   workflowPath?: string;
 };
 
-type InputsOf<Step> = TestStepOf<Step> extends
-  TestStepShape<infer Inputs, unknown> ? Inputs : never;
-type OutputsOf<Step> = TestStepOf<Step> extends
-  TestStepShape<unknown, infer Outputs> ? Outputs : never;
+type InputsOf<Step> = TestStepOf<Step> extends TS<infer Inputs, unknown>
+  ? Inputs
+  : never;
+type OutputsOf<Step> = TestStepOf<Step> extends TS<unknown, infer Outputs>
+  ? Outputs
+  : never;
 type JobSteps<Job> = TestStepsOf<Job>;
 type JobMatrix<Job> = TestMatrixOf<Job>;
 type JobNames<Jobs> = keyof Jobs & string;

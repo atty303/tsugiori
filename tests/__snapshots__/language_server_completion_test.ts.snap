@@ -1,0 +1,229 @@
+export const snapshot = {};
+
+snapshot[`Deno language server exposes only context-valid authoring candidates 1`] = `
+{
+  "composite-draft": 'const actionDraft: CompositeDraft<"actions/greet", {
+    readonly name: "Greet";
+    readonly description: "Greeting";
+    readonly inputs: {
+        readonly who: {
+            readonly description: "Recipient";
+            readonly required: true;
+        };
+    };
+    readonly outputs: {
+        readonly greeting: {
+            readonly description: "Greeting";
+        };
+    };
+}>',
+  "composite-method": '(method) CStepBase<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: TaskStepDefinition<Id, I, O, E, {
+    readonly one: NS<"one", readonly ["value"]>;
+    readonly two: TR<"two", {
+        readonly who: string;
+    }, SkippableOutputs<{
+        readonly value: {
+            readonly contract: ValueContract<string, "text">;
+            readonly required: true;
+        };
+    }>>;
+}, E, string, never, {
+    readonly who: string;
+}, never, C> & Readonly<{
+    timeoutMinutes?: never;
+    workingDirectory?: string;
+    outputs: O;
+    if?: C | undefined;
+    continueOnError?: F | undefined;
+    id?: Exclude<Id, "one" | "two"> | undefined;
+}>): CStep<"actions/greet", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, {
+    readonly one: NS<"one", readonly ["value"]>;
+    readonly two: TR<"two", {
+        readonly who: string;
+    }, SkippableOutputs<{
+        readonly value: {
+            readonly contract: ValueContract<string, "text">;
+            readonly required: true;
+        };
+    }>>;
+}>, {
+    readonly secrets: never;
+    readonly inputs: {
+        readonly who: string;
+    };
+}>',
+  "composite-signature": 'run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CStep<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>',
+  "composite-start": '(parameter) step: Pick<CStep<"actions/greet", "composite", E, {
+    readonly secrets: never;
+    readonly inputs: {
+        readonly who: string;
+    };
+}>, "uses" | "run" | "task">',
+  "composite-steps": 'const state: CStep<"actions/greet", "composite", {
+    readonly one: NS<"one", readonly ["value"]>;
+    readonly two: TR<"two", {
+        readonly who: string;
+    }, SkippableOutputs<{
+        readonly value: {
+            readonly contract: ValueContract<string, "text">;
+            readonly required: true;
+        };
+    }>>;
+}, {
+    readonly secrets: never;
+    readonly inputs: {
+        readonly who: string;
+    };
+}>',
+  "expression-callback": '(parameter) context: Scope<"jobs.<job_id>.steps.env", {
+    readonly build: JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>;
+}, OutputMap<{
+    readonly test: NS<"test", readonly []>;
+    readonly report: NS<"report", readonly []>;
+}>, {
+    readonly os: "ubuntu-latest" | "macos-latest";
+}, string, string, E>',
+  "job-callback": '(parameter) job: Job<"ci.yml", "test", {
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}, E>',
+  "job-needs": 'const dependent: DepJob<"ci.yml", "test", {
+    readonly build: JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>;
+}, E>',
+  "job-scope": '(parameter) context: JobScope<"ci.yml", "scope", {
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}, E>',
+  "presence-proof": 'const state: Step<"ci.yml", "read", {
+    readonly read: TR<"read", {
+        readonly value: string;
+    }, SkippableOutputs<{}>>;
+}, {
+    readonly needs: {
+        readonly source: JobOutputNames<{
+            readonly value: TypedReference<string, ValueContract<string, "text">, "steps.emit.outputs.value", false>;
+        }>;
+    };
+    readonly proof: "needs.source.outputs.value";
+}>',
+  "reusable-job": 'const caller: CallJob<"ci.yml", "caller", E>',
+  "simple-step-signature": 'run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, E>',
+  "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 5 more ..., never>.run<D>(definition: AvailableStepDefinition<D, {
+    readonly test: NS<"test", readonly []>;
+    readonly report: NS<"report", readonly []>;
+}>): Step<"ci.yml", "test", AddStepReference<D, {
+    readonly test: NS<"test", readonly []>;
+    readonly report: NS<"report", readonly []>;
+}>, {
+    readonly needs: {
+        readonly build: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+    };
+    readonly matrix: {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    };
+}>',
+  "step-signature": 'run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; }>',
+  "task-callback": '(parameter) context: TaskContext<{
+    readonly who: {
+        readonly contract: ValueContract<string, "text">;
+        readonly from: Expression<"world", never>;
+    };
+}, {
+    readonly greeting: {
+        readonly contract: ValueContract<string, "text">;
+        readonly required: true;
+    };
+}, never>',
+  "typed-task": 'const state: Step<"ci.yml", "task", {
+    readonly emit: TR<"emit", {
+        readonly who: string;
+    }, SkippableOutputs<{
+        readonly greeting: {
+            readonly contract: ValueContract<string, "text">;
+            readonly required: true;
+        };
+    }>>;
+}, E>',
+  "workflow-draft": 'const draft: WorkflowStart<"ci.yml", E>',
+  "workflow-method": '(method) WorkflowBase<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, ... 4 more ..., E>.job<JobId, Result>(id: AvailableJobId<JobId, {
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}>, define: (scope: JobScope<"ci.yml", JobId, {
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}, E>) => Result): Workflow<"ci.yml", AddJobReference<"ci.yml", JobId, {
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}, Result>, E>',
+  "workflow-signature": 'job(id: "next", define: (scope: JobScope<"ci.yml", "next", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, E>) => Step<...>): Workflow<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly ["version"]>; }, E>>; readonly next: JR<...>; }, E>',
+  composite: 'const action: Composite<{
+    readonly name: "Greet";
+    readonly description: "Greeting";
+    readonly inputs: {
+        readonly who: {
+            readonly description: "Recipient";
+            readonly required: true;
+        };
+    };
+    readonly outputs: {
+        readonly greeting: {
+            readonly description: "Greeting";
+        };
+    };
+}>',
+  execution: 'const execution: Exec<"ci.yml", "test", {
+    readonly needs: {
+        readonly build: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+    };
+    readonly matrix: {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    };
+}>',
+  steps: 'const state: Step<"ci.yml", "test", {
+    readonly test: NS<"test", readonly []>;
+    readonly report: NS<"report", readonly []>;
+}, {
+    readonly needs: {
+        readonly build: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+    };
+    readonly matrix: {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    };
+}>',
+  workflow: 'const flow: Workflow<"ci.yml", {
+    readonly test: JR<"ci.yml", "test", readonly [], TJ<{
+        readonly test: NS<"test", readonly []>;
+    }, E>>;
+    readonly build: JR<"ci.yml", "build", JobOutputNames<{
+        readonly version: Ref<string, "steps.build.outputs.version">;
+    }>, TJ<{
+        readonly build: NS<"build", readonly ["version"]>;
+    }, E>>;
+}, E>',
+}
+`;

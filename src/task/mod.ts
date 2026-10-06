@@ -32,30 +32,29 @@
  * });
  * ```
  */
-export type TaskLogger = Readonly<{
+export interface TaskLogger {
   /** Writes an informational task message.
    * @example Given logger from a task run callback.
    * ```ts
    * logger.info("Release status");
    * ```
    */
-  info: (...values: readonly unknown[]) => void;
+  readonly info: (...values: readonly unknown[]) => void;
   /** Writes a task warning.
    * @example Given logger from a task run callback.
    * ```ts
    * logger.warn("Release status");
    * ```
    */
-  warn: (...values: readonly unknown[]) => void;
+  readonly warn: (...values: readonly unknown[]) => void;
   /** Writes a task error message.
    * @example Given logger from a task run callback.
    * ```ts
    * logger.error("Release status");
    * ```
    */
-  error: (...values: readonly unknown[]) => void;
-}>;
-
+  readonly error: (...values: readonly unknown[]) => void;
+}
 const valueType: unique symbol = Symbol("tsugiori.value-type");
 /** Text or JSON validation shared by task input readers and output writers.
  * @example
@@ -72,36 +71,38 @@ const valueType: unique symbol = Symbol("tsugiori.value-type");
  * });
  * ```
  */
-export type ValueContract<T, Kind extends "text" | "json" = "text" | "json"> =
-  Readonly<{
-    /** The serialization format selected by textValue() or jsonValue().
-     * @example
-     * ```ts
-     * const text = textValue();
-     * const kind = text.kind;
-     * ```
-     */
-    kind: Kind;
-    /** Validates native values; a JSON parser must preserve the input shape.
-     * @example
-     * ```ts
-     * const stages = jsonValue({
-     *   parse(value: unknown): readonly string[] {
-     *     if (
-     *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
-     *     ) {
-     *       throw new TypeError("Expected stage names");
-     *     }
-     *     return value;
-     *   },
-     * });
-     * ```
-     */
-    parse: (value: unknown) => T;
-    /** Type-level native value marker for ContractValue inference.
-     */
-    [valueType]: T;
-  }>;
+export interface ValueContract<
+  T,
+  Kind extends "text" | "json" = "text" | "json",
+> {
+  /** The serialization format selected by textValue() or jsonValue().
+   * @example
+   * ```ts
+   * const text = textValue();
+   * const kind = text.kind;
+   * ```
+   */
+  readonly kind: Kind;
+  /** Validates native values; a JSON parser must preserve the input shape.
+   * @example
+   * ```ts
+   * const stages = jsonValue({
+   *   parse(value: unknown): readonly string[] {
+   *     if (
+   *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
+   *     ) {
+   *       throw new TypeError("Expected stage names");
+   *     }
+   *     return value;
+   *   },
+   * });
+   * ```
+   */
+  readonly parse: (value: unknown) => T;
+  /** Type-level native value marker for ContractValue inference.
+   */
+  readonly [valueType]: T;
+}
 /** The native TypeScript value inferred from a contract.
  * @example
  * ```ts
@@ -277,11 +278,11 @@ export type InputValues<
  * });
  * ```
  */
-export type TaskContext<
+export interface TaskContext<
   I extends InputDefinitions = Record<never, never>,
   O extends OutputDefinitions = Record<never, never>,
   Proof extends string = never,
-> = Readonly<{
+> {
   /** The native step working directory during task execution.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -295,7 +296,7 @@ export type TaskContext<
    * });
    * ```
    */
-  cwd: string;
+  readonly cwd: string;
   /** Task logging during runner execution.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -311,7 +312,7 @@ export type TaskContext<
    * });
    * ```
    */
-  logger: TaskLogger;
+  readonly logger: TaskLogger;
   /** Parsed input values; these are host values in run, not expression nodes.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -327,7 +328,7 @@ export type TaskContext<
    * });
    * ```
    */
-  inputs: InputValues<I, Proof>;
+  readonly inputs: InputValues<I, Proof>;
   /** Output writes are asynchronous and must complete before the task returns.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -343,7 +344,7 @@ export type TaskContext<
    * });
    * ```
    */
-  outputs: Readonly<{
+  readonly outputs: Readonly<{
     /** Validate, serialize and append a declared output to GITHUB_OUTPUT.
      * Await every write before the task returns. Unknown output names, invalid
      * contract values, top-level null and unavailable/failed output file writes
@@ -359,8 +360,7 @@ export type TaskContext<
       value: OutputValues<O>[K],
     ) => Promise<void>;
   }>;
-}>;
-
+}
 /** Non-empty text contract. Empty text and top-level null are reserved for omitted values.
  * @example
  * ```ts

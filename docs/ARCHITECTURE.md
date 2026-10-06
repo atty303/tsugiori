@@ -36,6 +36,12 @@ requiredness and string outputs; a string reference provides no declared output
 names. Action values are strings or string expressions, while reusable workflow
 call inputs retain their declared primitive types.
 
+The authoring type surface groups optional context and materializes flat maps of
+prior job and step references. Named readonly interfaces retain contract and
+scenario fixture identity without repeatedly expanding their structure in IDE
+hovers. These representations preserve field scopes and phase-specific operations;
+consumers obtain them through inference rather than supplying type annotations.
+
 Authoring and task execution share an executable entrypoint. It exports a
 project value and calls `runProject()` under `import.meta.main`, passing
 `project` and `entrypointUrl`. The URL identifies the entrypoint used as

@@ -1,11 +1,11 @@
 import type {
-  AvailableJobState,
-  EmptyWorkflowState,
-  ExecutionJobState,
-  FinalizedJobState,
-  JobReference,
-  NonEmptyStepState,
-  NonEmptyWorkflowState,
+  Exec,
+  JobAt,
+  JobDone,
+  JR,
+  Step,
+  Workflow,
+  WorkflowStart,
 } from "../src/github_actions/mod.ts";
 import { defineProject, defineWorkflow } from "../src/github_actions/mod.ts";
 import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";
@@ -17,14 +17,14 @@ type Expect<Value extends true> = Value;
 type StringKeys<Value> = Extract<keyof Value, string>;
 
 type _EmptyWorkflowSurface = Expect<
-  Equal<StringKeys<EmptyWorkflowState<"ci">>, "job" | "inputs">
+  Equal<StringKeys<WorkflowStart<"ci">>, "job" | "inputs">
 >;
 type _NonEmptyWorkflowSurface = Expect<
   Equal<
     StringKeys<
-      NonEmptyWorkflowState<
+      Workflow<
         "ci",
-        { test: JobReference<"ci", "test"> }
+        { test: JR<"ci", "test"> }
       >
     >,
     "job" | "workflowOutputs" | "inputs"
@@ -32,17 +32,17 @@ type _NonEmptyWorkflowSurface = Expect<
 >;
 type _FirstJobSurface = Expect<
   Equal<
-    StringKeys<AvailableJobState<"ci", "test", Record<never, never>>>,
+    StringKeys<JobAt<"ci", "test", Record<never, never>>>,
     "runsOn" | "reusable"
   >
 >;
 type _DependentJobSurface = Expect<
   Equal<
     StringKeys<
-      AvailableJobState<
+      JobAt<
         "ci",
         "build",
-        { test: JobReference<"ci", "test"> }
+        { test: JR<"ci", "test"> }
       >
     >,
     "needs" | "runsOn" | "reusable"
@@ -50,7 +50,7 @@ type _DependentJobSurface = Expect<
 >;
 type _ExecutionSurface = Expect<
   Equal<
-    StringKeys<ExecutionJobState<"ci", "test">>,
+    StringKeys<Exec<"ci", "test">>,
     | "runsOn"
     | "name"
     | "env"
@@ -68,7 +68,7 @@ type _ExecutionSurface = Expect<
 >;
 type _StepSurface = Expect<
   Equal<
-    StringKeys<NonEmptyStepState<"ci", "test", Record<never, never>>>,
+    StringKeys<Step<"ci", "test", Record<never, never>>>,
     "uses" | "run" | "steps" | "task" | "outputs"
   >
 >;
@@ -155,7 +155,7 @@ function assertAuthoringContracts(): void {
     return first.run({ id: "same", name: "Second", run: "true" });
   });
 
-  let captured!: FinalizedJobState<".github/workflows/other.yml", "captured">;
+  let captured!: JobDone<".github/workflows/other.yml", "captured">;
   defineWorkflow(".github/workflows/other.yml", {
     on: { push: {} },
   }).job("captured", ({ job }) => {
@@ -173,3 +173,36 @@ function assertAuthoringContracts(): void {
 void assertAuthoringContracts;
 
 Deno.test("authoring type contracts compile", () => {});
+
+// Reference interfaces and grouped contexts retain immutable authoring maps.
+function assertReadonlyReferences(): void {
+  const flow = defineWorkflow("readonly.yml", { on: { push: {} } }).job(
+    "first",
+    ({ job }) => {
+      const state = job.runsOn("ubuntu-latest").run({
+        id: "one",
+        name: "One",
+        run: "true",
+        outputs: ["value"],
+      });
+      // @ts-expect-error named references are immutable
+      state.steps.one = { ...state.steps.one };
+      // @ts-expect-error step identity is immutable
+      state.steps.one.id = "one";
+      // @ts-expect-error declared output references are immutable
+      state.steps.one.outputs.value = "${{ steps.one.outputs.value }}";
+      return state;
+    },
+  );
+  flow.job("second", ({ job, jobs }) => {
+    // @ts-expect-error prior job references are immutable
+    jobs.first = { ...jobs.first };
+    // @ts-expect-error job identity is immutable
+    jobs.first.id = "first";
+    return job.needs(jobs.first).runsOn("ubuntu-latest").run({
+      name: "Two",
+      run: "true",
+    });
+  });
+}
+void assertReadonlyReferences;

@@ -23,11 +23,28 @@
  * with excludes secrets, while secrets includes them. Do not combine their scopes.
  * Task run callbacks execute separately on the prepared runtime with native values.
  *
- * See {@link ExecutionJobState}, {@link NonEmptyStepState.outputs},
- *  {@link CompositeActionDraft.steps}, {@link CompositeStepState.outputs},
+ * See {@link Exec}, {@link Step.outputs},
+ *  {@link CompositeDraft.steps}, {@link CStep.outputs},
  *  {@link TaskStepDefinition}, and {@link ActionContract} for local usage.
  *  [Scenario API](https://jsr.io/@atty303/tsugiori/doc/github-actions/testing) verifies
  * modeled wiring with fixtures; it does not execute a runner.
+ *
+ * ## Inferred state types
+ *
+ * Builders infer their states without consumer annotations. {@link WorkflowStart}
+ * and {@link Workflow} retain workflow identity and earlier jobs. {@link JobInit},
+ * {@link Job}, {@link DepJob}, {@link Exec} and {@link CallJob} retain only the
+ * operations admitted at that job stage. {@link Step} and {@link CStep} retain
+ * earlier steps; {@link CompositeDraft} and {@link Composite} delimit composite
+ * definition. Output mappings return {@link JobDone}.
+ *
+ * State aliases carry optional context in one final {@link StateEnv} parameter:
+ * needs, matrix, variable/secret names, inputs, outputs and presence proofs.
+ * Absent fields use the state's defaults; inferred states omit defaults from the
+ * displayed context. No explicit annotation is needed to obtain that display.
+ * {@link JR}, {@link NS} and {@link TR} retain reference identities and contracts;
+ * {@link TS} and {@link TJ} retain native scenario fixture shapes. Short names
+ * do not replace the operation contracts documented on each builder method.
  *
  * ## Expressions and task values
  *
@@ -772,7 +789,7 @@ type NonEmptyTriggers = {
     & Required<Pick<WorkflowTriggers, K>>;
 }[keyof WorkflowTriggers];
 type TriggerInputs<T> = T extends { inputs?: infer I } ? NonNullable<I>
-  : Record<never, never>;
+  : E;
 type EventInputs<On, E extends keyof On> = TriggerInputs<On[E]>;
 type InputNames<On> = { [E in keyof On]-?: keyof EventInputs<On, E> }[keyof On];
 type EventInputValue<I, K> = K extends keyof I ? InputValue<I[K]> : "";
@@ -794,8 +811,16 @@ export type WorkflowInputValues<On extends WorkflowTriggers> = {
     [E in keyof On]-?: EventInputValue<EventInputs<On, E>, K>;
   }[keyof On];
 };
+type WorkflowInputs<On extends WorkflowTriggers> =
+  keyof WorkflowInputValues<On> extends never ? E
+    : [On] extends [unknown] ? {
+        readonly [K in keyof WorkflowInputValues<On>]: WorkflowInputValues<
+          On
+        >[K];
+      }
+    : never;
 type CallContractOf<On> = On extends
-  { workflow_call: infer C extends WorkflowCall } ? C : Record<never, never>;
+  { workflow_call: infer C extends WorkflowCall } ? C : E;
 type WorkflowOutputNames<On> = On extends
   { workflow_call: { outputs: infer O } } ? keyof O & string : never;
 
@@ -1397,7 +1422,7 @@ export type AuthoringTaskStep = Readonly<{
    */
   env?: EnvironmentVariables;
 }>;
-/** Materialized action, shell or task step. Prefer the corresponding builder methods on {@link ExecutionJobState}; these records are generated definitions, not commands to execute on the host.
+/** Materialized action, shell or task step. Prefer the corresponding builder methods on {@link Exec}; these records are generated definitions, not commands to execute on the host.
  */
 export type AuthoringStep =
   | AuthoringUsesStep
@@ -1623,9 +1648,9 @@ type LiteralNames<Values extends readonly string[] | undefined> = Values extends
 
 type ContractInputs<C extends ActionContract> = C extends
   { inputs: infer I extends Readonly<Record<string, ActionContractInput>> } ? I
-  : Record<never, never>;
+  : E;
 type ContractOutputs<C extends ActionContract> = C extends
-  { outputs: infer O extends object } ? O : Record<never, never>;
+  { outputs: infer O extends object } ? O : E;
 type ContractArguments<
   I extends Readonly<Record<string, ActionContractInput>>,
 > = keyof I extends never ? Readonly<Record<string, never>> : Readonly<
@@ -1648,6 +1673,56 @@ type ContractOutputNames<O extends object> = readonly (keyof O & string)[] & {
   readonly __actionMetadata: O;
 };
 
+/** Empty authoring context or reference map. No runtime values are stored here. */
+export type E = Record<never, never>;
+
+type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends
+  (<T>() => T extends B ? 1 : 2) ? true : false;
+type StateDefaults = {
+  needs: E;
+  matrix: E;
+  vars: string;
+  secrets: string;
+  inputs: E;
+  outputs: readonly [];
+  proof: never;
+  call: E;
+  outputKeys: never;
+};
+// Conditional resolution materializes the small context instead of retaining
+// the source parameter bag as a second alias in LSP displays.
+type Compact<Values> = [Values] extends [unknown] ? {
+    readonly [
+      K in keyof Values as K extends keyof StateDefaults
+        ? Same<Values[K], StateDefaults[K]> extends true ? never : K
+        : K
+    ]: Values[K];
+  } extends infer C
+    ? keyof C extends never ? E : { readonly [K in keyof C]: C[K] }
+  : never
+  : never;
+type Setting<C, K extends PropertyKey, Bound, Default extends Bound> = C extends
+  { readonly [P in K]: infer V extends Bound } ? V : Default;
+/** Authoring context carried by state aliases. Omitted fields retain the defaults
+ * of the owning state. These are type-level settings, not runtime configuration.
+ * Inferred states supply this context automatically; consumers need no annotation.
+ */
+export interface StateEnv {
+  /** Declared dependency output names. */ readonly needs?: Record<
+    string,
+    readonly string[]
+  >;
+  /** Inferred matrix row. */ readonly matrix?: object;
+  /** Available variable names. */ readonly vars?: string;
+  /** Available secret names. */ readonly secrets?: string;
+  /** Native workflow or composite input values. */ readonly inputs?: object;
+  /** Declared job output names. */ readonly outputs?: readonly string[];
+  /** Paths proven present by an authoring condition. */ readonly proof?:
+    string;
+  /** Reusable workflow call contract. */ readonly call?: WorkflowCall;
+  /** Declared reusable workflow output keys. */ readonly outputKeys?: string;
+}
+
 /** Declared outputs are available to dependent jobs through needs, not through host-language values.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -1658,100 +1733,100 @@ type ContractOutputNames<O extends object> = readonly (keyof O & string)[] & {
  * });
  * ```
  */
-export type JobReference<
+export interface JR<
   WorkflowPath extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
   Test extends object = object,
-> = Readonly<
-  {
-    /** The job identifier used in needs dependencies and needs.<id> output/result references. It is separate from the display name.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
-     * @example
-     * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
-     *   on: { push: {} },
-     * }).job("build", ({ job }) =>
-     *   job.runsOn("ubuntu-latest").run({
-     *     id: "build",
-     *     name: "Build",
-     *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-     *     outputs: ["version"],
-     *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
-     *   .job(
-     *     "deploy",
-     *     ({ job, jobs }) =>
-     *       job.needs(jobs.build).runsOn("ubuntu-latest")
-     *         .run({
-     *           name: "Deploy",
-     *           run: "deploy",
-     *           env: ({ needs }) => ({
-     *             VERSION: needs.build.outputs.version,
-     *           }),
-     *         }),
-     *   );
-     * ```
-     */
-    id: JobId;
-    /** Project-relative workflow output path identifying the owning workflow.
-     */
-    workflowPath: WorkflowPath;
-    /** Declared output keys available for typed references; this does not contain their execution-time values.
-     */
-    outputNames: Outputs;
-    /** Retained task output contracts for direct passthrough references. Computed expressions do not retain validation contracts.
-     */
-    contracts?: Readonly<Record<string, ReferenceBinding>>;
-    /** Type-level job fixture shape for scenario inference; not runtime output data.
-     */
-    [testJobShape]?: Test;
-  }
->;
+> {
+  /** The job identifier used in needs dependencies and needs.<id> output/result references. It is separate from the display name.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
+   * @example
+   * ```ts
+   * defineWorkflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .job(
+   *     "deploy",
+   *     ({ job, jobs }) =>
+   *       job.needs(jobs.build).runsOn("ubuntu-latest")
+   *         .run({
+   *           name: "Deploy",
+   *           run: "deploy",
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.outputs.version,
+   *           }),
+   *         }),
+   *   );
+   * ```
+   */
+  readonly id: JobId;
+  /** Project-relative workflow output path identifying the owning workflow.
+   */
+  readonly workflowPath: WorkflowPath;
+  /** Declared output keys available for typed references; this does not contain their execution-time values.
+   */
+  readonly outputNames: Outputs;
+  /** Retained task output contracts for direct passthrough references. Computed expressions do not retain validation contracts.
+   */
+  readonly contracts?: Readonly<Record<string, ReferenceBinding>>;
+  /** Type-level job fixture shape for scenario inference; not runtime output data.
+   */
+  readonly [testJobShape]?: Test;
+}
 const testStepShape: unique symbol = Symbol("tsugiori.test-step-shape");
 const testJobShape: unique symbol = Symbol("tsugiori.test-job-shape");
 const testWorkflowShape: unique symbol = Symbol("tsugiori.test-workflow-shape");
 /** Native fixture input/output shape retained by the authoring type. Use TestStepOf for extraction; no authored step is executed by a scenario.
  */
-export type TestStepShape<
+export interface TS<
   Inputs = Record<string, unknown>,
   Outputs = Record<string, unknown>,
-> = Readonly<{
+> {
   /** Named input values or contracts for this representation. See the owning type for authoring references versus native fixture values.
    */
-  inputs: Inputs;
+  readonly inputs: Inputs;
   /** Named outputs or output contracts for this representation. See the owning type and its output mapping method; declaration alone does not write a value.
    */
-  outputs: Outputs;
-}>;
+  readonly outputs: Outputs;
+}
 /** Step and matrix fixture shapes retained by a completed job. Used by the scenario API to infer IDs and native values.
  */
-export type TestJobShape<
+
+export interface TJ<
   Steps extends StepReferences = StepReferences,
   Matrix extends object = object,
-> = Readonly<{
+> {
   /** Named completed steps or ordered materialized definitions. Only explicit step IDs are available for references and scenario fixtures.
    */
-  steps: Steps;
+  readonly steps: Steps;
   /** Concrete matrix row shape used by scenario fixtures. */
-  matrix: Matrix;
-}>;
-/** Extracts the named step fixture shapes from a completed job type. See {@link TestJobShape}.
+  readonly matrix: Matrix;
+}
+/** Extracts the named step fixture shapes from a completed job type. See {@link TJ}.
  */
+
 export type TestStepsOf<Job> = Job extends {
   /** Type-level job fixture shape for scenario inference; not runtime output data.
    */
   readonly [testJobShape]?: infer T;
-} ? T extends TestJobShape<infer Steps, object> ? Steps : never
+} ? T extends TJ<infer Steps, object> ? Steps : never
   : never;
-/** Extracts the per-instance matrix value shape from a completed job type. See {@link TestJobShape}.
+/** Extracts the per-instance matrix value shape from a completed job type. See {@link TJ}.
  */
 export type TestMatrixOf<Job> = Job extends {
   /** Type-level job fixture shape for scenario inference; not runtime output data.
    */
   readonly [testJobShape]?: infer T;
-} ? T extends TestJobShape<StepReferences, infer Matrix> ? Matrix : never
+} ? T extends TJ<StepReferences, infer Matrix> ? Matrix : never
   : never;
-/** Extracts native fixture input/output types from a named step reference. See {@link TestStepShape}.
+/** Extracts native fixture input/output types from a named step reference. See {@link TS}.
  */
 export type TestStepOf<Step> = Step extends {
   /** Type-level step fixture shape for scenario inference; not runtime output data.
@@ -1768,7 +1843,7 @@ export type TestJobsOf<Workflow> = Workflow extends {
 } ? Jobs
   : never;
 type JobReferences = Readonly<
-  Record<string, JobReference<string, string, readonly string[]>>
+  Record<string, JR<string, string, readonly string[]>>
 >;
 /** Native action/run outputs are strings, including JSON serialized by the action itself.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
@@ -1799,11 +1874,11 @@ export type ActionOutputReference<
  * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
  * ```
  */
-export type StepReference<
+export interface SR<
   Id extends string = string,
   Outputs extends readonly string[] = readonly string[],
-  Test extends TestStepShape = TestStepShape,
-> = Readonly<{
+  Test extends TS = TS,
+> {
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -1816,7 +1891,7 @@ export type StepReference<
    * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
    * ```
    */
-  id: Id;
+  readonly id: Id;
   /** String output references from an earlier action or run step, read as steps.<id>.outputs.<name>.
    * This map contains runtime expression references, not values evaluated during generation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
@@ -1830,7 +1905,7 @@ export type StepReference<
    * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
    * ```
    */
-  outputs: Readonly<
+  readonly outputs: Readonly<
     Outputs extends {
       /** Type-level Action metadata used to infer inputs and output keys.
        */
@@ -1842,15 +1917,15 @@ export type StepReference<
   >;
   /** Declared output keys available for typed references; this does not contain their execution-time values.
    */
-  outputNames: Outputs;
+  readonly outputNames: Outputs;
   /** Retained task output contracts for direct passthrough references. Computed expressions do not retain validation contracts.
    */
-  contracts?: Readonly<Record<string, ReferenceBinding>>;
+  readonly contracts?: Readonly<Record<string, ReferenceBinding>>;
   /** Type-level step fixture shape for scenario inference; not runtime output data.
    */
-  [testStepShape]?: Test;
-}>;
-type StepReferences = Readonly<Record<string, StepReference>>;
+  readonly [testStepShape]?: Test;
+}
+type StepReferences = Readonly<Record<string, SR>>;
 type TypedNames<O extends OutputDefinitions> =
   & readonly (keyof O & string)[]
   & Readonly<{
@@ -1877,12 +1952,14 @@ type OutputMap<
   >,
 > = { readonly [K in keyof References]: References[K]["outputNames"] };
 type NeedsMap<
-  Dependencies extends readonly JobReference<
+  Dependencies extends readonly JR<
     string,
     string,
     readonly string[]
   >[],
-> = { readonly [D in Dependencies[number] as D["id"]]: D["outputNames"] };
+> = [Dependencies] extends [unknown]
+  ? { readonly [D in Dependencies[number] as D["id"]]: D["outputNames"] }
+  : never;
 type Names<Values extends readonly string[] | undefined> = Values extends
   readonly string[] ? Values[number] : string;
 type Field<
@@ -1950,7 +2027,7 @@ type JobEnv<
   Scope<
     "jobs.<job_id>.env",
     Needs,
-    Record<never, never>,
+    E,
     Matrix,
     Vars,
     Secrets,
@@ -2067,9 +2144,9 @@ type StepCommon<
 type ObjectUsesStepOptions<
   C extends ActionContract | string = string,
   Id extends string | undefined = undefined,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Steps extends StepReferences = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  Needs extends Record<string, readonly string[]> = E,
+  Steps extends StepReferences = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
@@ -2121,9 +2198,9 @@ type ObjectUsesStepOptions<
 export type UsesStepOptions<
   C extends ActionContract | string = string,
   Id extends string | undefined = undefined,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Steps extends StepReferences = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  Needs extends Record<string, readonly string[]> = E,
+  Steps extends StepReferences = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
@@ -2226,79 +2303,75 @@ type ActionStepDefinition<
  * });
  * ```
  */
-export type RunStepDefinition<
+export interface RunStepDefinition<
   Id extends string | undefined = undefined,
   Outputs extends readonly string[] = readonly [],
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Steps extends StepReferences = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  Needs extends Record<string, readonly string[]> = E,
+  Steps extends StepReferences = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
-> =
-  & StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>
-  & Readonly<
-    {
-      /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({
-       *   name: "Build",
-       *   run: "deno test",
-       *   id: "build",
-       * });
-       * ```
-       */
-      id?: Id;
-      /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
-       * ```
-       */
-      run: string;
-      /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
-       * This list declares output names for typed references; it does not write values or execute the script.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({
-       *   id: "build",
-       *   name: "Build",
-       *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-       *   outputs: ["version"],
-       * });
-       * ```
-       */
-      outputs?: Outputs;
-      /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({
-       *   name: "Build",
-       *   run: "deno test",
-       *   workingDirectory: "src",
-       * });
-       * ```
-       */
-      workingDirectory?: string;
-      /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest").run({
-       *   name: "Build",
-       *   run: "deno test",
-       *   shell: "bash",
-       * });
-       * ```
-       */
-      shell?: string;
-    }
-  >;
+> extends StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues> {
+  /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   id: "build",
+   * });
+   * ```
+   */
+  readonly id?: Id;
+  /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
+   * ```
+   */
+  readonly run: string;
+  /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
+   * This list declares output names for typed references; it does not write values or execute the script.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   id: "build",
+   *   name: "Build",
+   *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *   outputs: ["version"],
+   * });
+   * ```
+   */
+  readonly outputs?: Outputs;
+  /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   workingDirectory: "src",
+   * });
+   * ```
+   */
+  readonly workingDirectory?: string;
+  /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Build",
+   *   run: "deno test",
+   *   shell: "bash",
+   * });
+   * ```
+   */
+  readonly shell?: string;
+}
 /** A step condition can skip execution, and continue-on-error can prevent a step failure from failing the job.
  * Typed task input/output contracts and the task callback are additional runtime contracts, not GitHub workflow fields.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
@@ -2316,13 +2389,14 @@ export type RunStepDefinition<
  * });
  * ```
  */
-export type TaskStepDefinition<
+
+export interface TaskStepDefinition<
   Id extends string | undefined = undefined,
-  Inputs extends TaskInputDefinitions = Record<never, never>,
-  Outputs extends OutputDefinitions = Record<never, never>,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Steps extends StepReferences = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  Inputs extends TaskInputDefinitions = E,
+  Outputs extends OutputDefinitions = E,
+  Needs extends Record<string, readonly string[]> = E,
+  Steps extends StepReferences = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
@@ -2338,105 +2412,104 @@ export type TaskStepDefinition<
       InputValues
     >
     | undefined = undefined,
-> =
-  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if">
-  & Readonly<{
-    /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
-     */
-    workingDirectory?: string;
-    /** Unique step ID for typed output references.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
-     * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   id: "version",
-     *   name: "Read version",
-     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-     *   outputs: { version: { contract: textValue(), required: true } },
-     *   run: async ({ inputs, outputs, logger }) => {
-     *     logger.info(inputs.sha);
-     *     await outputs.set("version", "1.0.0");
-     *   },
-     * });
-     * ```
-     */
-    id?: Id;
-    /** Build a GitHub step condition in the field context. The callback runs
-     * during authoring and returns a boolean expression; GitHub decides whether
-     * to run the task. present() can guard optional typed input references.
-     * See {@link TaskStepDefinition} and present() for absence handling.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
-     * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   name: "Report", inputs: {}, outputs: {},
-     *   if: ({ github }) => github.ref.eq("refs/heads/main"),
-     *   run: ({ logger }) => logger.info("main branch"),
-     * });
-     * ```
-     */
-    if?: Condition;
-    /** Pairs each input contract with its runtime expression source. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
-     * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   id: "version",
-     *   name: "Read version",
-     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-     *   outputs: { version: { contract: textValue(), required: true } },
-     *   run: async ({ inputs, outputs, logger }) => {
-     *     logger.info(inputs.sha);
-     *     await outputs.set("version", "1.0.0");
-     *   },
-     * });
-     * ```
-     */
-    inputs: AuthoringValue<
-      Inputs,
-      Scope<
-        "jobs.<job_id>.steps.env",
-        Needs,
-        OutputMap<Steps>,
-        Matrix,
-        Vars,
-        Secrets,
-        InputValues,
-        Proof | ConditionProof<Condition>
-      >
-    >;
-    /** Declares native output contracts and whether each write is required.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
-     * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   id: "version",
-     *   name: "Read version",
-     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-     *   outputs: { version: { contract: textValue(), required: true } },
-     *   run: async ({ inputs, outputs, logger }) => {
-     *     logger.info(inputs.sha);
-     *     await outputs.set("version", "1.0.0");
-     *   },
-     * });
-     * ```
-     */
-    outputs: Outputs;
-    /** Runs in the compiled task runtime with native values; await output writes.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
-     * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   id: "version",
-     *   name: "Read version",
-     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-     *   outputs: { version: { contract: textValue(), required: true } },
-     *   run: async ({ inputs, outputs, logger }) => {
-     *     logger.info(inputs.sha);
-     *     await outputs.set("version", "1.0.0");
-     *   },
-     * });
-     * ```
-     */
-    run: (
-      context: TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>,
-    ) => void | Promise<void>;
-  }>;
+> extends
+  Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if"> {
+  /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
+   */
+  readonly workingDirectory?: string;
+  /** Unique step ID for typed output references.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   id: "version",
+   *   name: "Read version",
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
+   *   outputs: { version: { contract: textValue(), required: true } },
+   *   run: async ({ inputs, outputs, logger }) => {
+   *     logger.info(inputs.sha);
+   *     await outputs.set("version", "1.0.0");
+   *   },
+   * });
+   * ```
+   */
+  readonly id?: Id;
+  /** Build a GitHub step condition in the field context. The callback runs
+   * during authoring and returns a boolean expression; GitHub decides whether
+   * to run the task. present() can guard optional typed input references.
+   * See {@link TaskStepDefinition} and present() for absence handling.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   name: "Report", inputs: {}, outputs: {},
+   *   if: ({ github }) => github.ref.eq("refs/heads/main"),
+   *   run: ({ logger }) => logger.info("main branch"),
+   * });
+   * ```
+   */
+  readonly if?: Condition;
+  /** Pairs each input contract with its runtime expression source. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   id: "version",
+   *   name: "Read version",
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
+   *   outputs: { version: { contract: textValue(), required: true } },
+   *   run: async ({ inputs, outputs, logger }) => {
+   *     logger.info(inputs.sha);
+   *     await outputs.set("version", "1.0.0");
+   *   },
+   * });
+   * ```
+   */
+  readonly inputs: AuthoringValue<
+    Inputs,
+    Scope<
+      "jobs.<job_id>.steps.env",
+      Needs,
+      OutputMap<Steps>,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues,
+      Proof | ConditionProof<Condition>
+    >
+  >;
+  /** Declares native output contracts and whether each write is required.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   id: "version",
+   *   name: "Read version",
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
+   *   outputs: { version: { contract: textValue(), required: true } },
+   *   run: async ({ inputs, outputs, logger }) => {
+   *     logger.info(inputs.sha);
+   *     await outputs.set("version", "1.0.0");
+   *   },
+   * });
+   * ```
+   */
+  readonly outputs: Outputs;
+  /** Runs in the compiled task runtime with native values; await output writes.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").task({
+   *   id: "version",
+   *   name: "Read version",
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
+   *   outputs: { version: { contract: textValue(), required: true } },
+   *   run: async ({ inputs, outputs, logger }) => {
+   *     logger.info(inputs.sha);
+   *     await outputs.set("version", "1.0.0");
+   *   },
+   * });
+   * ```
+   */
+  readonly run: (
+    context: TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>,
+  ) => void | Promise<void>;
+}
 const jobDefinition = Symbol("tsugiori.job-definition");
 /** Identity key carrying a completed composite definition. Obtain it through {@link defineCompositeAction}; do not fabricate a definition or use this as a GitHub runtime value.
  */
@@ -2468,7 +2541,7 @@ type FinalizedJobDefinition<
 }>;
 /** Completed job or composite step sequence accepted by its defining callback. Return the state belonging to that callback; returning a state from another definition is rejected. Output mappings finalize the sequence.
  */
-export interface FinalizedJobState<
+export interface JobDone<
   WorkflowPath extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
@@ -2484,7 +2557,7 @@ export interface FinalizedJobState<
   >;
   /** Type-level job fixture shape for scenario inference; not runtime output data.
    */
-  readonly [testJobShape]?: TestJobShape<Steps, Matrix>;
+  readonly [testJobShape]?: TJ<Steps, Matrix>;
 }
 type DefinitionStepId<Definition> = Definition extends
   Readonly<{ id: infer Id extends string }> ? Id : never;
@@ -2497,53 +2570,50 @@ type Invocation<Definition> = Definition extends
 type TaskOutputs<Definition> = Definition extends
   Readonly<{ outputs: infer O extends OutputDefinitions }> ? TypedNames<O>
   : readonly [];
+/** Native run/Action step reference with string scenario outputs. Its names and
+ * fixture values follow the declarations; no execution-time value is stored.
+ */
+export type NS<Id extends string, Outputs extends readonly string[]> = SR<
+  Id,
+  Outputs,
+  TS<Record<string, unknown>, Record<Outputs[number], string>>
+>;
 type DefinitionStepReference<Definition> = Definition extends
-  Readonly<{ id: infer Id extends string }> ? StepReference<
+  Readonly<{ id: infer Id extends string }> ? NS<
     Id,
     Definition extends Readonly<{ actionOutputNames: unknown }>
       ? Invocation<Definition>
       : Definition extends
         Readonly<{ run: string; outputs: infer O extends readonly string[] }>
         ? O
-      : TaskOutputs<Definition>,
-    TestStepShape<
-      Record<string, unknown>,
-      Record<
-        Definition extends Readonly<{ actionOutputNames: unknown }>
-          ? Invocation<Definition>[number]
-          : Definition extends
-            Readonly<{ outputs: infer O extends readonly string[] }> ? O[number]
-          : never,
-        string
-      >
-    >
+      : TaskOutputs<Definition>
   >
   : never;
 type AddStepReference<Definition, Steps extends StepReferences> =
-  [DefinitionStepId<Definition>] extends [never] ? Steps
-    : Readonly<
-      & Steps
-      & Record<
-        DefinitionStepId<Definition>,
-        DefinitionStepReference<Definition>
-      >
-    >;
+  [DefinitionStepId<Definition>] extends [never] ? Steps : {
+    readonly [K in keyof Steps | DefinitionStepId<Definition>]: K extends
+      keyof Steps ? Steps[K] : DefinitionStepReference<Definition>;
+  };
+/** Typed task reference retaining native fixture inputs and the full output
+ * contracts, including optional outputs. Obtain it from a named task step.
+ */
+export type TR<
+  Id extends string,
+  Inputs extends Record<string, unknown>,
+  Outputs extends OutputDefinitions,
+> = SR<Id, TypedNames<Outputs>, TS<Inputs, OutputValues<Outputs>>>;
+type NativeInputs<I extends InputDefinitions> = [I] extends [unknown]
+  ? { readonly [K in keyof InputValues<I>]: InputValues<I>[K] }
+  : never;
 type AddTaskReference<
   Id extends string | undefined,
   I extends InputDefinitions,
   O extends OutputDefinitions,
   Steps extends StepReferences,
-> = Id extends string ? Readonly<
-    & Steps
-    & Record<
-      Id,
-      StepReference<
-        Id,
-        TypedNames<O>,
-        TestStepShape<InputValues<I>, OutputValues<O>>
-      >
-    >
-  >
+> = Id extends string ? {
+    readonly [K in keyof Steps | Id]: K extends keyof Steps ? Steps[K]
+      : TR<Id, NativeInputs<I>, O>;
+  }
   : Steps;
 type SkippableOutputs<O extends OutputDefinitions> = {
   readonly [K in keyof O]: Readonly<
@@ -2570,11 +2640,44 @@ type EffectiveOutputs<
  *   .run({ name: "Test", run: "deno test" });
  * ```
  */
-export interface ExecutionJobState<
+export type Exec<
   WorkflowPath extends string,
   JobId extends string,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  CEnv extends StateEnv = E,
+> = ExecBase<
+  WorkflowPath,
+  JobId,
+  Setting<CEnv, "needs", Record<string, readonly string[]>, E>,
+  Setting<CEnv, "matrix", object, E>,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>,
+  Setting<CEnv, "proof", string, never>
+>;
+type ExecOf<
+  WorkflowPath extends string,
+  JobId extends string,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+  Proof extends string = never,
+> = Compact<{
+  needs: Needs;
+  matrix: Matrix;
+  vars: Vars;
+  secrets: Secrets;
+  inputs: InputValues;
+  proof: Proof;
+}> extends infer Context extends StateEnv ? Exec<WorkflowPath, JobId, Context>
+  : never;
+/** Method surface of {@link Exec}; its context is inferred by the DSL. */
+interface ExecBase<
+  WorkflowPath extends string,
+  JobId extends string,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
@@ -2596,14 +2699,14 @@ export interface ExecutionJobState<
         context: Scope<
           "jobs.<job_id>.runs-on",
           Needs,
-          Record<never, never>,
+          E,
           Matrix,
           Vars,
           Secrets,
           InputValues
         >,
       ) => Expression<string> | string | NonEmptyReadonlyArray<string>),
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2626,13 +2729,13 @@ export interface ExecutionJobState<
       | Field<
         "jobs.<job_id>.name",
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
         InputValues
       >,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2651,7 +2754,7 @@ export interface ExecutionJobState<
    */
   env(
     value: JobEnv<Needs, Matrix, Vars, Secrets, InputValues>,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2702,14 +2805,14 @@ export interface ExecutionJobState<
       Scope<
         "jobs.<job_id>.defaults.run",
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
         InputValues
       >
     >,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2732,15 +2835,15 @@ export interface ExecutionJobState<
     const C extends Field<
       "jobs.<job_id>.if",
       Needs,
-      Record<never, never>,
-      Record<never, never>,
+      E,
+      E,
       Vars,
       Secrets,
       InputValues
     >,
   >(
     condition: C,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2801,7 +2904,7 @@ export interface ExecutionJobState<
         failFast?: boolean;
       }
     >,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2829,8 +2932,8 @@ export interface ExecutionJobState<
       context: Scope<
         "jobs.<job_id>.strategy",
         Needs,
-        Record<never, never>,
-        Record<never, never>,
+        E,
+        E,
         Vars,
         Secrets,
         InputValues,
@@ -2861,7 +2964,7 @@ export interface ExecutionJobState<
        */
       failFast?: boolean;
     }>,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -2888,8 +2991,8 @@ export interface ExecutionJobState<
       context: Scope<
         "jobs.<job_id>.strategy",
         Needs,
-        Record<never, never>,
-        Record<never, never>,
+        E,
+        E,
         Vars,
         Secrets,
         InputValues,
@@ -2918,11 +3021,11 @@ export interface ExecutionJobState<
        */
       failFast?: boolean;
     }>,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
-    Record<never, never>,
+    E,
     Vars,
     Secrets,
     InputValues,
@@ -2982,8 +3085,8 @@ export interface ExecutionJobState<
         context: Scope<
           "jobs.<job_id>.strategy",
           Needs,
-          Record<never, never>,
-          Record<never, never>,
+          E,
+          E,
           Vars,
           Secrets,
           InputValues,
@@ -3014,7 +3117,7 @@ export interface ExecutionJobState<
          */
         failFast?: boolean;
       }>),
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -3086,14 +3189,14 @@ export interface ExecutionJobState<
       Scope<
         "jobs.<job_id>.concurrency",
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
         InputValues
       >
     >,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -3113,7 +3216,7 @@ export interface ExecutionJobState<
    */
   permissions(
     value: WorkflowPermissions,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -3137,13 +3240,13 @@ export interface ExecutionJobState<
       | Field<
         "jobs.<job_id>.timeout-minutes",
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
         InputValues
       >,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -3163,7 +3266,7 @@ export interface ExecutionJobState<
    */
   environment(
     value: string,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
@@ -3196,7 +3299,7 @@ export interface ExecutionJobState<
             NoInfer<C>,
             Id,
             Needs,
-            Record<never, never>,
+            E,
             Matrix,
             Vars,
             Secrets,
@@ -3219,7 +3322,7 @@ export interface ExecutionJobState<
             NoInfer<C>,
             Id,
             Needs,
-            Record<never, never>,
+            E,
             Matrix,
             Vars,
             Secrets,
@@ -3236,10 +3339,10 @@ export interface ExecutionJobState<
           }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
+    AddStepReference<ActionStepDefinition<C, Id>, E>,
     Needs,
     Matrix,
     Vars,
@@ -3272,7 +3375,7 @@ export interface ExecutionJobState<
           NoInfer<C>,
           Id,
           Needs,
-          Record<never, never>,
+          E,
           Matrix,
           Vars,
           Secrets,
@@ -3292,7 +3395,7 @@ export interface ExecutionJobState<
             context: Scope<
               "jobs.<job_id>.steps.with",
               Needs,
-              OutputMap<Record<never, never>>,
+              OutputMap<E>,
               Matrix,
               Vars,
               Secrets,
@@ -3302,10 +3405,10 @@ export interface ExecutionJobState<
         }
       >
       & CheckedActionValues<C, NoInfer<R>>,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
+    AddStepReference<ActionStepDefinition<C, Id>, E>,
     Needs,
     Matrix,
     Vars,
@@ -3333,7 +3436,7 @@ export interface ExecutionJobState<
       string | undefined,
       readonly string[],
       Needs,
-      Record<never, never>,
+      E,
       Matrix,
       Vars,
       Secrets,
@@ -3341,10 +3444,10 @@ export interface ExecutionJobState<
     >,
   >(
     definition: D,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<D, Record<never, never>>,
+    AddStepReference<D, E>,
     Needs,
     Matrix,
     Vars,
@@ -3378,7 +3481,7 @@ export interface ExecutionJobState<
       | StepField<
         "jobs.<job_id>.steps.if",
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
@@ -3393,7 +3496,7 @@ export interface ExecutionJobState<
         I,
         O,
         Needs,
-        Record<never, never>,
+        E,
         Matrix,
         Vars,
         Secrets,
@@ -3412,10 +3515,10 @@ export interface ExecutionJobState<
          */
         continueOnError?: F;
       }>,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
-    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Record<never, never>>,
+    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, E>,
     Needs,
     Matrix,
     Vars,
@@ -3426,27 +3529,67 @@ export interface ExecutionJobState<
   >;
 }
 /** Immutable composite sequence after its first step. Append steps before
- * mapping public outputs with {@link CompositeStepState.outputs}. See
- * {@link CompositeActionDraft.steps} for the defining callback and
+ * mapping public outputs with {@link CStep.outputs}. See
+ * {@link CompositeDraft.steps} for the defining callback and
  * {@link defineCompositeAction} for distribution and local uses resolution.
  */
-export interface CompositeStepState<
+export type CStep<
   WorkflowPath extends string,
   JobId extends string,
   Steps extends StepReferences,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  CEnv extends StateEnv = E,
+> = CStepBase<
+  WorkflowPath,
+  JobId,
+  Steps,
+  Setting<CEnv, "needs", Record<string, readonly string[]>, E>,
+  Setting<CEnv, "matrix", object, E>,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>,
+  Setting<CEnv, "outputs", readonly string[], readonly []>,
+  Setting<CEnv, "proof", string, never>
+>;
+type CStepOf<
+  WorkflowPath extends string,
+  JobId extends string,
+  Steps extends StepReferences,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
-> extends FinalizedJobState<WorkflowPath, JobId, Outputs, Steps, Matrix> {
+> = Compact<{
+  needs: Needs;
+  matrix: Matrix;
+  vars: Vars;
+  secrets: Secrets;
+  inputs: InputValues;
+  outputs: Outputs;
+  proof: Proof;
+}> extends infer Context extends StateEnv
+  ? CStep<WorkflowPath, JobId, Steps, Context>
+  : never;
+/** Method surface of {@link CStep}; its context is inferred by the DSL. */
+interface CStepBase<
+  WorkflowPath extends string,
+  JobId extends string,
+  Steps extends StepReferences,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+  Outputs extends readonly string[] = readonly [],
+  Proof extends string = never,
+> extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
   /** Named completed steps or ordered materialized definitions. Only explicit step IDs are available for references and scenario fixtures.
    */
   readonly steps: Steps;
 
-  /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeActionDraft.steps}.
+  /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeDraft.steps}.
    * @example Given a composite state `built` whose `build` run step declares `version`, and metadata declaring public output `version`.
    * ```ts
    * built.outputs(({ steps }) => ({ version: steps.build.outputs.version }));
@@ -3480,7 +3623,7 @@ export interface CompositeStepState<
         Proof
       >,
     ) => Names,
-  ): FinalizedJobState<
+  ): JobDone<
     WorkflowPath,
     JobId,
     JobOutputNames<Names>,
@@ -3556,7 +3699,7 @@ export interface CompositeStepState<
             timeoutMinutes?: never;
           }>,
       ]
-  ): CompositeStepState<
+  ): CStepOf<
     WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
@@ -3621,7 +3764,7 @@ export interface CompositeStepState<
          */
         timeoutMinutes?: never;
       }>,
-  ): CompositeStepState<
+  ): CStepOf<
     WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
@@ -3662,7 +3805,7 @@ export interface CompositeStepState<
          */
         timeoutMinutes?: never;
       }>,
-  ): CompositeStepState<
+  ): CStepOf<
     WorkflowPath,
     JobId,
     AddStepReference<D, Steps>,
@@ -3721,7 +3864,7 @@ export interface CompositeStepState<
            */
           workingDirectory?: string;
 
-          /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeActionDraft.steps}.
+          /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeDraft.steps}.
            * @example Given a composite state `built` whose `build` run step declares `version`, and metadata declaring public output `version`.
            * ```ts
            * built.outputs(({ steps }) => ({ version: steps.build.outputs.version }));
@@ -3742,7 +3885,7 @@ export interface CompositeStepState<
           id?: Exclude<Id, keyof Steps>;
         }
       >,
-  ): CompositeStepState<
+  ): CStepOf<
     WorkflowPath,
     JobId,
     AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
@@ -3756,7 +3899,7 @@ export interface CompositeStepState<
   >;
 }
 
-/** Public composite Action metadata passed to {@link defineCompositeAction}. Inputs are strings, including defaults. Output descriptions declare the public names; {@link CompositeStepState.outputs} separately maps those names to step expressions.
+/** Public composite Action metadata passed to {@link defineCompositeAction}. Inputs are strings, including defaults. Output descriptions declare the public names; {@link CStep.outputs} separately maps those names to step expressions.
  */
 export type ActionMetadata = Readonly<{
   /** Human-readable display name; references use IDs or output keys rather than this text.
@@ -3771,7 +3914,7 @@ export type ActionMetadata = Readonly<{
   /** Optional Marketplace icon and color metadata; it does not affect execution.
    */
   branding?: ActionContract["branding"];
-  /** Public string input declarations. Their literal names become CompositeActionDraft.inputs references. Defaults are strings; callers must pass secrets explicitly.
+  /** Public string input declarations. Their literal names become CompositeDraft.inputs references. Defaults are strings; callers must pass secrets explicitly.
    */
   inputs?: Readonly<
     Record<
@@ -3783,7 +3926,7 @@ export type ActionMetadata = Readonly<{
       }
     >
   >;
-  /** Public output descriptions and names. This metadata does not write values; finish the step sequence with CompositeStepState.outputs() mapping every declared name. See {@link CompositeStepState.outputs}.
+  /** Public output descriptions and names. This metadata does not write values; finish the step sequence with CStep.outputs() mapping every declared name. See {@link CStep.outputs}.
    */
   outputs?: Readonly<
     Record<
@@ -3797,7 +3940,7 @@ export type ActionMetadata = Readonly<{
   >;
 }>;
 
-/** Materialized composite definition retained by {@link CompositeActionState}. Generation emits action.yml and, for task steps, its source payload. Prefer {@link defineCompositeAction} to constructing records.
+/** Materialized composite definition retained by {@link Composite}. Generation emits action.yml and, for task steps, its source payload. Prefer {@link defineCompositeAction} to constructing records.
  */
 export type AuthoringCompositeAction = Readonly<{
   /** Project-relative Action output directory. Generation writes action.yml here.
@@ -3816,19 +3959,20 @@ export type AuthoringCompositeAction = Readonly<{
      */
     steps: readonly AuthoringStep[];
   }>;
-  /** Serialized step expressions mapped to public Action outputs. Author these with {@link CompositeStepState.outputs}.
+  /** Serialized step expressions mapped to public Action outputs. Author these with {@link CStep.outputs}.
    */
   outputValues: Readonly<Record<string, string>>;
 }>;
 
-type CompositeInputs<M extends ActionMetadata> = {
-  readonly [K in keyof M["inputs"]]: string;
-};
+type CompositeInputs<M extends ActionMetadata> = [M] extends [unknown] ? {
+    readonly [K in keyof M["inputs"]]: string;
+  }
+  : never;
 /** Completed composite Action usable as a contract in uses() and in
  * {@link defineProject}. Public inputs and outputs are strings even when an
  * internal task uses JSON. A uses step ID exposes declared output names to later
  * steps; the reference is a GitHub expression, not an already obtained value.
- * See {@link ActionMetadata} and {@link CompositeStepState.outputs} for declaration
+ * See {@link ActionMetadata} and {@link CStep.outputs} for declaration
  * and mapping before consumption.
  * @example In a `defineWorkflow().job()` callback with `{ job }`, given a completed `versionAction` declaring public output `version`.
  * ```ts
@@ -3838,7 +3982,7 @@ type CompositeInputs<M extends ActionMetadata> = {
  *   });
  * ```
  */
-export type CompositeActionState<M extends ActionMetadata> =
+export type Composite<M extends ActionMetadata> =
   & M
   & Readonly<{
     /** GitHub Action implementation reference. A contract supplies the default; a uses override selects a different implementation without proving that it matches the declared metadata.
@@ -3848,9 +3992,9 @@ export type CompositeActionState<M extends ActionMetadata> =
      */
     [compositeActionDefinition]: AuthoringCompositeAction;
   }>;
-/** Composite metadata and input references before its steps are defined. Call {@link CompositeActionDraft.steps} once and retain the returned immutable Action. See {@link defineCompositeAction}.
+/** Composite metadata and input references before its steps are defined. Call {@link CompositeDraft.steps} once and retain the returned immutable Action. See {@link defineCompositeAction}.
  */
-export interface CompositeActionDraft<
+export interface CompositeDraft<
   P extends string,
   M extends ActionMetadata,
 > {
@@ -3863,25 +4007,25 @@ export interface CompositeActionDraft<
    * ```
    */
   readonly inputs: import("./expression.ts").Ref<CompositeInputs<M>, "inputs">;
-  /** Define a nonempty composite step sequence. The callback runs now with step.run/uses/task and must return its own completed state. If metadata declares outputs, finish with {@link CompositeStepState.outputs}; keys must match exactly. Retain the returned Action for uses() and {@link defineProject}.
+  /** Define a nonempty composite step sequence. The callback runs now with step.run/uses/task and must return its own completed state. If metadata declares outputs, finish with {@link CStep.outputs}; keys must match exactly. Retain the returned Action for uses() and {@link defineProject}.
    * @example Given `draft` from defineCompositeAction with public output metadata for `version`.
    * ```ts
    * draft.steps(({ step }) => step.run({ id: "build", name: "Build", shell: "bash", run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"', outputs: ["version"] }).outputs(({ steps }) => ({ version: steps.build.outputs.version })));
    * ```
    */
-  steps<Result extends FinalizedJobState<P, "composite", readonly string[]>>(
+  steps<Result extends JobDone<P, "composite", readonly string[]>>(
     define: (
       context: Readonly<
         {
           /** Composite step builder. Start with run(), uses() or task(), and return the final state. Composite run steps require shell; timeouts and direct secret names are unavailable.
            */
           step: Pick<
-            CompositeStepState<
+            CStepOf<
               P,
               "composite",
-              Record<never, never>,
-              Record<never, never>,
-              Record<never, never>,
+              E,
+              E,
+              E,
               string,
               never,
               CompositeInputs<M>
@@ -3891,18 +4035,18 @@ export interface CompositeActionDraft<
         }
       >,
     ) => Result,
-  ): CompositeActionState<M>;
+  ): Composite<M>;
 }
 
 /**
  * Declare a composite Action directory and its public metadata, then define its steps.
  * The directory is project-relative for generation; parent traversal and absolute
  * paths throw TypeError. This call creates a draft, not an executable Action.
- * Call {@link CompositeActionDraft.steps} and include the result in defineProject.
+ * Call {@link CompositeDraft.steps} and include the result in defineProject.
  *
  * Output metadata describes the public interface. A run step declares output names
  * and writes their values to GITHUB_OUTPUT; a task declares contracts and calls
- * outputs.set(). After those steps, {@link CompositeStepState.outputs} maps their
+ * outputs.set(). After those steps, {@link CStep.outputs} maps their
  * references to every public metadata output. Give uses() an id to consume the
  * resulting Action outputs from later workflow/composite steps. Those references
  * build GitHub expressions, not values available during authoring.
@@ -3971,7 +4115,7 @@ export function defineCompositeAction<
 >(
   path: P,
   metadata: M,
-): CompositeActionDraft<P, M> {
+): CompositeDraft<P, M> {
   if (
     !/^(?:\.\/)?[A-Za-z0-9._/-]+$/.test(path) ||
     path.split("/").includes("..") || path.startsWith("/") ||
@@ -3984,13 +4128,13 @@ export function defineCompositeAction<
   metadata = copyNative(metadata);
   const normalized = path.replace(/^\.\//, "").replace(/\/$/, "");
   const owner = Symbol(normalized);
-  type Inputs = { readonly [K in keyof M["inputs"]]: string };
-  type Start = CompositeStepState<
+  type Inputs = CompositeInputs<M>;
+  type Start = CStepOf<
     P,
     "composite",
-    Record<never, never>,
-    Record<never, never>,
-    Record<never, never>,
+    E,
+    E,
+    E,
     string,
     never,
     Inputs
@@ -3998,11 +4142,11 @@ export function defineCompositeAction<
   return Object.freeze({
     inputs: scope("jobs.<job_id>.steps.env")
       .inputs as import("./expression.ts").Ref<Inputs, "inputs">,
-    steps<Result extends FinalizedJobState<P, "composite", readonly string[]>>(
+    steps<Result extends JobDone<P, "composite", readonly string[]>>(
       define: (
         context: Readonly<{ step: Pick<Start, "run" | "uses" | "task"> }>,
       ) => Result,
-    ): CompositeActionState<M> {
+    ): Composite<M> {
       const step = createExecutionJobFacade({
         workflowPath: path,
         id: "composite",
@@ -4042,25 +4186,65 @@ export function defineCompositeAction<
         ...copyNative(metadata),
         uses: `./${normalized}`,
         [compositeActionDefinition]: action,
-      }) as CompositeActionState<M>;
+      }) as Composite<M>;
     },
   });
 }
 
-/** Immutable workflow job after its first step. Add more steps or map outputs, then return this state from the job callback. Earlier states do not acquire steps added to a later state. See {@link ExecutionJobState} and {@link NonEmptyStepState.outputs}.
+/** Immutable workflow job after its first step. Add more steps or map outputs, then return this state from the job callback. Earlier states do not acquire steps added to a later state. See {@link Exec} and {@link Step.outputs}.
  */
-export interface NonEmptyStepState<
+export type Step<
   WorkflowPath extends string,
   JobId extends string,
   Steps extends StepReferences,
-  Needs extends Record<string, readonly string[]> = Record<never, never>,
-  Matrix extends object = Record<never, never>,
+  CEnv extends StateEnv = E,
+> = StepBase<
+  WorkflowPath,
+  JobId,
+  Steps,
+  Setting<CEnv, "needs", Record<string, readonly string[]>, E>,
+  Setting<CEnv, "matrix", object, E>,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>,
+  Setting<CEnv, "outputs", readonly string[], readonly []>,
+  Setting<CEnv, "proof", string, never>
+>;
+type StepOf<
+  WorkflowPath extends string,
+  JobId extends string,
+  Steps extends StepReferences,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
-> extends FinalizedJobState<WorkflowPath, JobId, Outputs, Steps, Matrix> {
+> = Compact<{
+  needs: Needs;
+  matrix: Matrix;
+  vars: Vars;
+  secrets: Secrets;
+  inputs: InputValues;
+  outputs: Outputs;
+  proof: Proof;
+}> extends infer Context extends StateEnv
+  ? Step<WorkflowPath, JobId, Steps, Context>
+  : never;
+/** Method surface of {@link Step}; its context is inferred by the DSL. */
+interface StepBase<
+  WorkflowPath extends string,
+  JobId extends string,
+  Steps extends StepReferences,
+  Needs extends Record<string, readonly string[]> = E,
+  Matrix extends object = E,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+  Outputs extends readonly string[] = readonly [],
+  Proof extends string = never,
+> extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
   /** References to earlier named steps in this immutable job.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -4113,7 +4297,7 @@ export interface NonEmptyStepState<
         Proof
       >,
     ) => Names,
-  ): FinalizedJobState<
+  ): JobDone<
     WorkflowPath,
     JobId,
     JobOutputNames<Names>,
@@ -4183,7 +4367,7 @@ export interface NonEmptyStepState<
           }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
@@ -4249,7 +4433,7 @@ export interface NonEmptyStepState<
         }
       >
       & CheckedActionValues<C, NoInfer<R>>,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
@@ -4288,7 +4472,7 @@ export interface NonEmptyStepState<
     >,
   >(
     definition: AvailableStepDefinition<D, Steps>,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
     AddStepReference<D, Steps>,
@@ -4421,7 +4605,7 @@ export interface NonEmptyStepState<
           id?: Exclude<Id, keyof Steps>;
         }
       >,
-  ): NonEmptyStepState<
+  ): StepOf<
     WorkflowPath,
     JobId,
     AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
@@ -4463,15 +4647,40 @@ export interface NonEmptyStepState<
  * defineProject({ workflows: [reusable, caller] });
  * ```
  */
-export type ReusableJobState<
+export type CallJob<
   P extends string,
   J extends string,
-  N extends Record<string, readonly string[]> = Record<never, never>,
-  M extends object = Record<never, never>,
+  CEnv extends StateEnv = E,
+> = CallJobBase<
+  P,
+  J,
+  Setting<CEnv, "needs", Record<string, readonly string[]>, E>,
+  Setting<CEnv, "matrix", object, E>,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type CallJobOf<
+  P extends string,
+  J extends string,
+  N extends Record<string, readonly string[]> = E,
+  M extends object = E,
   V extends string = string,
   S extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
-> = {
+> = Compact<
+  { needs: N; matrix: M; vars: V; secrets: S; inputs: InputValues }
+> extends infer Context extends StateEnv ? CallJob<P, J, Context> : never;
+/** Method surface of {@link CallJob}; its context is inferred by the DSL. */
+interface CallJobBase<
+  P extends string,
+  J extends string,
+  N extends Record<string, readonly string[]> = E,
+  M extends object = E,
+  V extends string = string,
+  S extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> {
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -4483,13 +4692,13 @@ export type ReusableJobState<
     value: Field<
       "jobs.<job_id>.if",
       N,
-      Record<never, never>,
-      Record<never, never>,
+      E,
+      E,
       V,
       S,
       InputValues
     >,
-  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
+  ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -4506,8 +4715,8 @@ export type ReusableJobState<
       context: Scope<
         "jobs.<job_id>.strategy",
         N,
-        Record<never, never>,
-        Record<never, never>,
+        E,
+        E,
         V,
         S,
         InputValues
@@ -4533,7 +4742,7 @@ export type ReusableJobState<
        */
       failFast?: boolean;
     }>,
-  ): ReusableJobState<P, J, N, Shape, V, S, InputValues>;
+  ): CallJobOf<P, J, N, Shape, V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -4554,8 +4763,8 @@ export type ReusableJobState<
       context: Scope<
         "jobs.<job_id>.strategy",
         N,
-        Record<never, never>,
-        Record<never, never>,
+        E,
+        E,
         V,
         S,
         InputValues
@@ -4581,7 +4790,7 @@ export type ReusableJobState<
        */
       failFast?: boolean;
     }>,
-  ): ReusableJobState<
+  ): CallJobOf<
     P,
     J,
     N,
@@ -4638,7 +4847,7 @@ export type ReusableJobState<
         failFast?: boolean;
       }
     >,
-  ): ReusableJobState<P, J, N, Rows[number], V, S, InputValues>;
+  ): CallJobOf<P, J, N, Rows[number], V, S, InputValues>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -4669,7 +4878,7 @@ export type ReusableJobState<
        */
       failFast?: boolean;
     }>,
-  ): ReusableJobState<
+  ): CallJobOf<
     P,
     J,
     N,
@@ -4691,13 +4900,13 @@ export type ReusableJobState<
       | Field<
         "jobs.<job_id>.name",
         N,
-        Record<never, never>,
+        E,
         M,
         V,
         S,
         InputValues
       >,
-  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
+  ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
@@ -4708,7 +4917,7 @@ export type ReusableJobState<
    */
   permissions(
     value: WorkflowPermissions,
-  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
+  ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
@@ -4766,14 +4975,14 @@ export type ReusableJobState<
       Scope<
         "jobs.<job_id>.concurrency",
         N,
-        Record<never, never>,
+        E,
         M,
         V,
         S,
         InputValues
       >
     >,
-  ): ReusableJobState<P, J, N, M, V, S, InputValues>;
+  ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
    * Pass an args object with static maps or separate with and secrets authoring callbacks. with excludes secrets; secrets includes them. Each callback runs once during call(), before contract validation in generation; GitHub resolves emitted expressions. Input and secret names, types and requiredness follow the callee contract.
    * Tsugiori requires the callee in the same project and validates its explicit contract; inherit cannot prove GitHub secret availability.
@@ -4854,7 +5063,7 @@ export type ReusableJobState<
             Scope<
               "jobs.<job_id>.with.<with_id>",
               N,
-              Record<never, never>,
+              E,
               M,
               V,
               S,
@@ -4871,7 +5080,7 @@ export type ReusableJobState<
             Scope<
               "jobs.<job_id>.secrets.<secrets_id>",
               N,
-              Record<never, never>,
+              E,
               M,
               V,
               S,
@@ -4896,7 +5105,7 @@ export type ReusableJobState<
           Scope<
             "jobs.<job_id>.with.<with_id>",
             N,
-            Record<never, never>,
+            E,
             M,
             V,
             S,
@@ -4919,7 +5128,7 @@ export type ReusableJobState<
           Scope<
             "jobs.<job_id>.secrets.<secrets_id>",
             N,
-            Record<never, never>,
+            E,
             M,
             V,
             S,
@@ -4927,7 +5136,7 @@ export type ReusableJobState<
           >
         >;
       }>,
-  ): FinalizedJobState<P, J, readonly O[], Record<never, never>, M>;
+  ): JobDone<P, J, readonly O[], E, M>;
   /** Runs a reusable workflow referenced by owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; external references select a SHA, tag or branch and cannot use expressions.
    * Pass a static args object; with and secrets each accept a whole-map authoring callback in their own scope. with excludes secrets. Callbacks run once during rawCall(); GitHub resolves their expressions. Tsugiori input/output contracts are caller assertions; scenarios require a call fixture.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
@@ -4965,7 +5174,7 @@ export type ReusableJobState<
         Scope<
           "jobs.<job_id>.with.<with_id>",
           N,
-          Record<never, never>,
+          E,
           M,
           V,
           S,
@@ -4987,7 +5196,7 @@ export type ReusableJobState<
           Scope<
             "jobs.<job_id>.secrets.<secrets_id>",
             N,
-            Record<never, never>,
+            E,
             M,
             V,
             S,
@@ -4995,8 +5204,8 @@ export type ReusableJobState<
           >
         >;
     }>,
-  ): FinalizedJobState<P, J, readonly string[], Record<never, never>, M>;
-};
+  ): JobDone<P, J, readonly string[], E, M>;
+}
 /** Choose regular runner execution or a native reusable caller job.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
  * @example
@@ -5010,7 +5219,28 @@ export type ReusableJobState<
  * );
  * ```
  */
-export interface IndependentJobState<
+export type JobInit<
+  WorkflowPath extends string,
+  JobId extends string,
+  CEnv extends StateEnv = E,
+> = JobInitBase<
+  WorkflowPath,
+  JobId,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type JobInitOf<
+  WorkflowPath extends string,
+  JobId extends string,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> = Compact<{ vars: Vars; secrets: Secrets; inputs: InputValues }> extends
+  infer Context extends StateEnv ? JobInit<WorkflowPath, JobId, Context>
+  : never;
+/** Method surface of {@link JobInit}; its context is inferred by the DSL. */
+interface JobInitBase<
   WorkflowPath extends string,
   JobId extends string,
   Vars extends string = string,
@@ -5046,11 +5276,11 @@ export interface IndependentJobState<
    * defineProject({ workflows: [reusable, caller] });
    * ```
    */
-  reusable(): ReusableJobState<
+  reusable(): CallJobOf<
     WorkflowPath,
     JobId,
-    Record<never, never>,
-    Record<never, never>,
+    E,
+    E,
     Vars,
     Secrets,
     InputValues
@@ -5065,11 +5295,11 @@ export interface IndependentJobState<
    */
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
-    Record<never, never>,
-    Record<never, never>,
+    E,
+    E,
     Vars,
     Secrets,
     InputValues
@@ -5088,7 +5318,31 @@ export interface IndependentJobState<
  * );
  * ```
  */
-export interface DependentJobState<
+export type DepJob<
+  WorkflowPath extends string,
+  JobId extends string,
+  Needs extends Record<string, readonly string[]>,
+  CEnv extends StateEnv = E,
+> = DepJobBase<
+  WorkflowPath,
+  JobId,
+  Needs,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type DepJobOf<
+  WorkflowPath extends string,
+  JobId extends string,
+  Needs extends Record<string, readonly string[]>,
+  Vars extends string,
+  Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> = Compact<{ vars: Vars; secrets: Secrets; inputs: InputValues }> extends
+  infer Context extends StateEnv ? DepJob<WorkflowPath, JobId, Needs, Context>
+  : never;
+/** Method surface of {@link DepJob}; its context is inferred by the DSL. */
+interface DepJobBase<
   WorkflowPath extends string,
   JobId extends string,
   Needs extends Record<string, readonly string[]>,
@@ -5125,11 +5379,11 @@ export interface DependentJobState<
    * defineProject({ workflows: [reusable, caller] });
    * ```
    */
-  reusable(): ReusableJobState<
+  reusable(): CallJobOf<
     WorkflowPath,
     JobId,
     Needs,
-    Record<never, never>,
+    E,
     Vars,
     Secrets,
     InputValues
@@ -5144,26 +5398,50 @@ export interface DependentJobState<
    */
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
-  ): ExecutionJobState<
+  ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
-    Record<never, never>,
+    E,
     Vars,
     Secrets,
     InputValues
   >;
 }
-/** Initial execution-job configuration. Set runsOn() and add a run, uses or task step before returning the state. Configure matrix strategy before fields which reference matrix values; {@link JobDefinitionScope} supplies earlier jobs for needs().
+/** Initial execution-job configuration. Set runsOn() and add a run, uses or task step before returning the state. Configure matrix strategy before fields which reference matrix values; {@link JobScope} supplies earlier jobs for needs().
  */
-export interface JobStartState<
+export type Job<
+  WorkflowPath extends string,
+  JobId extends string,
+  Jobs extends JobReferences,
+  CEnv extends StateEnv = E,
+> = JobBase<
+  WorkflowPath,
+  JobId,
+  Jobs,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type JobOf<
   WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> extends IndependentJobState<WorkflowPath, JobId, Vars, Secrets, InputValues> {
+> = Compact<{ vars: Vars; secrets: Secrets; inputs: InputValues }> extends
+  infer Context extends StateEnv ? Job<WorkflowPath, JobId, Jobs, Context>
+  : never;
+/** Method surface of {@link Job}; its context is inferred by the DSL. */
+interface JobBase<
+  WorkflowPath extends string,
+  JobId extends string,
+  Jobs extends JobReferences,
+  Vars extends string,
+  Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> extends JobInitBase<WorkflowPath, JobId, Vars, Secrets, InputValues> {
   /** Names declared dependencies; unsuccessful dependencies skip execution unless an explicit status condition admits the job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
    * @example
@@ -5198,7 +5476,7 @@ export interface JobStartState<
     ],
   >(
     ...dependencies: Dependencies
-  ): DependentJobState<
+  ): DepJobOf<
     WorkflowPath,
     JobId,
     NeedsMap<Dependencies>,
@@ -5233,7 +5511,7 @@ export interface JobStartState<
  *   );
  * ```
  */
-export type AvailableJobState<
+export type JobAt<
   WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
@@ -5241,8 +5519,8 @@ export type AvailableJobState<
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
 > = keyof Jobs extends never
-  ? IndependentJobState<WorkflowPath, JobId, Vars, Secrets, InputValues>
-  : JobStartState<WorkflowPath, JobId, Jobs, Vars, Secrets, InputValues>;
+  ? JobInitOf<WorkflowPath, JobId, Vars, Secrets, InputValues>
+  : JobOf<WorkflowPath, JobId, Jobs, Vars, Secrets, InputValues>;
 /** The job callback receives the new job and references to earlier jobs.
  * @example
  * ```ts
@@ -5269,81 +5547,101 @@ export type AvailableJobState<
  *   );
  * ```
  */
-export type JobDefinitionScope<
+export type JobScope<
+  WorkflowPath extends string,
+  JobId extends string,
+  Jobs extends JobReferences,
+  CEnv extends StateEnv = E,
+> = JobScopeBase<
+  WorkflowPath,
+  JobId,
+  Jobs,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type JobScopeOf<
   WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> = Readonly<
-  {
-    /** Start the new job with runsOn() or reusable().
-     * @example
-     * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
-     *   on: { push: {} },
-     * }).job(
-     *   "test",
-     *   ({ job }) =>
-     *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
-     * );
-     * ```
-     */
-    job: AvailableJobState<
-      WorkflowPath,
-      JobId,
-      Jobs,
-      Vars,
-      Secrets,
-      InputValues
-    >;
-    /** Earlier jobs available for explicit needs() dependencies.
-     * @example
-     * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
-     *   on: { push: {} },
-     * }).job("build", ({ job }) =>
-     *   job.runsOn("ubuntu-latest").run({
-     *     id: "build",
-     *     name: "Build",
-     *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-     *     outputs: ["version"],
-     *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
-     *   .job(
-     *     "deploy",
-     *     ({ job, jobs }) =>
-     *       job.needs(jobs.build).runsOn("ubuntu-latest")
-     *         .run({
-     *           name: "Deploy",
-     *           run: "deploy",
-     *           env: ({ needs }) => ({
-     *             VERSION: needs.build.outputs.version,
-     *           }),
-     *         }),
-     *   );
-     * ```
-     */
-    jobs: Jobs;
-  }
->;
+> = Compact<{ vars: Vars; secrets: Secrets; inputs: InputValues }> extends
+  infer Context extends StateEnv ? JobScope<WorkflowPath, JobId, Jobs, Context>
+  : never;
+/** Method surface of {@link JobScope}; its context is inferred by the DSL. */
+interface JobScopeBase<
+  WorkflowPath extends string,
+  JobId extends string,
+  Jobs extends JobReferences,
+  Vars extends string,
+  Secrets extends string,
+  InputValues extends object = Readonly<Record<string, string>>,
+> {
+  /** Start the new job with runsOn() or reusable().
+   * @example
+   * ```ts
+   * defineWorkflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   * }).job(
+   *   "test",
+   *   ({ job }) =>
+   *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
+   * );
+   * ```
+   */
+  readonly job: JobAt<
+    WorkflowPath,
+    JobId,
+    Jobs,
+    Vars,
+    Secrets,
+    InputValues
+  >;
+  /** Earlier jobs available for explicit needs() dependencies.
+   * @example
+   * ```ts
+   * defineWorkflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   * }).job("build", ({ job }) =>
+   *   job.runsOn("ubuntu-latest").run({
+   *     id: "build",
+   *     name: "Build",
+   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
+   *     outputs: ["version"],
+   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
+   *   .job(
+   *     "deploy",
+   *     ({ job, jobs }) =>
+   *       job.needs(jobs.build).runsOn("ubuntu-latest")
+   *         .run({
+   *           name: "Deploy",
+   *           run: "deploy",
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.outputs.version,
+   *           }),
+   *         }),
+   *   );
+   * ```
+   */
+  readonly jobs: Jobs;
+}
 type AddJobReference<
   WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
-  Result extends FinalizedJobState<string, string, readonly string[]>,
-> = Readonly<
-  & Jobs
-  & Record<
-    JobId,
-    JobReference<
-      WorkflowPath,
-      JobId,
-      Result[typeof jobDefinition]["outputNames"],
-      NonNullable<Result[typeof testJobShape]>
-    >
-  >
->;
+  Result extends JobDone<string, string, readonly string[]>,
+> = [Result] extends [unknown] ? {
+    readonly [K in keyof Jobs | JobId]: K extends keyof Jobs ? Jobs[K]
+      : JR<
+        WorkflowPath,
+        JobId,
+        Result[typeof jobDefinition]["outputNames"],
+        NonNullable<Result[typeof testJobShape]>
+      >;
+  }
+  : never;
 type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
   JobId extends keyof Jobs ? never : JobId;
 /** Add a completed job before passing the workflow to defineProject().
@@ -5358,7 +5656,34 @@ type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
  * );
  * ```
  */
-export interface EmptyWorkflowState<
+export type WorkflowStart<
+  WorkflowPath extends string,
+  CEnv extends StateEnv = E,
+> = WorkflowStartBase<
+  WorkflowPath,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "call", WorkflowCall, E>,
+  Setting<CEnv, "outputKeys", string, never>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type WorkflowStartOf<
+  WorkflowPath extends string,
+  Vars extends string = string,
+  Secrets extends string = string,
+  C extends WorkflowCall = WorkflowCall,
+  O extends string = never,
+  InputValues extends object = Readonly<Record<string, string>>,
+> = Compact<{
+  vars: Vars;
+  secrets: Secrets;
+  call: C;
+  outputKeys: O;
+  inputs: InputValues;
+}> extends infer Context extends StateEnv ? WorkflowStart<WorkflowPath, Context>
+  : never;
+/** Method surface of {@link WorkflowStart}; its context is inferred by the DSL. */
+interface WorkflowStartBase<
   WorkflowPath extends string,
   Vars extends string = string,
   Secrets extends string = string,
@@ -5400,7 +5725,7 @@ export interface EmptyWorkflowState<
    */
   job<
     const JobId extends string,
-    Result extends FinalizedJobState<
+    Result extends JobDone<
       WorkflowPath,
       NoInfer<JobId>,
       readonly string[]
@@ -5421,18 +5746,18 @@ export interface EmptyWorkflowState<
      */
     id: JobId,
     define: (
-      scope: JobDefinitionScope<
+      scope: JobScopeOf<
         WorkflowPath,
         JobId,
-        Record<never, never>,
+        E,
         Vars,
         Secrets,
         InputValues
       >,
     ) => Result,
-  ): NonEmptyWorkflowState<
+  ): WorkflowOf<
     WorkflowPath,
-    AddJobReference<WorkflowPath, JobId, Record<never, never>, Result>,
+    AddJobReference<WorkflowPath, JobId, E, Result>,
     Vars,
     Secrets,
     C,
@@ -5466,7 +5791,38 @@ export interface EmptyWorkflowState<
  *   );
  * ```
  */
-export interface NonEmptyWorkflowState<
+export type Workflow<
+  WorkflowPath extends string,
+  Jobs extends JobReferences,
+  CEnv extends StateEnv = E,
+> = WorkflowBase<
+  WorkflowPath,
+  Jobs,
+  Setting<CEnv, "vars", string, string>,
+  Setting<CEnv, "secrets", string, string>,
+  Setting<CEnv, "call", WorkflowCall, E>,
+  Setting<CEnv, "outputKeys", string, never>,
+  Setting<CEnv, "inputs", object, E>
+>;
+type WorkflowOf<
+  WorkflowPath extends string,
+  Jobs extends JobReferences,
+  Vars extends string = string,
+  Secrets extends string = string,
+  C extends WorkflowCall = WorkflowCall,
+  O extends string = never,
+  InputValues extends object = Readonly<Record<string, string>>,
+> = Compact<{
+  vars: Vars;
+  secrets: Secrets;
+  call: C;
+  outputKeys: O;
+  inputs: InputValues;
+}> extends infer Context extends StateEnv
+  ? Workflow<WorkflowPath, Jobs, Context>
+  : never;
+/** Method surface of {@link Workflow}; its context is inferred by the DSL. */
+interface WorkflowBase<
   WorkflowPath extends string,
   Jobs extends JobReferences,
   Vars extends string = string,
@@ -5547,7 +5903,7 @@ export interface NonEmptyWorkflowState<
         }
       >,
     ) => Values,
-  ): NonEmptyWorkflowState<
+  ): WorkflowOf<
     WorkflowPath,
     Jobs,
     Vars,
@@ -5578,7 +5934,7 @@ export interface NonEmptyWorkflowState<
    */
   job<
     const JobId extends string,
-    Result extends FinalizedJobState<
+    Result extends JobDone<
       WorkflowPath,
       NoInfer<JobId>,
       readonly string[]
@@ -5599,7 +5955,7 @@ export interface NonEmptyWorkflowState<
      */
     id: AvailableJobId<JobId, Jobs>,
     define: (
-      scope: JobDefinitionScope<
+      scope: JobScopeOf<
         WorkflowPath,
         JobId,
         Jobs,
@@ -5608,7 +5964,7 @@ export interface NonEmptyWorkflowState<
         InputValues
       >,
     ) => Result,
-  ): NonEmptyWorkflowState<
+  ): WorkflowOf<
     WorkflowPath,
     AddJobReference<WorkflowPath, JobId, Jobs, Result>,
     Vars,
@@ -5693,13 +6049,13 @@ export function defineWorkflow<
        */
       secrets?: LiteralNames<Secrets>;
     }>,
-): EmptyWorkflowState<
+): WorkflowStartOf<
   WorkflowPath,
   Names<Vars>,
   Names<Secrets>,
   CallContractOf<On>,
   WorkflowOutputNames<On>,
-  WorkflowInputValues<On>
+  WorkflowInputs<On>
 > {
   if (
     !isRecord(options.on) || Array.isArray(options.on) ||
@@ -5752,14 +6108,14 @@ export function defineWorkflow<
     references: Object.freeze({}),
     owner: Symbol(`tsugiori.workflow.${path}`),
   });
-  return createWorkflowFacade(draft, false) as EmptyWorkflowState<
+  return createWorkflowFacade<
     WorkflowPath,
     Names<Vars>,
     Names<Secrets>,
     CallContractOf<On>,
     WorkflowOutputNames<On>,
-    WorkflowInputValues<On>
-  >;
+    WorkflowInputs<On>
+  >(draft, false);
 }
 
 /** Materializes completed workflow definitions; generation validates caller/callee configuration membership.
@@ -5840,10 +6196,27 @@ export function defineProject<
   });
 }
 
+// The draft erases authoring generics; restore the initial context selected by
+// defineWorkflow without comparing it to a broad expression reference type.
+function createWorkflowFacade<
+  P extends string,
+  V extends string,
+  S extends string,
+  C extends WorkflowCall,
+  O extends string,
+  I extends object,
+>(
+  draft: WorkflowDraft,
+  finalized: false,
+): WorkflowStartOf<P, V, S, C, O, I>;
 function createWorkflowFacade(
   draft: WorkflowDraft,
   finalized: boolean,
-): EmptyWorkflowState<string> | NonEmptyWorkflowState<string, JobReferences> {
+): WorkflowStartOf<string> | WorkflowOf<string, JobReferences>;
+function createWorkflowFacade(
+  draft: WorkflowDraft,
+  finalized: boolean,
+): WorkflowStartOf<string> | WorkflowOf<string, JobReferences> {
   const facade = {
     inputs: scope("jobs.<job_id>.with.<with_id>").inputs,
     [workflowContract]: Object.freeze({
@@ -5885,7 +6258,7 @@ function createWorkflowFacade(
     job(
       id: string,
       define: (
-        scope: JobDefinitionScope<
+        scope: JobScopeOf<
           string,
           string,
           JobReferences,
@@ -5893,7 +6266,7 @@ function createWorkflowFacade(
           string,
           Readonly<Record<string, string>>
         >,
-      ) => FinalizedJobState<string, string>,
+      ) => JobDone<string, string>,
     ) {
       if (id in draft.references) {
         throw new TypeError(`Job ID ${JSON.stringify(id)} is duplicated.`);
@@ -5914,7 +6287,7 @@ function createWorkflowFacade(
       const result = define(Object.freeze({
         job: state,
         jobs: draft.references,
-      }) as JobDefinitionScope<
+      }) as JobScopeOf<
         string,
         string,
         JobReferences,
@@ -5957,8 +6330,8 @@ function createWorkflowFacade(
     ...(finalized ? { [workflowDefinition]: materializeWorkflow(draft) } : {}),
   };
   return Object.freeze(facade) as
-    | EmptyWorkflowState<string>
-    | NonEmptyWorkflowState<string, JobReferences>;
+    | WorkflowStartOf<string>
+    | WorkflowOf<string, JobReferences>;
 }
 
 function resolveAuthoringValue<Value>(
@@ -6027,8 +6400,8 @@ function createJobStartFacade(
   draft: JobDraft,
   dependenciesAvailable: boolean,
 ):
-  | IndependentJobState<string, string>
-  | JobStartState<
+  | JobInitOf<string, string>
+  | JobOf<
     string,
     string,
     JobReferences,
@@ -6045,7 +6418,7 @@ function createJobStartFacade(
     ...start(draft),
     ...(dependenciesAvailable
       ? {
-        needs: (...dependencies: readonly JobReference[]) =>
+        needs: (...dependencies: readonly JR[]) =>
           Object.freeze(start(Object.freeze({
             ...draft,
             needs: Object.freeze(dependencies.map((d) => d.id)),
@@ -6063,7 +6436,7 @@ function createJobStartFacade(
           }))),
       }
       : {}),
-  }) as JobStartState<
+  }) as JobOf<
     string,
     string,
     JobReferences,
@@ -6074,7 +6447,7 @@ function createJobStartFacade(
 }
 function createReusableJobFacade(
   draft: JobDraft,
-): ReusableJobState<string, string> {
+): CallJobOf<string, string> {
   const update = (key: keyof JobOptions, value: unknown) =>
     createReusableJobFacade(
       Object.freeze({ ...draft, options: { ...draft.options, [key]: value } }),
@@ -6084,7 +6457,7 @@ function createReusableJobFacade(
     args: unknown,
     callee?: AuthoringWorkflow,
     names: readonly string[] = [],
-  ): FinalizedJobState<string, string, readonly string[]> => {
+  ): JobDone<string, string, readonly string[]> => {
     if (typeof args === "function") {
       throw new TypeError(
         "Reusable call arguments must be an object; use separate with and secrets callbacks.",
@@ -6145,7 +6518,7 @@ function createReusableJobFacade(
       );
     },
     rawCall: (uses: string, args: unknown) => invoke(uses, args),
-  }) as ReusableJobState<string, string>;
+  }) as CallJobOf<string, string>;
 }
 function renderConcurrency(
   value: unknown,
@@ -6184,7 +6557,7 @@ function createExecutionJobFacade(
   draft:
     & JobDraft
     & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
-): ExecutionJobState<string, string> {
+): ExecOf<string, string> {
   return Object.freeze({
     runsOn: (v: unknown) => {
       const runner = typeof v === "function"
@@ -6207,9 +6580,9 @@ function createExecutionJobFacade(
       }),
     env: (
       v: StepEnv<
-        Record<never, never>,
-        Record<never, never>,
-        Record<never, never>,
+        E,
+        E,
+        E,
         string,
         string,
         Readonly<Record<string, string>>
@@ -6403,13 +6776,13 @@ function createExecutionJobFacade(
           ]),
         ),
       ),
-  }) as ExecutionJobState<string, string>;
+  }) as ExecOf<string, string>;
 }
 function createStepFacade(
   draft:
     & JobDraft
     & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
-): NonEmptyStepState<string, string, StepReferences> {
+): StepOf<string, string, StepReferences> {
   const base = createExecutionJobFacade(draft);
   return Object.freeze({
     [jobDefinition]: Object.freeze({
@@ -6454,7 +6827,7 @@ function createStepFacade(
     uses: base.uses,
     run: base.run,
     task: base.task,
-  }) as unknown as NonEmptyStepState<string, string, StepReferences>;
+  }) as unknown as StepOf<string, string, StepReferences>;
 }
 function appendStep(
   draft:
@@ -6463,7 +6836,7 @@ function appendStep(
   step: AuthoringStep,
   outputNames: readonly string[] = Object.freeze([]),
   contracts?: Readonly<Record<string, ReferenceBinding>>,
-): NonEmptyStepState<string, string, StepReferences> {
+): StepOf<string, string, StepReferences> {
   if (
     step.id !== undefined &&
     draft.steps.some((candidate) => candidate.id === step.id)
@@ -6704,7 +7077,7 @@ function stepReference(
   id: string,
   outputNames: readonly string[],
   contracts?: Readonly<Record<string, ReferenceBinding>>,
-): StepReference {
+): SR {
   return Object.freeze({
     id,
     outputNames: Object.freeze([...outputNames]),
@@ -6713,7 +7086,7 @@ function stepReference(
       name,
       `\${{ steps.${id}.outputs.${name} }}`,
     ]))),
-  }) as StepReference;
+  }) as SR;
 }
 function copyPermissions(
   permissions: WorkflowPermissions,
