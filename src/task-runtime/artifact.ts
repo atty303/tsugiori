@@ -1,13 +1,12 @@
-export const TASK_ARTIFACT_FORMAT_VERSION = "2";
+export const TASK_ARTIFACT_FORMAT_VERSION = "3";
 
 export type TaskArtifactManifest = Readonly<{
-  schemaVersion: 2;
+  schemaVersion: 3;
   artifactKey: string;
   artifactFormatVersion: string;
   target: string;
   denoVersion: string;
   tsugioriVersion: string;
-  invocationPath: "./.tsugiori/task-runtime";
   entrypoints: readonly string[];
   binarySha256: string;
 }>;

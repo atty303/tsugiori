@@ -1,18 +1,16 @@
 import type { ProjectConfig } from "../github_actions/mod.ts";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type LoadedConfig = Readonly<{
   config: ProjectConfig;
   absolutePath: string;
   argument: string;
-  projectArgument: string;
-  rootDirectory: string;
+  projectDirectory: string;
 }>;
 
 export class SourceLoadError extends Error {
   readonly errorType = "source_load_failed";
-
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
     this.name = "SourceLoadError";
@@ -22,11 +20,8 @@ export class SourceLoadError extends Error {
 export function configSource(
   config: ProjectConfig,
   configUrl: string | URL,
-  root: string | URL,
 ): LoadedConfig {
-  const rootDirectory = root instanceof URL
-    ? fileURLToPath(root)
-    : resolve(Deno.cwd(), root);
+  const projectDirectory = Deno.cwd();
   let absolutePath: string;
   try {
     absolutePath = fileURLToPath(configUrl);
@@ -35,30 +30,12 @@ export function configSource(
       cause: error,
     });
   }
-  const relativePath = relative(rootDirectory, absolutePath);
-  if (
-    relativePath === ".." || relativePath.startsWith(`..${sep}`) ||
-    isAbsolute(relativePath)
-  ) {
-    throw new SourceLoadError(
-      "The configuration file must be inside the project root.",
-    );
-  }
-  const projectPath = relative(rootDirectory, Deno.cwd());
-  if (
-    projectPath === ".." || projectPath.startsWith(`..${sep}`) ||
-    isAbsolute(projectPath)
-  ) {
-    throw new SourceLoadError(
-      "The workflow project must be inside the repository root.",
-    );
-  }
   if (
     config?.kind !== "github-actions.project" ||
     !Array.isArray(config.workflows)
   ) {
     throw new SourceLoadError(
-      "The configuration default export must be created by defineProject().",
+      "The configuration must be created by defineProject().",
     );
   }
   if (!Number.isSafeInteger(config.cacheVersion) || config.cacheVersion <= 0) {
@@ -67,8 +44,9 @@ export function configSource(
   return {
     config,
     absolutePath,
-    argument: `./${relativePath.split(sep).join("/")}`,
-    projectArgument: projectPath.split(sep).join("/") || ".",
-    rootDirectory,
+    argument: `./${
+      relative(projectDirectory, absolutePath).split(sep).join("/")
+    }`,
+    projectDirectory,
   };
 }

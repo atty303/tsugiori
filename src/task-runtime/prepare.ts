@@ -1,5 +1,6 @@
 import type { ProjectConfig } from "../github_actions/mod.ts";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
+import { homedir } from "node:os";
 import { lowerConfig } from "../compiler/authoring.ts";
 import {
   sha256File,
@@ -9,7 +10,11 @@ import {
   TaskRuntimeError,
 } from "./artifact.ts";
 import { TSUGIORI_PACKAGE_IDENTITY } from "../package_identity.ts";
-import { LocalTaskArtifactCache, removeIfPresent } from "./cache.ts";
+import {
+  copyDirectory,
+  LocalTaskArtifactCache,
+  removeIfPresent,
+} from "./cache.ts";
 import type { DiagnosticRecorder } from "./diagnostics.ts";
 
 export type ToolIdentity = Readonly<{
@@ -17,7 +22,6 @@ export type ToolIdentity = Readonly<{
 }>;
 
 export type PrepareOptions = Readonly<{
-  rootDirectory: string;
   projectDirectory: string;
   configPath: string;
   configArgument: string;
@@ -33,6 +37,7 @@ export type PrepareResult = Readonly<{
   artifactKey: string;
   cache: "hit" | "miss";
   manifest: TaskArtifactManifest;
+  runtimePath: string;
 }>;
 
 export type TaskArtifactPlan = Readonly<{
@@ -48,7 +53,6 @@ export async function resolveTaskArtifact(
   const lowered = await lowerConfig(
     options.config,
     options.configArgument,
-    relative(options.rootDirectory, options.projectDirectory),
   );
   validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
@@ -64,7 +68,7 @@ export async function resolveTaskArtifact(
     );
   }
 
-  const denoVersion = await readDenoVersion(options.rootDirectory);
+  const denoVersion = await readDenoVersion(options.projectDirectory);
   const target = options.target ?? Deno.build.target;
   if (target.includes("windows")) {
     throw new TaskRuntimeError(
@@ -74,7 +78,6 @@ export async function resolveTaskArtifact(
   }
   const entrypoints = lowered.tasks.map((task) => task.entrypoint);
   const artifactKey = await computeArtifactKey({
-    rootDirectory: options.rootDirectory,
     projectDirectory: options.projectDirectory,
     configPath: options.configPath,
     target,
@@ -102,7 +105,12 @@ export async function prepareTaskArtifact(
     );
   }
 
-  const tsugioriDirectory = resolve(options.rootDirectory, ".tsugiori");
+  const tsugioriDirectory = taskCacheDirectory();
+  const runtimeDirectory = resolve(
+    tsugioriDirectory,
+    "runtimes",
+    plan.artifactKey,
+  );
   const cache = new LocalTaskArtifactCache(
     resolve(tsugioriDirectory, "cache/artifacts"),
   );
@@ -132,10 +140,10 @@ export async function prepareTaskArtifact(
           restoredDirectory,
           plan.artifactKey,
         );
-        await materializeArtifact(
+        const runtimePath = await materializeArtifact(
           restoredDirectory,
-          tsugioriDirectory,
-          manifest,
+          runtimeDirectory,
+          plan.artifactKey,
         );
         options.recorder.operation({
           name: "cache.restore",
@@ -146,6 +154,7 @@ export async function prepareTaskArtifact(
           artifactKey: plan.artifactKey,
           cache: "hit",
           manifest,
+          runtimePath,
         };
       } catch {
         options.recorder.operation({
@@ -198,11 +207,16 @@ export async function prepareTaskArtifact(
       });
     }
 
-    await materializeArtifact(builtDirectory, tsugioriDirectory, manifest);
+    const runtimePath = await materializeArtifact(
+      builtDirectory,
+      runtimeDirectory,
+      plan.artifactKey,
+    );
     return {
       artifactKey: plan.artifactKey,
       cache: "miss",
       manifest,
+      runtimePath,
     };
   } finally {
     await removeIfPresent(workDirectory);
@@ -214,7 +228,7 @@ function validateExpectedLayouts(
   current: ReadonlyMap<string, string>,
 ): void {
   for (const value of expected) {
-    const separator = value.indexOf("=");
+    const separator = value.lastIndexOf("=");
     if (separator < 1) {
       throw new TaskRuntimeError(
         "layout_expectation_invalid",
@@ -246,13 +260,12 @@ async function buildArtifact(
   await Deno.mkdir(options.outputDirectory, { recursive: true });
   const binary = resolve(options.outputDirectory, "task-runtime");
   const manifestWithoutChecksum = {
-    schemaVersion: 2 as const,
+    schemaVersion: 3 as const,
     artifactKey: options.artifactKey,
     artifactFormatVersion: TASK_ARTIFACT_FORMAT_VERSION,
     target: options.target,
     denoVersion: options.denoVersion,
     tsugioriVersion: options.tool.version,
-    invocationPath: "./.tsugiori/task-runtime" as const,
     entrypoints: [...options.entrypoints].sort(),
   };
   const args = ["compile", "-A", "--output", binary];
@@ -276,15 +289,42 @@ async function buildArtifact(
 
 async function materializeArtifact(
   source: string,
-  tsugioriDirectory: string,
-  manifest: TaskArtifactManifest,
-): Promise<void> {
-  await Deno.mkdir(tsugioriDirectory, { recursive: true });
-  const runtime = resolve(tsugioriDirectory, "task-runtime");
-  const metadata = resolve(tsugioriDirectory, "task-runtime.json");
-  await Deno.copyFile(resolve(source, "task-runtime"), runtime);
-  await Deno.chmod(runtime, 0o755);
-  await Deno.writeTextFile(metadata, `${JSON.stringify(manifest, null, 2)}\n`);
+  runtimeDirectory: string,
+  artifactKey: string,
+): Promise<string> {
+  let destination = runtimeDirectory;
+  try {
+    await validateArtifact(runtimeDirectory, artifactKey);
+    return resolve(runtimeDirectory, "task-runtime");
+  } catch {
+    try {
+      await Deno.stat(runtimeDirectory);
+      // Retain the old path for existing readers, even when its contents are invalid.
+      destination = `${runtimeDirectory}.recovery-${crypto.randomUUID()}`;
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) throw error;
+    }
+  }
+  await Deno.mkdir(dirname(destination), { recursive: true });
+  const staging = `${destination}.tmp-${crypto.randomUUID()}`;
+  try {
+    await copyDirectory(source, staging);
+    await Deno.chmod(resolve(staging, "task-runtime"), 0o755);
+    try {
+      // Once published, a key's runtime stays in place for all current readers.
+      await Deno.rename(staging, destination);
+    } catch (error) {
+      // A concurrent publisher may have won. Reuse only a complete valid entry.
+      try {
+        await validateArtifact(destination, artifactKey);
+      } catch {
+        throw error;
+      }
+    }
+    return resolve(destination, "task-runtime");
+  } finally {
+    await removeIfPresent(staging);
+  }
 }
 
 async function validateArtifact(
@@ -295,7 +335,7 @@ async function validateArtifact(
     await Deno.readTextFile(resolve(directory, "manifest.json")),
   ) as TaskArtifactManifest;
   if (
-    manifest.schemaVersion !== 2 || manifest.artifactKey !== expectedKey ||
+    manifest.schemaVersion !== 3 || manifest.artifactKey !== expectedKey ||
     manifest.artifactFormatVersion !== TASK_ARTIFACT_FORMAT_VERSION
   ) {
     throw new TaskRuntimeError(
@@ -315,7 +355,6 @@ async function validateArtifact(
 
 async function computeArtifactKey(
   input: Readonly<{
-    rootDirectory: string;
     projectDirectory: string;
     configPath: string;
     target: string;
@@ -337,8 +376,7 @@ async function computeArtifactKey(
       continue;
     }
     const path = resolve(module.local);
-    const relativePath = relative(input.rootDirectory, path);
-    if (!isRepositoryLocalPath(relativePath)) continue;
+    const relativePath = relative(input.projectDirectory, path);
     modulePaths.set(relativePath.split(sep).join("/"), path);
   }
   const modules = [];
@@ -361,14 +399,25 @@ async function computeArtifactKey(
   });
 }
 
-function isRepositoryLocalPath(path: string): boolean {
-  return path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
+/** Runner-local storage; paths are never part of artifact identity or generated YAML. */
+export function taskCacheDirectory(): string {
+  const base = Deno.env.get("XDG_CACHE_HOME") ??
+    (Deno.build.os === "darwin"
+      ? resolve(homedir(), "Library/Caches")
+      : Deno.build.os === "windows"
+      ? Deno.env.get("LOCALAPPDATA") ?? resolve(homedir(), "AppData/Local")
+      : resolve(homedir(), ".cache"));
+  return resolve(base, "tsugiori");
 }
 
-async function readDenoVersion(rootDirectory: string): Promise<string> {
+export function taskArtifactCachePath(key: string): string {
+  return resolve(taskCacheDirectory(), "cache/artifacts", key);
+}
+
+async function readDenoVersion(projectDirectory: string): Promise<string> {
   const output = await runDeno(
     ["--version"],
-    rootDirectory,
+    projectDirectory,
     "deno_unavailable",
   );
   return output.split("\n", 1)[0]?.trim() ?? "unknown";

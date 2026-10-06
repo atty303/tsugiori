@@ -99,7 +99,7 @@ Deno.test({
         4,
         "empty-workflow",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-const empty = defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
+const empty = defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },});
 empty./*completion*/`,
       );
       assertRelevantExactly(emptyWorkflowLabels, ["job"], [
@@ -118,7 +118,7 @@ empty./*completion*/`,
         5,
         "job-state",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-const empty = defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
+const empty = defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },});
 empty.job("test", ({ job }) => {
   job./*completion*/
   return job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });
@@ -139,7 +139,7 @@ empty.job("test", ({ job }) => {
         6,
         "execution-state",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-const empty = defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
+const empty = defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const execution = job.runsOn("ubuntu-latest");
   execution./*completion*/
@@ -165,7 +165,7 @@ empty.job("test", ({ job }) => {
         7,
         "step-state",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-const empty = defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
+const empty = defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const configured = job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });
   configured./*completion*/
@@ -187,7 +187,7 @@ empty.job("test", ({ job }) => {
         8,
         "prior-jobs",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-const base = defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
+const base = defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },});
 const withTest = base.job("test", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }));
 withTest.job("build", ({ job, jobs }) => {
   jobs./*completion*/
@@ -202,7 +202,7 @@ withTest.job("build", ({ job, jobs }) => {
         9,
         "typed-job-if",
         `import { defineWorkflow } from "../src/github_actions/mod.ts";
-defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
+defineWorkflow(".github/workflows/ci.yml", { on: { push: {  } },})
   .job("test", ({ job }) => job.runsOn("ubuntu-latest")
     .when((context) => { context./*completion*/; return context.github.ref.eq("main"); })
     .run({ name: "Test", run: "true" }));`,
@@ -231,37 +231,37 @@ defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
         const [index, [name, source, expected]] of [
           [
             "trigger",
-            `defineWorkflow("ci", { output: "ci.yml", on: { /*completion*/ } });`,
+            `defineWorkflow("ci.yml", { on: { /*completion*/ } });`,
             triggerNames,
           ],
           [
             "push-settings",
-            `defineWorkflow("ci", { output: "ci.yml", on: { push: { /*completion*/ } } });`,
+            `defineWorkflow("ci.yml", { on: { push: { /*completion*/ } } });`,
             ["branches", "tags"],
           ],
           [
             "pr-settings",
-            `defineWorkflow("ci", { output: "ci.yml", on: { pull_request: { /*completion*/ } } });`,
+            `defineWorkflow("ci.yml", { on: { pull_request: { /*completion*/ } } });`,
             ["types"],
           ],
           [
             "dispatch-settings",
-            `defineWorkflow("ci", { output: "ci.yml", on: { workflow_dispatch: { /*completion*/ } } });`,
+            `defineWorkflow("ci.yml", { on: { workflow_dispatch: { /*completion*/ } } });`,
             ["inputs"],
           ],
           [
             "call-settings",
-            `defineWorkflow("ci", { output: "ci.yml", on: { workflow_call: { /*completion*/ } } });`,
+            `defineWorkflow("ci.yml", { on: { workflow_call: { /*completion*/ } } });`,
             ["inputs", "secrets", "outputs"],
           ],
           [
             "dispatch-input",
-            `defineWorkflow("ci", { output: "ci.yml", on: { workflow_dispatch: { inputs: { stage: { /*completion*/ } } } } });`,
+            `defineWorkflow("ci.yml", { on: { workflow_dispatch: { inputs: { stage: { /*completion*/ } } } } });`,
             ["type", "description", "required", "default", "options"],
           ],
           [
             "call-input",
-            `defineWorkflow("ci", { output: "ci.yml", on: { workflow_call: { inputs: { flag: { /*completion*/ } } } } });`,
+            `defineWorkflow("ci.yml", { on: { workflow_call: { inputs: { flag: { /*completion*/ } } } } });`,
             ["type", "description", "required", "default"],
           ],
         ].entries()
@@ -276,7 +276,7 @@ defineWorkflow("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
         assertEquals([...labels].sort(), [...expected].sort(), name as string);
       }
       const inputSource = `${importWorkflow}
-const flow = defineWorkflow("ci", { output: "ci.yml", on: {
+const flow = defineWorkflow("ci.yml", { on: {
   push: {},
   workflow_dispatch: { inputs: { shared: { type: "choice", options: ["x"] }, dispatchOnly: { type: "string" } } },
   workflow_call: { inputs: { shared: { type: "boolean" }, callOnly: { type: "number" } } }
@@ -354,7 +354,7 @@ const publish = contract;`;
         stream,
         60,
         "action-input-completion",
-        `${actionSource}\ndefineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { /*completion*/ } }));`,
+        `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { /*completion*/ } }));`,
       );
       assertEquals(
         actionLabels.filter((key) => ["destination", "mode"].includes(key))
@@ -364,20 +364,20 @@ const publish = contract;`;
       for (
         const [index, [source, expected]] of [
           [
-            `${actionSource}\ndefineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination/*completion*/: "web" } }));`,
+            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination/*completion*/: "web" } }));`,
             "Publish destination.",
           ],
           [
-            `${actionSource}\ndefineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination: "web", mode/*completion*/: "fast" } }));`,
+            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { with: { destination: "web", mode/*completion*/: "fast" } }));`,
             "Use destination instead.",
           ],
           [`${actionSource}\ncontract/*completion*/;`, "Publish artifacts"],
           [
-            `${actionSource}\ndefineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => { const state = job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }); state.steps.publish.outputs.url/*completion*/; return state; });`,
+            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => { const state = job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }); state.steps.publish.outputs.url/*completion*/; return state; });`,
             "Published URL.",
           ],
           [
-            `${actionSource}\ndefineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
+            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
             "Published URL.",
           ],
         ].entries()

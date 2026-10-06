@@ -14,9 +14,8 @@ function assertScenarioTypes(): void {
       return value;
     },
   });
-  const flow = defineWorkflow("typed-scenario", {
+  const flow = defineWorkflow(".github/workflows/typed-scenario.yml", {
     on: { push: {} },
-    output: ".github/workflows/typed-scenario.yml",
   }).job("count", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .strategy({ matrix: { stage: ["dev", "prd"] as const } })
@@ -61,9 +60,8 @@ function assertTypedMatrixFromOutput(): void {
       });
     },
   });
-  const detected = defineWorkflow("matrix-output", {
+  const detected = defineWorkflow(".github/workflows/matrix-output.yml", {
     on: { push: {} },
-    output: ".github/workflows/matrix-output.yml",
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
       .task({

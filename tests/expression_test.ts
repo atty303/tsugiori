@@ -30,8 +30,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     inputs: { value: { description: "Input", required: true } },
     outputs: { "result": { description: "Output" } },
   } as const;
-  const first = defineWorkflow("ci", {
-    output: ".github/workflows/ci.yml",
+  const first = defineWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
     secrets: ["token"],
   })
@@ -126,8 +125,7 @@ Deno.test("expression nodes cannot be interpolated as host strings", () => {
 Deno.test("a step ID colliding with an expression method is addressable", async () => {
   const config = defineProject({
     workflows: [
-      defineWorkflow("ci", {
-        output: ".github/workflows/ci.yml",
+      defineWorkflow(".github/workflows/ci.yml", {
         on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")
@@ -194,8 +192,7 @@ Deno.test("operators and built-ins retain GitHub expression syntax", () => {
 Deno.test("a complete matrix can come from one typed expression", async () => {
   const config = defineProject({
     workflows: [
-      defineWorkflow("ci", {
-        output: ".github/workflows/ci.yml",
+      defineWorkflow(".github/workflows/ci.yml", {
         on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")

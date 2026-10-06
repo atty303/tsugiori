@@ -518,8 +518,7 @@ export const toJSON = (value: Operand<unknown>): Expression<string> =>
  *     return value;
  *   },
  * });
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("prepare", ({ job }) =>
  *   job.runsOn("ubuntu-latest").task({
@@ -583,8 +582,7 @@ export function fromJSON(value: Operand<unknown>): Expression<unknown> {
  *     return value;
  *   },
  * });
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("prepare", ({ job }) =>
  *   job.runsOn("ubuntu-latest").task({
@@ -1301,8 +1299,7 @@ export type JobContext<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1337,8 +1334,7 @@ export type JobContext<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1388,8 +1384,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1519,8 +1514,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   vars: ["REGION"],
    * }).job("test", ({ job }) =>
@@ -1536,8 +1530,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   secrets: ["DEPLOY_TOKEN"],
    * }).job("test", ({ job }) =>
@@ -1553,8 +1546,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },

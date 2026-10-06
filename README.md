@@ -45,8 +45,8 @@ Check the committed output without changing it:
 deno task generate:check
 ```
 
-Check mode reports missing, changed, and extra `.yml` files owned by this
-config. Add `--output .github/workflows/ci.yml` to check one output. The
+Check mode reports missing or changed configured outputs. Unconfigured files
+are ignored. Add `--output workflows/ci.yml` to check one output. The
 generated file's first line identifies its owning config. The repository CI
 runs the check task before its task-backed test step.
 
@@ -59,8 +59,7 @@ when executed:
 ```ts
 import { defineWorkflow, defineProject, runProject } from "@atty303/tsugiori/github-actions";
 
-const ci = defineWorkflow("ci", {
-  output: ".github/workflows/ci.yml",
+const ci = defineWorkflow("workflows/ci.yml", {
   on: { push: {}, pull_request: {} },
   permissions: { contents: "read" },
 }).job("test", ({ job }) =>
@@ -78,21 +77,25 @@ const ci = defineWorkflow("ci", {
     },
   }));
 
-const config = defineProject({ cacheVersion: 1, workflows: [ci] });
+const config = defineProject({
+  workingDirectory: ".github", cacheVersion: 1, workflows: [ci],
+});
 export default config;
 
 if (import.meta.main) {
   Deno.exitCode = await runProject({
     config,
     configUrl: import.meta.url,
-    root: new URL("../", import.meta.url),
   });
 }
 ```
 
 Set the Deno project's `generate` and `generate:check` tasks as in
-[.github/deno.json](.github/deno.json). The config supplies the repository root;
-generated workflow paths and `.tsugiori/` storage are relative to that root.
+[.github/deno.json](.github/deno.json). Workflow paths are relative to the Deno
+project directory, taken from `Deno.cwd()`. Deno tasks set that directory to
+the task project; direct invocation must run from the same directory.
+`workingDirectory` sets the native Actions working directory only for artifact
+preparation steps. Normal run steps and task bodies keep native job/step defaults.
 The project directory supplies Deno imports and its lockfile. Top-level
 authoring code should construct deterministic definitions; task work belongs
 inside `.task()` callbacks.
@@ -126,18 +129,20 @@ binary.
 Task-backed jobs include visible artifact-key, `actions/cache`, and preparation
 steps before the task invocation. The generated cache step can restore a
 matching artifact; on a successful cache miss, its post action can save it.
-The prepared binary is invoked as `./.tsugiori/task-runtime
-<workflow-id>/<job-id>/task-<ordinal>`. The current binary is compiled with
+The preparation step supplies the runtime path to each task step. Artifacts
+are stored outside the repository under the platform cache directory
+(`XDG_CACHE_HOME` when set, otherwise `~/Library/Caches` on macOS,
+`~/.cache` on Linux, or `LOCALAPPDATA` on Windows), in `tsugiori/`.
+Runtime binaries are separated by artifact key. Task entrypoints use
+`<workflow-path>/<job-id>/task-<ordinal>`. The current binary is compiled with
 Deno `-A` and targets POSIX invocation; Windows task artifacts are rejected.
 
-The artifact key follows repository-local source modules, target platform,
+The artifact key follows all reachable local source modules, including imports
+outside the project, with paths relative to the project, target platform,
 artifact format, Tsugiori package identity, and `cacheVersion`. Increase
 `cacheVersion` when an excluded input such as a remote module, lockfile, or
 Deno setting changes the task binary. See [Architecture](docs/ARCHITECTURE.md)
 for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
-
-Run the repository checks with `mise run check` and `mise run test` from the
-repository root.
 
 ## Test workflow logic
 
@@ -216,8 +221,7 @@ const stages = jsonValue({
   },
 });
 
-const first = defineWorkflow("deploy", {
-  output: ".github/workflows/deploy.yml",
+const first = defineWorkflow(".github/workflows/deploy.yml", {
   on: { push: {} },
 }).job("prepare", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -400,8 +404,7 @@ secret availability or organization/enterprise eligibility.
 ```ts
 import { defineWorkflow, defineProject } from "@atty303/tsugiori/github-actions";
 
-const definition = defineWorkflow("build", {
-  output: ".github/workflows/build.yml",
+const definition = defineWorkflow(".github/workflows/build.yml", {
   on: {
     workflow_call: {
       inputs: { module: { type: "string", required: true } },
@@ -422,11 +425,10 @@ const build = definition.job("build", ({ job }) =>
     .outputs(({ steps }) => ({ message: steps.build.outputs.message })))
   .workflowOutputs(({ jobs }) => ({ message: jobs.build.outputs.message }));
 
-const ci = defineWorkflow("ci", {
-  output: ".github/workflows/ci.yml",
+const ci = defineWorkflow(".github/workflows/ci.yml", {
   on: { push: { branches: ["main"], tags: ["v*"] } },
 }).job("build", ({ job }) =>
-  job.reusable().call(build, {
+  job.reusable().call("./.github/workflows/build.yml", build, {
     with: { module: "app" },
     secrets: "inherit",
   }));
@@ -438,6 +440,10 @@ export default defineProject({ workflows: [ci, build] });
 use `{}` for an event without settings. String and array trigger shorthands
 are not accepted. Dispatch inputs belong in `on.workflow_dispatch.inputs`;
 call inputs, secrets and outputs belong in `on.workflow_call`.
+
+Reusable calls use `job.reusable().call(uses, callee, args)`. The GitHub-native
+`uses` reference is explicit; authors keep it consistent with the callee
+definition used for typed inputs, secrets, outputs and scenarios.
 
 `definition.inputs` and field callback `inputs` infer declared input names
 and value types from both dispatch and call definitions. Dispatch `choice`

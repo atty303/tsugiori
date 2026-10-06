@@ -317,10 +317,10 @@ async function runInstance(
   matrix: Record<string, unknown>,
   base: Context,
   rules: InstanceRules,
-  workflowId: string,
+  workflowPath: string,
   defaultResult?: Result,
 ): Promise<JobInstanceResult> {
-  const location = `${workflowId}.${job.id}[${JSON.stringify(matrix)}]`;
+  const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
   const steps: Record<string, StepResult> = {};
   const context: Context = { ...base, matrix, steps: {} };
@@ -615,13 +615,14 @@ function checkStep(
 }
 
 function triggered(config: ProjectConfig, program: Program): boolean {
-  const workflow = config.workflows.find((p) => p.id === program.workflowId) ??
-    config.workflows[0];
+  const workflow =
+    config.workflows.find((p) => p.path === program.workflowPath) ??
+      config.workflows[0];
   const github = program.external.github;
   if (!github || typeof github !== "object") {
     throw new ScenarioError(
       "fixture_missing",
-      workflow.id,
+      workflow.path,
       "github fixture is required.",
     );
   }
@@ -630,7 +631,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   if (typeof event !== "string") {
     throw new ScenarioError(
       "fixture_missing",
-      workflow.id,
+      workflow.path,
       "github.event_name is required.",
     );
   }
@@ -648,7 +649,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
     if (typeof action !== "string") {
       throw new ScenarioError(
         "fixture_missing",
-        workflow.id,
+        workflow.path,
         "github.event.action is required for PR activity filters.",
       );
     }
@@ -660,7 +661,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
     if (typeof values.ref !== "string") {
       throw new ScenarioError(
         "fixture_missing",
-        workflow.id,
+        workflow.path,
         "github.ref is required for push filters.",
       );
     }
@@ -672,7 +673,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
     for (const rule of filters) {
       const negative = rule.startsWith("!");
       if (
-        branchPattern(negative ? rule.slice(1) : rule, workflow.id).test(name)
+        branchPattern(negative ? rule.slice(1) : rule, workflow.path).test(name)
       ) included = !negative;
     }
     if (!included) return false;
@@ -691,7 +692,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
       } else if (supplied?.[name] === undefined && input.required) {
         throw new ScenarioError(
           "fixture_missing",
-          workflow.id,
+          workflow.path,
           `Required dispatch input ${name} is missing.`,
         );
       }
@@ -700,7 +701,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   return true;
 }
 
-function branchPattern(pattern: string, workflowId: string): RegExp {
+function branchPattern(pattern: string, workflowPath: string): RegExp {
   let source = "^";
   for (let index = 0; index < pattern.length; index++) {
     const char = pattern[index];
@@ -712,7 +713,7 @@ function branchPattern(pattern: string, workflowId: string): RegExp {
       if (index === 0) {
         throw new ScenarioError(
           "expression_unsupported",
-          `${workflowId}.on.push.branches`,
+          `${workflowPath}.on.push.branches`,
           "Branch filter starts with a repetition operator.",
         );
       }
@@ -723,7 +724,7 @@ function branchPattern(pattern: string, workflowId: string): RegExp {
       if (end < 0 || !/^[A-Za-z0-9-]+$/.test(contents)) {
         throw new ScenarioError(
           "expression_unsupported",
-          `${workflowId}.on.push.branches`,
+          `${workflowPath}.on.push.branches`,
           "Branch filter has an unsupported character class.",
         );
       }
@@ -742,22 +743,24 @@ async function interpretScenario(
   called: boolean,
   observation: ScenarioObservationState,
 ): Promise<ScenarioResult> {
-  const author = config.workflows.find((p) => p.id === program.workflowId) ??
-    config.workflows[0];
+  const author =
+    config.workflows.find((p) => p.path === program.workflowPath) ??
+      config.workflows[0];
   if (!called && !triggered(config, program)) {
     if (program.expectedResult !== undefined) {
-      expectValue("skipped", program.expectedResult, `${author.id}.result`);
+      expectValue("skipped", program.expectedResult, `${author.path}.result`);
     }
     return { result: "skipped", jobs: {} };
   }
-  const lowered = await lowerConfig(config, ".github/tsugiori.ts", ".github");
-  const workflow = lowered.workflows.find((p) => p.id === author.id)!.workflow;
+  const lowered = await lowerConfig(config, "./tsugiori.ts");
+  const workflow =
+    lowered.workflows.find((p) => p.path === author.path)!.workflow;
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));
   for (const name of program.jobs.keys()) {
     if (!authoredJobs.has(name)) {
       throw new ScenarioError(
         "fixture_invalid",
-        `${author.id}.${name}`,
+        `${author.path}.${name}`,
         "Unknown job ID.",
       );
     }
@@ -768,21 +771,21 @@ async function interpretScenario(
     if (first < 0 || second < 0) {
       throw new ScenarioError(
         "fixture_invalid",
-        author.id,
+        author.path,
         "Expected job order names an unknown job.",
       );
     }
     if (first >= second || !workflow.jobs[second].needs.includes(left)) {
       throw new ScenarioError(
         "expectation_failed",
-        `${author.id}.${left}->${right}`,
+        `${author.path}.${left}->${right}`,
         "Job dependency order does not match the expectation.",
       );
     }
   }
   const results: Record<string, JobResult> = {};
   for (const job of workflow.jobs) {
-    const location = `${author.id}.${job.id}`;
+    const location = `${author.path}.${job.id}`;
     const rules = program.jobs.get(job.id) ?? {
       steps: new Map(),
       internals: new Map(),
@@ -805,7 +808,7 @@ async function interpretScenario(
         author.env,
         program.external,
         { success: true, failure: false, cancelled: false },
-        author.id,
+        author.path,
         "env",
         new Map(),
       ),
@@ -840,7 +843,7 @@ async function interpretScenario(
       const merged = mergedRules(rules, specific);
       const authoredJob = authoredJobs.get(job.id)!;
       if (job.uses !== undefined) {
-        const location = `${author.id}.${job.id}[${JSON.stringify(matrix)}]`;
+        const location = `${author.path}.${job.id}[${JSON.stringify(matrix)}]`;
         const callContext = { ...context, matrix };
         const inputs = evaluateMap(
           job.with,
@@ -864,7 +867,7 @@ async function interpretScenario(
         let child: ScenarioResult;
         if (callee) {
           if (
-            !merged.call || merged.call.workflowId !== callee.id ||
+            !merged.call || merged.call.workflowPath !== callee.path ||
             merged.callFixture
           ) {
             throw new ScenarioError(
@@ -932,7 +935,7 @@ async function interpretScenario(
                 inputs,
                 secrets,
               },
-              workflowId: callee.id,
+              workflowPath: callee.path,
             },
             true,
             observation,
@@ -1001,7 +1004,7 @@ async function interpretScenario(
           matrix,
           context,
           merged,
-          author.id,
+          author.path,
           program.defaultResult,
         ),
       );
@@ -1060,7 +1063,7 @@ async function interpretScenario(
     ? "cancelled"
     : "success";
   if (program.expectedResult !== undefined) {
-    expectValue(result, program.expectedResult, `${author.id}.result`);
+    expectValue(result, program.expectedResult, `${author.path}.result`);
   }
   const outputs: Record<string, string> = {};
   for (
@@ -1075,8 +1078,8 @@ async function interpretScenario(
           failure: result === "failure",
           cancelled: result === "cancelled",
         },
-        author.id,
-        `workflow.outputs.${name}`,
+        author.path,
+        `workflow.paths.${name}`,
         new Map(),
       ),
     );

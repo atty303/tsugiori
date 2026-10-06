@@ -18,7 +18,7 @@ const contract = {
   outputs: { url: { description: "URL" } },
 } as const satisfies ActionContract;
 function steps(options: unknown, action: ActionContract | string = contract) {
-  const workflow = defineWorkflow("ci", { output: "ci.yml", on: { push: {} } })
+  const workflow = defineWorkflow("ci.yml", { on: { push: {} } })
     .job(
       "publish",
       ({ job }) =>

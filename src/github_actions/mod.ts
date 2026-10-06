@@ -56,8 +56,7 @@ export type { Expression, RawExpression, Scope } from "./expression.ts";
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {}, pull_request: {} },
  * });
  * ```
@@ -417,8 +416,7 @@ export type WorkflowCall = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
  * @example
  * ```ts
- * const reusable = defineWorkflow("release", {
- *   output: ".github/workflows/release.yml",
+ * const reusable = defineWorkflow(".github/workflows/release.yml", {
  *   on: { workflow_call: { inputs: {
  *     version: { type: "string", required: true },
  *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
@@ -449,8 +447,7 @@ export type WorkflowCallOutputs = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
        * @example
        * ```ts
-       * const reusable = defineWorkflow("release", {
-       *   output: ".github/workflows/release.yml",
+       * const reusable = defineWorkflow(".github/workflows/release.yml", {
        *   on: { workflow_call: { inputs: {
        *     version: { type: "string", required: true },
        *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
@@ -470,8 +467,7 @@ export type WorkflowCallOutputs = Readonly<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: {
  *     push: { branches: ["main"], tags: ["v*"] },
  *     pull_request: { types: ["opened", "synchronize"] },
@@ -484,8 +480,7 @@ export type WorkflowTriggers = Readonly<{
   /** Push trigger settings. Use an empty object for every push.
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * });
    * ```
@@ -495,8 +490,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -510,8 +504,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -525,8 +518,7 @@ export type WorkflowTriggers = Readonly<{
   /** Pull request trigger settings.
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { pull_request: { types: ["opened", "synchronize"] } },
    * });
    * ```
@@ -536,8 +528,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -551,8 +542,7 @@ export type WorkflowTriggers = Readonly<{
   /** Pull request trigger in the base-repository context.
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { pull_request_target: { types: ["labeled"] } },
    * });
    * ```
@@ -562,8 +552,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -577,8 +566,7 @@ export type WorkflowTriggers = Readonly<{
   /** Manual trigger with typed input declarations.
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "choice", options: ["dev", "prd"] } },
@@ -592,8 +580,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: {
      *     workflow_dispatch: {
      *       inputs: {
@@ -609,8 +596,7 @@ export type WorkflowTriggers = Readonly<{
   /** Reusable workflow trigger and caller contract.
    * @example
    * ```ts
-   * const reusable = defineWorkflow("release", {
-   *   output: ".github/workflows/release.yml",
+   * const reusable = defineWorkflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -636,8 +622,7 @@ export type WorkflowTriggers = Readonly<{
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
        * @example
        * ```ts
-       * const reusable = defineWorkflow("release", {
-       *   output: ".github/workflows/release.yml",
+       * const reusable = defineWorkflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -683,8 +668,7 @@ type EventInputValue<I, K> = K extends keyof I ? InputValue<I[K]> : "";
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: {
  *     push: { branches: ["main"], tags: ["v*"] },
  *     pull_request: { types: ["opened", "synchronize"] },
@@ -707,8 +691,7 @@ const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
 /** A completed reusable workflow accepted by call().
  * @example
  * ```ts
- * const reusable = defineWorkflow("release", {
- *   output: ".github/workflows/release.yml",
+ * const reusable = defineWorkflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -724,12 +707,11 @@ const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * const caller = defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
- *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
  * defineProject({ workflows: [reusable, caller] });
  * ```
@@ -772,8 +754,7 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
  * @example
  * ```ts
- * const reusable = defineWorkflow("release", {
- *   output: ".github/workflows/release.yml",
+ * const reusable = defineWorkflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -789,12 +770,11 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * const caller = defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
- *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
  * defineProject({ workflows: [reusable, caller] });
  * ```
@@ -805,8 +785,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
        * @example
        * ```ts
-       * const reusable = defineWorkflow("release", {
-       *   output: ".github/workflows/release.yml",
+       * const reusable = defineWorkflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -822,12 +801,11 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     outputs: ["version"],
        *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
        *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-       * const caller = defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        * }).job(
        *   "release",
-       *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+       *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
        * );
        * defineProject({ workflows: [reusable, caller] });
        * ```
@@ -839,8 +817,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
        * @example
        * ```ts
-       * const reusable = defineWorkflow("release", {
-       *   output: ".github/workflows/release.yml",
+       * const reusable = defineWorkflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -856,12 +833,11 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     outputs: ["version"],
        *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
        *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-       * const caller = defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        * }).job(
        *   "release",
-       *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+       *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
        * );
        * defineProject({ workflows: [reusable, caller] });
        * ```
@@ -874,8 +850,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
        * @example
        * ```ts
-       * const deploy = defineWorkflow("deploy", {
-       *   output: ".github/workflows/deploy.yml",
+       * const deploy = defineWorkflow(".github/workflows/deploy.yml", {
        *   on: { workflow_call: { secrets: { token: { required: true } } } },
        * }).job("deploy", ({ job }) =>
        *   job.runsOn("ubuntu-latest").run({
@@ -883,12 +858,11 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     run: "deploy",
        *     env: { TOKEN: ({ secrets }) => secrets.token },
        *   }));
-       * const caller = defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
-       *   job.reusable().call(deploy, ({ secrets }) => ({
+       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, ({ secrets }) => ({
        *     secrets: { token: secrets.DEPLOY_TOKEN },
        *   })));
        * defineProject({ workflows: [deploy, caller] });
@@ -902,8 +876,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
        * @example
        * ```ts
-       * const deploy = defineWorkflow("deploy", {
-       *   output: ".github/workflows/deploy.yml",
+       * const deploy = defineWorkflow(".github/workflows/deploy.yml", {
        *   on: { workflow_call: { secrets: { token: { required: true } } } },
        * }).job("deploy", ({ job }) =>
        *   job.runsOn("ubuntu-latest").run({
@@ -911,12 +884,11 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     run: "deploy",
        *     env: { TOKEN: ({ secrets }) => secrets.token },
        *   }));
-       * const caller = defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
-       *   job.reusable().call(deploy, ({ secrets }) => ({
+       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, ({ secrets }) => ({
        *     secrets: { token: secrets.DEPLOY_TOKEN },
        *   })));
        * defineProject({ workflows: [deploy, caller] });
@@ -1323,21 +1295,16 @@ export type AuthoringJob =
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  */
 export type AuthoringWorkflow = Readonly<{
-  /** The workflow identifier used by Tsugiori for local references and the default display name.
-   * Tsugiori: this is not a GitHub workflow syntax field.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
-   */
-  id: string;
   /** The workflow display name in the Actions tab.
-   * Tsugiori: omission uses the workflow id rather than GitHub's workflow-file-path fallback.
+   * Tsugiori: omission uses the workflow path rather than GitHub's workflow-file-path fallback.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
    */
   name: string;
   /** The workflow YAML file path. GitHub discovers .yml and .yaml files under .github/workflows.
-   * Tsugiori: generate writes this path relative to the configuration root.
+   * Tsugiori: generate writes this path relative to the Deno project directory.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
-  output: string;
+  path: string;
   /** Supported events and their native settings; every configured event can start a separate run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    */
@@ -1363,6 +1330,7 @@ export type AuthoringWorkflow = Readonly<{
 export type ProjectConfig = Readonly<{
   kind: "github-actions.project";
   cacheVersion: number;
+  workingDirectory: string;
   workflows: readonly AuthoringWorkflow[];
 }>;
 
@@ -1370,8 +1338,7 @@ export type ProjectConfig = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  *   permissions: { contents: "read" },
  * });
@@ -1383,36 +1350,22 @@ export type WorkflowOptions<
   Secrets extends readonly string[] | undefined = undefined,
 > = Readonly<{
   /** The workflow display name in the Actions tab.
-   * Tsugiori: omission uses the workflow id rather than GitHub's workflow-file-path fallback.
+   * Tsugiori: omission uses the workflow path rather than GitHub's workflow-file-path fallback.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   name: "CI",
    * });
    * ```
    */
   name?: string;
-  /** The workflow YAML file path. GitHub discovers .yml and .yaml files under .github/workflows.
-   * Tsugiori: generate writes this path relative to the configuration root.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
-   * @example
-   * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
-   *   on: { push: {} },
-   * });
-   * ```
-   */
-  output: string;
   /** Supported event settings. Use {} for an event without settings; shorthand forms are not accepted.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * });
    * ```
@@ -1427,8 +1380,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   vars: ["REGION"],
    * });
@@ -1440,8 +1392,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   secrets: ["DEPLOY_TOKEN"],
    * });
@@ -1452,8 +1403,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   runName: "CI for ${{ github.ref_name }}",
    * });
@@ -1464,8 +1414,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   env: { CI: "true" },
    * });
@@ -1476,8 +1425,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   concurrency: { group: "ci-${{ github.ref }}", cancelInProgress: true },
    * });
@@ -1488,8 +1436,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   permissions: { contents: "read" },
    * });
@@ -1541,7 +1488,7 @@ type ContractOutputNames<O extends object> = readonly (keyof O & string)[] & {
  * ```
  */
 export type JobReference<
-  WorkflowId extends string = string,
+  WorkflowPath extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
   Test extends object = object,
@@ -1551,8 +1498,7 @@ export type JobReference<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job("build", ({ job }) =>
      *   job.runsOn("ubuntu-latest").run({
@@ -1576,7 +1522,7 @@ export type JobReference<
      * ```
      */
     id: JobId;
-    workflowId: WorkflowId;
+    workflowPath: WorkflowPath;
     outputNames: Outputs;
     contracts?: Readonly<Record<string, ReferenceBinding>>;
     [testJobShape]?: Test;
@@ -2157,8 +2103,7 @@ export type TaskStepDefinition<
      *     return value;
      *   },
      * });
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job("prepare", ({ job }) =>
      *   job.runsOn("ubuntu-latest").task({
@@ -2306,11 +2251,11 @@ export interface TestableWorkflow {
   readonly [testWorkflowShape]?: Readonly<Record<string, unknown>>;
 }
 type FinalizedJobDefinition<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Outputs extends readonly string[],
 > = Readonly<{
-  workflowId: WorkflowId;
+  workflowPath: WorkflowPath;
   jobId: JobId;
   owner: symbol;
   job: AuthoringJob;
@@ -2318,13 +2263,17 @@ type FinalizedJobDefinition<
   contracts: Readonly<Record<string, ReferenceBinding>>;
 }>;
 export interface FinalizedJobState<
-  WorkflowId extends string = string,
+  WorkflowPath extends string = string,
   JobId extends string = string,
   Outputs extends readonly string[] = readonly [],
   Steps extends StepReferences = StepReferences,
   Matrix extends object = object,
 > {
-  readonly [jobDefinition]: FinalizedJobDefinition<WorkflowId, JobId, Outputs>;
+  readonly [jobDefinition]: FinalizedJobDefinition<
+    WorkflowPath,
+    JobId,
+    Outputs
+  >;
   readonly [testJobShape]?: TestJobShape<Steps, Matrix>;
 }
 type DefinitionStepId<Definition> = Definition extends
@@ -2412,7 +2361,7 @@ type EffectiveOutputs<
  * ```
  */
 export interface ExecutionJobState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Needs extends Record<string, readonly string[]> = Record<never, never>,
   Matrix extends object = Record<never, never>,
@@ -2445,7 +2394,7 @@ export interface ExecutionJobState<
         >,
       ) => Expression<string> | string | NonEmptyReadonlyArray<string>),
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2474,7 +2423,7 @@ export interface ExecutionJobState<
         InputValues
       >,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2493,7 +2442,7 @@ export interface ExecutionJobState<
   env(
     value: JobEnv<Needs, Matrix, Vars, Secrets, InputValues>,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2560,7 +2509,7 @@ export interface ExecutionJobState<
       }
     >,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2591,7 +2540,7 @@ export interface ExecutionJobState<
   >(
     condition: C,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2652,7 +2601,7 @@ export interface ExecutionJobState<
       }
     >,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Rows[number],
@@ -2712,7 +2661,7 @@ export interface ExecutionJobState<
       failFast?: boolean;
     }>,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Shape,
@@ -2769,7 +2718,7 @@ export interface ExecutionJobState<
       failFast?: boolean;
     }>,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Record<never, never>,
@@ -2865,7 +2814,7 @@ export interface ExecutionJobState<
         failFast?: boolean;
       }>),
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     {
@@ -2941,7 +2890,7 @@ export interface ExecutionJobState<
       }
     >,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2961,7 +2910,7 @@ export interface ExecutionJobState<
   permissions(
     value: WorkflowPermissions,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -2991,7 +2940,7 @@ export interface ExecutionJobState<
         InputValues
       >,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -3011,7 +2960,7 @@ export interface ExecutionJobState<
   environment(
     value: string,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Matrix,
@@ -3068,7 +3017,7 @@ export interface ExecutionJobState<
           & CheckedActionValues<C, NoInfer<R>>,
       ]
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
     Needs,
@@ -3116,7 +3065,7 @@ export interface ExecutionJobState<
       >
       & CheckedActionValues<C, NoInfer<R>>,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Record<never, never>>,
     Needs,
@@ -3155,7 +3104,7 @@ export interface ExecutionJobState<
   >(
     definition: D,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<D, Record<never, never>>,
     Needs,
@@ -3216,7 +3165,7 @@ export interface ExecutionJobState<
       >
       & Readonly<{ inputs: I; outputs: O; if?: C; continueOnError?: F }>,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Record<never, never>>,
     Needs,
@@ -3241,7 +3190,7 @@ export interface ExecutionJobState<
  * ```
  */
 export interface NonEmptyStepState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Steps extends StepReferences,
   Needs extends Record<string, readonly string[]> = Record<never, never>,
@@ -3251,7 +3200,7 @@ export interface NonEmptyStepState<
   InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
-> extends FinalizedJobState<WorkflowId, JobId, Outputs, Steps, Matrix> {
+> extends FinalizedJobState<WorkflowPath, JobId, Outputs, Steps, Matrix> {
   /** References to earlier named steps in this immutable job.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -3305,7 +3254,7 @@ export interface NonEmptyStepState<
       >,
     ) => Names,
   ): FinalizedJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     JobOutputNames<Names>,
     Steps,
@@ -3359,7 +3308,7 @@ export interface NonEmptyStepState<
           & CheckedActionValues<C, NoInfer<R>>,
       ]
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
     Needs,
@@ -3407,7 +3356,7 @@ export interface NonEmptyStepState<
       >
       & CheckedActionValues<C, NoInfer<R>>,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<ActionStepDefinition<C, Id>, Steps>,
     Needs,
@@ -3446,7 +3395,7 @@ export interface NonEmptyStepState<
   >(
     definition: AvailableStepDefinition<D, Steps>,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddStepReference<D, Steps>,
     Needs,
@@ -3580,7 +3529,7 @@ export interface NonEmptyStepState<
         }
       >,
   ): NonEmptyStepState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
     Needs,
@@ -3596,8 +3545,7 @@ export interface NonEmptyStepState<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#supported-keywords-for-jobs-that-call-a-reusable-workflow
  * @example
  * ```ts
- * const reusable = defineWorkflow("release", {
- *   output: ".github/workflows/release.yml",
+ * const reusable = defineWorkflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -3613,12 +3561,11 @@ export interface NonEmptyStepState<
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * const caller = defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
- *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+ *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
  * defineProject({ workflows: [reusable, caller] });
  * ```
@@ -3936,8 +3883,7 @@ export type ReusableJobState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
    * @example
    * ```ts
-   * const reusable = defineWorkflow("release", {
-   *   output: ".github/workflows/release.yml",
+   * const reusable = defineWorkflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -3953,12 +3899,11 @@ export type ReusableJobState<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * const caller = defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
-   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
    * defineProject({ workflows: [reusable, caller] });
    * ```
@@ -3969,8 +3914,7 @@ export type ReusableJobState<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
      * @example
      * ```ts
-     * const reusable = defineWorkflow("release", {
-     *   output: ".github/workflows/release.yml",
+     * const reusable = defineWorkflow(".github/workflows/release.yml", {
      *   on: {
      *     workflow_call: {
      *       inputs: {
@@ -3986,16 +3930,17 @@ export type ReusableJobState<
      *     outputs: ["version"],
      *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
      *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-     * const caller = defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * const caller = defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "release",
-     *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+     *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
      * );
      * defineProject({ workflows: [reusable, caller] });
      * ```
      */
+    /** GitHub-native reference; the caller owns its correspondence to callee. */
+    uses: string,
     callee: ReusableWorkflow<C, O>,
     args:
       | WorkflowCallArguments<C>
@@ -4135,8 +4080,7 @@ export type ReusableJobState<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -4146,7 +4090,7 @@ export type ReusableJobState<
  * ```
  */
 export interface IndependentJobState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Vars extends string = string,
   Secrets extends string = string,
@@ -4156,8 +4100,7 @@ export interface IndependentJobState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    * @example
    * ```ts
-   * const reusable = defineWorkflow("release", {
-   *   output: ".github/workflows/release.yml",
+   * const reusable = defineWorkflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -4173,18 +4116,17 @@ export interface IndependentJobState<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * const caller = defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
-   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
    * defineProject({ workflows: [reusable, caller] });
    * ```
    */
   reusable(): ReusableJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Record<never, never>,
     Record<never, never>,
@@ -4203,7 +4145,7 @@ export interface IndependentJobState<
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Record<never, never>,
     Record<never, never>,
@@ -4216,8 +4158,7 @@ export interface IndependentJobState<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -4227,7 +4168,7 @@ export interface IndependentJobState<
  * ```
  */
 export interface DependentJobState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Needs extends Record<string, readonly string[]>,
   Vars extends string,
@@ -4238,8 +4179,7 @@ export interface DependentJobState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    * @example
    * ```ts
-   * const reusable = defineWorkflow("release", {
-   *   output: ".github/workflows/release.yml",
+   * const reusable = defineWorkflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -4255,18 +4195,17 @@ export interface DependentJobState<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * const caller = defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
-   *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
+   *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
    * defineProject({ workflows: [reusable, caller] });
    * ```
    */
   reusable(): ReusableJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Record<never, never>,
@@ -4285,7 +4224,7 @@ export interface DependentJobState<
   runsOn(
     runner: string | NonEmptyReadonlyArray<string>,
   ): ExecutionJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     Needs,
     Record<never, never>,
@@ -4295,19 +4234,18 @@ export interface DependentJobState<
   >;
 }
 export interface JobStartState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> extends IndependentJobState<WorkflowId, JobId, Vars, Secrets, InputValues> {
+> extends IndependentJobState<WorkflowPath, JobId, Vars, Secrets, InputValues> {
   /** Names declared dependencies; unsuccessful dependencies skip execution unless an explicit status condition admits the job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -4338,7 +4276,7 @@ export interface JobStartState<
   >(
     ...dependencies: Dependencies
   ): DependentJobState<
-    WorkflowId,
+    WorkflowPath,
     JobId,
     NeedsMap<Dependencies>,
     Vars,
@@ -4349,8 +4287,7 @@ export interface JobStartState<
 /** The callback job exposes needs() only after earlier jobs exist.
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -4374,20 +4311,19 @@ export interface JobStartState<
  * ```
  */
 export type AvailableJobState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
 > = keyof Jobs extends never
-  ? IndependentJobState<WorkflowId, JobId, Vars, Secrets, InputValues>
-  : JobStartState<WorkflowId, JobId, Jobs, Vars, Secrets, InputValues>;
+  ? IndependentJobState<WorkflowPath, JobId, Vars, Secrets, InputValues>
+  : JobStartState<WorkflowPath, JobId, Jobs, Vars, Secrets, InputValues>;
 /** The job callback receives the new job and references to earlier jobs.
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -4411,7 +4347,7 @@ export type AvailableJobState<
  * ```
  */
 export type JobDefinitionScope<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Vars extends string,
@@ -4422,8 +4358,7 @@ export type JobDefinitionScope<
     /** Start the new job with runsOn() or reusable().
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "test",
@@ -4432,12 +4367,18 @@ export type JobDefinitionScope<
      * );
      * ```
      */
-    job: AvailableJobState<WorkflowId, JobId, Jobs, Vars, Secrets, InputValues>;
+    job: AvailableJobState<
+      WorkflowPath,
+      JobId,
+      Jobs,
+      Vars,
+      Secrets,
+      InputValues
+    >;
     /** Earlier jobs available for explicit needs() dependencies.
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job("build", ({ job }) =>
      *   job.runsOn("ubuntu-latest").run({
@@ -4464,7 +4405,7 @@ export type JobDefinitionScope<
   }
 >;
 type AddJobReference<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   JobId extends string,
   Jobs extends JobReferences,
   Result extends FinalizedJobState<string, string, readonly string[]>,
@@ -4473,7 +4414,7 @@ type AddJobReference<
   & Record<
     JobId,
     JobReference<
-      WorkflowId,
+      WorkflowPath,
       JobId,
       Result[typeof jobDefinition]["outputNames"],
       NonNullable<Result[typeof testJobShape]>
@@ -4485,8 +4426,7 @@ type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
 /** Add a completed job before passing the workflow to defineProject().
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -4496,7 +4436,7 @@ type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
  * ```
  */
 export interface EmptyWorkflowState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   Vars extends string = string,
   Secrets extends string = string,
   C extends WorkflowCall = WorkflowCall,
@@ -4507,8 +4447,7 @@ export interface EmptyWorkflowState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * const flow = defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * const flow = defineWorkflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },
@@ -4527,8 +4466,7 @@ export interface EmptyWorkflowState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "test",
@@ -4540,7 +4478,7 @@ export interface EmptyWorkflowState<
   job<
     const JobId extends string,
     Result extends FinalizedJobState<
-      WorkflowId,
+      WorkflowPath,
       NoInfer<JobId>,
       readonly string[]
     >,
@@ -4549,8 +4487,7 @@ export interface EmptyWorkflowState<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "test",
@@ -4562,7 +4499,7 @@ export interface EmptyWorkflowState<
     id: JobId,
     define: (
       scope: JobDefinitionScope<
-        WorkflowId,
+        WorkflowPath,
         JobId,
         Record<never, never>,
         Vars,
@@ -4571,8 +4508,8 @@ export interface EmptyWorkflowState<
       >,
     ) => Result,
   ): NonEmptyWorkflowState<
-    WorkflowId,
-    AddJobReference<WorkflowId, JobId, Record<never, never>, Result>,
+    WorkflowPath,
+    AddJobReference<WorkflowPath, JobId, Record<never, never>, Result>,
     Vars,
     Secrets,
     C,
@@ -4583,8 +4520,7 @@ export interface EmptyWorkflowState<
 /** An immutable workflow with at least one completed job.
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -4608,7 +4544,7 @@ export interface EmptyWorkflowState<
  * ```
  */
 export interface NonEmptyWorkflowState<
-  WorkflowId extends string,
+  WorkflowPath extends string,
   Jobs extends JobReferences,
   Vars extends string = string,
   Secrets extends string = string,
@@ -4620,8 +4556,7 @@ export interface NonEmptyWorkflowState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * const flow = defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * const flow = defineWorkflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },
@@ -4641,8 +4576,7 @@ export interface NonEmptyWorkflowState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
    * @example
    * ```ts
-   * const reusable = defineWorkflow("release", {
-   *   output: ".github/workflows/release.yml",
+   * const reusable = defineWorkflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -4680,7 +4614,7 @@ export interface NonEmptyWorkflowState<
       >,
     ) => Values,
   ): NonEmptyWorkflowState<
-    WorkflowId,
+    WorkflowPath,
     Jobs,
     Vars,
     Secrets,
@@ -4695,8 +4629,7 @@ export interface NonEmptyWorkflowState<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    * @example
    * ```ts
-   * defineWorkflow("ci", {
-   *   output: ".github/workflows/ci.yml",
+   * defineWorkflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "test",
@@ -4708,7 +4641,7 @@ export interface NonEmptyWorkflowState<
   job<
     const JobId extends string,
     Result extends FinalizedJobState<
-      WorkflowId,
+      WorkflowPath,
       NoInfer<JobId>,
       readonly string[]
     >,
@@ -4717,8 +4650,7 @@ export interface NonEmptyWorkflowState<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
      * @example
      * ```ts
-     * defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "test",
@@ -4730,7 +4662,7 @@ export interface NonEmptyWorkflowState<
     id: AvailableJobId<JobId, Jobs>,
     define: (
       scope: JobDefinitionScope<
-        WorkflowId,
+        WorkflowPath,
         JobId,
         Jobs,
         Vars,
@@ -4739,8 +4671,8 @@ export interface NonEmptyWorkflowState<
       >,
     ) => Result,
   ): NonEmptyWorkflowState<
-    WorkflowId,
-    AddJobReference<WorkflowId, JobId, Jobs, Result>,
+    WorkflowPath,
+    AddJobReference<WorkflowPath, JobId, Jobs, Result>,
     Vars,
     Secrets,
     C,
@@ -4750,9 +4682,8 @@ export interface NonEmptyWorkflowState<
 }
 
 type WorkflowDraft = Readonly<{
-  id: string;
+  path: string;
   name: string;
-  output: string;
   on: WorkflowTriggers;
   runName?: string;
   env?: EnvironmentVariables;
@@ -4763,7 +4694,7 @@ type WorkflowDraft = Readonly<{
   owner: symbol;
 }>;
 type JobDraft = Readonly<{
-  workflowId: string;
+  workflowPath: string;
   id: string;
   owner: symbol;
   runsOn?: string | NonEmptyReadonlyArray<string>;
@@ -4776,13 +4707,13 @@ type JobDraft = Readonly<{
   outputContracts?: Readonly<Record<string, ReferenceBinding>>;
 }>;
 
-/** A workflow defines event triggers and jobs in a YAML file under .github/workflows.
+/** A workflow defines event triggers and jobs. Its project-relative YAML path is its sole identity.
+ * Tsugiori: callers own GitHub workflow placement; generation imposes no output directory.
  * Tsugiori: constructs immutable authoring state; expressions and step bodies are not executed during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -4792,20 +4723,20 @@ type JobDraft = Readonly<{
  * ```
  */
 export function defineWorkflow<
-  const WorkflowId extends string,
+  const WorkflowPath extends string,
   const On extends WorkflowTriggers,
   const Vars extends readonly string[] | undefined = undefined,
   const Secrets extends readonly string[] | undefined = undefined,
 >(
-  id: WorkflowId,
+  /** Output path relative to the invocation’s Deno project directory. */
+  path: WorkflowPath,
   options:
     & WorkflowOptions<On, Vars, Secrets>
     & Readonly<{
       /** Declared names available in expression callbacks.
        * @example
        * ```ts
-       * defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   vars: ["REGION"],
        * });
@@ -4815,8 +4746,7 @@ export function defineWorkflow<
       /** Declared names available in expression callbacks.
        * @example
        * ```ts
-       * defineWorkflow("ci", {
-       *   output: ".github/workflows/ci.yml",
+       * defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * });
@@ -4825,7 +4755,7 @@ export function defineWorkflow<
       secrets?: LiteralNames<Secrets>;
     }>,
 ): EmptyWorkflowState<
-  WorkflowId,
+  WorkflowPath,
   Names<Vars>,
   Names<Secrets>,
   CallContractOf<On>,
@@ -4868,9 +4798,8 @@ export function defineWorkflow<
     void label;
   }
   const draft: WorkflowDraft = Object.freeze({
-    id,
-    name: options.name ?? id,
-    output: options.output,
+    path,
+    name: options.name ?? path,
     on: copyNative(options.on),
     runName: options.runName,
     env: options.env && Object.freeze({ ...options.env }),
@@ -4882,10 +4811,10 @@ export function defineWorkflow<
       : { permissions: copyPermissions(options.permissions) }),
     jobs: Object.freeze([]),
     references: Object.freeze({}),
-    owner: Symbol(`tsugiori.workflow.${id}`),
+    owner: Symbol(`tsugiori.workflow.${path}`),
   });
   return createWorkflowFacade(draft, false) as EmptyWorkflowState<
-    WorkflowId,
+    WorkflowPath,
     Names<Vars>,
     Names<Secrets>,
     CallContractOf<On>,
@@ -4898,8 +4827,7 @@ export function defineWorkflow<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobs
  * @example
  * ```ts
- * const ci = defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * const ci = defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -4918,8 +4846,7 @@ export function defineProject<
     /** Increase when inputs outside the tracked source graph change the task binary.
      * @example
      * ```ts
-     * const ci = defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * const ci = defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * })
      *   .job(
@@ -4931,11 +4858,12 @@ export function defineProject<
      * ```
      */
     cacheVersion?: number;
+    /** Native Actions working-directory for artifact preparation only. */
+    workingDirectory?: string;
     /** Completed workflows to generate together, including local reusable callees.
      * @example
      * ```ts
-     * const ci = defineWorkflow("ci", {
-     *   output: ".github/workflows/ci.yml",
+     * const ci = defineWorkflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * })
      *   .job(
@@ -4956,6 +4884,7 @@ export function defineProject<
   return Object.freeze({
     kind: "github-actions.project",
     cacheVersion,
+    workingDirectory: input.workingDirectory ?? ".",
     workflows: Object.freeze(
       input.workflows.map((value) => value[workflowDefinition]),
     ),
@@ -5022,7 +4951,7 @@ function createWorkflowFacade(
       }
       const state = createJobStartFacade(
         Object.freeze({
-          workflowId: draft.id,
+          workflowPath: draft.path,
           id,
           owner: draft.owner,
           needs: Object.freeze([]),
@@ -5051,7 +4980,8 @@ function createWorkflowFacade(
       }
       const completed = result[jobDefinition];
       if (
-        completed.owner !== draft.owner || completed.workflowId !== draft.id ||
+        completed.owner !== draft.owner ||
+        completed.workflowPath !== draft.path ||
         completed.jobId !== id
       ) {
         throw new TypeError(
@@ -5066,7 +4996,7 @@ function createWorkflowFacade(
             ...draft.references,
             [id]: Object.freeze({
               id,
-              workflowId: draft.id,
+              workflowPath: draft.path,
               outputNames: completed.outputNames,
               contracts: completed.contracts,
             }),
@@ -5213,7 +5143,7 @@ function createReusableJobFacade(
     });
     return Object.freeze({
       [jobDefinition]: Object.freeze({
-        workflowId: draft.workflowId,
+        workflowPath: draft.workflowPath,
         jobId: draft.id,
         owner: draft.owner,
         job,
@@ -5236,13 +5166,13 @@ function createReusableJobFacade(
         ...v,
         group: evaluateField("jobs.<job_id>.concurrency", v.group),
       }),
-    call: (callee: ReusableWorkflow, args: unknown) => {
+    call: (uses: string, callee: ReusableWorkflow, args: unknown) => {
       const workflow = callee[workflowDefinition];
       if (!workflow.on.workflow_call) {
         throw new TypeError("Called workflow must declare workflow_call.");
       }
       return invoke(
-        `./${workflow.output}`,
+        uses,
         args,
         workflow,
         callee[workflowContract].outputs,
@@ -5486,7 +5416,7 @@ function createStepFacade(
   const base = createExecutionJobFacade(draft);
   return Object.freeze({
     [jobDefinition]: Object.freeze({
-      workflowId: draft.workflowId,
+      workflowPath: draft.workflowPath,
       jobId: draft.id,
       owner: draft.owner,
       job: materializeJob(draft),
@@ -5743,9 +5673,8 @@ function materializeJob(
 }
 function materializeWorkflow(draft: WorkflowDraft): AuthoringWorkflow {
   return Object.freeze({
-    id: draft.id,
+    path: draft.path,
     name: draft.name,
-    output: draft.output,
     on: draft.on,
     runName: draft.runName,
     env: draft.env,

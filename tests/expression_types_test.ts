@@ -9,14 +9,12 @@ import {
 
 function assertContracts(): void {
   const widenedNames: string[] = ["env"];
-  defineWorkflow("bad-vars", {
-    output: ".github/workflows/bad-vars.yml",
+  defineWorkflow(".github/workflows/bad-vars.yml", {
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     vars: widenedNames,
   });
-  defineWorkflow("bad-secrets", {
-    output: ".github/workflows/bad-secrets.yml",
+  defineWorkflow(".github/workflows/bad-secrets.yml", {
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     secrets: widenedNames,
@@ -29,8 +27,7 @@ function assertContracts(): void {
     inputs: { stage: { description: "Input", required: true } },
     outputs: { "name": { description: "Output" } },
   } as const;
-  defineWorkflow("logic", {
-    output: ".github/workflows/logic.yml",
+  defineWorkflow(".github/workflows/logic.yml", {
     on: {
       push: {},
       workflow_dispatch: { inputs: { commit: { type: "string" } } },
@@ -51,8 +48,7 @@ function assertContracts(): void {
   const impossible: Expression<string> = broad;
   void impossible;
   const matrixContract = textValue();
-  defineWorkflow("inline", {
-    output: ".github/workflows/inline.yml",
+  defineWorkflow(".github/workflows/inline.yml", {
     on: { push: {} },
   })
     .job(
@@ -67,8 +63,7 @@ function assertContracts(): void {
           },
         }),
     );
-  defineWorkflow("collision", {
-    output: ".github/workflows/collision.yml",
+  defineWorkflow(".github/workflows/collision.yml", {
     on: { push: {} },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -83,8 +78,7 @@ function assertContracts(): void {
         steps.eq.outputs.result;
         return { result: steps.at("eq").at("outputs").at("result") };
       }));
-  const first = defineWorkflow("ci", {
-    output: ".github/workflows/ci.yml",
+  const first = defineWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
     vars: ["env"],
     secrets: ["token"],

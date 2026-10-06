@@ -8,8 +8,8 @@ import checkout from "actions/checkout";
 import mise from "jdx/mise-action";
 import releaseAction from "atty303/repository-template/release";
 
-const ci = defineWorkflow("ci", {
-  output: ".github/workflows/ci.yml",
+const ci = defineWorkflow("workflows/ci.yml", {
+  name: "ci",
   on: { pull_request: {}, push: {} },
   permissions: { contents: "read" },
 }).job("test", ({ job }) =>
@@ -46,8 +46,8 @@ const ci = defineWorkflow("ci", {
       },
     }));
 
-const release = defineWorkflow("release", {
-  output: ".github/workflows/release.yml",
+const release = defineWorkflow("workflows/release.yml", {
+  name: "release",
   on: { push: { branches: ["main"] }, workflow_dispatch: {} },
   permissions: { contents: "read" },
   concurrency: { group: "tsugiori-release", cancelInProgress: false },
@@ -74,6 +74,7 @@ const release = defineWorkflow("release", {
 
 const config = defineProject({
   cacheVersion: 2,
+  workingDirectory: ".github",
   workflows: [ci, release],
 });
 export default config;
@@ -82,6 +83,5 @@ if (import.meta.main) {
   Deno.exitCode = await runProject({
     config,
     configUrl: import.meta.url,
-    root: new URL("../", import.meta.url),
   });
 }

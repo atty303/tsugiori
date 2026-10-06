@@ -116,8 +116,7 @@ function assertAuthoringContracts(): void {
     outputs: { revision: { description: "Revision" } },
   } as const;
 
-  const empty = defineWorkflow("ci", {
-    output: ".github/workflows/ci.yml",
+  const empty = defineWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   });
   // @ts-expect-error an empty workflow is not finalizable.
@@ -156,9 +155,8 @@ function assertAuthoringContracts(): void {
     return first.run({ id: "same", name: "Second", run: "true" });
   });
 
-  let captured!: FinalizedJobState<"other", "captured">;
-  defineWorkflow("other", {
-    output: ".github/workflows/other.yml",
+  let captured!: FinalizedJobState<".github/workflows/other.yml", "captured">;
+  defineWorkflow(".github/workflows/other.yml", {
     on: { push: {} },
   }).job("captured", ({ job }) => {
     captured = job

@@ -122,7 +122,7 @@ export type Program = {
   defaultResult?: Result;
   expectedResult?: Result;
   expectedBefore: [string, string][];
-  workflowId?: string;
+  workflowPath?: string;
 };
 
 type InputsOf<Step> = TestStepOf<Step> extends
@@ -212,8 +212,8 @@ export class InstanceScenario<Job> {
   ): this {
     const child = new WorkflowScenario<TestJobsOf<P>>();
     define(child);
-    child.program.workflowId =
-      defineProject({ workflows: [workflow] }).workflows[0].id;
+    child.program.workflowPath =
+      defineProject({ workflows: [workflow] }).workflows[0].path;
     this.rules.call = child.program;
     return this;
   }
@@ -353,11 +353,11 @@ export async function scenario<
   if (!config.workflows.includes(primary)) {
     throw new ScenarioError(
       "fixture_invalid",
-      primary.id,
+      primary.path,
       "Scenario workflow must be included in config.",
     );
   }
-  builder.program.workflowId = primary.id;
+  builder.program.workflowPath = primary.path;
   return await runScenario(config, builder.program, false, {
     observer: options.observe,
     nextId: 0,

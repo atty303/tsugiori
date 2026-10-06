@@ -38,7 +38,9 @@ call inputs retain their declared primitive types.
 
 Authoring and task execution share a config file. The file exports a config
 object and calls `runProject()` under `import.meta.main`, passing that object,
-its URL, and the repository root. The Deno project containing that file owns
+and its file URL. The invocation directory (`Deno.cwd()`) is the Deno project
+base for output paths and local source identity. Deno tasks establish that
+directory; direct invocations must use it explicitly. The project owns
 import resolution and its lockfile. External projects can map the package name
 to one JSR version; the YAML dependency uses a direct `jsr:` specifier in
 the package source. The runner consumes the object in-process;
@@ -51,7 +53,9 @@ triggers and the native fields listed in the
 [specification coverage](GITHUB_ACTIONS_SPEC.md). Local reusable references
 retain the `on.workflow_call` input/secret/output contract separately from
 the input reference union across configured events, and emit normal caller jobs with
-uses/with/secrets. The config contains both callers and callees; lowering checks
+uses/with/secrets. Calls specify a native `uses` reference and a callee
+definition separately; no output path is converted to a GitHub reference.
+The config contains both callers and callees; lowering checks
 membership, contracts, nesting and output references. Workflow env stays within
 each workflow. Run defaults remain native job settings and per-step overrides
 remain explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
@@ -92,12 +96,13 @@ to consumers, even when an output is required during an actual task run.
 The compiler lowers authoring data to a GitHub Actions workflow AST, validates
 it, and emits deterministic YAML. Generated `run` commands preserve their
 string values in YAML literal blocks; values that cannot be represented safely
-that way are rejected. The config owns output paths under
-`.github/workflows/` and each generated file starts with an ownership comment.
+that way are rejected. Each workflow is identified solely by its project-relative
+output path. Generation does not restrict its directory; authors ensure GitHub
+workflow placement. Each generated file starts with a source comment.
 
 `generate` writes the configured outputs. `generate --check` compares expected
-bytes to existing files and reports missing or changed outputs, plus extra
-`.yml` files with the same ownership comment. It does not modify files.
+bytes to configured files and reports missing or changed outputs. It does not
+scan directories or modify files.
 `--output <path>` limits the check to one workflow. Normal generation does not
 delete extra files. The checked-in [CI config](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `generate:check`.
@@ -128,30 +133,39 @@ a field-specific scenario value; unsupported forms never silently succeed.
 
 Compiler lowering records inline task functions in a registry. A task-backed
 step gets an entrypoint of the form
-`<workflow-id>/<job-id>/task-<ordinal>`, where the ordinal counts task steps
+`<workflow-path>/<job-id>/task-<ordinal>`, where the ordinal counts task steps
 within the job. Generated preparation steps include a job-layout fingerprint
 so changed task ordering is detected before dispatch.
 
 Each task-backed job contains visible steps to resolve the artifact key, run a
 pinned `actions/cache` action, and prepare the artifact. Preparation first
-checks the repository-local cache, then compiles the config into one Deno
+checks the runner-local cache, then compiles the config into one Deno
 binary for its tasks on a miss or invalid entry. The binary is compiled with
 `-A`; the current invocation contract rejects Windows task artifacts. Each
 task step invokes the prepared binary directly with its own entrypoint.
 The GitHub Actions backend owns these preparation steps and internal commands;
 they are not a public handwritten-workflow interface.
 
-The local entry is `.tsugiori/cache/artifacts/<artifact-key>/`. It contains the
+The local entry is `<platform-cache>/tsugiori/cache/artifacts/<artifact-key>/`.
+`XDG_CACHE_HOME` overrides the platform cache base. Artifact preparation uses
+the project’s explicit native `workingDirectory`; that setting does not alter
+task-body or normal run-step execution directories. Preparation publishes a
+immutable runtime binary in an artifact-key-specific directory under `runtimes/`
+and passes its absolute path
+through a step output, resolved on the runner rather than during generation.
+The artifact contains the
 binary and a runtime-owned JSON manifest with the artifact key, format,
-target, Deno and Tsugiori versions, invocation path, entrypoints, and binary
-checksum. Restored entries are validated before use. A failed restore or an
+target, Deno and Tsugiori versions, entrypoints, and binary
+checksum. Restored entries are validated before use. Valid published runtimes remain in
+place for concurrent readers; a corrupt runtime is recovered to a separate
+key-specific path. A failed restore or an
 invalid entry can fall back to a local build. Failure to store an otherwise
 valid build in the local cache is reported but does not discard the binary.
 
-The automatic artifact key covers the reachable repository-local `file:`
-module graph, target platform, artifact format, and Tsugiori package identity.
+The automatic artifact key covers the reachable local `file:` module graph, including project-external imports.
+Source paths are project-relative rather than machine-absolute. It also covers, target platform, artifact format, and Tsugiori package identity.
 The config-wide `cacheVersion` is an additional key input. Remote modules,
-repository-external files, lockfiles, and Deno settings and versions are not
+lockfiles, and Deno settings and versions are not
 tracked automatically; authors increase `cacheVersion` when changes to these
 inputs require a new artifact. This key is a cache reuse contract rather than
 a complete build-reproducibility claim.

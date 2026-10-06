@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
 import {
   defineProject,
   defineWorkflow,
@@ -10,8 +10,7 @@ import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { scenario } from "../src/testing/mod.ts";
 import { parse } from "../src/deps.ts";
 
-const platform = defineWorkflow("platform", {
-  output: ".github/workflows/platform.yml",
+const platform = defineWorkflow(".github/workflows/platform.yml", {
   on: {
     workflow_call: {
       inputs: {
@@ -51,8 +50,7 @@ const platform = defineWorkflow("platform", {
     .outputs(({ steps }) => ({ result: steps.check.outputs.result })))
   .workflowOutputs(({ jobs }) => ({ result: jobs.build.outputs.result }));
 
-const ci = defineWorkflow("ci", {
-  output: ".github/workflows/ci.yml",
+const ci = defineWorkflow(".github/workflows/ci.yml", {
   on: {
     workflow_call: {
       inputs: { module: { type: "string", required: true } },
@@ -64,6 +62,7 @@ const ci = defineWorkflow("ci", {
     "platform",
     ({ job }) =>
       job.reusable().call(
+        "./.github/workflows/platform.yml",
         platform,
         ({ inputs, secrets }) => ({
           with: { module: inputs.module },
@@ -72,8 +71,7 @@ const ci = defineWorkflow("ci", {
       ),
   )
   .workflowOutputs(({ jobs }) => ({ result: jobs.platform.outputs.result }));
-const main = defineWorkflow("main", {
-  output: ".github/workflows/main.yml",
+const main = defineWorkflow(".github/workflows/main.yml", {
   on: { push: { branches: ["master"], tags: ["*"] } },
 
   env: { CALLER_ONLY: "value" },
@@ -82,7 +80,10 @@ const main = defineWorkflow("main", {
   .job(
     "ci",
     ({ job }) =>
-      job.reusable().call(ci, { with: { module: "app" }, secrets: "inherit" }),
+      job.reusable().call("./.github/workflows/ci.yml", ci, {
+        with: { module: "app" },
+        secrets: "inherit",
+      }),
   )
   .job(
     "notify",
@@ -97,6 +98,24 @@ const main = defineWorkflow("main", {
       }),
   );
 const config = defineProject({ workflows: [main, ci, platform] });
+
+Deno.test("typed reusable call emits the explicit native reference independently of the callee path", async () => {
+  const caller = defineWorkflow("generated/caller.yaml", { on: { push: {} } })
+    .job("call", ({ job }) =>
+      job.reusable().call(
+        "./.github/workflows/deployed-platform.yaml",
+        platform,
+        { with: { module: "app" }, secrets: "inherit" },
+      ));
+  const lowered = await lowerConfig(
+    defineProject({ workflows: [platform, caller] }),
+    "./config.ts",
+  );
+  assertStringIncludes(
+    emitWorkflow(lowered.workflows[1].workflow),
+    "uses: ./.github/workflows/deployed-platform.yaml",
+  );
+});
 
 Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
   const lowered = await lowerConfig(config, ".github/tsugiori.ts");
@@ -182,14 +201,13 @@ Deno.test("local references require config membership and input contracts", asyn
     Error,
     "included in the same config",
   );
-  const invalid = defineWorkflow("invalid", {
-    output: ".github/workflows/invalid.yml",
+  const invalid = defineWorkflow(".github/workflows/invalid.yml", {
     on: { push: {} },
   })
     .job(
       "ci",
       ({ job }) =>
-        job.reusable().call(ci, {
+        job.reusable().call("./.github/workflows/ci.yml", ci, {
           with: { module: rawExpression("42") },
           secrets: "inherit",
         }),
@@ -206,8 +224,7 @@ Deno.test("local references require config membership and input contracts", asyn
 });
 
 Deno.test("external workflow call uses explicit fixture", async () => {
-  const p = defineWorkflow("external", {
-    output: ".github/workflows/external.yml",
+  const p = defineWorkflow(".github/workflows/external.yml", {
     on: { push: {} },
   })
     .job(
@@ -230,8 +247,7 @@ Deno.test("external workflow call uses explicit fixture", async () => {
 
 Deno.test("host scenario observation preserves results and never exposes fixture values", async () => {
   const events: unknown[] = [];
-  const p = defineWorkflow("observe", {
-    output: ".github/workflows/observe.yml",
+  const p = defineWorkflow(".github/workflows/observe.yml", {
     on: { push: {} },
   }).job(
     "job",
@@ -281,8 +297,7 @@ Deno.test("host scenario observation preserves results and never exposes fixture
 });
 
 Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", async () => {
-  const dispatch = defineWorkflow("release", {
-    output: ".github/workflows/release.yml",
+  const dispatch = defineWorkflow(".github/workflows/release.yml", {
     on: {
       workflow_dispatch: {
         inputs: {
@@ -341,8 +356,7 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
         return {};
       }));
   });
-  const pr = defineWorkflow("pr", {
-    output: ".github/workflows/pr.yml",
+  const pr = defineWorkflow(".github/workflows/pr.yml", {
     on: { pull_request_target: { types: ["opened"] } },
   }).job(
     "job",
@@ -364,8 +378,7 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
     });
     t.job("job", (j) => j.step("run").fixture({}));
   });
-  const tags = defineWorkflow("tags", {
-    output: ".github/workflows/tags.yml",
+  const tags = defineWorkflow(".github/workflows/tags.yml", {
     on: { push: { tags: ["v*", "!v*-alpha"] } },
   }).job(
     "job",
@@ -386,8 +399,7 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
 });
 
 Deno.test("native defaults emit only specified values and tasks retain step timeout", async () => {
-  const p = defineWorkflow("defaults", {
-    output: ".github/workflows/defaults.yml",
+  const p = defineWorkflow(".github/workflows/defaults.yml", {
     on: { push: {} },
   })
     .job(
@@ -428,23 +440,21 @@ Deno.test("native defaults emit only specified values and tasks retain step time
   assertEquals(w.jobs.directory.steps.at(-1)?.["timeout-minutes"], 1);
 });
 Deno.test("caller matrix instance expectations are checked independently", async () => {
-  const callee = defineWorkflow("callee", {
-    output: ".github/workflows/callee.yml",
+  const callee = defineWorkflow(".github/workflows/callee.yml", {
     on: { workflow_call: {} },
   }).job(
     "job",
     ({ job }) =>
       job.runsOn("ubuntu-latest").run({ id: "run", name: "Run", run: "true" }),
   );
-  const caller = defineWorkflow("caller", {
-    output: ".github/workflows/caller.yml",
+  const caller = defineWorkflow(".github/workflows/caller.yml", {
     on: { push: {} },
   }).job(
     "call",
     ({ job }) =>
       job.reusable().strategy({
         matrix: { include: [{ target: "linux" }, { target: "windows" }] },
-      }).call(callee, {}),
+      }).call("./.github/workflows/callee.yml", callee, {}),
   );
   await assertRejects(
     () =>

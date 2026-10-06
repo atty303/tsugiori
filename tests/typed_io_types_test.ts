@@ -15,8 +15,7 @@ function assertTypedIO(): void {
       return value as string[];
     },
   });
-  const first = defineWorkflow("typed", {
-    output: ".github/workflows/typed.yml",
+  const first = defineWorkflow(".github/workflows/typed.yml", {
     on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -195,8 +194,7 @@ function assertTypedIO(): void {
         }),
   );
 
-  const conditional = defineWorkflow("conditional", {
-    output: ".github/workflows/conditional.yml",
+  const conditional = defineWorkflow(".github/workflows/conditional.yml", {
     on: { push: {} },
   }).job("produce", ({ job }) =>
     job.runsOn("ubuntu-latest").task({
@@ -228,8 +226,7 @@ function assertTypedIO(): void {
   );
 
   const text = textValue();
-  const textJob = defineWorkflow("text", {
-    output: ".github/workflows/text.yml",
+  const textJob = defineWorkflow(".github/workflows/text.yml", {
     on: { push: {} },
   })
     .job("produce", ({ job }) =>

@@ -16,11 +16,10 @@ export function generatedWorkflowHeader(configArgument: string): string {
 export async function generateFiles(
   config: ProjectConfig,
   configArgument: string,
-  projectArgument: string,
 ): Promise<readonly GeneratedFile[]> {
-  const lowered = await lowerConfig(config, configArgument, projectArgument);
+  const lowered = await lowerConfig(config, configArgument);
   return lowered.workflows.map((workflow) => ({
-    path: workflow.output,
+    path: workflow.path,
     content: generatedWorkflowHeader(configArgument) +
       emitWorkflow(workflow.workflow),
   }));

@@ -3,7 +3,7 @@ import type {
   ProjectConfig,
 } from "../github_actions/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
-import { isAbsolute, relative } from "node:path";
+import { isAbsolute } from "node:path";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {
   type Diagnostic,
@@ -11,7 +11,6 @@ import {
   validateWorkflow,
 } from "./github_actions/validation.ts";
 
-const ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
 const ARTIFACT_STEP_ID = "tsugiori-task-artifact";
 const CACHE_STEP_ID = "tsugiori-task-cache";
@@ -20,14 +19,13 @@ const PREPARE_STEP_ID = "tsugiori-task-prepare";
 export type RegisteredTask = Readonly<{
   entrypoint: string;
   name: string;
-  workflowId: string;
+  workflowPath: string;
   jobId: string;
   task: AuthoringTaskStep;
 }>;
 
 export type LoweredWorkflow = Readonly<{
-  id: string;
-  output: string;
+  path: string;
   workflow: ValidatedWorkflow;
 }>;
 
@@ -51,24 +49,14 @@ export class AuthoringValidationError extends Error {
 export async function lowerConfig(
   config: ProjectConfig,
   configArgument: string,
-  projectArgument = ".",
 ): Promise<LoweredConfig> {
   const diagnostics: string[] = [];
   validateCalls(config, diagnostics);
   const tasks: RegisteredTask[] = [];
   const layoutFingerprints = new Map<string, string>();
-  const workflowIds = new Set<string>();
   const outputs = new Set<string>();
   const loweredWorkflows: LoweredWorkflow[] = [];
-  const projectDirectory = projectArgument.replace(/^\.\//, "") || ".";
-  if (
-    projectDirectory === ".." || /^\.\.[\\/]/.test(projectDirectory) ||
-    isAbsolute(projectDirectory)
-  ) {
-    throw new AuthoringValidationError([
-      "The workflow project must be inside the repository root.",
-    ]);
-  }
+  const projectDirectory = config.workingDirectory;
 
   if (config.kind !== "github-actions.project") {
     diagnostics.push("Default export must be created by defineProject().");
@@ -78,7 +66,7 @@ export async function lowerConfig(
   }
 
   for (const workflow of config.workflows) {
-    validateWorkflowIdentity(workflow, workflowIds, outputs, diagnostics);
+    validateWorkflowPath(workflow, outputs, diagnostics);
     const jobs: Job[] = [];
 
     for (const job of workflow.jobs) {
@@ -116,13 +104,13 @@ export async function lowerConfig(
       ) {
         diagnostics.push(
           `Job ${JSON.stringify(job.id)} in workflow ${
-            JSON.stringify(workflow.id)
+            JSON.stringify(workflow.path)
           } uses task-backed steps on an unsupported Windows runner.`,
         );
       }
-      const layoutKey = `${workflow.id}/${job.id}`;
+      const layoutKey = `${workflow.path}/${job.id}`;
       const fingerprint = await layoutFingerprint(
-        workflow.id,
+        workflow.path,
         job.id,
         taskNames,
       );
@@ -130,6 +118,7 @@ export async function lowerConfig(
 
       let taskOrdinal = 0;
       let preparationEmitted = false;
+      const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
       for (const step of job.steps) {
         if (step.type === "uses") {
           steps.push({
@@ -178,6 +167,7 @@ export async function lowerConfig(
             `${layoutKey}=${fingerprint}`,
             usedStepIds,
             projectDirectory,
+            prepareStepId,
           ));
           preparationEmitted = true;
         }
@@ -185,7 +175,7 @@ export async function lowerConfig(
         tasks.push({
           entrypoint,
           name: step.name,
-          workflowId: workflow.id,
+          workflowPath: workflow.path,
           jobId: job.id,
           task: step,
         });
@@ -201,7 +191,9 @@ export async function lowerConfig(
           ...(step.timeoutMinutes === undefined
             ? {}
             : { timeoutMinutes: step.timeoutMinutes }),
-          run: `./.tsugiori/task-runtime ${entrypoint}`,
+          run: `"\${{ steps.${prepareStepId}.outputs.runtime-path }}" ${
+            quotePosix(entrypoint)
+          }`,
         });
       }
 
@@ -252,8 +244,7 @@ export async function lowerConfig(
     const validation = validateWorkflow(nativeWorkflow);
     if (validation.ok) {
       loweredWorkflows.push({
-        id: workflow.id,
-        output: workflow.output,
+        path: workflow.path,
         workflow: validation.value,
       });
     } else {
@@ -272,41 +263,33 @@ export async function lowerConfig(
   });
 }
 
-function validateWorkflowIdentity(
+function validateWorkflowPath(
   workflow: AuthoringWorkflow,
-  ids: Set<string>,
   outputs: Set<string>,
   diagnostics: string[],
 ): void {
-  if (!ID_PATTERN.test(workflow.id)) {
+  if (!workflow.path.trim() || isAbsolute(workflow.path)) {
     diagnostics.push(
-      `Workflow ID ${
-        JSON.stringify(workflow.id)
-      } is not a valid entrypoint segment.`,
+      `Workflow path must be a nonempty project-relative path: ${
+        JSON.stringify(workflow.path)
+      }`,
     );
   }
-  if (ids.has(workflow.id)) {
+  if (outputs.has(workflow.path)) {
     diagnostics.push(
-      `Workflow ID ${JSON.stringify(workflow.id)} is duplicated.`,
+      `Workflow output ${JSON.stringify(workflow.path)} is duplicated.`,
     );
   }
-  ids.add(workflow.id);
-  if (outputs.has(workflow.output)) {
-    diagnostics.push(
-      `Workflow output ${JSON.stringify(workflow.output)} is duplicated.`,
-    );
-  }
-  outputs.add(workflow.output);
+  outputs.add(workflow.path);
 }
 
 async function layoutFingerprint(
-  workflowId: string,
+  workflowPath: string,
   jobId: string,
   taskNames: readonly string[],
 ): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify({
-    // Preserve the existing layout fingerprint encoding across API renames.
-    pipelineId: workflowId,
+    workflowPath,
     jobId,
     taskNames,
   }));
@@ -319,19 +302,19 @@ function preparationSteps(
   expectedLayout: string,
   usedStepIds: Set<string>,
   projectDirectory: string,
+  prepareStepId: string,
 ): readonly Step[] {
   const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
   const cacheStepId = allocateStepId(
     CACHE_STEP_ID,
     usedStepIds,
   );
-  const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
   const artifactKeyExpression =
     `\${{ steps.${artifactStepId}.outputs.artifact-key }}`;
   const cachePathExpression =
     `\${{ steps.${artifactStepId}.outputs.cache-path }}`;
   const cacheKey = `tsugiori-task-${artifactKeyExpression}`;
-  const configPath = relative(projectDirectory, configArgument);
+  const configPath = configArgument;
   const entrypoint = configPath.startsWith(".")
     ? configPath
     : `./${configPath}`;
@@ -410,19 +393,19 @@ function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
     ancestors: readonly AuthoringWorkflow[],
   ): void => {
     if (ancestors.includes(workflow)) {
-      diagnostics.push(`Reusable workflow cycle at ${workflow.id}.`);
+      diagnostics.push(`Reusable workflow cycle at ${workflow.path}.`);
       return;
     }
     if (ancestors.length >= 10) {
       diagnostics.push(
-        `Reusable workflow nesting exceeds ten levels at ${workflow.id}.`,
+        `Reusable workflow nesting exceeds ten levels at ${workflow.path}.`,
       );
       return;
     }
     for (const job of workflow.jobs) {
       const target = job.callee;
       if (!target) continue;
-      const location = `${workflow.id}.${job.id}`;
+      const location = `${workflow.path}.${job.id}`;
       if (!workflows.has(target)) {
         diagnostics.push(
           `${location}: called workflow must be included in the same config.`,

@@ -20,7 +20,7 @@ const metadata = {
 } as const satisfies ActionContract;
 
 function checkTypes() {
-  defineWorkflow("ci", { output: "ci.yml", on: { push: {} } }).job(
+  defineWorkflow("ci.yml", { on: { push: {} } }).job(
     "publish",
     ({ job }) => {
       const start = job.runsOn("ubuntu-latest");

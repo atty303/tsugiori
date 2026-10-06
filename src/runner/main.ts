@@ -13,6 +13,7 @@ import {
 import {
   prepareTaskArtifact,
   resolveTaskArtifact,
+  taskArtifactCachePath,
   type ToolIdentity,
 } from "../task-runtime/prepare.ts";
 import { TSUGIORI_PACKAGE_VERSION } from "../package_identity.ts";
@@ -24,7 +25,6 @@ const SOURCE_TOOL_IDENTITY: ToolIdentity = {
 export type RunOptions = Readonly<{
   config: ProjectConfig;
   configUrl: string | URL;
-  root: string | URL;
 }>;
 
 /** Handles the config file's generate, check, and internal task commands in the
@@ -77,17 +77,15 @@ export async function runProject(
       const loaded = configSource(
         options.config,
         options.configUrl,
-        options.root,
       );
       recorder.operation({ name: "source.load", status: "success" });
       const files = await generateFiles(
         loaded.config,
         loaded.argument,
-        loaded.projectArgument,
       );
       if (parsed.options.check === "true") {
         const stale = await checkGeneratedFiles(
-          loaded.rootDirectory,
+          loaded.projectDirectory,
           loaded.argument,
           files,
           parsed.options.output,
@@ -116,7 +114,7 @@ export async function runProject(
         console.log("Generated workflow files are up to date.");
         return 0;
       }
-      await writeGeneratedFiles(loaded.rootDirectory, files);
+      await writeGeneratedFiles(loaded.projectDirectory, files);
       recorder.operation({
         name: "workflow.generate",
         status: "success",
@@ -131,11 +129,9 @@ export async function runProject(
       const loaded = configSource(
         options.config,
         options.configUrl,
-        options.root,
       );
       recorder.operation({ name: "source.load", status: "success" });
       const plan = await resolveTaskArtifact({
-        rootDirectory: loaded.rootDirectory,
         projectDirectory: Deno.cwd(),
         configPath: loaded.absolutePath,
         configArgument: loaded.argument,
@@ -147,7 +143,7 @@ export async function runProject(
       });
       await writeGitHubOutputs({
         "artifact-key": plan.artifactKey,
-        "cache-path": `.tsugiori/cache/artifacts/${plan.artifactKey}`,
+        "cache-path": taskArtifactCachePath(plan.artifactKey),
       });
       recorder.operation({ name: "github.output", status: "success" });
       await recorder.finish("success");
@@ -159,11 +155,9 @@ export async function runProject(
       const loaded = configSource(
         options.config,
         options.configUrl,
-        options.root,
       );
       recorder.operation({ name: "source.load", status: "success" });
       const result = await prepareTaskArtifact({
-        rootDirectory: loaded.rootDirectory,
         projectDirectory: Deno.cwd(),
         configPath: loaded.absolutePath,
         configArgument: loaded.argument,
@@ -182,9 +176,10 @@ export async function runProject(
           cache: result.cache,
         },
       });
+      await writeGitHubOutputs({ "runtime-path": result.runtimePath });
       await recorder.finish("success");
       console.log(
-        `Task artifact ready at ./.tsugiori/task-runtime (cache ${result.cache}).`,
+        `Task artifact ready (cache ${result.cache}).`,
       );
       return 0;
     }
@@ -240,7 +235,7 @@ async function dispatchTask(
               "Task step does not contain a function.",
             );
           }
-          if (`${workflow.id}/${job.id}/task-${ordinal}` === entrypoint) {
+          if (`${workflow.path}/${job.id}/task-${ordinal}` === entrypoint) {
             task = step;
           }
         }

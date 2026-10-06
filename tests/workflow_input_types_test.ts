@@ -52,8 +52,7 @@ type Check = [
 function assertInputTypes(): void {
   // @ts-expect-error no old-name alias is exported
   void api.workflow;
-  const flow = defineWorkflow("inputs", {
-    output: ".github/workflows/inputs.yml",
+  const flow = defineWorkflow(".github/workflows/inputs.yml", {
     on: {
       push: {},
       workflow_dispatch: {
@@ -110,70 +109,79 @@ function assertInputTypes(): void {
         },
       }),
   );
-  flow.job("call", ({ job }) =>
-    job.reusable().call(finished, {
-      // @ts-expect-error common string union cannot weaken boolean call contract
-      with: { shared: "x" },
-      secrets: "inherit",
-    }));
-  flow.job("call", ({ job }) =>
-    job.reusable().call(finished, {
-      // @ts-expect-error dispatch-only input is not in the call contract
-      with: { shared: true, dispatchOnly: "x" },
-      secrets: "inherit",
-    }));
-  flow.job("call", ({ job }) =>
-    job.reusable().call(finished, {
-      with: { shared: true, callOnly: 1 },
-      // @ts-expect-error call secrets remain required
-      secrets: {},
-    }));
-  flow.job("call", ({ job }) =>
-    job.reusable().call(finished, ({ inputs }) => ({
-      with: {
-        shared: rawNode<boolean>("true"),
-        callOnly: inputs.callOnly.as<number>(),
-      },
-      secrets: "inherit",
-    })));
-  defineWorkflow("bad", {
-    output: "x",
+  flow.job(
+    "call",
+    ({ job }) =>
+      job.reusable().call("./.github/workflows/finished.yml", finished, {
+        // @ts-expect-error common string union cannot weaken boolean call contract
+        with: { shared: "x" },
+        secrets: "inherit",
+      }),
+  );
+  flow.job(
+    "call",
+    ({ job }) =>
+      job.reusable().call("./.github/workflows/finished.yml", finished, {
+        // @ts-expect-error dispatch-only input is not in the call contract
+        with: { shared: true, dispatchOnly: "x" },
+        secrets: "inherit",
+      }),
+  );
+  flow.job(
+    "call",
+    ({ job }) =>
+      job.reusable().call("./.github/workflows/finished.yml", finished, {
+        with: { shared: true, callOnly: 1 },
+        // @ts-expect-error call secrets remain required
+        secrets: {},
+      }),
+  );
+  flow.job(
+    "call",
+    ({ job }) =>
+      job.reusable().call(
+        "./.github/workflows/finished.yml",
+        finished,
+        ({ inputs }) => ({
+          with: {
+            shared: rawNode<boolean>("true"),
+            callOnly: inputs.callOnly.as<number>(),
+          },
+          secrets: "inherit",
+        }),
+      ),
+  );
+  defineWorkflow("x", {
     // @ts-expect-error on must be nonempty
     on: {},
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     // @ts-expect-error no string shorthand
     on: "push",
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     // @ts-expect-error no array shorthand
     on: ["push"],
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     on: { push: {} },
     // @ts-expect-error old split field
     events: ["push"],
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     on: {
       // @ts-expect-error unsupported trigger
       schedule: {},
       push: {},
     },
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     on: {
       // @ts-expect-error filters cannot be attached to another event
       workflow_dispatch: { branches: ["main"] },
     },
   });
-  defineWorkflow("bad", {
-    output: "x",
+  defineWorkflow("x", {
     on: {
       workflow_dispatch: {
         inputs: {

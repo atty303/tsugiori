@@ -27,8 +27,7 @@ const stageValue = jsonValue({
     return value;
   },
 });
-const detected = defineWorkflow("sample", {
-  output: ".github/workflows/sample.yml",
+const detected = defineWorkflow(".github/workflows/sample.yml", {
   on: { push: { branches: ["main"] } },
 }).job("detect", ({ job }) =>
   job.runsOn("ubuntu-24.04").task({
@@ -181,8 +180,7 @@ Deno.test("scenario distinguishes expectation failures from fixture errors", asy
   assertEquals((invalid as { kind?: string }).kind, "fixture_missing");
 });
 
-const unsupported = defineWorkflow("unsupported", {
-  output: ".github/workflows/unsupported.yml",
+const unsupported = defineWorkflow(".github/workflows/unsupported.yml", {
   on: { push: {} },
 }).job("check", ({ job }) =>
   job.runsOn("ubuntu-latest")

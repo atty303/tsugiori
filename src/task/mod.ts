@@ -259,8 +259,7 @@ export type OutputValues<O extends OutputDefinitions> = {
  *     return value;
  *   },
  * });
- * defineWorkflow("ci", {
- *   output: ".github/workflows/ci.yml",
+ * defineWorkflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("prepare", ({ job }) =>
  *   job.runsOn("ubuntu-latest").task({
@@ -324,7 +323,7 @@ export type TaskContext<
   O extends OutputDefinitions = Record<never, never>,
   Proof extends string = never,
 > = Readonly<{
-  /** The repository root directory during task execution.
+  /** The native step working directory during task execution.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
