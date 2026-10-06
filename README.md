@@ -284,12 +284,21 @@ comparison, truthiness, and logical operator evaluation.
 
 ## Action metadata contracts
 
-Import a metadata contract from a hosted type service and pass it directly to
-`job.uses(contract, options?)`. Replace `<host>` with the service's configured
-host; this repository does not supply a deployed endpoint.
+The official type service is [tsugiori.atty303.workers.dev](https://tsugiori.atty303.workers.dev).
+Map an action metadata URL in your Deno project's `deno.json`:
+
+```json
+{
+  "imports": {
+    "actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/actions/checkout@v4"
+  }
+}
+```
+
+Import the contract and pass it directly to `job.uses(contract, options?)`:
 
 ```ts
-import checkout from "https://<host>/github/actions/actions/checkout@v4";
+import checkout from "actions/checkout";
 
 // In a workflow job callback:
 job.runsOn("ubuntu-latest").uses(checkout, {

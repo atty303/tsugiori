@@ -1,27 +1,12 @@
 import {
-  type ActionContract,
   defineProject,
   defineWorkflow,
   runProject,
 } from "@atty303/tsugiori/github-actions";
 
-const checkout = {
-  name: "Checkout",
-  description: "Checkout repository",
-  uses: "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-  inputs: {
-    "persist-credentials": { description: "Persist checkout credentials" },
-  },
-  outputs: {},
-} as const satisfies ActionContract;
-
-const mise = {
-  name: "mise",
-  description: "Install toolchain",
-  uses: "jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
-  inputs: {},
-  outputs: {},
-} as const satisfies ActionContract;
+import checkout from "actions/checkout";
+import mise from "jdx/mise-action";
+import releaseAction from "atty303/repository-template/release";
 
 const ci = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
@@ -61,15 +46,6 @@ const ci = defineWorkflow("ci", {
       },
     }));
 
-const releaseAction = {
-  name: "Release",
-  description: "Release repository",
-  uses:
-    "atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724",
-  inputs: { versioning: { description: "Release versioning scheme" } },
-  outputs: {},
-} as const satisfies ActionContract;
-
 const release = defineWorkflow("release", {
   output: ".github/workflows/release.yml",
   on: { push: { branches: ["main"] }, workflow_dispatch: {} },
@@ -97,7 +73,7 @@ const release = defineWorkflow("release", {
     }));
 
 const config = defineProject({
-  cacheVersion: 1,
+  cacheVersion: 2,
   workflows: [ci, release],
 });
 export default config;

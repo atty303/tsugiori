@@ -181,7 +181,8 @@ diagnostics and can be rerun safely from the same authoring input.
 
 ## Type service
 
-`services/type-service/` owns one Cloudflare Worker independently of the
+`services/type-service/` owns the official type service at
+`https://tsugiori.atty303.workers.dev`, a Cloudflare Worker independent of the
 consumer package. Its current resource is `/github/actions/`; it does not
 execute actions or workflows. GitHub requests resolve a ref first and read
 `action.yml` (then `action.yaml` on a 404) at that SHA. A pure, versioned
@@ -202,8 +203,8 @@ The service authenticates public GitHub API requests with a dedicated OAuth
 App's client ID and client secret and accepts no user credentials. Missing
 bindings or failed authentication fail explicitly without unauthenticated
 fallback. Credentials are used only in GitHub API headers; they never enter
-contract generation or diagnostic records. Public hosting still requires
-verification of effective API limits and account permissions.
+contract generation or diagnostic records. Effective API limits and account
+permissions are operational properties of the deployed service.
 
 The deployment configuration names the Worker `tsugiori`, enables workers.dev,
 Workers Cache before execution, Cloudflare Workers Logs including invocation
@@ -230,8 +231,9 @@ operational audit.
 
 ## Package release boundary
 
-`.github/workflows.ts` owns CI and the release workflow; generated YAML stays
-visible and checked in. Regular releases delegate version selection, tag/Release
+`.github/workflows.ts` imports action metadata from the official type service
+with the existing action commit SHAs and a checked-in Deno lockfile. It owns CI
+and the release workflow; generated YAML stays visible and checked in. Regular releases delegate version selection, tag/Release
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,
 version injection and JSR publication from the extracted archive. Development

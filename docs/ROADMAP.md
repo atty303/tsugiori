@@ -17,9 +17,9 @@ behavior is documented in the [README](../README.md) and
 - Extend validation and tests when new provider-native fields or expression
   forms are added. Preserve a readable, reviewable generated workflow.
 
-- Before the first public type-service deployment, verify effective Cloudflare
-  account permissions and public GitHub API rate limits/authentication in the
-  chosen environment; local workerd and dry-run checks do not verify hosting.
+- Verify effective Cloudflare account permissions and public GitHub API rate
+  limits in the deployed type-service environment; local workerd and dry-run
+  checks do not establish those operational limits.
 
 ## Future candidates
 
