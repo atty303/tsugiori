@@ -1,0 +1,73 @@
+Task: Rename Tsugiori public API to GitHub Actions project names
+Anchor: 8f4acd244a5742b923c8ca915c6b08a81234d6e2
+Base: 7ea191d3245de6809f4e8845d262ad71314c124b
+Branch: main
+Commits: 8f4acd244a5742b923c8ca915c6b08a81234d6e2 feat: rename GitHub Actions project API
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability; review
+Conditions: Current checkout only; minor release impact approved; no publish, release, push, PR, or external repository changes
+## Evidence
+mise run check passed; mise run test passed with 98 tests; .github generate:check passed; release archive publish dry-run passed; fresh independent review found no issues. Reviewed diff SHA-256 fc72975fae59d7a6101e733ad64417257276de3caeb69d4810267564f0f47da8.
+Authority: User request and approval; AGENTS.md; repository source, tests, and release script
+## Transcript
+- U1: # 実装依頼
+    
+    ## 依頼
+    Tsugiori の公開 API から製品名入りの関数名・型名をなくし、GitHub Actions provider の project 設定を表す名前に変更してください。
+    
+    ## 目的
+    - `@atty303/tsugiori/github-actions` から import した API を、製品名の重複なく読みやすくする。
+    - 設定が複数の pipeline と共通設定をまとめる値であることを明確にする。
+    
+    ## 成功条件
+    - `/github-actions` から `defineProject()`、`runProject()`、`ProjectConfig` を利用できる。
+    - `defineProject()` が返す公開値の `kind` は `"github-actions.project"` で、生成側と検証側が一致する。
+    - `/github-actions/authoring` と `/github-actions/run` でも、それぞれ新しい公開名を利用できる。
+    - README、リポジトリ自身の `.github/tsugiori.ts`、テスト、fixture、公開 API の Doc コメントとエラーメッセージが新名を使う。
+    - 旧名 `defineTsugiori`、`runTsugiori`、`TsugioriConfig` は公開されない。
+    - リポジトリの check と test、生成 workflow の鮮度確認、JSR 公開アーカイブの dry-run が通る。
+    
+    ## 決定事項
+    - `defineTsugiori()` を `defineProject()`、`TsugioriConfig` を `ProjectConfig` に改名する。
+      - 理由: この値は複数の pipeline と `cacheVersion` をまとめる、利用リポジトリの設定を表す。
+      - 主な棄却案: `defineConfig()` は対象が曖昧。`definePipelineConfig()` は設定を正確に表すが、選択した project という概念より名前が長い。
+    - `runTsugiori()` を `runProject()` に改名し、既存の引数・終了コード・コマンド処理の契約を維持する。
+      - 理由: `defineProject()` と対になる公開名にする。
+      - 主な棄却案: `run()` は役割が曖昧。`runCommand()` は内部のコマンド処理を前面に出す。
+    - 公開値の `kind` を `"github-actions.project"` に変更する。
+      - 理由: 製品名を外しつつ、将来の別 provider の project と実行時に区別できる。
+      - 主な棄却案: `"project"` は provider を区別できない。既存の `"tsugiori.config"` は製品名が公開値に残る。
+    - 旧名の互換 alias は残さない。
+      - 理由: 公開名の整理を完了し、旧名を継続管理しない。
+      - 主な棄却案: deprecated alias を残す案。公開 API が二重になる。
+    - 変更範囲は Tsugiori リポジトリ内に限定する。
+      - 理由: 外部利用者の移行は、新 API を含む公開 version が決まってから別作業で扱う。
+      - 主な棄却案: glaze-ops などを同時に移行する案。未公開の新 API に依存させることになる。
+    
+    ## 制約
+    - 既存の `/github-actions` アンブレラと部分利用用サブパスの構造を維持する。
+    - `definePipeline()` など、製品名を含まない公開 API は変更しない。
+    - GitHub Actions workflow の生成・実行方式、task artifact の契約を変更しない。
+    - `TSUGIORI_INPUT_*` などの内部・生成物の識別子は今回の改名対象にしない。
+    - 既存の unrelated な作業ツリー変更を保持する。
+    - publish、release、push、PR 作成、外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - GitLab backend の実装。
+    - 新しい project model や実行方式の追加。
+    - 旧公開名の互換 alias。
+    - 既存外部利用者の移行。
+    
+    ## 未検証の前提
+    - 製品名入りの公開シンボルと公開値が、今回特定した関数・型・`kind` 以外に残っていないこと。
+    - 改名後も JSR 公開アーカイブの検証と生成 workflow の鮮度確認が通ること。
+    
+    ## 実装時の指示
+    - 公開入口、内部参照、型、実行時の `kind` 検証、診断文言、Doc コメント、README、`.github/tsugiori.ts`、テストと fixture を一貫して更新する。
+    - `runProject()` が GitHub Actions の workflow 自体を実行する関数だと誤解されないよう、公開 Doc コメントには現在のコマンド処理と終了コードの契約を記す。
+    - 生成 workflow に差分が必要なら設定ソースから再生成し、差分を確認する。
+    - `mise run check`、`mise run test`、生成 workflow の check、公開アーカイブの dry-run を実施する。未公開の API が JSR 上で動作したとは主張しない。
+  - A: 公開 API と判別子を改名し、文書、設定、fixture を更新。check、98 テスト、workflow check、公開アーカイブ dry-run を完了し、独立レビューで指摘なし。
+- U2: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_CGYiXSyorMj0SRJ8ZTrh6vCV\",0]","question":"今回の commit は公開 API の破壊的な改名です。基準 release は v0.2.1、SemVer 運用です。`feat` による minor release（最大）として記録してよいですか？ 実装と検証は回答を待たず進め、commit は承認後に行います。","answer":"はい、minor release を承認"}]
+    </send_user_message_question_reply>
+  - A: minor release 影響の承認を受け、feat commit を作成。
