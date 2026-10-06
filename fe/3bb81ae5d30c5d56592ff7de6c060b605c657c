@@ -1,0 +1,98 @@
+Task: Review DSL rendering through full inline YAML snapshots
+Anchor: fe3bb81ae5d30c5d56592ff7de6c060b605c657c
+Base: 85ad678938fa565df2edab2a892f78abde457b07
+Branch: main
+Commits: fe3bb81ae5d30c5d56592ff7de6c060b605c657c (test-only refactor and snapshot update entrypoint; release none approved)
+Guidance: user implementation request; AGENTS.md; dig; develop-repository; design-review; design-program-observability applicability; Git task evidence
+Conditions: Deno 2.9.5 via mise; clean initial checkout; approved @std/testing/unstable-snapshot 1.0.21 dependency; Git writes used sandbox escalation; release none; current checkout; no push or deployment
+## Evidence
+- mise exec -- deno task test:update: 144 passed, 0 failed; both built-in and inline update modes enabled.
+- mise run test: standard checks, generated-output guard, Worker dry-run build, published API example checks and 144 tests passed.
+- Intentional DSL run mutation: Snapshot does not match; normal mode did not rewrite source; original file restored.
+- SHA-256 comparison of all test .ts and existing external snapshot sources before/after normal full test run: unchanged.
+- Inline snapshot creation and update preserved literal backticks and GitHub expressions; serializers compare complete YAML without normalization.
+Authority: user instructions and approvals, repository AGENTS.md and currently applied skills; source/tests and observed commands provide evidence
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) testsが全体的に読みづらい。特に生成yamlの検証は全面的にsnapshotにできないか？ 目視で確認しやすい
+  - A: Applied dig, inspected current rendering assertions and snapshot format; initially proposed snapshots with separate scalar round-trip invariants.
+- U2: YAMLのstringifyのテストは対象外だ。DSLのrenderingのテストケースを焦点にしている
+  - A: Corrected scope to DSL rendering and excluded YAML stringify tests; discussed external YAML versus inline storage.
+- U3: テストとsnapshotが隣にあってほしい
+  - A: Discussed proximity of DSL inputs and expected YAML, and purpose-based case organization.
+- U4: ファイル内にinlineで書けないの？
+  - A: Confirmed inline expected YAML is possible; inspected repository Deno 2.9.5 built-in snapshot API and distinguished it from library support.
+- U5: この要望に答えられるlibraryはないの？
+  - A: Researched official Deno/JSR sources; found assertInlineSnapshot in @std/testing/unstable-snapshot, with source updating and custom serializers.
+- U6: A
+  - A: Recorded approval of the standard-library dependency; asked whether mixed-purpose cases should be split.
+- U7: B. DSLのケースごとにどのようなYAMLになるかがレビューで重要。特にtaskのような定義で具体的なYAMLにはこだわっている
+  - A: Recorded purpose-based splitting and the importance of concrete task YAML; proposed full preparation/cache/runtime output.
+- U8: A. ケースを整理すること。シンプルなパターン確認を全部個別ケースにしなくて、それはケース内stepにまとめたりしてもいい。目的の違うケースは分割するのが基本だ
+  - A: Recorded full YAML without placeholders, grouped simple patterns, and splitting by purpose; requested final shared-understanding confirmation.
+- U9: A
+  - A: Produced the self-contained implementation prompt, including test-only dependency scope and excluding stringify, runtime, and type-test migrations.
+- U10:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の既存 DSL rendering テストを整理し、生成 YAML の検証を全文の inline snapshot に移行してください。
+    
+    ## 目的
+    - DSL 定義と、それが生成する具体的な YAML を同じテストケース内で読み、レビューできるようにする。
+    - 特に task 定義が展開する Actions step の具体的な内容を確認しやすくする。
+    
+    ## 成功条件
+    - 対象となる DSL rendering の期待値が、テストケース内の YAML 全文として記載されている。
+    - rendering の部分文字列・個別プロパティ比較が全文 snapshot に置き換わっている。
+    - snapshot の自動更新と、通常実行での不一致検出が動作する。
+    - テストケース名、DSL 定義、期待 YAML の対応が明確である。
+    - 既存の検証範囲を保持し、必要なリポジトリ標準チェックが通る。
+    
+    ## 決定事項
+    - `@std/testing/unstable-snapshot` の `assertInlineSnapshot` を採用する。Unstable API の採用は合意済み。
+      - 理由: 既存の `Deno.test` を維持し、テスト内への期待値保存と自動更新を実現できる。
+      - 主な棄却案: `assertEquals` による手動更新、外部 `.yml`・`.ts.snap` 保存、独自の自動更新機構。
+    - 期待値は YAML 全文の inline snapshot とし、文字列をそのまま比較する serializer を使う。
+      - 理由: DSL のケースごとに具体的な生成 YAML をレビューすることが重要。
+      - 主な棄却案: 部分文字列比較、parse 後の個別プロパティ比較。生成結果全体を読み取りにくいため。
+    - task の準備・cache・実行 step、shell script、env、条件、参照値を省略・置換せず含める。
+      - 理由: task の具体的な YAML 展開もレビュー対象である。
+      - 主な棄却案: 共通部分の placeholder 化や省略。確認したい出力を隠すため。
+    - テストケースは検証目的ごとに整理する。
+      - 理由: DSL 定義と期待 YAML の意味を理解しやすくするため。
+      - 主な棄却案: assertion の機械的な置換だけで済ませること、単純なパターンまで全て独立ケースに分割すること。
+    - 同じ目的の単純なパターンは、一つの workflow 内の複数 step などにまとめてよい。異なる目的は分割するのが基本。
+      - 理由: ケース数を増やしすぎず、目的のまとまりを維持するため。
+      - 主な棄却案: 全パターンを一対一でケース化すること。
+    - rendering と混在する契約生成・エラー・runtime などの検証は、目的に応じて分割して保持する。
+      - 理由: rendering の読みやすさを改善しながら既存の検証範囲を維持するため。
+      - 主な棄却案: 混在をそのまま残すこと、snapshot 化に伴って別目的の検証まで削除すること。
+    
+    ## 制約
+    - 生成 YAML の動作変更を目的とせず、既存の DSL rendering の検証を整理する。
+    - 変動する入力はテスト側で固定し、実際の生成出力を省略・正規化して隠さない。
+    - 既存の作業中の変更を保持する。調査時点でテスト、snapshot、compiler、依存関係、ドキュメント、生成 workflow などに未コミット変更があったため、開始時に現在の差分を確認する。
+    - ライブラリ導入はテスト用途とする。
+    
+    ## 対象外
+    - YAML stringify 自体の quoting・改行・値の往復一致などのテスト。
+    - 内部 Workflow モデルを直接入力する emitter テストの一律移行。
+    - 型・runtime・エラー検証の方式変更。
+    - DSL や生成 YAML の仕様変更。
+    - 無関係なテスト全体のリファクタリング。
+    
+    ## 未検証の前提
+    - 採用するライブラリ版について、Deno 2.9.5 での inline snapshot 作成・更新、serializer、テンプレート文字列内の `${...}`・backtick の扱いを実装前に確認する。
+    - 既存 `test:update` は `deno test -A --update-snapshots`。ライブラリの inline 更新には公式ドキュメント上 `deno test -A -- --update` が使われるため、外部 snapshot と inline snapshot の更新を標準 entrypoint で扱う方法を確認する。
+    - 対象テストの全件と、task rendering で固定が必要な入力を現在のソースから確認する。
+    
+    ## 実装時の指示
+    - まず既存 DSL rendering の検証を棚卸しし、目的別にケースを整理する。authoring、typed IO、expression、composite、reusable workflow、task に関連するテストを確認し、ファイル名だけで対象を決めない。
+    - 基本構成を「DSL 定義 → rendering → inline YAML」とし、入力と期待値の関係を追いやすくする。
+    - snapshot 呼び出しはライブラリのソース更新機能が扱える形にする。更新位置を壊す独自 wrapper を安易に導入しない。
+    - task の全文 snapshot が長くても共通生成部分を隠さず、ケースの入力と検証目的を整理して読みやすさを確保する。
+    - 通常実行では snapshot を書き換えない。自動更新後は YAML とテストソースの差分をレビューする。
+    - 新たな依存関係と必要な snapshot 更新 entrypoint を反映し、通常実行・更新実行の両方を検証する。
+  - A: Read develop-repository, design-review, observability and repository guidance; clean main at 85ad678938fa565df2edab2a892f78abde457b07, synced origin/code and notes. Requested release-none judgment and proceeded with implementation.
+- U11: release なし（推奨）
+  - A: Implemented 34 full inline YAML snapshots across 8 test files, split rendering/contract/collection/scenario/validation purposes, retained excluded stringify/type/runtime coverage, fixed generation inputs for tasks, and configured both snapshot update flags. Verified std API creation/update and escaped templates on Deno 2.9.5, intentional DSL mismatch rejection without source writes, test:update (144 pass), mise run fix, and mise run test (checks, Worker dry-run, API docs, 144 pass). Normal execution left all test and snapshot sources unchanged. Regenerated only CI source-key identity after import-map changes. Reviewed exact diff, committed fe3bb81 locally with release-none impact; no remote publication performed. Compared all 11 human messages against the complete local thread history before preparing this note.
