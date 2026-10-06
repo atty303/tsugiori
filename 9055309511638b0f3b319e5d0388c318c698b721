@@ -1,0 +1,17 @@
+Task: Official type-service docs and repository action imports
+Anchor: 9055309511638b0f3b319e5d0388c318c698b721
+Base: 091c19e932b79c3dea17e926c46139d21971bd90
+Branch: main
+Commits: 9055309511638b0f3b319e5d0388c318c698b721 (docs and CI imports)
+Guidance: AGENTS.md; develop-repository; design-review; investigate-problem; design-program-observability applicability; review; Git task evidence
+Conditions: Current checkout; initially clean; Deno through mise; release-none approved; no remote writes
+Authority: User official endpoint directive and release-none approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    type-serviceはtsugiori.atty303.workers.devを公式とする。各種docを更新。自身のworkflows.tsもこれを使う
+  - A: 公式type-service URLを定める依頼と、自身のworkflowで使用する要求を確定。develop-repository/design-reviewで現行設定と文書を調査。main 091c19eのclean treeでcodeとnotesをfetchし基準v0.4.0を確認。releaseなしのdocs/ci commitを非同期確認。公式endpointの既存checkout SHAへのredirectとmetadata取得を観測。
+- U2:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_B4HxpDUjocq346Qrt7KUNkq7\",0]","question":"develop-repository の規則による commit 影響の確認です。今回は公式 URL の文書化と自身の CI 設定の import 更新なので、release なし（docs/ci）として記録してよいですか？ 実装・検証は進めます。","answer":"はい、release なし"}]
+    </send_user_message_question_reply>
+  - A: releaseなし承認に従いREADME/architecture/roadmapへ公式URLを記載。既存checkout/mise/release action SHAを維持し、.github/deno.jsonに公式metadata mapping、workflows.tsにbare importを設定。Deno正規手順でdeno.lockへredirect/checksumを生成、remote binary input変更にcacheVersionを2へ更新。初回checkのimport host権限不足をinvestigate-problemで切り分け、hkの標準checkに公式ホストを追加し既存default hostsを維持。lintのno-import-prefixはmappingへ移すことで解消。program実装/観測契約は変更せずconsumer設定更新のみ。mise run check、mise run test 98 passed、generate:check、空DENO_DIRのfrozen型検査が成功。生成YAML差分なし。fresh read-only independent review指摘なし。9055309へlocal commit。complete thread 6 pages 58 turnsとcycleの2 user messagesを照合。サービス長期可用性/実効quota/cloud権限は未検証。push/deploy/release/PRなし。
