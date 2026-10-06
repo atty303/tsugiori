@@ -1,0 +1,26 @@
+Task: Separate distributed task Action from repository CI configuration
+Anchor: a741f5c620096cce8560c9f839aef8be5665ff84
+Base: b75fe05dea2054e5d69be82a1fd990866ce312d8
+Branch: main
+Commits: a741f5c620096cce8560c9f839aef8be5665ff84 fix: separate distributed task action from repository CI
+Guidance: User distribution-boundary request and patch approval; AGENTS.md, develop-repository, design-review, review and Git task evidence
+Conditions: Existing main checkout; repository-managed mise/Deno toolchain; identical moved Action blobs; no dependencies or remote writes; all owned temporary test fixtures cleaned
+Authority: Latest user boundary request and patch approval, repository AGENTS.md/current source
+## Transcript
+- U1:
+    prepare taskのproject-directoryはかわりにworking-directoryにすると不都合あるのか？
+    
+  - A: Explained that custom Action input can be named working-directory and aligns with Project workingDirectory, while uses steps do not accept native working-directory. Suggested internal script cd; this detail was corrected in the next exchange. No code changed.
+- U2:
+    なんで使えないの？
+    
+  - A: Checked official GitHub workflow and Action metadata documentation: native working-directory applies to run; composite internal run can receive inputs.working-directory. Corrected the claim that script cd is required. No input rename was requested or implemented.
+- U3:
+    actionを.github/actionsに置いているが.githubはこのrepoのgithub actionsの設定を置く場所であり、外部に提供するactionの置き場所として適切ではない
+    
+  - A: Interpreted the distribution/configuration boundary concern as an Action relocation request. Applied develop-repository and existing design-review/observability contracts; clean main at b75fe05. Fetched code/notes and notes-only merge was already up to date. Proposed release-free refactor. Moved byte-identical Action and script to root actions/task-prepare, updated release SHA/public references and explicit local config, committed-source and dirty-path verification, tests, docs, and generated YAML.
+- U4:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_WXS3lnlG4xEKKedImXoFi0Wm\",0]","question":"今回の配置変更はrefactorとしてrelease対象なしを提案します。よいですか？ develop-repository skillの「このtaskで作るcommit全体のrelease要否を提案・送信して承認を求める」に基づく確認です。","answer":"patch release対象にする"}]
+    </send_user_message_question_reply>
+  - A: User approved patch release impact. Static check, generate --check and full mise run test under CI environment variables passed111tests (43s), including release SHA-bound generation, dirty-source rejection, no-Deno hits and fallback. Fresh read-only review found no defects. Staged snapshot exactly matched reviewed diff; created signed local commit a741f5c620096cce8560c9f839aef8be5665ff84. Complete root history was re-enumerated across 5 segments and all4human messages matched. Previous pinned releases retain their original Action paths. No push or manual publish/release/deploy; hosted resolution of the new unpushed Action path remains unverified.
