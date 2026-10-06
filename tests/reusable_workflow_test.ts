@@ -4,11 +4,11 @@ import {
   defineTsugiori,
   rawExpression,
   rawNode,
-} from "../packages/core/src/github_actions/mod.ts";
-import { lowerConfig } from "../packages/compiler/src/authoring.ts";
-import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
-import { scenario } from "../packages/testing/src/mod.ts";
-import { parse } from "../packages/core/src/deps.ts";
+} from "../src/github_actions/mod.ts";
+import { lowerConfig } from "../src/compiler/authoring.ts";
+import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
+import { scenario } from "../src/testing/mod.ts";
+import { parse } from "../src/deps.ts";
 
 const platform = definePipeline("platform", {
   output: ".github/workflows/platform.yml",

@@ -1,6 +1,6 @@
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import { resolve } from "node:path";
-import { textValue } from "../packages/core/src/task/mod.ts";
+import { textValue } from "../src/task/mod.ts";
 
 Deno.test("shared run can be spread with distinct output declarations", () => {
   const run = async () => {};
@@ -21,11 +21,9 @@ Deno.test("task output writer writes declared multiline values and permits omitt
   try {
     const output = resolve(directory, "github-output");
     await Deno.writeTextFile(output, "");
-    const core =
-      new URL("../packages/core/src/github_actions/mod.ts", import.meta.url)
-        .href;
-    const runner =
-      new URL("../packages/runner/src/main.ts", import.meta.url).href;
+    const core = new URL("../src/github_actions/mod.ts", import.meta.url)
+      .href;
+    const runner = new URL("../src/runner/main.ts", import.meta.url).href;
     const program = `import {textValue, defineTsugiori, definePipeline} from ${
       JSON.stringify(core)
     };
@@ -49,10 +47,8 @@ Deno.exitCode = await runTsugiori({config,configUrl:import.meta.url,root:import.
 });
 
 Deno.test("runner rejects a required task output that was not set", async () => {
-  const core =
-    new URL("../packages/core/src/github_actions/mod.ts", import.meta.url).href;
-  const runner =
-    new URL("../packages/runner/src/main.ts", import.meta.url).href;
+  const core = new URL("../src/github_actions/mod.ts", import.meta.url).href;
+  const runner = new URL("../src/runner/main.ts", import.meta.url).href;
   const program = `import {textValue,defineTsugiori,definePipeline} from ${
     JSON.stringify(core)
   };

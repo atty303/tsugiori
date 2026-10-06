@@ -3,7 +3,7 @@ import {
   definePipeline,
   defineTsugiori,
   runTsugiori,
-} from "@atty303/tsugiori";
+} from "@atty303/tsugiori/github-actions";
 
 const checkout = {
   name: "Checkout",

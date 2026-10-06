@@ -114,7 +114,7 @@ export async function build(
 ): Promise<void> {
   const files = await record.operation("build", async () => {
     const result = await new Deno.Command("git", {
-      args: ["ls-files", "-z", "packages"],
+      args: ["ls-files", "-z", "src"],
       stdout: "piped",
       stderr: "inherit",
     }).output();

@@ -6,7 +6,7 @@ import {
   present,
   rawNode,
   textValue,
-} from "../packages/core/src/github_actions/mod.ts";
+} from "../src/github_actions/mod.ts";
 
 function assertTypedIO(): void {
   const contract = jsonValue({

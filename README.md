@@ -32,7 +32,7 @@ change: major).
 The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for
 [.github/workflows/ci.yml](.github/workflows/ci.yml). Its Deno project is
 [.github/deno.json](.github/deno.json), which imports this repository's
-root entrypoint through a local import mapping. From `.github`, generate and
+provider entrypoint through the local workspace package. From `.github`, generate and
 commit the resulting YAML:
 
 ```sh
@@ -52,11 +52,12 @@ runs the check task before its task-backed test step.
 
 ## Author a workflow
 
-An authoring file imports the GitHub Actions API and runner from the package
-root. It exports the config and calls `runTsugiori()` when executed:
+An authoring file imports the GitHub Actions API and runner from the
+`/github-actions` entrypoint. It exports the config and calls `runTsugiori()`
+when executed:
 
 ```ts
-import { definePipeline, defineTsugiori, runTsugiori } from "@atty303/tsugiori";
+import { definePipeline, defineTsugiori, runTsugiori } from "@atty303/tsugiori/github-actions";
 
 const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -96,14 +97,14 @@ The project directory supplies Deno imports and its lockfile. Top-level
 authoring code should construct deterministic definitions; task work belongs
 inside `.task()` callbacks.
 
-An external repository can use the same config entrypoint without a workspace
-package. Its workflow project's `deno.json` maps the package root to one
-Tsugiori commit:
+An external repository can use the same config entrypoint. Its workflow
+project's `deno.json` maps one package name to a released JSR version. Provider
+and advanced subpath imports resolve through this single mapping:
 
 ```json
 {
   "imports": {
-    "@atty303/tsugiori": "https://raw.githubusercontent.com/atty303/tsugiori/<full-commit-sha>/packages/core/src/mod.ts"
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
   },
   "tasks": {
     "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
@@ -112,9 +113,15 @@ Tsugiori commit:
 }
 ```
 
-Use a full commit SHA and commit the workflow project's Deno
-lockfile. Changes to remote source are outside the automatic artifact key;
-increase `cacheVersion` when updating the pin changes the task binary.
+Replace `<released-version>` with a version that includes these exports and
+commit the workflow project's Deno lockfile. For example, import the umbrella
+from `@atty303/tsugiori/github-actions`, or import only
+`@atty303/tsugiori/github-actions/authoring`,
+`@atty303/tsugiori/github-actions/run`,
+`@atty303/tsugiori/github-actions/testing`, or
+`@atty303/tsugiori/task`. Changes to a JSR version or lockfile are outside the
+automatic artifact key; increase `cacheVersion` when they change the task
+binary.
 
 Task-backed jobs include visible artifact-key, `actions/cache`, and preparation
 steps before the task invocation. The generated cache step can restore a
@@ -142,7 +149,7 @@ output values; Tsugiori validates and serializes them before passing them to
 later steps and jobs. Action and run-step outputs are strings.
 
 ```ts
-import { scenario } from "@atty303/tsugiori";
+import { scenario } from "@atty303/tsugiori/github-actions";
 
 Deno.test("deploy failure reaches completion", async () => {
   await scenario(deployPipeline, (test) => {
@@ -198,7 +205,7 @@ contexts available at its GitHub Actions field. Step callbacks see only earlier
 step IDs; dependent jobs see only declared outputs from their dependencies.
 
 ```ts
-import { definePipeline, fromJSON, jsonValue, present, rawNode } from "@atty303/tsugiori";
+import { definePipeline, fromJSON, jsonValue, present, rawNode } from "@atty303/tsugiori/github-actions";
 
 const stages = jsonValue({
   parse(value: unknown): readonly string[] {
@@ -319,7 +326,7 @@ in options.
 Handwritten contracts use the same metadata shape:
 
 ```ts
-import type { ActionContract } from "@atty303/tsugiori";
+import type { ActionContract } from "@atty303/tsugiori/github-actions";
 
 const checkout = {
   uses: "actions/checkout@v4",
@@ -382,7 +389,7 @@ references. `secrets: "inherit"` forwards one hop; it cannot prove repository
 secret availability or organization/enterprise eligibility.
 
 ```ts
-import { definePipeline, defineTsugiori } from "@atty303/tsugiori";
+import { definePipeline, defineTsugiori } from "@atty303/tsugiori/github-actions";
 
 const definition = definePipeline("build", {
   output: ".github/workflows/build.yml",

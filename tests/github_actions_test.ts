@@ -4,12 +4,12 @@ import {
   assertStringIncludes,
   assertThrows,
 } from "@std/assert";
-import { parse } from "../packages/core/src/deps.ts";
+import { parse } from "../src/deps.ts";
 import {
   emitWorkflow,
   validateWorkflow,
   type Workflow,
-} from "../packages/compiler/src/github_actions/mod.ts";
+} from "../src/compiler/github_actions/mod.ts";
 
 Deno.test("emits canonical GitHub Actions YAML", async (t) => {
   const workflow: Workflow = {

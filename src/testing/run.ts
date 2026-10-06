@@ -1,10 +1,7 @@
-import type {
-  AuthoringJob,
-  TsugioriConfig,
-} from "../../core/src/github_actions/mod.ts";
-import { lowerConfig } from "../../compiler/src/authoring.ts";
-import type { Job, Step } from "../../compiler/src/github_actions/ast.ts";
-import { parseWireValue, serializeValue } from "../../core/src/task/mod.ts";
+import type { AuthoringJob, TsugioriConfig } from "../github_actions/mod.ts";
+import { lowerConfig } from "../compiler/authoring.ts";
+import type { Job, Step } from "../compiler/github_actions/ast.ts";
+import { parseWireValue, serializeValue } from "../task/mod.ts";
 import {
   evaluateExpression,
   hasStatusFunction,

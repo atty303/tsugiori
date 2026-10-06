@@ -1,4 +1,4 @@
-import { parse, stringify } from "../../../core/src/deps.ts";
+import { parse, stringify } from "../../deps.ts";
 import type {
   ActionInputs,
   Job,

@@ -1,21 +1,21 @@
-import { generateFiles } from "../../compiler/src/generator.ts";
-import { checkGeneratedFiles } from "../../compiler/src/check.ts";
-import { configSource } from "../../compiler/src/source.ts";
-import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
-import { parseWireValue, serializeValue } from "../../core/src/task/mod.ts";
-import type { AuthoringTaskStep } from "../../core/src/github_actions/mod.ts";
-import { writeGeneratedFiles } from "../../compiler/src/write.ts";
-import { TaskRuntimeError } from "../../task-runtime/src/artifact.ts";
+import { generateFiles } from "../compiler/generator.ts";
+import { checkGeneratedFiles } from "../compiler/check.ts";
+import { configSource } from "../compiler/source.ts";
+import type { TsugioriConfig } from "../github_actions/mod.ts";
+import { parseWireValue, serializeValue } from "../task/mod.ts";
+import type { AuthoringTaskStep } from "../github_actions/mod.ts";
+import { writeGeneratedFiles } from "../compiler/write.ts";
+import { TaskRuntimeError } from "../task-runtime/artifact.ts";
 import {
   DiagnosticRecorder,
   diagnosticsEnabled,
-} from "../../task-runtime/src/diagnostics.ts";
+} from "../task-runtime/diagnostics.ts";
 import {
   prepareTaskArtifact,
   resolveTaskArtifact,
   type ToolIdentity,
-} from "../../task-runtime/src/prepare.ts";
-import { TSUGIORI_PACKAGE_VERSION } from "../../core/src/package_identity.ts";
+} from "../task-runtime/prepare.ts";
+import { TSUGIORI_PACKAGE_VERSION } from "../package_identity.ts";
 
 const SOURCE_TOOL_IDENTITY: ToolIdentity = {
   version: TSUGIORI_PACKAGE_VERSION,

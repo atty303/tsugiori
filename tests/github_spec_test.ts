@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "@std/assert";
-import { githubActionsSpec } from "../packages/core/src/github_actions/github_spec.ts";
-import { githubExpressionScopes } from "../packages/core/src/github_actions/expression_scope.ts";
+import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
+import { githubExpressionScopes } from "../src/github_actions/expression_scope.ts";
 import manifest from "../deno.json" with { type: "json" };
 
 Deno.test("fixed spec identity, coverage and source manifest are internally consistent offline", () => {

@@ -3,8 +3,8 @@ import {
   type Expression,
   type PipelineInputValues,
   rawNode,
-} from "../packages/core/src/github_actions/mod.ts";
-import * as api from "../packages/core/src/mod.ts";
+} from "../src/github_actions/mod.ts";
+import * as api from "../src/github_actions.ts";
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends
   (<T>() => T extends B ? 1 : 2) ? true : false;

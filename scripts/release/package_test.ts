@@ -14,7 +14,7 @@ function source() {
           name: "@atty303/tsugiori",
           version: "0.1.0",
           license: "MIT",
-          exports: { ".": "./mod.ts" },
+          exports: { "./github-actions": "./mod.ts" },
           publish: { include: ["deno.json", "mod.ts"] },
         }),
       ),
@@ -40,10 +40,13 @@ Deno.test("registry comparison requires every byte, file and export to agree", a
       ) => [`/${path}`, { size: bytes.length, checksum: await digest(bytes) }]),
     ),
   );
-  const remote = { manifest, exports: { ".": "./mod.ts" } };
+  const remote = { manifest, exports: { "./github-actions": "./mod.ts" } };
   await verifyContent(files, remote, "0.1.0");
   await assertRejects(() =>
-    verifyContent(files, { ...remote, exports: { ".": "./else.ts" } }, "0.1.0")
+    verifyContent(files, {
+      ...remote,
+      exports: { "./github-actions": "./else.ts" },
+    }, "0.1.0")
   );
   await assertRejects(() =>
     verifyContent(files, {
@@ -92,7 +95,7 @@ Deno.test("release publication verifies JSR before deployment, propagates failur
       registryReads++;
       return Promise.resolve(Response.json({
         manifest: mismatch ? {} : manifest,
-        exports: { ".": "./mod.ts" },
+        exports: { "./github-actions": "./mod.ts" },
       }));
     };
     const record = new Recording(`${directory}/diagnostics`);

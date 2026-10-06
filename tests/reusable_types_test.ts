@@ -1,7 +1,4 @@
-import {
-  definePipeline,
-  defineTsugiori,
-} from "../packages/core/src/github_actions/mod.ts";
+import { definePipeline, defineTsugiori } from "../src/github_actions/mod.ts";
 
 function assertReusableTypes(): void {
   const definition = definePipeline("callee", {

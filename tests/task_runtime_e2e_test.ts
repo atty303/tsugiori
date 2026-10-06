@@ -12,8 +12,8 @@ Deno.test({
     const fixture = await Deno.makeTempDir({ prefix: "tsugiori-e2e-" });
     try {
       await copyDirectory(
-        resolve(repositoryRoot, "packages"),
-        resolve(fixture, "packages"),
+        resolve(repositoryRoot, "src"),
+        resolve(fixture, "src"),
       );
       await Deno.copyFile(
         resolve(repositoryRoot, "deno.json"),
@@ -44,8 +44,7 @@ Deno.test({
       );
       const configSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTsugiori, definePipeline, textValue } from "@atty303/tsugiori/github-actions";
-import { runTsugiori } from "@atty303/tsugiori/run";
+import { defineTsugiori, definePipeline, runTsugiori, textValue } from "@atty303/tsugiori/github-actions";
 
 const base = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -577,7 +576,7 @@ Deno.test({
             headers: { "content-type": "application/typescript" },
           });
         }
-        if (pathname !== "/deno.json" && !pathname.startsWith("/packages/")) {
+        if (pathname !== "/deno.json" && !pathname.startsWith("/src/")) {
           return new Response("Not found", { status: 404 });
         }
         return new Response(
@@ -594,7 +593,7 @@ Deno.test({
     );
     try {
       const rootModule =
-        `http://127.0.0.1:${server.addr.port}/packages/core/src/mod.ts`;
+        `http://127.0.0.1:${server.addr.port}/src/github_actions.ts`;
       const externalModule = resolve(external, "dependency.ts");
       const externalUrl = pathToFileURL(externalModule).href;
       const remoteUrl = `http://127.0.0.1:${server.addr.port}/dependency.ts`;
@@ -605,7 +604,7 @@ Deno.test({
             {
               lock: false,
               imports: {
-                "@atty303/tsugiori": rootModule,
+                "@atty303/tsugiori/github-actions": rootModule,
               },
             },
             null,
@@ -618,7 +617,7 @@ Deno.test({
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
       const configSource =
-        `import { defineTsugiori, definePipeline, runTsugiori } from "@atty303/tsugiori";
+        `import { defineTsugiori, definePipeline, runTsugiori } from "@atty303/tsugiori/github-actions";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;
@@ -711,8 +710,8 @@ Deno.test({
     const project = resolve(fixture, "ci/pipelines");
     try {
       await copyDirectory(
-        resolve(repositoryRoot, "packages"),
-        resolve(fixture, "packages"),
+        resolve(repositoryRoot, "src"),
+        resolve(fixture, "src"),
       );
       const rootConfig = JSON.parse(
         await Deno.readTextFile(resolve(repositoryRoot, "deno.json")),
@@ -749,8 +748,7 @@ Deno.test({
         resolve(project, "tsugiori.ts"),
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineTsugiori, definePipeline } from "@atty303/tsugiori/github-actions";
-import { runTsugiori } from "@atty303/tsugiori/run";
+import { defineTsugiori, definePipeline, runTsugiori } from "@atty303/tsugiori/github-actions";
 const config = defineTsugiori({ pipelines: [definePipeline("ci", {
   output: ".github/workflows/ci.yml", on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({

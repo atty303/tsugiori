@@ -2,7 +2,7 @@ import {
   type ActionContract,
   definePipeline,
   literal,
-} from "../packages/core/src/github_actions/mod.ts";
+} from "../src/github_actions/mod.ts";
 
 const metadata = {
   uses: "acme/publish/sub@v3",

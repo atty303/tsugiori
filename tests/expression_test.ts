@@ -17,10 +17,10 @@ import {
   success,
   toJSON,
 } from "@atty303/tsugiori/github-actions";
-import { lowerConfig } from "../packages/compiler/src/authoring.ts";
-import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
-import { parse } from "../packages/core/src/deps.ts";
-import { emitExpression } from "../packages/core/src/github_actions/expression.ts";
+import { lowerConfig } from "../src/compiler/authoring.ts";
+import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
+import { parse } from "../src/deps.ts";
+import { emitExpression } from "../src/github_actions/expression.ts";
 
 Deno.test("typed expressions compose across job and step fields", async () => {
   const action = {

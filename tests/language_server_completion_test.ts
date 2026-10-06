@@ -98,7 +98,7 @@ Deno.test({
         stream,
         4,
         "empty-pipeline",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty./*completion*/`,
       );
@@ -117,7 +117,7 @@ empty./*completion*/`,
         stream,
         5,
         "job-state",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   job./*completion*/
@@ -138,7 +138,7 @@ empty.job("test", ({ job }) => {
         stream,
         6,
         "execution-state",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const execution = job.runsOn("ubuntu-latest");
@@ -164,7 +164,7 @@ empty.job("test", ({ job }) => {
         stream,
         7,
         "step-state",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 const empty = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 empty.job("test", ({ job }) => {
   const configured = job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" });
@@ -186,7 +186,7 @@ empty.job("test", ({ job }) => {
         stream,
         8,
         "prior-jobs",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 const base = definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },});
 const withTest = base.job("test", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }));
 withTest.job("build", ({ job, jobs }) => {
@@ -201,7 +201,7 @@ withTest.job("build", ({ job, jobs }) => {
         stream,
         9,
         "typed-job-if",
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
   .job("test", ({ job }) => job.runsOn("ubuntu-latest")
     .when((context) => { context./*completion*/; return context.github.ref.eq("main"); })
@@ -226,7 +226,7 @@ definePipeline("ci", { output: ".github/workflows/ci.yml", on: { push: {  } },})
         "workflow_call",
       ];
       const importPipeline =
-        'import { definePipeline } from "../packages/core/src/github_actions/mod.ts";';
+        'import { definePipeline } from "../src/github_actions/mod.ts";';
       for (
         const [index, [name, source, expected]] of [
           [
@@ -346,7 +346,7 @@ const flow = definePipeline("ci", { output: "ci.yml", on: {
         metadataUri,
       );
       const actionSource =
-        `import { definePipeline } from "../packages/core/src/github_actions/mod.ts";
+        `import { definePipeline } from "../src/github_actions/mod.ts";
 import contract from "./__action_metadata.ts";
 const publish = contract;`;
       const actionLabels = await sourceCompletionLabels(
@@ -480,7 +480,7 @@ async function completionLabels(
     id,
     fixtureName,
     [
-      'import type { ExpressionEnvironment } from "../packages/core/src/github_actions/expression_scope.ts";',
+      'import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";',
       `declare const scope: ExpressionEnvironment<${JSON.stringify(scope)}>;`,
       "scope./*completion*/",
     ].join("\n"),

@@ -5,7 +5,7 @@ import {
   defineTsugiori,
   literal,
   toJSON,
-} from "../packages/core/src/github_actions/mod.ts";
+} from "../src/github_actions/mod.ts";
 
 const contract = {
   uses: "acme/publish/path@v4",

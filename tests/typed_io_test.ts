@@ -6,13 +6,10 @@ import {
   jsonValue,
   present,
   textValue,
-} from "../packages/core/src/github_actions/mod.ts";
-import {
-  parseWireValue,
-  serializeValue,
-} from "../packages/core/src/task/mod.ts";
-import { lowerConfig } from "../packages/compiler/src/authoring.ts";
-import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
+} from "../src/github_actions/mod.ts";
+import { parseWireValue, serializeValue } from "../src/task/mod.ts";
+import { lowerConfig } from "../src/compiler/authoring.ts";
+import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { resolve } from "node:path";
 
 const names = jsonValue({
@@ -265,11 +262,9 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
   const directory = await Deno.makeTempDir();
   try {
     const resultPath = resolve(directory, "parsed.json");
-    const core =
-      new URL("../packages/core/src/github_actions/mod.ts", import.meta.url)
-        .href;
-    const runner =
-      new URL("../packages/runner/src/main.ts", import.meta.url).href;
+    const core = new URL("../src/github_actions/mod.ts", import.meta.url)
+      .href;
+    const runner = new URL("../src/runner/main.ts", import.meta.url).href;
     const program = `import {defineTsugiori,definePipeline,jsonValue} from ${
       JSON.stringify(core)
     };
@@ -346,11 +341,9 @@ Deno.test("runner parses JSON input and rejects absent or invalid wire values", 
   const directory = await Deno.makeTempDir();
   try {
     const resultPath = resolve(directory, "parsed.json");
-    const core =
-      new URL("../packages/core/src/github_actions/mod.ts", import.meta.url)
-        .href;
-    const runner =
-      new URL("../packages/runner/src/main.ts", import.meta.url).href;
+    const core = new URL("../src/github_actions/mod.ts", import.meta.url)
+      .href;
+    const runner = new URL("../src/runner/main.ts", import.meta.url).href;
     const program =
       `import {defineTsugiori,definePipeline,jsonValue,rawNode} from ${
         JSON.stringify(core)

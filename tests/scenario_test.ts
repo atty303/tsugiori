@@ -9,7 +9,7 @@ import {
   scenario,
   textValue,
   toJSON,
-} from "../packages/core/src/mod.ts";
+} from "../src/github_actions.ts";
 
 const strings = jsonValue({
   parse(value: unknown): string[] {

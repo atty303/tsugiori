@@ -4,11 +4,11 @@ import type {
   RunDefaults,
   StaticMatrix,
   WorkflowPermissions,
-} from "../../../core/src/github_actions/mod.ts";
+} from "../../github_actions/mod.ts";
 export type {
   WorkflowDispatchInput,
   WorkflowPermissions,
-} from "../../../core/src/github_actions/mod.ts";
+} from "../../github_actions/mod.ts";
 export type WorkflowEvent = PipelineEvent;
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<

@@ -6,12 +6,9 @@ import type {
   JobReference,
   NonEmptyPipelineState,
   NonEmptyStepState,
-} from "../packages/core/src/github_actions/mod.ts";
-import {
-  definePipeline,
-  defineTsugiori,
-} from "../packages/core/src/github_actions/mod.ts";
-import type { ExpressionEnvironment } from "../packages/core/src/github_actions/expression_scope.ts";
+} from "../src/github_actions/mod.ts";
+import { definePipeline, defineTsugiori } from "../src/github_actions/mod.ts";
+import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
   (<Value>() => Value extends Right ? 1 : 2) ? true

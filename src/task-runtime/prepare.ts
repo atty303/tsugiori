@@ -1,6 +1,6 @@
-import type { TsugioriConfig } from "../../core/src/github_actions/mod.ts";
+import type { TsugioriConfig } from "../github_actions/mod.ts";
 import { isAbsolute, relative, resolve, sep } from "node:path";
-import { lowerConfig } from "../../compiler/src/authoring.ts";
+import { lowerConfig } from "../compiler/authoring.ts";
 import {
   sha256File,
   sourceArtifactKey,
@@ -8,7 +8,7 @@ import {
   type TaskArtifactManifest,
   TaskRuntimeError,
 } from "./artifact.ts";
-import { TSUGIORI_PACKAGE_IDENTITY } from "../../core/src/package_identity.ts";
+import { TSUGIORI_PACKAGE_IDENTITY } from "../package_identity.ts";
 import { LocalTaskArtifactCache, removeIfPresent } from "./cache.ts";
 import type { DiagnosticRecorder } from "./diagnostics.ts";
 

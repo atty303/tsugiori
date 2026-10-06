@@ -1,8 +1,8 @@
 import type {
   AuthoringPipeline,
   TsugioriConfig,
-} from "../../core/src/github_actions/mod.ts";
-import type { AuthoringTaskStep } from "../../core/src/github_actions/mod.ts";
+} from "../github_actions/mod.ts";
+import type { AuthoringTaskStep } from "../github_actions/mod.ts";
 import { isAbsolute, relative } from "node:path";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {

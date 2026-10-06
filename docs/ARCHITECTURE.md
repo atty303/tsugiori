@@ -19,9 +19,13 @@ step model and no second delivery backend.
 
 ## Package and authoring
 
-The root `deno.json` defines one Deno package with root, `github-actions`,
-`task`, `testing`, and `run` exports. The root re-exports the full GitHub Actions API and
-`runTsugiori()`; the subpath exports remain available. The authoring API uses
+The root `deno.json` defines one Deno package with no default root export.
+`github-actions` is the provider umbrella for authoring, running, and scenario
+testing. `github-actions/authoring`, `github-actions/run`, and
+`github-actions/testing` support selective imports; `task` exposes common task
+contracts. These entrypoints share a responsibility-based `src/` tree. A future
+provider can have its own entrypoint and import graph without changing the
+GitHub Actions entrypoint. The authoring API uses
 immutable facades: `definePipeline()` groups trigger settings under a native
 `on` object; job methods become available as the definition advances, and
 only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
@@ -35,8 +39,8 @@ call inputs retain their declared primitive types.
 Authoring and task execution share a config file. The file exports a config
 object and calls `runTsugiori()` under `import.meta.main`, passing that object,
 its URL, and the repository root. The Deno project containing that file owns
-import resolution and its lockfile. External projects can map the root to one
-commit-pinned source URL; the YAML dependency uses a direct `jsr:` specifier in
+import resolution and its lockfile. External projects can map the package name
+to one JSR version; the YAML dependency uses a direct `jsr:` specifier in
 the package source. The runner consumes the object in-process;
 it does not load it again or parse the project's Deno configuration. Top-level
 code constructs the workflow definition; task callbacks run only through the

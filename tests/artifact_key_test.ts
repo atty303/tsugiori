@@ -2,7 +2,7 @@ import { assertEquals, assertNotEquals } from "@std/assert";
 import {
   sourceArtifactKey,
   TASK_ARTIFACT_FORMAT_VERSION,
-} from "../packages/task-runtime/src/artifact.ts";
+} from "../src/task-runtime/artifact.ts";
 
 Deno.test("source artifact key changes only across explicit identity axes", async () => {
   const baseline = {

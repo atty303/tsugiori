@@ -7,7 +7,7 @@ import {
   type TestStepShape,
   type TestStepsOf,
   type TsugioriConfig,
-} from "../../core/src/github_actions/mod.ts";
+} from "../github_actions/mod.ts";
 import { runScenario } from "./run.ts";
 
 /** Optional host-owned diagnostic sink. No input, environment, secret, expression or fixture values are recorded.

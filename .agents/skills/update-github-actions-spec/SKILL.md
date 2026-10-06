@@ -7,7 +7,7 @@ description: TsugioriのGitHub Actions仕様snapshotを明示的に更新し、�
 
 ## Establish the update
 
-- Apply the repository's development and design-review guidance. Read `docs/GITHUB_ACTIONS_SPEC.md` and `packages/core/src/github_actions/github_spec.json`. Preserve its source/coverage ownership; use Git history for the previous accepted baseline. On initial introduction with no accepted baseline in history, explicitly report that no previous-baseline comparison is available; do not treat an uncommitted draft as accepted history.
+- Apply the repository's development and design-review guidance. Read `docs/GITHUB_ACTIONS_SPEC.md` and `src/github_actions/github_spec.json`. Preserve its source/coverage ownership; use Git history for the previous accepted baseline. On initial introduction with no accepted baseline in history, explicitly report that no previous-baseline comparison is available; do not treat an uncommitted draft as accepted history.
 - Identify the requested GitHub.com source revision or verification scope. Do not infer permission to implement every new GitHub feature, fetch specifications during normal generation, or change Glaze, GHES support, dependencies or remote refs.
 
 ## Retrieve and freeze sources

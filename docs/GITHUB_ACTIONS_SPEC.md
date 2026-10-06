@@ -1,6 +1,6 @@
 # GitHub Actions specification basis
 
-[The checked-in snapshot](../packages/core/src/github_actions/github_spec.json)
+[The checked-in snapshot](../src/github_actions/github_spec.json)
 owns the GitHub.com verification date, immutable `github/docs` revision, source
 paths and SHA-256 digests, package version, source reconciliation and item-level
 coverage. `githubActionsSpec` exposes that same data to consumers. A release
@@ -22,7 +22,7 @@ and Tsugiori's retained limits.
 An implemented syntax field means Tsugiori can emit native YAML. It does not
 mean GitHub authorization, runner availability or remote execution has been
 validated. Expression context availability is owned by
-[the scope catalog](../packages/core/src/github_actions/expression_scope.ts); a
+[the scope catalog](../src/github_actions/expression_scope.ts); a
 catalog entry alone does not make its workflow field available in the public
 API. The coverage inventory owns the public capability assessment.
 

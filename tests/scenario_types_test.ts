@@ -1,11 +1,11 @@
-import { scenario } from "../packages/testing/src/mod.ts";
+import { scenario } from "../src/testing/mod.ts";
 import {
   definePipeline,
   fromJSON,
   jsonValue,
   present,
   toJSON,
-} from "../packages/core/src/mod.ts";
+} from "../src/github_actions.ts";
 
 function assertScenarioTypes(): void {
   const numberValue = jsonValue({

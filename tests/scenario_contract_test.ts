@@ -7,7 +7,7 @@ import {
   rawExpression,
   scenario,
   textValue,
-} from "../packages/core/src/mod.ts";
+} from "../src/github_actions.ts";
 
 const countValue = jsonValue({
   parse(value: unknown): number {

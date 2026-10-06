@@ -931,7 +931,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
  * ```ts
  * const value = {
  *   shell: "bash",
- *   workingDirectory: "packages/core",
+ *   workingDirectory: "src",
  * } satisfies RunDefaults;
  * ```
  */
@@ -943,7 +943,7 @@ export type RunDefaults = Readonly<
      * ```ts
      * const value = {
      *   shell: "bash",
-     *   workingDirectory: "packages/core",
+     *   workingDirectory: "src",
      * } satisfies RunDefaults;
      * ```
      */
@@ -954,7 +954,7 @@ export type RunDefaults = Readonly<
      * ```ts
      * const value = {
      *   shell: "bash",
-     *   workingDirectory: "packages/core",
+     *   workingDirectory: "src",
      * } satisfies RunDefaults;
      * ```
      */
@@ -2067,7 +2067,7 @@ export type RunStepDefinition<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Build",
        *   run: "deno test",
-       *   workingDirectory: "packages/core",
+       *   workingDirectory: "src",
        * });
        * ```
        */
@@ -2508,7 +2508,7 @@ export interface ExecutionJobState<
    * ```ts
    * job.runsOn("ubuntu-latest").defaultsRun({
    *   shell: "bash",
-   *   workingDirectory: "packages/core",
+   *   workingDirectory: "src",
    * });
    * ```
    */
@@ -2521,7 +2521,7 @@ export interface ExecutionJobState<
          * ```ts
          * job.runsOn("ubuntu-latest").defaultsRun({
          *   shell: "bash",
-         *   workingDirectory: "packages/core",
+         *   workingDirectory: "src",
          * });
          * ```
          */
@@ -2542,7 +2542,7 @@ export interface ExecutionJobState<
          * ```ts
          * job.runsOn("ubuntu-latest").defaultsRun({
          *   shell: "bash",
-         *   workingDirectory: "packages/core",
+         *   workingDirectory: "src",
          * });
          * ```
          */

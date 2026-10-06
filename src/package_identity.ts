@@ -1,4 +1,4 @@
-import metadata from "../../../deno.json" with { type: "json" };
+import metadata from "../deno.json" with { type: "json" };
 
 export const TSUGIORI_PACKAGE_NAME = metadata.name;
 export const TSUGIORI_PACKAGE_VERSION = metadata.version;

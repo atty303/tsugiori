@@ -14,10 +14,10 @@ import {
 import {
   AuthoringValidationError,
   lowerConfig,
-} from "../packages/compiler/src/authoring.ts";
-import { emitWorkflow } from "../packages/compiler/src/github_actions/emitter.ts";
+} from "../src/compiler/authoring.ts";
+import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { pathToFileURL } from "node:url";
-import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
+import { writeGeneratedFiles } from "../src/compiler/write.ts";
 
 Deno.test("native deployment fields remain visible in generated Actions YAML", async () => {
   const deploy = definePipeline("deploy", {

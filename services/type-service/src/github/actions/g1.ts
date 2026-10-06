@@ -1,5 +1,5 @@
 import { parse } from "../../deps.ts";
-import type { ActionContract } from "../../../../../packages/core/src/github_actions/action_contract.ts";
+import type { ActionContract } from "../../../../../src/github_actions/action_contract.ts";
 import { ServiceError } from "../../errors.ts";
 
 // g1 is immutable: changes that alter emitted bytes require a new generator module.

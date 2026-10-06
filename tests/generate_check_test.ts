@@ -1,8 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import { resolve } from "node:path";
-import { checkGeneratedFiles } from "../packages/compiler/src/check.ts";
-import type { GeneratedFile } from "../packages/compiler/src/generator.ts";
-import { writeGeneratedFiles } from "../packages/compiler/src/write.ts";
+import { checkGeneratedFiles } from "../src/compiler/check.ts";
+import type { GeneratedFile } from "../src/compiler/generator.ts";
+import { writeGeneratedFiles } from "../src/compiler/write.ts";
 
 const owner = "./.github/tsugiori.ts";
 const firstPath = ".github/workflows/first.yml";
