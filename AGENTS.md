@@ -8,11 +8,11 @@ provider backend is GitHub Actions. Preserve these constraints in changes:
 - Compile to standard `.github/workflows/*.yml`; GitHub Actions owns
   orchestration and execution.
 - Keep provider-native jobs and steps visible. Task-backed steps invoke the
-  compiled task runtime through distinct normal Actions steps; task bodies
-  stay out of generated YAML.
-- Use provider-native authoring terms: `workflow`, `job`, and `step` for
-  GitHub Actions. Preserve each provider's native concepts; do not introduce
-  a provider-neutral CI model or one opaque command that hides the job graph.
+  compiled task runtime through distinct normal Actions steps; task bodies stay
+  out of generated YAML.
+- Use provider-native authoring terms: `workflow`, `job`, and `step` for GitHub
+  Actions. Preserve each provider's native concepts; do not introduce a
+  provider-neutral CI model or one opaque command that hides the job graph.
 - Commit generated workflow YAML and use `generate --check` as the CI stale
   output guard. Local hooks are a convenience.
 - Keep the implemented task preparation lifecycle owned by the GitHub Actions
@@ -46,6 +46,30 @@ versions and superseded decisions. Do not add historical decision records.
 - Keep host-language conditions distinct from GitHub runtime expressions.
 - Add focused compiler, expression, and validation tests when changing those
   capabilities.
+
+## Public API documentation
+
+- Treat JSDoc as the detailed JSR public documentation. Every API reachable from
+  deno.json exports, including functions, methods, types and properties, must
+  have JSDoc; add or update it in the same change as a new or changed API.
+- Explain how consumers use the API without decoding complex types:
+  prerequisites, immutable state order, callback context and return value,
+  evaluation timing, contracts, defaults, effects, errors and validation limits
+  where relevant.
+- Functions and methods require local call examples. Properties accepting
+  callbacks or expressions require setting examples. Simple literal properties
+  need accurate descriptions, not mandatory examples. State setup prerequisites
+  in prose and links instead of making each example independently executable.
+- Center GitHub DSL docs on Tsugiori usage. Distinguish host authoring
+  callbacks, GitHub runtime expressions/settings and task/scenario contracts;
+  retain fixed GitHub specification sources, relevant semantics and attribution.
+- Collect shared concepts in module or owning API docs and link related APIs so
+  the JSR documentation is coherent. README owns getting started and navigation;
+  API docs own detailed usage/specification. Do not optimize for short IDE
+  hovers at the expense of public documentation completeness.
+- Typecheck the actual published TypeScript code blocks, supplying prerequisites
+  only in the verification harness. Do not verify separate copied examples or
+  disable type checking to accommodate documentation.
 
 ## Verification
 
