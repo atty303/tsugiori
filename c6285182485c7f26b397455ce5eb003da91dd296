@@ -1,0 +1,178 @@
+Task: Versioned action type service with SHA-pinned execution and original-ref comments
+Anchor: c6285182485c7f26b397455ce5eb003da91dd296
+Base: bca656d762086d8fd9b1862ca6ba84d2bb35e07f
+Branch: main
+Commits: c6285182485c7f26b397455ce5eb003da91dd296 (service protocol, contract, compiler, docs and tests)
+Guidance: AGENTS.md; dig; develop-repository; design-program-observability; design-review; review; Git task evidence
+Conditions: Current checkout initially clean; Deno 2.9.5 via mise; feat minor approved; local implementation only; complete thread retrieval 8 pages 77 turns; existing prior commits preserved
+Authority: User design decisions, explicit implementation request and minor release approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) type serviceの余分なredirectをなくしたい。tag指定でredirectするのはいいがhash指定でもredirectしているのは想定外
+    
+  - A: Used dig to inspect service routing, generator, GitHub client, cache and Deno integration tests; began generator-version decision.
+- U2:
+    g1をURLに含める実質的なメリットはあるか？
+    
+  - A: Explained generator version as immutable URL identity and maintenance boundary.
+- U3:
+    「異なる生成方式で同時に提供」これはわかるが、これができて利用者にメリットがあるのか？
+    
+  - A: Compared version retention costs and benefits for locked users.
+- U4:
+    checksumが変わるとlockfile更新しないとinstall不可能になるか？
+    
+  - A: Verified Deno 2.9.5 locally: changed same-URL bytes fail checksum even with frozen=false or reload; warm cache retains old bytes.
+- U5:
+    じゃあservice都合で生成が変化すると利用者に影響が出るわけだ。redirectならlock作成時のchecksumに固定されて、g2にserviceを更新しても利用者はg1をinstall続けることができる？ でもそれってtype-serviceがg1,g2を両方提供し続けないといけないよね
+    
+  - A: Confirmed locked redirects retain resolved generator URLs only while those contracts remain served.
+- U6:
+    service側の保守コストと利用者のコストを鑑みるとshaはredirectなし、URLに生成器バージョンを明示するのがいいのではないか
+    
+  - A: Proposed explicit generator version and direct SHA response; asked about pinning generated uses.
+- U7:
+    A. こうするとactionsもdeno lockfileで管理可能になるよな？
+  - A: Agreed metadata and execution SHA should be aligned through the locked module.
+- U8:
+    B. なおcontractにはtagを残す。生成yamlのuses行にはコメントでtagを併記すると親切だ
+    
+  - A: User rejected old-route compatibility and requested original tag retained as YAML comment.
+- U9:
+    A
+    
+  - A: Confirmed original ref travels in the redirect target query and remains annotation only.
+- U10:
+    B.  g1はv1にしてくれ
+    
+  - A: Selected v1 naming and asked whether deployment and repository migration belong in scope.
+- U11:
+    A
+    
+  - A: Selected local implementation and verification only; deployment and own import migration deferred.
+- U12:
+    B. deno.jsonにactions importを書く時の標準形式を決めたい
+    
+  - A: Discussed stable import keys with version/ref only on the URL.
+- U13:
+    B. @でprefixするのは一般的な慣習か？
+    
+  - A: Checked npm and Deno official alias guidance; @scope is package convention, arbitrary mappings permitted.
+- U14:
+    atmark以外に適切なprefixはあるか？
+    
+  - A: Compared candidate prefix words.
+- U15:
+    atmark以外の記号という意味だ
+    
+  - A: Corrected to symbols; locally verified #, ~, $ import aliases and checked official conventions.
+- U16:
+    #actionsにする。これは推奨としてdocsに書くが強制ではない
+    
+  - A: Selected #actions recommendation without enforcement.
+- U17:
+    A
+    
+  - A: Produced standalone implementation request fixing URL, pinning, annotation, old-route removal and no-deploy boundary.
+- U18:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の type-service を、生成器 version を明示した URL 体系に変更してください。40 桁 SHA 指定では redirect を省き、tag／branch 指定では解決済み SHA に固定してください。元の ref を contract に保持し、生成 YAML の `uses` 行へコメントとして併記してください。
+    
+    ## 目的
+    - SHA 指定時の不要な ref 解決と HTTP redirect をなくす。
+    - Deno lockfile で metadata と Action の実行 SHA を一緒に固定できるようにする。
+    - 生成器の変更で既存利用者の checksum が変わらない公開境界を作る。
+    - SHA 固定した生成 YAML でも、元の tag／branch を読み取れるようにする。
+    
+    ## 成功条件
+    - 公開入口が `/github/actions/v1/<owner>/<repo>[/path]@<ref>` になる。
+    - 40 桁 SHA 指定は GitHub の ref 解決 API と redirect を経由せず、直接 TypeScript module を返す。
+    - tag／branch 指定は解決済み SHA の URL へ redirect し、query の `ref` に元の参照を保持する。
+      - 例: `/github/actions/v1/actions/checkout@<SHA>?ref=v4`
+    - contract の `uses` が `<owner>/<repo>[/path]@<SHA>` になり、元の ref 情報も保持される。
+    - 生成 YAML に `uses: actions/checkout@<SHA> # v4` のようなコメントが付く。
+    - SHA 直接指定で元の ref 情報がない場合、および明示的な `uses` 上書きで実行対象が変わった場合は、誤った ref コメントを付けない。
+    - 旧 `/github/actions/<uses>` と `/_resolved/g1/...` の URL は提供しない。
+    - README・Architecture・関連ドキュメントと検証用 fixture が新しい契約を使う。
+    - `#actions/<owner>/<repo>[/path]` を import mapping の推奨規約として文書化する。alias を強制・検証しない。
+    - ローカル HTTP service を使った Deno の初回取得・lockfile 作成・空 cache からの frozen 取得が通る。
+    - リポジトリの check と test、生成 workflow の鮮度確認が通る。
+    
+    ## 決定事項
+    - 生成器 version を公開 URL に明示し、新体系の最初の version を `v1` とする。
+      - 理由: 利用者が生成契約を直接選べるようにし、SHA 指定の redirect を省く。
+      - 主な棄却案: unversioned URL から生成器付き URL へ一律 redirect する案。SHA 指定にも余分な request が必要になる。
+    - `v1` の生成結果を維持し、将来の生成契約変更は別 version で提供する。
+      - 理由: 同じ URL の生成結果が変わると、既存 lockfile の integrity 検証が失敗する。
+      - 主な棄却案: 同じ URL で常に最新生成器を使う案。サービス都合の変更で利用者に lockfile 更新を要求する。
+    - 公開済みの `g1` を新体系へ引き継がず、`v1` として契約を定め直す。
+      - 理由: 今回は URL と contract を整理し、旧体系との互換性を維持しない。
+      - 主な棄却案: 新体系を `g2` とする案。旧体系の命名を継続する必要がない。
+    - tag／branch は SHA URL へ redirect し、生成 contract の `uses` も SHA に固定する。
+      - 理由: Deno lockfile が保持する metadata の解決先と、生成 YAML の実行対象を揃える。
+      - 主な棄却案: `uses` に元の tag を残す案。実行時に tag が移動すると、metadata と実行対象がずれる。
+    - 元の ref を query の `ref` で redirect 先へ渡し、contract と YAML コメントに保持する。
+      - 理由: SHA URL だけでは元の tag／branch を復元できない。
+      - 主な棄却案: 解決済み SHA と元の ref を両方 path に置く案。SHA 直接指定の URL まで複雑になる。
+    - `#actions/<owner>/<repo>[/path]` を文書上の推奨 alias にする。
+      - 理由: project 内 alias として識別しやすく、Action の場所も読み取れる。
+      - 主な棄却案: `@actions/...` は npm scope と似た表記になる。alias の強制は利用者の命名自由度を減らす。
+    - 旧 URL の互換 route は残さない。
+      - 理由: 新しい公開構造へ整理する。
+      - 主な棄却案: 旧 URL を維持する案。旧契約の保守が継続する。
+    - 今回は実装・文書・ローカル検証までとする。
+      - 理由: 新 URL を公式 service へ公開する前に、自身の設定を切り替えると cold fetch や CI が失敗する。
+      - 主な棄却案: 今回 deploy と自身の設定移行まで行う案。外部公開を含む別作業として扱う。
+    
+    ## 制約
+    - 変更は `/Users/a13400/src/atty303/tsugiori` 内に限定する。
+    - 現在の checkout で作業し、既存の unrelated な変更を保持する。複数の source・test・設定ファイルに既存変更があるため、開始時に差分を確認する。
+    - 公式ホストは `https://tsugiori.atty303.workers.dev` を維持する。
+    - GitHub Actions の workflow graph、task entrypoint、task artifact の実行方式を変更しない。
+    - Action metadata contract の既存 input／output 型推論と、明示的な `uses` 上書きを維持する。
+    - YAML コメントは実行する `uses` の値を変更せず、元の ref を安全に一行で表現する。
+    - 自身の `.github/deno.json` の公式 service import を、未公開の新 URL に切り替えない。
+    - publish、release、deploy、push、PR 作成、外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - 旧 URL・旧 lockfile の互換性維持。
+    - 公式 service の公開と自身の import mapping・lockfile の移行。
+    - Action 更新用 CLI や dependency updater の追加。
+    - GitLab backend や新しい type-service resource の追加。
+    - 生成 module の永続保存基盤、サービス可用性や GitHub 上の元データの永続保証。
+    
+    ## 未検証の前提
+    - 現在の authoring・compiler・YAML emitter の構造で、元の ref 情報を保持し、安全な inline コメントとして出力できること。
+    - query 付き SHA URL を Deno が redirect 先・checksum として保持し、空 cache から同じ module を取得できること。
+    - 関連する既存作業ツリー変更との境界を確定できること。
+    
+    ## 実装時の指示
+    - HTTP routing、ref 解析、GitHub client、cache identity、generator、ActionContract、authoring、lowering、YAML emitter、テストを調査し、一貫して更新する。
+    - 40 桁 SHA と解決が必要な ref を区別し、短縮 SHA は解決が必要な ref として扱う。SHA 直接指定では ref 解決 API が呼ばれないことを検証する。
+    - 元の ref 用 query は注記情報として扱い、metadata の取得対象と実行 SHA は URL の SHA から決める。
+    - query の encoding・validation・cache identity を整合させる。同じ SHA でも元の ref が異なれば contract の内容と checksum が異なる。
+    - mutable ref の redirect cache と、SHA module の長期 cache の役割を維持し、GET／HEAD、エラー時の no-store、観測・credential の契約を保つ。
+    - 旧 route、旧 generator 名、旧仕様に依存するテスト・文書を整理し、互換 alias を追加しない。
+    - README の推奨例は次の形にする。別 alias と直接 URL import も許容することを記す。
+    
+      ```json
+      {
+        "imports": {
+          "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v4"
+        }
+      }
+      ```
+    
+    - ローカル HTTP fixture で、tag／branch の redirect、SHA の直接応答、contract の SHA と元の ref、YAML コメント、Deno lockfile の redirect・checksum、cold frozen 取得を検証する。
+    - 明示的な `uses` 上書き、query の特殊文字、不正入力、未知の generator version、旧 URL の廃止を検証する。
+    - `mise run check`、`mise run test`、生成 workflow の check を実施する。生成 YAML の変更が必要なら現在の設定ソースから再生成し、差分を確認する。
+    - 公式ホストで新 URL が動作したとは主張しない。公開と自身の設定移行に必要な後続作業を完了報告に示す。
+    
+  - A: Applied develop-repository, observability and design-review. Verified initial clean main at bca656d; fetched remote code and notes. Implemented versioned routing, SHA pinning, originalRef propagation and safe YAML comments; updated docs and fixtures. Requested feat minor commit approval.
+- U19:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_JsXjLgUvRTZeD6gPbShbEWT9\",0]","question":"develop-repository の規則による commit 影響の確認です。基準 release は v0.4.0、今回の URL・contract 変更は `feat`（最大 minor release）として記録してよいですか？ 実装・検証は回答を待たず進めます。","answer":"はい、minor release を承認"}]
+    </send_user_message_question_reply>
+  - A: Minor approval received. Focused tests12, standard check, all tests102, Worker upload dry-run and generated freshness passed. Fresh read-only review found no actionable issues. Committed c628518; generated workflows and own official import mappings/lock unchanged. Added deployment/migration follow-up in existing roadmap. No publish, deploy, push or external edits.
