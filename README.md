@@ -120,6 +120,28 @@ Workflow paths are relative to this Deno project directory. GitHub Actions owns
 job and step execution; top-level TypeScript constructs definitions, and task
 bodies run on the prepared task runtime.
 
+## API documentation
+
+The [JSR API reference](https://jsr.io/@atty303/tsugiori/doc) contains detailed
+usage, contracts, examples and supported limits:
+
+- [Authoring](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring):
+  workflow/job/step order, typed expressions, reusable workflows and composite
+  output declaration, mapping and references.
+- [Generation and CLI](https://jsr.io/@atty303/tsugiori/doc/github-actions/run):
+  commands, paths, Action import mappings, task preparation and diagnostics.
+- [Scenario testing](https://jsr.io/@atty303/tsugiori/doc/github-actions/testing):
+  fixtures, expectations, reusable calls and verification limits.
+- [Task contracts](https://jsr.io/@atty303/tsugiori/doc/task): native inputs,
+  output writers, text/JSON validation and serialization.
+
+The umbrella `/github-actions` entrypoint re-exports the primary authoring,
+runner and scenario APIs. The package has no root export. Releases on
+[JSR](https://jsr.io/@atty303/tsugiori) also have matching source archives on
+GitHub Releases. [Specification coverage](docs/GITHUB_ACTIONS_SPEC.md) records
+the frozen GitHub.com basis; it does not prove hosted execution or
+authorization.
+
 ## How it compares
 
 Several OSS tools let you describe automation in a programming language.
@@ -147,25 +169,3 @@ preparation, rather than benchmarked performance.
 Task artifacts currently support Linux and macOS runners. See
 [specification coverage](docs/GITHUB_ACTIONS_SPEC.md) for the supported GitHub
 Actions authoring surface.
-
-## API documentation
-
-The [JSR API reference](https://jsr.io/@atty303/tsugiori/doc) contains detailed
-usage, contracts, examples and supported limits:
-
-- [Authoring](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring):
-  workflow/job/step order, typed expressions, reusable workflows and composite
-  output declaration, mapping and references.
-- [Generation and CLI](https://jsr.io/@atty303/tsugiori/doc/github-actions/run):
-  commands, paths, Action import mappings, task preparation and diagnostics.
-- [Scenario testing](https://jsr.io/@atty303/tsugiori/doc/github-actions/testing):
-  fixtures, expectations, reusable calls and verification limits.
-- [Task contracts](https://jsr.io/@atty303/tsugiori/doc/task): native inputs,
-  output writers, text/JSON validation and serialization.
-
-The umbrella `/github-actions` entrypoint re-exports the primary authoring,
-runner and scenario APIs. The package has no root export. Releases on
-[JSR](https://jsr.io/@atty303/tsugiori) also have matching source archives on
-GitHub Releases. [Specification coverage](docs/GITHUB_ACTIONS_SPEC.md) records
-the frozen GitHub.com basis; it does not prove hosted execution or
-authorization.
