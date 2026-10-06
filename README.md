@@ -29,7 +29,7 @@ change: major).
 
 ## Use the repository workflow
 
-The checked-in [.github/pipelines.ts](.github/pipelines.ts) is the source for
+The checked-in [.github/workflows.ts](.github/workflows.ts) is the source for
 [.github/workflows/ci.yml](.github/workflows/ci.yml). Its Deno project is
 [.github/deno.json](.github/deno.json), which imports this repository's
 provider entrypoint through the local workspace package. From `.github`, generate and
@@ -57,9 +57,9 @@ An authoring file imports the GitHub Actions API and runner from the
 when executed:
 
 ```ts
-import { definePipeline, defineProject, runProject } from "@atty303/tsugiori/github-actions";
+import { defineWorkflow, defineProject, runProject } from "@atty303/tsugiori/github-actions";
 
-const ci = definePipeline("ci", {
+const ci = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
   on: { push: {}, pull_request: {} },
   permissions: { contents: "read" },
@@ -78,7 +78,7 @@ const ci = definePipeline("ci", {
     },
   }));
 
-const config = defineProject({ cacheVersion: 1, pipelines: [ci] });
+const config = defineProject({ cacheVersion: 1, workflows: [ci] });
 export default config;
 
 if (import.meta.main) {
@@ -107,8 +107,8 @@ and advanced subpath imports resolve through this single mapping:
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A ./pipelines.ts generate",
-    "generate:check": "deno run --frozen=true -A ./pipelines.ts generate --check"
+    "generate": "deno run --frozen=true -A ./workflows.ts generate",
+    "generate:check": "deno run --frozen=true -A ./workflows.ts generate --check"
   }
 }
 ```
@@ -127,7 +127,7 @@ Task-backed jobs include visible artifact-key, `actions/cache`, and preparation
 steps before the task invocation. The generated cache step can restore a
 matching artifact; on a successful cache miss, its post action can save it.
 The prepared binary is invoked as `./.tsugiori/task-runtime
-<pipeline-id>/<job-id>/task-<ordinal>`. The current binary is compiled with
+<workflow-id>/<job-id>/task-<ordinal>`. The current binary is compiled with
 Deno `-A` and targets POSIX invocation; Windows task artifacts are rejected.
 
 The artifact key follows repository-local source modules, target platform,
@@ -139,7 +139,7 @@ for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
 Run the repository checks with `mise run check` and `mise run test` from the
 repository root.
 
-## Test pipeline logic
+## Test workflow logic
 
 Use `scenario()` inside `Deno.test` to check the lowered GitHub Actions
 workflow without running authored steps or task bodies. Give referenced
@@ -152,7 +152,7 @@ later steps and jobs. Action and run-step outputs are strings.
 import { scenario } from "@atty303/tsugiori/github-actions";
 
 Deno.test("deploy failure reaches completion", async () => {
-  await scenario(deployPipeline, (test) => {
+  await scenario(deployWorkflow, (test) => {
     test.github({ event_name: "push", ref: "refs/heads/master", event: {} });
     test.job("detect", (job) => {
       job.step("plan").fixture({ outputs: { stages: ["dev", "prd"] } });
@@ -174,8 +174,8 @@ Deno.test("deploy failure reaches completion", async () => {
 ```
 
 The snippet shows the shape of a scenario; supply fixtures for every other
-reached authored step and all required task outputs in a real pipeline. The
-pipeline type supplies job and step IDs, task input and output values, and
+reached authored step and all required task outputs in a real workflow. The
+workflow type supplies job and step IDs, task input and output values, and
 matrix values to the editor and type checker. `fixture()` supplies values;
 `expectRun()`, `expectSkip()`, `expectInputs()`, `expectOutputs()`, and
 `expectResult()` check independent expectations. Expectations are optional.
@@ -189,7 +189,7 @@ as `job.step("build").expression("if", true)` or
 `job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
 an error. Generated task preparation steps succeed by default and can be
 overridden with `job.internal("prepare", "failure")`. Failures identify the
-definePipeline, job, matrix, step, and field, and distinguish missing or invalid
+defineWorkflow, job, matrix, step, and field, and distinguish missing or invalid
 fixtures, expression errors, and expectation mismatches.
 
 This test covers trigger filters, conditions, matrix expansion, `needs`,
@@ -205,7 +205,7 @@ contexts available at its GitHub Actions field. Step callbacks see only earlier
 step IDs; dependent jobs see only declared outputs from their dependencies.
 
 ```ts
-import { definePipeline, fromJSON, jsonValue, present, rawNode } from "@atty303/tsugiori/github-actions";
+import { defineWorkflow, fromJSON, jsonValue, present, rawNode } from "@atty303/tsugiori/github-actions";
 
 const stages = jsonValue({
   parse(value: unknown): readonly string[] {
@@ -216,7 +216,7 @@ const stages = jsonValue({
   },
 });
 
-const first = definePipeline("deploy", {
+const first = defineWorkflow("deploy", {
   output: ".github/workflows/deploy.yml",
   on: { push: {} },
 }).job("prepare", ({ job }) =>
@@ -291,7 +291,7 @@ host; this repository does not supply a deployed endpoint.
 ```ts
 import checkout from "https://<host>/github/actions/actions/checkout@v4";
 
-// In a pipeline job callback:
+// In a workflow job callback:
 job.runsOn("ubuntu-latest").uses(checkout, {
   id: "checkout",
   name: "Checkout",
@@ -383,15 +383,15 @@ retains the locked redirect. An import ref change creates a new entry URL.
 ## Reusable workflows and the specification basis
 
 Tsugiori emits native reusable workflow files and caller jobs. Include each
-local callee in the same config. Calling a local pipeline checks input names,
+local callee in the same config. Calling a local workflow checks input names,
 primitive types and required values, explicit secrets and declared output
 references. `secrets: "inherit"` forwards one hop; it cannot prove repository
 secret availability or organization/enterprise eligibility.
 
 ```ts
-import { definePipeline, defineProject } from "@atty303/tsugiori/github-actions";
+import { defineWorkflow, defineProject } from "@atty303/tsugiori/github-actions";
 
-const definition = definePipeline("build", {
+const definition = defineWorkflow("build", {
   output: ".github/workflows/build.yml",
   on: {
     workflow_call: {
@@ -413,7 +413,7 @@ const build = definition.job("build", ({ job }) =>
     .outputs(({ steps }) => ({ message: steps.build.outputs.message })))
   .workflowOutputs(({ jobs }) => ({ message: jobs.build.outputs.message }));
 
-const ci = definePipeline("ci", {
+const ci = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
   on: { push: { branches: ["main"], tags: ["v*"] } },
 }).job("build", ({ job }) =>
@@ -422,10 +422,10 @@ const ci = definePipeline("ci", {
     secrets: "inherit",
   }));
 
-export default defineProject({ pipelines: [ci, build] });
+export default defineProject({ workflows: [ci, build] });
 ```
 
-`definePipeline()` takes a nonempty `on` object with supported event keys;
+`defineWorkflow()` takes a nonempty `on` object with supported event keys;
 use `{}` for an event without settings. String and array trigger shorthands
 are not accepted. Dispatch inputs belong in `on.workflow_dispatch.inputs`;
 call inputs, secrets and outputs belong in `on.workflow_call`.
@@ -451,7 +451,7 @@ A static platform matrix can use `strategy({ matrix: { include: rows } })`. Row
 fields supply typed matrix references. Configure strategy before
 `.runsOn(({ matrix }) => matrix.runner)` or other matrix-dependent fields.
 `.runsOn(["self-hosted", "linux"])` emits conjunctive runner labels. `.env()`
-defines job env; workflow env belongs in pipeline options. Job `.defaultsRun()`
+defines job env; workflow env belongs in workflow options. Job `.defaultsRun()`
 emits native defaults, and a run step's `shell` and `workingDirectory` override
 them. Step `timeoutMinutes` accepts an integer or an expression callback.
 PR/PR-target `types`, push tags, dispatch choice/options, `runName`, job

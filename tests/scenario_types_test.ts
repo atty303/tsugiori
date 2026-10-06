@@ -1,6 +1,6 @@
 import { scenario } from "../src/testing/mod.ts";
 import {
-  definePipeline,
+  defineWorkflow,
   fromJSON,
   jsonValue,
   present,
@@ -14,7 +14,7 @@ function assertScenarioTypes(): void {
       return value;
     },
   });
-  const flow = definePipeline("typed-scenario", {
+  const flow = defineWorkflow("typed-scenario", {
     on: { push: {} },
     output: ".github/workflows/typed-scenario.yml",
   }).job("count", ({ job }) =>
@@ -28,7 +28,7 @@ function assertScenarioTypes(): void {
         run: () => {},
       }));
   void scenario(flow, (test) => {
-    // @ts-expect-error job IDs come from the pipeline
+    // @ts-expect-error job IDs come from the workflow
     test.job("unknown", () => {});
     test.job("count", (job) => {
       // @ts-expect-error matrix keys come from the strategy
@@ -61,7 +61,7 @@ function assertTypedMatrixFromOutput(): void {
       });
     },
   });
-  const detected = definePipeline("matrix-output", {
+  const detected = defineWorkflow("matrix-output", {
     on: { push: {} },
     output: ".github/workflows/matrix-output.yml",
   }).job("detect", ({ job }) =>

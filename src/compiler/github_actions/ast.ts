@@ -1,15 +1,14 @@
 import type {
-  PipelineEvent,
-  PipelineTriggers,
   RunDefaults,
   StaticMatrix,
   WorkflowPermissions,
+  WorkflowTriggers,
 } from "../../github_actions/mod.ts";
 export type {
   WorkflowDispatchInput,
   WorkflowPermissions,
 } from "../../github_actions/mod.ts";
-export type WorkflowEvent = PipelineEvent;
+export type { WorkflowEvent } from "../../github_actions/mod.ts";
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<
   { group: string; cancelInProgress: boolean; queue?: "max" }
@@ -93,7 +92,7 @@ export type Job =
 
 export type Workflow = Readonly<{
   name: string;
-  on: PipelineTriggers;
+  on: WorkflowTriggers;
   runName?: string;
   env?: EnvironmentVariables;
   concurrency?: Concurrency;

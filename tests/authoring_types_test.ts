@@ -1,13 +1,13 @@
 import type {
   AvailableJobState,
-  EmptyPipelineState,
+  EmptyWorkflowState,
   ExecutionJobState,
   FinalizedJobState,
   JobReference,
-  NonEmptyPipelineState,
   NonEmptyStepState,
+  NonEmptyWorkflowState,
 } from "../src/github_actions/mod.ts";
-import { definePipeline, defineProject } from "../src/github_actions/mod.ts";
+import { defineProject, defineWorkflow } from "../src/github_actions/mod.ts";
 import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
@@ -16,13 +16,13 @@ type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
 type Expect<Value extends true> = Value;
 type StringKeys<Value> = Extract<keyof Value, string>;
 
-type _EmptyPipelineSurface = Expect<
-  Equal<StringKeys<EmptyPipelineState<"ci">>, "job" | "inputs">
+type _EmptyWorkflowSurface = Expect<
+  Equal<StringKeys<EmptyWorkflowState<"ci">>, "job" | "inputs">
 >;
-type _NonEmptyPipelineSurface = Expect<
+type _NonEmptyWorkflowSurface = Expect<
   Equal<
     StringKeys<
-      NonEmptyPipelineState<
+      NonEmptyWorkflowState<
         "ci",
         { test: JobReference<"ci", "test"> }
       >
@@ -116,12 +116,12 @@ function assertAuthoringContracts(): void {
     outputs: { revision: { description: "Revision" } },
   } as const;
 
-  const empty = definePipeline("ci", {
+  const empty = defineWorkflow("ci", {
     output: ".github/workflows/ci.yml",
     on: { push: {} },
   });
-  // @ts-expect-error an empty pipeline is not finalizable.
-  defineProject({ pipelines: [empty] });
+  // @ts-expect-error an empty workflow is not finalizable.
+  defineProject({ workflows: [empty] });
 
   const withTest = empty.job("test", ({ job }) => {
     const checkedOut = job
@@ -157,7 +157,7 @@ function assertAuthoringContracts(): void {
   });
 
   let captured!: FinalizedJobState<"other", "captured">;
-  definePipeline("other", {
+  defineWorkflow("other", {
     output: ".github/workflows/other.yml",
     on: { push: {} },
   }).job("captured", ({ job }) => {

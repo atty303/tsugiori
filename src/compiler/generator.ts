@@ -19,9 +19,9 @@ export async function generateFiles(
   projectArgument: string,
 ): Promise<readonly GeneratedFile[]> {
   const lowered = await lowerConfig(config, configArgument, projectArgument);
-  return lowered.pipelines.map((pipeline) => ({
-    path: pipeline.output,
+  return lowered.workflows.map((workflow) => ({
+    path: workflow.output,
     content: generatedWorkflowHeader(configArgument) +
-      emitWorkflow(pipeline.workflow),
+      emitWorkflow(workflow.workflow),
   }));
 }

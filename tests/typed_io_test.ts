@@ -1,7 +1,7 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
-  definePipeline,
   defineProject,
+  defineWorkflow,
   fromJSON,
   jsonValue,
   present,
@@ -45,7 +45,7 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
 });
 
 Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps", async () => {
-  const first = definePipeline("deploy", {
+  const first = defineWorkflow("deploy", {
     output: ".github/workflows/deploy.yml",
     on: { push: {} },
   }).job("detect", ({ job }) =>
@@ -86,10 +86,10 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
   );
 
   const lowered = await lowerConfig(
-    defineProject({ pipelines: [complete] }),
+    defineProject({ workflows: [complete] }),
     "./tsugiori.ts",
   );
-  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(yaml, "fromJSON(needs.detect.outputs.targets)");
   assertStringIncludes(yaml, "needs.detect.outputs.targets != ''");
   assertStringIncludes(
@@ -102,7 +102,7 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
 
 Deno.test("typed input requires the source contract object and rejects env collision", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = definePipeline("check", {
+  const first = defineWorkflow("check", {
     output: ".github/workflows/check.yml",
     on: { push: {} },
   }).job("source", ({ job }) =>
@@ -186,7 +186,7 @@ Deno.test("typed input requires the source contract object and rejects env colli
 
 Deno.test("typed contracts follow bracket-rendered job and step references", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = definePipeline("check", {
+  const first = defineWorkflow("check", {
     output: ".github/workflows/check.yml",
     on: { push: {} },
   }).job("source-job", ({ job }) =>
@@ -227,7 +227,7 @@ Deno.test("typed contracts follow bracket-rendered job and step references", () 
 
 Deno.test("computed job outputs do not retain task contracts", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = definePipeline("computed", {
+  const first = defineWorkflow("computed", {
     output: ".github/workflows/computed.yml",
     on: { push: {} },
   }).job("source", ({ job }) =>
@@ -265,13 +265,13 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
     const core = new URL("../src/github_actions/mod.ts", import.meta.url)
       .href;
     const runner = new URL("../src/runner/main.ts", import.meta.url).href;
-    const program = `import {defineProject,definePipeline,jsonValue} from ${
+    const program = `import {defineProject,defineWorkflow,jsonValue} from ${
       JSON.stringify(core)
     };
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value))throw new TypeError();return value;}});
-const first=definePipeline("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
-const config=defineProject({pipelines:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+const first=defineWorkflow("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
+const config=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
       JSON.stringify(resultPath)
     },JSON.stringify(inputs.targets));}}))]});
 Deno.exitCode=await runProject({config,configUrl:import.meta.url,root:import.meta.url},["ci/consumer/task-1"]);`;
@@ -291,8 +291,8 @@ Deno.exitCode=await runProject({config,configUrl:import.meta.url,root:import.met
     ) {
       const skippable = program
         .replace(
-          "definePipeline,jsonValue}",
-          "definePipeline,jsonValue,rawNode}",
+          "defineWorkflow,jsonValue}",
+          "defineWorkflow,jsonValue,rawNode}",
         )
         .replace('name:"Emit",inputs:', `name:"Emit",${producerOption}inputs:`)
         .replace("required:false", "required:true");
@@ -306,8 +306,8 @@ Deno.exitCode=await runProject({config,configUrl:import.meta.url,root:import.met
       assertEquals(await Deno.readTextFile(resultPath), "null");
     }
     const withPresent = program.replace(
-      "definePipeline,jsonValue}",
-      "definePipeline,jsonValue,present}",
+      "defineWorkflow,jsonValue}",
+      "defineWorkflow,jsonValue,present}",
     );
     const guardedPrograms = [
       withPresent.replace(
@@ -345,12 +345,12 @@ Deno.test("runner parses JSON input and rejects absent or invalid wire values", 
       .href;
     const runner = new URL("../src/runner/main.ts", import.meta.url).href;
     const program =
-      `import {defineProject,definePipeline,jsonValue,rawNode} from ${
+      `import {defineProject,defineWorkflow,jsonValue,rawNode} from ${
         JSON.stringify(core)
       };
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value)||!value.every(item=>typeof item==="string"))throw new TypeError("invalid names");return value;}});
-const config=defineProject({pipelines:[definePipeline("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+const config=defineProject({workflows:[defineWorkflow("ci",{output:".github/workflows/ci.yml",on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
         JSON.stringify(resultPath)
       },JSON.stringify(inputs.targets));}}))]});
 Deno.exitCode=await runProject({config,configUrl:import.meta.url,root:import.meta.url},["ci/consumer/task-1"]);`;

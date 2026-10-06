@@ -1,8 +1,8 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
-  definePipeline,
   defineProject,
+  defineWorkflow,
   jsonValue,
   rawExpression,
   scenario,
@@ -28,7 +28,7 @@ const taskMustNotRun = () => {
   throw new Error("Task body was executed");
 };
 
-const wired = definePipeline("wired", {
+const wired = defineWorkflow("wired", {
   output: ".github/workflows/wired.yml",
   on: {
     workflow_dispatch: {
@@ -130,7 +130,7 @@ Deno.test("harness rejects missing dispatch inputs and invalid task output contr
   );
 });
 
-const statuses = definePipeline("statuses", {
+const statuses = defineWorkflow("statuses", {
   output: ".github/workflows/statuses.yml",
   on: { push: {} },
 }).job("first", ({ job }) =>
@@ -197,7 +197,7 @@ Deno.test("harness keeps outcome and conclusion distinct and overrides raw field
   );
 });
 
-const matrix = definePipeline("matrix", {
+const matrix = defineWorkflow("matrix", {
   output: ".github/workflows/matrix.yml",
   on: { push: {} },
 }).job("split", ({ job }) =>
@@ -230,7 +230,7 @@ Deno.test("harness chooses fixture and expectation independently for each matrix
   });
 });
 
-const includedMatrix = definePipeline("included-matrix", {
+const includedMatrix = defineWorkflow("included-matrix", {
   output: ".github/workflows/included-matrix.yml",
   on: { push: {} },
 }).job("split", ({ job }) =>
@@ -286,7 +286,7 @@ Deno.test("harness applies matrix include to every compatible original combinati
   assertEquals(excludedThenIncluded.jobs.split.instances.length, 2);
 });
 
-const mergedOutputs = definePipeline("merged-outputs", {
+const mergedOutputs = defineWorkflow("merged-outputs", {
   output: ".github/workflows/merged-outputs.yml",
   on: { push: {} },
 }).job("split", ({ job }) =>
@@ -330,7 +330,7 @@ Deno.test("harness propagates deterministic matrix job outputs to needs", async 
   assertEquals((ambiguous as { kind?: string }).kind, "expression_unsupported");
 });
 
-const distinctOutputs = definePipeline("distinct-outputs", {
+const distinctOutputs = defineWorkflow("distinct-outputs", {
   output: ".github/workflows/distinct-outputs.yml",
   on: { push: {} },
 }).job("split", ({ job }) =>
@@ -362,7 +362,7 @@ Deno.test("harness combines distinct nonempty matrix output names", async () => 
   });
 });
 
-const filtered = definePipeline("filtered", {
+const filtered = defineWorkflow("filtered", {
   output: ".github/workflows/filtered.yml",
   on: {
     push: {
@@ -393,7 +393,7 @@ Deno.test("harness respects ordered positive and negative branch filters", async
   assertEquals(included.result, "success");
 });
 
-const versionFiltered = definePipeline("version-filtered", {
+const versionFiltered = defineWorkflow("version-filtered", {
   output: ".github/workflows/version-filtered.yml",
   on: { push: { branches: ["v[12].[0-9]+.[0-9]+"] } },
 }).job("check", ({ job }) =>
@@ -408,7 +408,7 @@ Deno.test("harness evaluates GitHub branch character classes and repetition", as
   assertEquals(result.result, "success");
 });
 
-const matrixRaw = definePipeline("matrix-raw", {
+const matrixRaw = defineWorkflow("matrix-raw", {
   output: ".github/workflows/matrix-raw.yml",
   on: { push: {} },
 }).job("split", ({ job }) =>
@@ -446,7 +446,7 @@ Deno.test("harness selects unsupported expression values at each matrix step", a
 });
 
 Deno.test("common input references follow each trigger and call defaults", async () => {
-  const mixed = definePipeline("mixed", {
+  const mixed = defineWorkflow("mixed", {
     output: ".github/workflows/mixed.yml",
     on: {
       push: {},
@@ -498,7 +498,7 @@ Deno.test("common input references follow each trigger and call defaults", async
         }));
     });
   }
-  const caller = definePipeline("caller-defaults", {
+  const caller = defineWorkflow("caller-defaults", {
     output: ".github/workflows/caller-defaults.yml",
     on: { push: {} },
   })
@@ -517,5 +517,5 @@ Deno.test("common input references follow each trigger and call defaults", async
             return {};
           }));
       }));
-  }, { config: defineProject({ pipelines: [mixed, caller] }) });
+  }, { config: defineProject({ workflows: [mixed, caller] }) });
 });

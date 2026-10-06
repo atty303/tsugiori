@@ -317,10 +317,10 @@ async function runInstance(
   matrix: Record<string, unknown>,
   base: Context,
   rules: InstanceRules,
-  pipelineId: string,
+  workflowId: string,
   defaultResult?: Result,
 ): Promise<JobInstanceResult> {
-  const location = `${pipelineId}.${job.id}[${JSON.stringify(matrix)}]`;
+  const location = `${workflowId}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
   const steps: Record<string, StepResult> = {};
   const context: Context = { ...base, matrix, steps: {} };
@@ -615,13 +615,13 @@ function checkStep(
 }
 
 function triggered(config: ProjectConfig, program: Program): boolean {
-  const pipeline = config.pipelines.find((p) => p.id === program.pipelineId) ??
-    config.pipelines[0];
+  const workflow = config.workflows.find((p) => p.id === program.workflowId) ??
+    config.workflows[0];
   const github = program.external.github;
   if (!github || typeof github !== "object") {
     throw new ScenarioError(
       "fixture_missing",
-      pipeline.id,
+      workflow.id,
       "github fixture is required.",
     );
   }
@@ -630,17 +630,17 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   if (typeof event !== "string") {
     throw new ScenarioError(
       "fixture_missing",
-      pipeline.id,
+      workflow.id,
       "github.event_name is required.",
     );
   }
-  if (!Object.hasOwn(pipeline.on, event)) {
+  if (!Object.hasOwn(workflow.on, event)) {
     return false;
   }
   if (event === "pull_request" || event === "pull_request_target") {
     const types = event === "pull_request"
-      ? pipeline.on.pull_request?.types
-      : pipeline.on.pull_request_target?.types;
+      ? workflow.on.pull_request?.types
+      : workflow.on.pull_request_target?.types;
     const action =
       (values.event as Record<string, unknown> | undefined)?.action ??
         (types ? undefined : "opened");
@@ -648,31 +648,31 @@ function triggered(config: ProjectConfig, program: Program): boolean {
     if (typeof action !== "string") {
       throw new ScenarioError(
         "fixture_missing",
-        pipeline.id,
+        workflow.id,
         "github.event.action is required for PR activity filters.",
       );
     }
     if (!allowed.includes(action)) return false;
   }
   if (
-    event === "push" && (pipeline.on.push?.branches || pipeline.on.push?.tags)
+    event === "push" && (workflow.on.push?.branches || workflow.on.push?.tags)
   ) {
     if (typeof values.ref !== "string") {
       throw new ScenarioError(
         "fixture_missing",
-        pipeline.id,
+        workflow.id,
         "github.ref is required for push filters.",
       );
     }
     const tag = values.ref.startsWith("refs/tags/");
-    const filters = tag ? pipeline.on.push?.tags : pipeline.on.push?.branches;
+    const filters = tag ? workflow.on.push?.tags : workflow.on.push?.branches;
     if (!filters) return false;
     const name = values.ref.replace(/^refs\/(heads|tags)\//, "");
     let included = false;
     for (const rule of filters) {
       const negative = rule.startsWith("!");
       if (
-        branchPattern(negative ? rule.slice(1) : rule, pipeline.id).test(name)
+        branchPattern(negative ? rule.slice(1) : rule, workflow.id).test(name)
       ) included = !negative;
     }
     if (!included) return false;
@@ -680,7 +680,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   if (event === "workflow_dispatch") {
     for (
       const [name, input] of Object.entries(
-        pipeline.on.workflow_dispatch?.inputs ?? {},
+        workflow.on.workflow_dispatch?.inputs ?? {},
       )
     ) {
       const supplied = program.external.inputs as
@@ -691,7 +691,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
       } else if (supplied?.[name] === undefined && input.required) {
         throw new ScenarioError(
           "fixture_missing",
-          pipeline.id,
+          workflow.id,
           `Required dispatch input ${name} is missing.`,
         );
       }
@@ -700,7 +700,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   return true;
 }
 
-function branchPattern(pattern: string, pipelineId: string): RegExp {
+function branchPattern(pattern: string, workflowId: string): RegExp {
   let source = "^";
   for (let index = 0; index < pattern.length; index++) {
     const char = pattern[index];
@@ -712,7 +712,7 @@ function branchPattern(pattern: string, pipelineId: string): RegExp {
       if (index === 0) {
         throw new ScenarioError(
           "expression_unsupported",
-          `${pipelineId}.on.push.branches`,
+          `${workflowId}.on.push.branches`,
           "Branch filter starts with a repetition operator.",
         );
       }
@@ -723,7 +723,7 @@ function branchPattern(pattern: string, pipelineId: string): RegExp {
       if (end < 0 || !/^[A-Za-z0-9-]+$/.test(contents)) {
         throw new ScenarioError(
           "expression_unsupported",
-          `${pipelineId}.on.push.branches`,
+          `${workflowId}.on.push.branches`,
           "Branch filter has an unsupported character class.",
         );
       }
@@ -742,8 +742,8 @@ async function interpretScenario(
   called: boolean,
   observation: ScenarioObservationState,
 ): Promise<ScenarioResult> {
-  const author = config.pipelines.find((p) => p.id === program.pipelineId) ??
-    config.pipelines[0];
+  const author = config.workflows.find((p) => p.id === program.workflowId) ??
+    config.workflows[0];
   if (!called && !triggered(config, program)) {
     if (program.expectedResult !== undefined) {
       expectValue("skipped", program.expectedResult, `${author.id}.result`);
@@ -751,7 +751,7 @@ async function interpretScenario(
     return { result: "skipped", jobs: {} };
   }
   const lowered = await lowerConfig(config, ".github/tsugiori.ts", ".github");
-  const workflow = lowered.pipelines.find((p) => p.id === author.id)!.workflow;
+  const workflow = lowered.workflows.find((p) => p.id === author.id)!.workflow;
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));
   for (const name of program.jobs.keys()) {
     if (!authoredJobs.has(name)) {
@@ -864,7 +864,7 @@ async function interpretScenario(
         let child: ScenarioResult;
         if (callee) {
           if (
-            !merged.call || merged.call.pipelineId !== callee.id ||
+            !merged.call || merged.call.workflowId !== callee.id ||
             merged.callFixture
           ) {
             throw new ScenarioError(
@@ -932,7 +932,7 @@ async function interpretScenario(
                 inputs,
                 secrets,
               },
-              pipelineId: callee.id,
+              workflowId: callee.id,
             },
             true,
             observation,

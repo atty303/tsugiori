@@ -220,7 +220,7 @@ async function dispatchTask(
   try {
     if (
       config?.kind !== "github-actions.project" ||
-      !Array.isArray(config.pipelines)
+      !Array.isArray(config.workflows)
     ) {
       throw new TaskRuntimeError(
         "schema_invalid",
@@ -228,8 +228,8 @@ async function dispatchTask(
       );
     }
     let task: AuthoringTaskStep | undefined;
-    for (const pipeline of config.pipelines) {
-      for (const job of pipeline.jobs) {
+    for (const workflow of config.workflows) {
+      for (const job of workflow.jobs) {
         let ordinal = 0;
         for (const step of job.steps) {
           if (step.type !== "task") continue;
@@ -240,7 +240,7 @@ async function dispatchTask(
               "Task step does not contain a function.",
             );
           }
-          if (`${pipeline.id}/${job.id}/task-${ordinal}` === entrypoint) {
+          if (`${workflow.id}/${job.id}/task-${ordinal}` === entrypoint) {
             task = step;
           }
         }

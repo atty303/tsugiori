@@ -1,5 +1,5 @@
 /** Messages emitted by the task during runner execution.
- * @example In a `definePipeline().job()` callback with `{ job }`.
+ * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -15,7 +15,7 @@
  */
 export type TaskLogger = Readonly<{
   /** Writes an informational task message.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Report",
@@ -29,7 +29,7 @@ export type TaskLogger = Readonly<{
    */
   info: (...values: readonly unknown[]) => void;
   /** Writes a task warning.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Report",
@@ -43,7 +43,7 @@ export type TaskLogger = Readonly<{
    */
   warn: (...values: readonly unknown[]) => void;
   /** Writes a task error message.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Report",
@@ -112,7 +112,7 @@ export type ValueContract<T, Kind extends "text" | "json" = "text" | "json"> =
  */
 export type ContractValue<C> = C extends ValueContract<infer T> ? T : never;
 /** Named task output contracts, with required writes enforced at runtime.
- * @example In a `definePipeline().job()` callback with `{ job }`.
+ * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -131,7 +131,7 @@ export type OutputDefinitions = Readonly<
     string,
     Readonly<{
       /** The same contract object can be reused by the producing and consuming tasks.
-       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * @example In a `defineWorkflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -147,7 +147,7 @@ export type OutputDefinitions = Readonly<
        */
       contract: ValueContract<unknown>;
       /** Whether this task must write the output when it executes.
-       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * @example In a `defineWorkflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -166,7 +166,7 @@ export type OutputDefinitions = Readonly<
   >
 >;
 /** Task inputs pair validation with a GitHub runtime expression source.
- * @example In a `definePipeline().job()` callback with `{ job }`.
+ * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -185,7 +185,7 @@ export type InputDefinitions = Readonly<
     string,
     Readonly<{
       /** Validates the native task input value.
-       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * @example In a `defineWorkflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -201,7 +201,7 @@ export type InputDefinitions = Readonly<
        */
       contract: ValueContract<unknown>;
       /** The source expression evaluated by GitHub before task execution.
-       * @example In a `definePipeline().job()` callback with `{ job }`.
+       * @example In a `defineWorkflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -229,7 +229,7 @@ type Missing<S, Proof extends string> = SourceValue<S> extends
   > ? Required extends true ? never : Path extends Proof ? never : null
   : never;
 /** Native output values inferred from declared contracts.
- * @example In a `definePipeline().job()` callback with `{ job }`.
+ * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -259,7 +259,7 @@ export type OutputValues<O extends OutputDefinitions> = {
  *     return value;
  *   },
  * });
- * definePipeline("ci", {
+ * defineWorkflow("ci", {
  *   output: ".github/workflows/ci.yml",
  *   on: { push: {} },
  * }).job("prepare", ({ job }) =>
@@ -305,7 +305,7 @@ export type InputValues<
     | Missing<I[K]["from"], Proof>;
 };
 /** Task callbacks receive native inputs and an asynchronous output writer.
- * @example In a `definePipeline().job()` callback with `{ job }`.
+ * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -325,7 +325,7 @@ export type TaskContext<
   Proof extends string = never,
 > = Readonly<{
   /** The repository root directory during task execution.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Read configuration",
@@ -339,7 +339,7 @@ export type TaskContext<
    */
   cwd: string;
   /** Task logging during runner execution.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -355,7 +355,7 @@ export type TaskContext<
    */
   logger: TaskLogger;
   /** Parsed input values; these are host values in run, not expression nodes.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -371,7 +371,7 @@ export type TaskContext<
    */
   inputs: InputValues<I, Proof>;
   /** Output writes are asynchronous and must complete before the task returns.
-   * @example In a `definePipeline().job()` callback with `{ job }`.
+   * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -387,7 +387,7 @@ export type TaskContext<
    */
   outputs: Readonly<{
     /** Validates and writes a declared native output; await each write.
-     * @example In a `definePipeline().job()` callback with `{ job }`.
+     * @example In a `defineWorkflow().job()` callback with `{ job }`.
      * ```ts
      * job.runsOn("ubuntu-latest").task({
      *   id: "version",

@@ -39,7 +39,7 @@ behavior is documented in the [README](../README.md) and
 ### Further dogfooding and providers
 
 - Apply the scenario DSL to glaze-ops after its commit-pinned Tsugiori source
-  includes the testing API. Keep its task unit tests alongside pipeline logic
+  includes the testing API. Keep its task unit tests alongside workflow logic
   scenarios and verify generated workflow changes from explicit step IDs.
 - Exercise typed task I/O across a real consumer's detect, matrix, deploy, and
   completion jobs. Local compiler and runner tests cover the contract, but an

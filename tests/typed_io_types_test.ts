@@ -1,5 +1,5 @@
 import {
-  definePipeline,
+  defineWorkflow,
   type Expression,
   fromJSON,
   jsonValue,
@@ -15,7 +15,7 @@ function assertTypedIO(): void {
       return value as string[];
     },
   });
-  const first = definePipeline("typed", {
+  const first = defineWorkflow("typed", {
     output: ".github/workflows/typed.yml",
     on: { push: {} },
   }).job("detect", ({ job }) =>
@@ -195,7 +195,7 @@ function assertTypedIO(): void {
         }),
   );
 
-  const conditional = definePipeline("conditional", {
+  const conditional = defineWorkflow("conditional", {
     output: ".github/workflows/conditional.yml",
     on: { push: {} },
   }).job("produce", ({ job }) =>
@@ -228,7 +228,7 @@ function assertTypedIO(): void {
   );
 
   const text = textValue();
-  const textJob = definePipeline("text", {
+  const textJob = defineWorkflow("text", {
     output: ".github/workflows/text.yml",
     on: { push: {} },
   })

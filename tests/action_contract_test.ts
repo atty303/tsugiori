@@ -1,8 +1,8 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   type ActionContract,
-  definePipeline,
   defineProject,
+  defineWorkflow,
   literal,
   toJSON,
 } from "../src/github_actions/mod.ts";
@@ -18,7 +18,7 @@ const contract = {
   outputs: { url: { description: "URL" } },
 } as const satisfies ActionContract;
 function steps(options: unknown, action: ActionContract | string = contract) {
-  const pipeline = definePipeline("ci", { output: "ci.yml", on: { push: {} } })
+  const workflow = defineWorkflow("ci", { output: "ci.yml", on: { push: {} } })
     .job(
       "publish",
       ({ job }) =>
@@ -27,7 +27,7 @@ function steps(options: unknown, action: ActionContract | string = contract) {
           options,
         ]),
     );
-  return defineProject({ pipelines: [pipeline] }).pipelines[0].jobs[0].steps;
+  return defineProject({ workflows: [workflow] }).workflows[0].jobs[0].steps;
 }
 Deno.test("direct action contracts retain uses and leave defaults to GitHub", () => {
   assertEquals(steps({ with: { target: "web" } })[0], {

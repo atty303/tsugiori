@@ -1,7 +1,7 @@
 import {
   defineProject,
   type ProjectConfig,
-  type TestablePipeline,
+  type TestableWorkflow,
   type TestJobsOf,
   type TestMatrixOf,
   type TestStepOf,
@@ -122,7 +122,7 @@ export type Program = {
   defaultResult?: Result;
   expectedResult?: Result;
   expectedBefore: [string, string][];
-  pipelineId?: string;
+  workflowId?: string;
 };
 
 type InputsOf<Step> = TestStepOf<Step> extends
@@ -206,14 +206,14 @@ export class InstanceScenario<Job> {
   /** Interpret a local call with an isolated scenario; do not supply step fixtures on the caller job.
    * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
    */
-  call<const P extends TestablePipeline>(
-    pipeline: P,
-    define: (test: PipelineScenario<TestJobsOf<P>>) => void,
+  call<const P extends TestableWorkflow>(
+    workflow: P,
+    define: (test: WorkflowScenario<TestJobsOf<P>>) => void,
   ): this {
-    const child = new PipelineScenario<TestJobsOf<P>>();
+    const child = new WorkflowScenario<TestJobsOf<P>>();
     define(child);
-    child.program.pipelineId =
-      defineProject({ pipelines: [pipeline] }).pipelines[0].id;
+    child.program.workflowId =
+      defineProject({ workflows: [workflow] }).workflows[0].id;
     this.rules.call = child.program;
     return this;
   }
@@ -287,7 +287,7 @@ export class JobScenario<Job> extends InstanceScenario<Job> {
   }
 }
 
-export class PipelineScenario<Jobs> {
+export class WorkflowScenario<Jobs> {
   readonly program: Program = {
     external: {},
     jobs: new Map(),
@@ -339,25 +339,25 @@ export class PipelineScenario<Jobs> {
 }
 
 export async function scenario<
-  const Pipeline extends TestablePipeline,
+  const Workflow extends TestableWorkflow,
 >(
-  pipeline: Pipeline,
-  define: (test: PipelineScenario<TestJobsOf<Pipeline>>) => void,
+  workflow: Workflow,
+  define: (test: WorkflowScenario<TestJobsOf<Workflow>>) => void,
   options: Readonly<{ config?: ProjectConfig; observe?: ScenarioObserver }> =
     {},
 ): Promise<ScenarioResult> {
-  const builder = new PipelineScenario<TestJobsOf<Pipeline>>();
+  const builder = new WorkflowScenario<TestJobsOf<Workflow>>();
   define(builder);
-  const primary = defineProject({ pipelines: [pipeline] }).pipelines[0];
-  const config = options.config ?? defineProject({ pipelines: [pipeline] });
-  if (!config.pipelines.includes(primary)) {
+  const primary = defineProject({ workflows: [workflow] }).workflows[0];
+  const config = options.config ?? defineProject({ workflows: [workflow] });
+  if (!config.workflows.includes(primary)) {
     throw new ScenarioError(
       "fixture_invalid",
       primary.id,
-      "Scenario pipeline must be included in config.",
+      "Scenario workflow must be included in config.",
     );
   }
-  builder.program.pipelineId = primary.id;
+  builder.program.workflowId = primary.id;
   return await runScenario(config, builder.program, false, {
     observer: options.observe,
     nextId: 0,

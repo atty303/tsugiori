@@ -4,8 +4,8 @@ import {
   cancelled,
   caseOf,
   contains,
-  definePipeline,
   defineProject,
+  defineWorkflow,
   endsWith,
   failure,
   format,
@@ -30,7 +30,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     inputs: { value: { description: "Input", required: true } },
     outputs: { "result": { description: "Output" } },
   } as const;
-  const first = definePipeline("ci", {
+  const first = defineWorkflow("ci", {
     output: ".github/workflows/ci.yml",
     on: { push: {} },
     secrets: ["token"],
@@ -51,7 +51,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
       }));
     });
   const config = defineProject({
-    pipelines: [
+    workflows: [
       first.job(
         "deploy",
         ({ job, jobs }) =>
@@ -96,7 +96,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     ],
   });
   const lowered = await lowerConfig(config, "./tsugiori.ts");
-  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(yaml, "contains(needs.prepare.outputs.matrix, 'dev')");
   assertStringIncludes(yaml, "fromJSON(needs.prepare.outputs.matrix)");
   assertStringIncludes(yaml, "format('deploy-{0}', matrix.stage)");
@@ -116,7 +116,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     parsed.jobs.deploy.if,
     "${{ contains(needs.prepare.outputs.matrix, 'dev') }}",
   );
-  assertEquals(lowered.pipelines[0].workflow.jobs[1].needs, ["prepare"]);
+  assertEquals(lowered.workflows[0].workflow.jobs[1].needs, ["prepare"]);
 });
 
 Deno.test("expression nodes cannot be interpolated as host strings", () => {
@@ -125,8 +125,8 @@ Deno.test("expression nodes cannot be interpolated as host strings", () => {
 
 Deno.test("a step ID colliding with an expression method is addressable", async () => {
   const config = defineProject({
-    pipelines: [
-      definePipeline("ci", {
+    workflows: [
+      defineWorkflow("ci", {
         output: ".github/workflows/ci.yml",
         on: { push: {} },
       }).job("test", ({ job }) =>
@@ -138,7 +138,7 @@ Deno.test("a step ID colliding with an expression method is addressable", async 
     ],
   });
   const lowered = await lowerConfig(config, "./tsugiori.ts");
-  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(yaml, "steps.eq.outputs.result");
 });
 
@@ -193,8 +193,8 @@ Deno.test("operators and built-ins retain GitHub expression syntax", () => {
 
 Deno.test("a complete matrix can come from one typed expression", async () => {
   const config = defineProject({
-    pipelines: [
-      definePipeline("ci", {
+    workflows: [
+      defineWorkflow("ci", {
         output: ".github/workflows/ci.yml",
         on: { push: {} },
       }).job("test", ({ job }) =>
@@ -206,7 +206,7 @@ Deno.test("a complete matrix can come from one typed expression", async () => {
     ],
   });
   const lowered = await lowerConfig(config, "./tsugiori.ts");
-  const yaml = emitWorkflow(lowered.pipelines[0].workflow);
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(
     yaml,
     'matrix: "${{ fromJSON(\'[{\\"stage\\":\\"dev\\"}]\') }}"',

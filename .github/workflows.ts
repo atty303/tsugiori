@@ -1,7 +1,7 @@
 import {
   type ActionContract,
-  definePipeline,
   defineProject,
+  defineWorkflow,
   runProject,
 } from "@atty303/tsugiori/github-actions";
 
@@ -23,7 +23,7 @@ const mise = {
   outputs: {},
 } as const satisfies ActionContract;
 
-const ci = definePipeline("ci", {
+const ci = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
   on: { pull_request: {}, push: {} },
   permissions: { contents: "read" },
@@ -70,7 +70,7 @@ const releaseAction = {
   outputs: {},
 } as const satisfies ActionContract;
 
-const release = definePipeline("release", {
+const release = defineWorkflow("release", {
   output: ".github/workflows/release.yml",
   on: { push: { branches: ["main"] }, workflow_dispatch: {} },
   permissions: { contents: "read" },
@@ -98,7 +98,7 @@ const release = definePipeline("release", {
 
 const config = defineProject({
   cacheVersion: 1,
-  pipelines: [ci, release],
+  workflows: [ci, release],
 });
 export default config;
 

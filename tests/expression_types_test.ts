@@ -1,6 +1,6 @@
 import {
-  definePipeline,
   defineProject,
+  defineWorkflow,
   type Expression,
   fromJSON,
   rawNode,
@@ -9,13 +9,13 @@ import {
 
 function assertContracts(): void {
   const widenedNames: string[] = ["env"];
-  definePipeline("bad-vars", {
+  defineWorkflow("bad-vars", {
     output: ".github/workflows/bad-vars.yml",
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     vars: widenedNames,
   });
-  definePipeline("bad-secrets", {
+  defineWorkflow("bad-secrets", {
     output: ".github/workflows/bad-secrets.yml",
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
@@ -29,7 +29,7 @@ function assertContracts(): void {
     inputs: { stage: { description: "Input", required: true } },
     outputs: { "name": { description: "Output" } },
   } as const;
-  definePipeline("logic", {
+  defineWorkflow("logic", {
     output: ".github/workflows/logic.yml",
     on: {
       push: {},
@@ -51,7 +51,7 @@ function assertContracts(): void {
   const impossible: Expression<string> = broad;
   void impossible;
   const matrixContract = textValue();
-  definePipeline("inline", {
+  defineWorkflow("inline", {
     output: ".github/workflows/inline.yml",
     on: { push: {} },
   })
@@ -67,7 +67,7 @@ function assertContracts(): void {
           },
         }),
     );
-  definePipeline("collision", {
+  defineWorkflow("collision", {
     output: ".github/workflows/collision.yml",
     on: { push: {} },
   }).job("test", ({ job }) =>
@@ -83,7 +83,7 @@ function assertContracts(): void {
         steps.eq.outputs.result;
         return { result: steps.at("eq").at("outputs").at("result") };
       }));
-  const first = definePipeline("ci", {
+  const first = defineWorkflow("ci", {
     output: ".github/workflows/ci.yml",
     on: { push: {} },
     vars: ["env"],
@@ -178,7 +178,7 @@ function assertContracts(): void {
           },
         }),
   );
-  defineProject({ pipelines: [second] });
+  defineProject({ workflows: [second] });
 }
 void assertContracts;
 Deno.test("typed expression contracts compile", () => {});

@@ -26,9 +26,9 @@ testing. `github-actions/authoring`, `github-actions/run`, and
 contracts. These entrypoints share a responsibility-based `src/` tree. A future
 provider can have its own entrypoint and import graph without changing the
 GitHub Actions entrypoint. The authoring API uses
-immutable facades: `definePipeline()` groups trigger settings under a native
+immutable facades: `defineWorkflow()` groups trigger settings under a native
 `on` object; job methods become available as the definition advances, and
-only a pipeline with a completed, non-empty job can reach `defineProject()`.
+only a workflow with a completed, non-empty job can reach `defineProject()`.
 Jobs are authored in dependency order, so a new job can reference completed
 jobs. Action steps take a metadata contract or an implementation reference directly
 through `job.uses(contractOrUses, options?)`. Contracts declare input names,
@@ -99,14 +99,14 @@ that way are rejected. The config owns output paths under
 bytes to existing files and reports missing or changed outputs, plus extra
 `.yml` files with the same ownership comment. It does not modify files.
 `--output <path>` limits the check to one workflow. Normal generation does not
-delete extra files. The checked-in [CI config](../.github/pipelines.ts) emits the
+delete extra files. The checked-in [CI config](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `generate:check`.
 
 ## Scenario interpretation
 
-The testing API lowers a pipeline with the same compiler path used for YAML
+The testing API lowers a workflow with the same compiler path used for YAML
 generation and interprets the validated GitHub Actions workflow AST. Its
-scenario builder preserves the pipeline's job IDs, step IDs, task contracts,
+scenario builder preserves the workflow's job IDs, step IDs, task contracts,
 and matrix types for editor completion. A scenario provides referenced
 external contexts and fixtures for reached authored steps. Local calls recursively
 interpret callee workflows with separate inputs, secrets and env; external calls
@@ -128,7 +128,7 @@ a field-specific scenario value; unsupported forms never silently succeed.
 
 Compiler lowering records inline task functions in a registry. A task-backed
 step gets an entrypoint of the form
-`<pipeline-id>/<job-id>/task-<ordinal>`, where the ordinal counts task steps
+`<workflow-id>/<job-id>/task-<ordinal>`, where the ordinal counts task steps
 within the job. Generated preparation steps include a job-layout fingerprint
 so changed task ordering is detected before dispatch.
 
@@ -230,7 +230,7 @@ operational audit.
 
 ## Package release boundary
 
-`.github/pipelines.ts` owns CI and the release workflow; generated YAML stays
+`.github/workflows.ts` owns CI and the release workflow; generated YAML stays
 visible and checked in. Regular releases delegate version selection, tag/Release
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,

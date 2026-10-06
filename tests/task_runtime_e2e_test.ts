@@ -44,9 +44,9 @@ Deno.test({
       );
       const configSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineProject, definePipeline, runProject, textValue } from "@atty303/tsugiori/github-actions";
+import { defineProject, defineWorkflow, runProject, textValue } from "@atty303/tsugiori/github-actions";
 
-const base = definePipeline("ci", {
+const base = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
   on: { push: {  } },
 });
@@ -82,7 +82,7 @@ const ci = base.job("test", ({ job }) =>
     })
 );
 
-const config = defineProject({ pipelines: [ci] });
+const config = defineProject({ workflows: [ci] });
 export default config;
 if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url, root: new URL("../", import.meta.url) });
 `;
@@ -617,18 +617,18 @@ Deno.test({
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
       const configSource =
-        `import { defineProject, definePipeline, runProject } from "@atty303/tsugiori/github-actions";
+        `import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;
 void remoteMarker;
-const ci = definePipeline("ci", {
+const ci = defineWorkflow("ci", {
   output: ".github/workflows/ci.yml",
   on: { push: {  } },
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
-const config = defineProject({ cacheVersion, pipelines: [ci] });
+const config = defineProject({ cacheVersion, workflows: [ci] });
 export default config;
 if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url, root: new URL("./", import.meta.url) });
 `;
@@ -707,7 +707,7 @@ Deno.test({
   fn: async () => {
     const repositoryRoot = Deno.cwd();
     const fixture = await Deno.makeTempDir({ prefix: "tsugiori-nested-" });
-    const project = resolve(fixture, "ci/pipelines");
+    const project = resolve(fixture, "ci/workflows");
     try {
       await copyDirectory(
         resolve(repositoryRoot, "src"),
@@ -716,7 +716,7 @@ Deno.test({
       const rootConfig = JSON.parse(
         await Deno.readTextFile(resolve(repositoryRoot, "deno.json")),
       ) as Record<string, unknown>;
-      rootConfig.workspace = ["ci/pipelines"];
+      rootConfig.workspace = ["ci/workflows"];
       await Deno.writeTextFile(
         resolve(fixture, "deno.json"),
         JSON.stringify(rootConfig),
@@ -748,8 +748,8 @@ Deno.test({
         resolve(project, "tsugiori.ts"),
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineProject, definePipeline, runProject } from "@atty303/tsugiori/github-actions";
-const config = defineProject({ pipelines: [definePipeline("ci", {
+import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
+const config = defineProject({ workflows: [defineWorkflow("ci", {
   output: ".github/workflows/ci.yml", on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
@@ -775,7 +775,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
       const workflow = await Deno.readTextFile(
         resolve(fixture, ".github/workflows/ci.yml"),
       );
-      assertStringIncludes(workflow, "working-directory: ci/pipelines");
+      assertStringIncludes(workflow, "working-directory: ci/workflows");
       assertStringIncludes(workflow, "./tsugiori.ts");
       const expectedLayout = workflow.match(/ci\/test=sha256:[0-9a-f]+/)?.[0];
       assert(expectedLayout !== undefined);

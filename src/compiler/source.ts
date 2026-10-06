@@ -55,7 +55,7 @@ export function configSource(
   }
   if (
     config?.kind !== "github-actions.project" ||
-    !Array.isArray(config.pipelines)
+    !Array.isArray(config.workflows)
   ) {
     throw new SourceLoadError(
       "The configuration default export must be created by defineProject().",

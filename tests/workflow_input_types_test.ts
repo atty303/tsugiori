@@ -1,15 +1,15 @@
 import {
-  definePipeline,
+  defineWorkflow,
   type Expression,
-  type PipelineInputValues,
   rawNode,
+  type WorkflowInputValues,
 } from "../src/github_actions/mod.ts";
 import * as api from "../src/github_actions.ts";
 
 type Equal<A, B> = (<T>() => T extends A ? 1 : 2) extends
   (<T>() => T extends B ? 1 : 2) ? true : false;
 type Assert<T extends true> = T;
-type UnionInputs = PipelineInputValues<{
+type UnionInputs = WorkflowInputValues<{
   push: Record<never, never>;
   workflow_dispatch: {
     inputs: {
@@ -27,7 +27,7 @@ type Check = [
   Assert<Equal<UnionInputs["callOnly"], number | "">>,
   Assert<
     Equal<
-      PipelineInputValues<
+      WorkflowInputValues<
         { workflow_call: { inputs: { n: { type: "number" } } } }
       >["n"],
       number
@@ -35,7 +35,7 @@ type Check = [
   >,
   Assert<
     Equal<
-      PipelineInputValues<
+      WorkflowInputValues<
         {
           workflow_dispatch: {
             inputs: { c: { type: "choice"; options: readonly ["x"] } };
@@ -46,13 +46,13 @@ type Check = [
     >
   >,
   Assert<
-    Equal<keyof PipelineInputValues<{ push: Record<never, never> }>, never>
+    Equal<keyof WorkflowInputValues<{ push: Record<never, never> }>, never>
   >,
 ];
 function assertInputTypes(): void {
   // @ts-expect-error no old-name alias is exported
-  void api.pipeline;
-  const flow = definePipeline("inputs", {
+  void api.workflow;
+  const flow = defineWorkflow("inputs", {
     output: ".github/workflows/inputs.yml",
     on: {
       push: {},
@@ -136,28 +136,28 @@ function assertInputTypes(): void {
       },
       secrets: "inherit",
     })));
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     // @ts-expect-error on must be nonempty
     on: {},
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     // @ts-expect-error no string shorthand
     on: "push",
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     // @ts-expect-error no array shorthand
     on: ["push"],
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     on: { push: {} },
     // @ts-expect-error old split field
     events: ["push"],
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     on: {
       // @ts-expect-error unsupported trigger
@@ -165,14 +165,14 @@ function assertInputTypes(): void {
       push: {},
     },
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     on: {
       // @ts-expect-error filters cannot be attached to another event
       workflow_dispatch: { branches: ["main"] },
     },
   });
-  definePipeline("bad", {
+  defineWorkflow("bad", {
     output: "x",
     on: {
       workflow_dispatch: {

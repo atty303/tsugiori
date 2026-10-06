@@ -1,5 +1,5 @@
 import type {
-  AuthoringPipeline,
+  AuthoringWorkflow,
   ProjectConfig,
 } from "../github_actions/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
@@ -20,19 +20,19 @@ const PREPARE_STEP_ID = "tsugiori-task-prepare";
 export type RegisteredTask = Readonly<{
   entrypoint: string;
   name: string;
-  pipelineId: string;
+  workflowId: string;
   jobId: string;
   task: AuthoringTaskStep;
 }>;
 
-export type LoweredPipeline = Readonly<{
+export type LoweredWorkflow = Readonly<{
   id: string;
   output: string;
   workflow: ValidatedWorkflow;
 }>;
 
 export type LoweredConfig = Readonly<{
-  pipelines: readonly LoweredPipeline[];
+  workflows: readonly LoweredWorkflow[];
   tasks: readonly RegisteredTask[];
   layoutFingerprints: ReadonlyMap<string, string>;
 }>;
@@ -57,9 +57,9 @@ export async function lowerConfig(
   validateCalls(config, diagnostics);
   const tasks: RegisteredTask[] = [];
   const layoutFingerprints = new Map<string, string>();
-  const pipelineIds = new Set<string>();
+  const workflowIds = new Set<string>();
   const outputs = new Set<string>();
-  const loweredPipelines: LoweredPipeline[] = [];
+  const loweredWorkflows: LoweredWorkflow[] = [];
   const projectDirectory = projectArgument.replace(/^\.\//, "") || ".";
   if (
     projectDirectory === ".." || /^\.\.[\\/]/.test(projectDirectory) ||
@@ -73,15 +73,15 @@ export async function lowerConfig(
   if (config.kind !== "github-actions.project") {
     diagnostics.push("Default export must be created by defineProject().");
   }
-  if (config.pipelines.length === 0) {
-    diagnostics.push("Configuration must contain at least one pipeline.");
+  if (config.workflows.length === 0) {
+    diagnostics.push("Configuration must contain at least one workflow.");
   }
 
-  for (const pipeline of config.pipelines) {
-    validatePipelineIdentity(pipeline, pipelineIds, outputs, diagnostics);
+  for (const workflow of config.workflows) {
+    validateWorkflowIdentity(workflow, workflowIds, outputs, diagnostics);
     const jobs: Job[] = [];
 
-    for (const job of pipeline.jobs) {
+    for (const job of workflow.jobs) {
       if (job.uses !== undefined) {
         jobs.push({
           id: job.id,
@@ -115,14 +115,14 @@ export async function lowerConfig(
           : job.runsOn?.join(" ") ?? "").toLowerCase().includes("windows")
       ) {
         diagnostics.push(
-          `Job ${JSON.stringify(job.id)} in pipeline ${
-            JSON.stringify(pipeline.id)
+          `Job ${JSON.stringify(job.id)} in workflow ${
+            JSON.stringify(workflow.id)
           } uses task-backed steps on an unsupported Windows runner.`,
         );
       }
-      const layoutKey = `${pipeline.id}/${job.id}`;
+      const layoutKey = `${workflow.id}/${job.id}`;
       const fingerprint = await layoutFingerprint(
-        pipeline.id,
+        workflow.id,
         job.id,
         taskNames,
       );
@@ -185,7 +185,7 @@ export async function lowerConfig(
         tasks.push({
           entrypoint,
           name: step.name,
-          pipelineId: pipeline.id,
+          workflowId: workflow.id,
           jobId: job.id,
           task: step,
         });
@@ -236,24 +236,24 @@ export async function lowerConfig(
       });
     }
 
-    const workflow: Workflow = {
-      name: pipeline.name,
-      on: pipeline.on,
-      runName: pipeline.runName,
-      env: pipeline.env,
-      ...(pipeline.concurrency === undefined
+    const nativeWorkflow: Workflow = {
+      name: workflow.name,
+      on: workflow.on,
+      runName: workflow.runName,
+      env: workflow.env,
+      ...(workflow.concurrency === undefined
         ? {}
-        : { concurrency: pipeline.concurrency }),
-      ...(pipeline.permissions === undefined
+        : { concurrency: workflow.concurrency }),
+      ...(workflow.permissions === undefined
         ? {}
-        : { permissions: pipeline.permissions }),
+        : { permissions: workflow.permissions }),
       jobs,
     };
-    const validation = validateWorkflow(workflow);
+    const validation = validateWorkflow(nativeWorkflow);
     if (validation.ok) {
-      loweredPipelines.push({
-        id: pipeline.id,
-        output: pipeline.output,
+      loweredWorkflows.push({
+        id: workflow.id,
+        output: workflow.output,
         workflow: validation.value,
       });
     } else {
@@ -266,46 +266,47 @@ export async function lowerConfig(
   }
 
   return Object.freeze({
-    pipelines: Object.freeze(loweredPipelines),
+    workflows: Object.freeze(loweredWorkflows),
     tasks: Object.freeze(tasks),
     layoutFingerprints,
   });
 }
 
-function validatePipelineIdentity(
-  pipeline: AuthoringPipeline,
+function validateWorkflowIdentity(
+  workflow: AuthoringWorkflow,
   ids: Set<string>,
   outputs: Set<string>,
   diagnostics: string[],
 ): void {
-  if (!ID_PATTERN.test(pipeline.id)) {
+  if (!ID_PATTERN.test(workflow.id)) {
     diagnostics.push(
-      `Pipeline ID ${
-        JSON.stringify(pipeline.id)
+      `Workflow ID ${
+        JSON.stringify(workflow.id)
       } is not a valid entrypoint segment.`,
     );
   }
-  if (ids.has(pipeline.id)) {
+  if (ids.has(workflow.id)) {
     diagnostics.push(
-      `Pipeline ID ${JSON.stringify(pipeline.id)} is duplicated.`,
+      `Workflow ID ${JSON.stringify(workflow.id)} is duplicated.`,
     );
   }
-  ids.add(pipeline.id);
-  if (outputs.has(pipeline.output)) {
+  ids.add(workflow.id);
+  if (outputs.has(workflow.output)) {
     diagnostics.push(
-      `Pipeline output ${JSON.stringify(pipeline.output)} is duplicated.`,
+      `Workflow output ${JSON.stringify(workflow.output)} is duplicated.`,
     );
   }
-  outputs.add(pipeline.output);
+  outputs.add(workflow.output);
 }
 
 async function layoutFingerprint(
-  pipelineId: string,
+  workflowId: string,
   jobId: string,
   taskNames: readonly string[],
 ): Promise<string> {
   const bytes = new TextEncoder().encode(JSON.stringify({
-    pipelineId,
+    // Preserve the existing layout fingerprint encoding across API renames.
+    pipelineId: workflowId,
     jobId,
     taskNames,
   }));
@@ -403,28 +404,28 @@ function toHex(bytes: Uint8Array): string {
 }
 
 function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
-  const pipelines = new Set(config.pipelines);
+  const workflows = new Set(config.workflows);
   const visit = (
-    pipeline: AuthoringPipeline,
-    ancestors: readonly AuthoringPipeline[],
+    workflow: AuthoringWorkflow,
+    ancestors: readonly AuthoringWorkflow[],
   ): void => {
-    if (ancestors.includes(pipeline)) {
-      diagnostics.push(`Reusable workflow cycle at ${pipeline.id}.`);
+    if (ancestors.includes(workflow)) {
+      diagnostics.push(`Reusable workflow cycle at ${workflow.id}.`);
       return;
     }
     if (ancestors.length >= 10) {
       diagnostics.push(
-        `Reusable workflow nesting exceeds ten levels at ${pipeline.id}.`,
+        `Reusable workflow nesting exceeds ten levels at ${workflow.id}.`,
       );
       return;
     }
-    for (const job of pipeline.jobs) {
+    for (const job of workflow.jobs) {
       const target = job.callee;
       if (!target) continue;
-      const location = `${pipeline.id}.${job.id}`;
-      if (!pipelines.has(target)) {
+      const location = `${workflow.id}.${job.id}`;
+      if (!workflows.has(target)) {
         diagnostics.push(
-          `${location}: called pipeline must be included in the same config.`,
+          `${location}: called workflow must be included in the same config.`,
         );
       }
       if (!Object.hasOwn(target.on, "workflow_call")) {
@@ -476,8 +477,8 @@ function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
           true,
         );
       }
-      visit(target, [...ancestors, pipeline]);
+      visit(target, [...ancestors, workflow]);
     }
   };
-  for (const pipeline of config.pipelines) visit(pipeline, []);
+  for (const workflow of config.workflows) visit(workflow, []);
 }
