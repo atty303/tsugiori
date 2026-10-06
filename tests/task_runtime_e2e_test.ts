@@ -37,7 +37,7 @@ Deno.test({
 import { defineProject, defineWorkflow, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
-const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {},
     outputs: { result: { contract: textValue(), required: true } },
     run: async (ctx) => {
@@ -103,7 +103,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assert(!yaml.includes("Resolve task artifact"));
       assertStringIncludes(yaml, "runner.os");
       assertStringIncludes(yaml, "runner.arch");
-      const actionPath = resolve(Deno.cwd(), ".github/actions/task-prepare");
+      const actionPath = resolve(Deno.cwd(), "actions/task-prepare");
       const action = parse(
         await Deno.readTextFile(resolve(actionPath, "action.yml")),
       ) as {
@@ -122,7 +122,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
         action.outputs["runtime-path"].value,
         "${{ steps.prepare.outputs.runtime-path }}",
       );
-      assertStringIncludes(yaml, "uses: ./.github/actions/task-prepare");
+      assertStringIncludes(yaml, "uses: ./actions/task-prepare");
       assert(!yaml.includes("deno_binary"));
       assert(!yaml.includes("expected-layout"));
       const sourceKey = yaml.match(/tsugiori-task-(S[0-9A-Z]{50})/)?.[1];
@@ -479,7 +479,7 @@ exit 1
         resolve(fixture, "workflows.ts"),
         `
 import { defineProject, defineWorkflow, runProject } from "./src/github_actions.ts";
-const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [
+const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [
   defineWorkflow("workflows/ci.yml", { on: { push: {} } }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest").run({ name: "Native", run: "true" }))] });
 export default project;
@@ -629,7 +629,7 @@ const ci = defineWorkflow("workflows/ci.yml", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
-const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", cacheVersion, workflows: [ci] });
+const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `;
@@ -754,7 +754,7 @@ Deno.test({
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
 import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
-const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
+const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
 }))] });
@@ -846,7 +846,7 @@ Deno.test("local graph keys remain portable when the project and outside imports
 import { marker } from "../outside.ts";
 import { defineProject, defineWorkflow } from "./src/github_actions.ts";
 void marker;
-export default defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+export default defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} }))] });
 `,
     );

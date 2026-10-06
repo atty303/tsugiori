@@ -143,7 +143,7 @@ step gets an entrypoint of the form `<workflow-path>/<job-id>/task-<ordinal>`,
 where the ordinal counts task steps within the job.
 
 Each task-backed job contains a pinned `actions/cache` step followed by a normal
-composite preparation Action provided by this repository. The backend embeds a
+composite preparation Action distributed from `actions/task-prepare/`. The backend embeds a
 generate-time source key in YAML and combines it with GitHub's runner OS and
 architecture for cache delivery. Generation and fallback builds share the
 `deno info` local-source identity calculation. `generate --check` guards

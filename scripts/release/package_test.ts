@@ -174,7 +174,7 @@ Deno.test("release archive binds generation to its committed Action and rejects 
   };
   try {
     await copy("src", `${cwd}/src`);
-    await copy(".github/actions", `${cwd}/.github/actions`);
+    await copy("actions", `${cwd}/actions`);
     for (const file of ["README.md", "deno.json", "mise.toml", "mise.lock"]) {
       await Deno.copyFile(file, `${cwd}/${file}`);
     }
@@ -227,13 +227,13 @@ Deno.test("release archive binds generation to its committed Action and rejects 
       );
       assertEquals(
         generated[0].content.includes(
-          `uses: atty303/tsugiori/.github/actions/task-prepare@${sha}`,
+          `uses: atty303/tsugiori/actions/task-prepare@${sha}`,
         ),
         true,
       );
     });
     await Deno.writeTextFile(
-      `${cwd}/.github/actions/task-prepare/prepare.sh`,
+      `${cwd}/actions/task-prepare/prepare.sh`,
       "changed",
     );
     await assertRejects(
@@ -241,7 +241,7 @@ Deno.test("release archive binds generation to its committed Action and rejects 
       Error,
       "committed checkout",
     );
-    await git(["checkout", "--", ".github/actions/task-prepare/prepare.sh"]);
+    await git(["checkout", "--", "actions/task-prepare/prepare.sh"]);
     await Deno.writeTextFile(`${cwd}/src/untracked.ts`, "changed");
     await assertRejects(
       () => releaseSource("0.2.0", cwd),

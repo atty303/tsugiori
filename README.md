@@ -163,7 +163,7 @@ exit, and leaves application Deno settings, lockfiles, and later steps' PATH
 alone. No Deno cache or runner tool-cache lookup is used.
 A source checkout without release identity must explicitly set
 `localTaskPrepareAction` to a checkout-relative path such as
-`"./.github/actions/task-prepare"` to generate task-backed workflows. Released
+`"./actions/task-prepare"` to generate task-backed workflows. Released
 packages select their Action automatically.
 
 Runtime binaries are stored outside the repository in the platform cache's

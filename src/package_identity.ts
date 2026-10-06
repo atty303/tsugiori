@@ -12,5 +12,5 @@ export function taskPrepareAction(localPath?: string): string | undefined {
   if (localPath !== undefined) return localPath;
   return TSUGIORI_RELEASE_COMMIT === undefined
     ? undefined
-    : `atty303/tsugiori/.github/actions/task-prepare@${TSUGIORI_RELEASE_COMMIT}`;
+    : `atty303/tsugiori/actions/task-prepare@${TSUGIORI_RELEASE_COMMIT}`;
 }

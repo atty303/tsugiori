@@ -74,7 +74,7 @@ const release = defineWorkflow("workflows/release.yml", {
 
 const project = defineProject({
   cacheVersion: 3,
-  localTaskPrepareAction: "./.github/actions/task-prepare",
+  localTaskPrepareAction: "./actions/task-prepare",
   workingDirectory: ".github",
   workflows: [ci, release],
 });

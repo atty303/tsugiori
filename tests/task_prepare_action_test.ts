@@ -5,7 +5,7 @@ import { generateFiles } from "../src/compiler/generator.ts";
 
 Deno.test("prepare Action installs the repository's verified toolchain and forwards inputs/output", async () => {
   const action = parse(
-    await Deno.readTextFile(".github/actions/task-prepare/action.yml"),
+    await Deno.readTextFile("actions/task-prepare/action.yml"),
   ) as {
     inputs: Record<string, unknown>;
     outputs: Record<string, { value: string }>;
@@ -51,13 +51,13 @@ Deno.test("generation requires release identity for tasks, accepts explicit loca
   const [file] = await generateFiles(
     defineProject({
       workingDirectory: "project",
-      localTaskPrepareAction: "./.github/actions/task-prepare",
+      localTaskPrepareAction: "./actions/task-prepare",
       workflows: [ci],
     }),
     "./workflows.ts",
     "source",
   );
-  assert(file.content.includes("uses: ./.github/actions/task-prepare"));
+  assert(file.content.includes("uses: ./actions/task-prepare"));
   assert(file.content.includes("project-directory: project"));
   assert(!file.content.includes("deno_binary"));
   const native = defineWorkflow("ci.yml", { on: { push: {} } }).job(

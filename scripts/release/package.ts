@@ -143,7 +143,7 @@ export async function releaseSource(
     "src",
     "README.md",
     "deno.json",
-    ".github/actions/task-prepare",
+    "actions/task-prepare",
     "mise.toml",
     "mise.lock",
   ];
@@ -179,8 +179,8 @@ export async function releaseSource(
     "README.md",
     encoder.encode(await git(["show", `${commit}:README.md`], cwd)),
   );
-  await git(["show", `${commit}:.github/actions/task-prepare/action.yml`], cwd);
-  await git(["show", `${commit}:.github/actions/task-prepare/prepare.sh`], cwd);
+  await git(["show", `${commit}:actions/task-prepare/action.yml`], cwd);
+  await git(["show", `${commit}:actions/task-prepare/prepare.sh`], cwd);
   const identityPath = "src/package_identity.ts";
   const identity = decoder.decode(files.get(identityPath));
   const declaration =
