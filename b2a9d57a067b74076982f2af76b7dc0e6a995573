@@ -1,0 +1,69 @@
+Task: Unify Tsugiori authoring callbacks by provider field scope
+Anchor: b2a9d57a067b74076982f2af76b7dc0e6a995573
+Base: bae5578886e3682d348b07d717fa41b761d6a25f
+Branch: main
+Commits: b2a9d57a067b74076982f2af76b7dc0e6a995573 feat(github-actions): author shared-scope settings as whole callbacks
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: Current checkout initially clean; repository-managed mise toolchain; Git metadata writes required sandbox escalation; user approved minor release classification and args callback removal; no push, release or deployment requested
+## Evidence
+mise run check passed before review and after final doc/generated changes. mise run test exited 0 with 122 passed, 0 failed; it included type-service checks and 186 published TypeScript API examples. Focused callback tests passed 4/4, including YAML equivalence, one authoring execution per callback, separate scope objects and four invalid return fixtures without TS7031/TS7006. Existing type and runtime tests retained task presence proofs, contracts, scenario input inference and input validation. Independent reviewer found stale generated CI YAML and over-broad env docs; both addressed. Final generate --check passed; ci.yml changed only four task source/cache identity fields. Final JSDoc verification passed 186 examples. Full current-session JSONL retrieval enumerated this cycle's request and both human selections; injected guidance/open-page context excluded.
+Authority: Current user request and approvals; repository AGENTS.md; develop-repository; design-review; design-program-observability; review; Git task evidence
+## Transcript
+- U1:
+    Tsugiori の authoring callback API を、次の方針に統一してください。
+    
+    方針:
+    - 同じ context・利用可能な関数・型の絞り込み・評価タイミングを共有する設定は、まとまり全体を返す callback を基本にする。
+    - context が異なる設定は callback を分ける。複数 scope を合成して、あるフィールドで許可されない参照を公開しない。
+    - 静的オブジェクトによる設定も引き続き受け付ける。
+    - 現在の checkout で作業し、無関係な変更を保持する。
+    
+    実装対象:
+    1. step の env
+       - env マップ全体を返す callback を追加する。
+       - uses・run・task・composite に一貫して適用する。
+    2. job の .env()
+       - マップ全体を返す callback を追加する。
+    3. job の .defaultsRun()
+       - shell と workingDirectory をまとめて返す callback を追加する。
+    4. job の .concurrency()
+       - オブジェクト全体を返す callback を追加する。
+       - 通常 job と reusable job の両方に適用する。
+       - 現在サポートする値・検証条件を維持する。
+    5. task の inputs
+       - 入力マップ全体を返す callback を追加する。
+       - 各入力の contract、requiredness、型推論、present() と条件による presence proof、runtime の検証を維持する。
+    6. reusable().call() / .rawCall()
+       - with と secrets に、それぞれのマップ全体を返す callback を設ける。
+       - with の callback は with 用 scope、secrets の callback は secrets 用 scope を受け取る。
+       - 現在の args 全体 callback が合成 scope を公開している問題を解消する。
+       - secrets: "inherit" と既存の入力・secret contract 検証を維持する。
+    
+    互換性:
+    - 既存の値ごとの callback は廃止する。
+    - 新しい使用例は、まとまり全体の callback に揃える。
+    - call / rawCall の args 全体 callback は context 境界と両立するか確認する。両立しない場合は、変更前に具体的な移行例と影響を示して確認する。単に従来の合成 scope を残して問題を温存しない。
+    
+    進め方:
+    - AGENTS.md、develop-repository、design-review に従う。
+    - 実装前に design-program-observability の適用判定を行う。
+    - 現在の型定義・scope catalog・評価処理を確認し、必要な共通処理だけを導入する。
+    - callback は authoring 時に実行し、GitHub runtime の値をホスト上で評価しない。
+    - 型アノテーションや any を利用者に要求せず、分割代入した callback 引数と戻り値を自然に推論できるようにする。
+    - 変更する公開 API の JSDoc と実際に型チェックされる例を更新する。README・ARCHITECTURE・ROADMAP は必要な箇所だけ更新する。
+    
+    成功条件:
+    - 上記の各 API で、全体 callback と静的オブジェクトが利用できる。
+    - 不正な context 参照、未宣言・不足した入力、型不一致を拒否する。
+    - call の with callback から secrets を参照できず、secrets callback からは参照できる。
+    - task の入力型と presence proof が維持される。
+    - 同等の設定から同等の YAML が生成される。
+    - callback の型不一致時に implicit any が派生するケースも確認し、可能な範囲で診断を改善する。
+    - 型推論・scope 境界・生成結果を検証する focused tests を追加し、mise run check と mise run test を通す。
+    - 最後に、変更点・互換性への影響・検証結果を報告する。
+    
+  - A: Read required skills, repository state, scope catalog, public types and evaluation paths. Confirmed v0.7.1 baseline and clean main checkout; fetched code/standard notes with sandbox authorization. Proposed feat/minor release and requested the release classification decision.
+- U2: release 対象・minor（推奨）
+  - A: Accepted feat/minor classification. Existing reusable args callbacks exposed with scope combined with secrets, preventing field separation. Showed concrete migration from an args callback to separate with/secrets map callbacks and requested approval for removal.
+- U3: 廃止して別 callback へ移行（推奨）
+  - A: Implemented static or whole callbacks across step/job env, defaultsRun, regular/reusable concurrency and task inputs. Removed per-value and combined-args callbacks; kept input/secret contracts, inherit, task native inference and presence proofs. Migrated consumers and public examples, added scope/inference/YAML/diagnostic tests. Deterministic synchronous authoring qualified for the observability exclusion. Corrected focused-test fixture issues using observed failures; all focused and full tests passed. Fresh independent review identified stale CI source identity and over-broad env JSDoc, both corrected; final docs/check/generate checks passed. Created local commit b2a9d57a067b74076982f2af76b7dc0e6a995573 with approved minor classification and preserved signing. No remote write, deployment or release performed.
