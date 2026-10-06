@@ -6,671 +6,434 @@ import {
 } from "@std/assert";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { sha256Bytes, sha256File } from "../src/task-runtime/artifact.ts";
 import { removeIfPresent } from "../src/task-runtime/cache.ts";
 
 Deno.test({
   name:
-    "project entrypoint generates, prepares, caches, and dispatches a task artifact",
+    "generated cache → prepare runs offline without Deno and recovers preparation failures",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
-    const repositoryRoot = Deno.cwd();
     const fixture = await Deno.makeTempDir({ prefix: "tsugiori-e2e-" });
     try {
-      await copyDirectory(
-        resolve(repositoryRoot, "src"),
-        resolve(fixture, "src"),
-      );
-      await Deno.copyFile(
-        resolve(repositoryRoot, "deno.json"),
+      await copyDirectory(resolve(Deno.cwd(), "src"), resolve(fixture, "src"));
+      const config = JSON.parse(await Deno.readTextFile("deno.json"));
+      delete config.workspace;
+      config.tasks = { tsugiori: "deno run --frozen=true -A ./workflows.ts" };
+      await Deno.writeTextFile(
         resolve(fixture, "deno.json"),
+        JSON.stringify(config),
       );
-      await Deno.copyFile(
-        resolve(repositoryRoot, "deno.lock"),
-        resolve(fixture, "deno.lock"),
-      );
-      await Deno.mkdir(resolve(fixture, ".github"));
+      await Deno.copyFile("deno.lock", resolve(fixture, "deno.lock"));
       await Deno.writeTextFile(
-        resolve(fixture, ".github/deno.json"),
-        JSON.stringify({
-          imports: {
-            "@atty303/tsugiori": "workspace:*",
-            "consumer-only": "./consumer-only.ts",
-          },
-          tasks: {
-            tsugiori: "deno run --frozen=true -A ./workflows.ts",
-          },
-        }),
+        resolve(fixture, "dependency.ts"),
+        'export const marker = "first";\n',
       );
       await Deno.writeTextFile(
-        resolve(fixture, ".github/consumer-only.ts"),
-        "export const consumerMarker = true;\n",
-      );
-      const entrypointSource = `import { consumerMarker } from "consumer-only";
-void consumerMarker;
-import { defineProject, defineWorkflow, runProject, textValue } from "@atty303/tsugiori/github-actions";
-
-const base = defineWorkflow("workflows/ci.yml", {
-  on: { push: {  } },
-});
-try {
-  Deno.statSync("fail-entrypoint");
-  throw new Error("entrypoint-load-private");
-} catch (error) {
-  if (!(error instanceof Deno.errors.NotFound)) throw error;
-}
-const ci = base.job("test", ({ job }) =>
-  job
-    .runsOn("ubuntu-latest")
-    .run({ name: "Setup", run: "echo setup" })
-    .task({
-      name: "Test",
-      inputs: {},
-      outputs: { result: { contract: textValue(), required: true } },
-      run: async (ctx) => {
-        ctx.logger.info("task-log-private");
-        if (Deno.env.get("TSUGIORI_TASK_FAILURE") === "1") {
-          Object.defineProperty(WeakMap.prototype, "get", {
-            value: () => "task-error-type-private",
-          });
-          const error = new Error("task-failure-private") as Error & {
-            errorType: string;
-          };
-          error.errorType = "task-error-type-private";
-          throw error;
-        }
-        await Deno.writeTextFile("task-result.txt", ctx.cwd);
-        await ctx.outputs.set("result", "first\\nsecond");
-      },
-    })
-);
-
-const project = defineProject({ workingDirectory: ".github", workflows: [ci] });
+        resolve(fixture, "workflows.ts"),
+        `
+import { defineProject, defineWorkflow, runProject, textValue } from "./src/github_actions.ts";
+import { marker } from "./dependency.ts";
+const project = defineProject({ workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {},
+    outputs: { result: { contract: textValue(), required: true } },
+    run: async (ctx) => {
+      if (Deno.env.get("TASK_FAIL") === "1") throw new Error("task-failure-private");
+      await Deno.writeTextFile("task-result.txt", marker);
+      await ctx.outputs.set("result", "first\\nsecond");
+    } }))] });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
-`;
-      await Deno.writeTextFile(
-        resolve(fixture, ".github/workflows.ts"),
-        entrypointSource,
+`,
       );
-
-      const environment: Record<string, string> = {
+      const output = resolve(fixture, "github-output");
+      const delivery = resolve(fixture, "delivery");
+      const tools = resolve(fixture, "tools");
+      await Deno.mkdir(tools);
+      for (
+        const command of [
+          "mkdir",
+          "chmod",
+          "ls",
+          "tail",
+          "rm",
+          "mktemp",
+          "dirname",
+          "basename",
+        ]
+      ) {
+        let tool = `/usr/bin/${command}`;
+        try {
+          await Deno.stat(tool);
+        } catch {
+          tool = `/bin/${command}`;
+        }
+        await Deno.symlink(tool, resolve(tools, command));
+      }
+      const invocationLog = resolve(fixture, "deno-invocations");
+      await Deno.writeTextFile(
+        resolve(tools, "deno"),
+        `#!/bin/bash\nprintf '%s\\n' "$*" >> '${invocationLog}'\nexec '${Deno.execPath()}' "$@"\n`,
+      );
+      await Deno.chmod(resolve(tools, "deno"), 0o755);
+      const environment = {
         ...Deno.env.toObject(),
+        PATH: tools,
         XDG_CACHE_HOME: resolve(fixture, "test-cache"),
+        RUNNER_TEMP: fixture,
+        TSUGIORI_ARTIFACT_CACHE: delivery,
+        TSUGIORI_RUNNER_OS: Deno.build.os === "darwin" ? "macOS" : "Linux",
+        TSUGIORI_RUNNER_ARCH: Deno.build.arch === "aarch64" ? "ARM64" : "X64",
+        GITHUB_OUTPUT: output,
       };
-      delete environment.RUNNER_DEBUG;
-      assertEquals(environment.RUNNER_DEBUG, undefined);
-
       const generated = await run(
         Deno.execPath(),
         ["task", "tsugiori", "generate"],
-        resolve(fixture, ".github"),
+        fixture,
         environment,
       );
       assertEquals(generated.code, 0, generated.stderr);
-      const workflow = await Deno.readTextFile(
-        resolve(fixture, ".github/workflows/ci.yml"),
+      const yaml = await Deno.readTextFile(
+        resolve(fixture, "workflows/ci.yml"),
       );
-      assertStringIncludes(
-        workflow,
-        "# Generated by Tsugiori from workflows.ts\n",
-      );
-      const checked = await runProject(
-        [
-          "generate",
-          "--check",
-          "--output",
-          "workflows/ci.yml",
-        ],
-        fixture,
-        environment,
-      );
-      assertEquals(checked.code, 0, checked.stderr);
-      const checkedAll = await run(
-        Deno.execPath(),
-        ["task", "tsugiori", "generate", "--check"],
-        resolve(fixture, ".github"),
-        environment,
-      );
-      assertEquals(checkedAll.code, 0, checkedAll.stderr);
-      assertEquals(
-        await Deno.readTextFile(resolve(fixture, ".github/workflows/ci.yml")),
-        workflow,
-      );
-      assertStringIncludes(workflow, "name: Resolve task artifact");
-      assertStringIncludes(workflow, "name: Cache task artifact");
-      assertStringIncludes(workflow, "name: Prepare task artifact");
-      assertStringIncludes(workflow, "working-directory: .github");
-      assertStringIncludes(
-        workflow,
-        "deno run --frozen=true -A './workflows.ts' github-actions task cache-key",
-      );
-      assertStringIncludes(workflow, "uses: actions/cache@");
-      assertStringIncludes(
-        workflow,
-        `run: |-\n          "${"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}"}" 'workflows/ci.yml/test/task-1'`,
-      );
-      const expectedLayout = workflow.match(
-        /workflows\/ci\.yml\/test=sha256:[0-9a-f]+/,
-      )?.[0];
-      assert(expectedLayout !== undefined);
-      const githubOutput = resolve(fixture, "github-output");
-
-      await Deno.writeTextFile(
-        resolve(fixture, ".github/workflows.ts"),
-        entrypointSource.replace('name: "Test"', 'name: "Changed"'),
-      );
-      const staleWorkflow = await runProject(
-        [
-          "generate",
-          "--check",
-          "--output",
-          "workflows/ci.yml",
-        ],
-        fixture,
-        environment,
-      );
-      assertEquals(staleWorkflow.code, 1);
-      assertStringIncludes(
-        staleWorkflow.stderr,
-        "changed: workflows/ci.yml",
-      );
-      assertEquals(
-        await Deno.readTextFile(resolve(fixture, ".github/workflows/ci.yml")),
-        workflow,
-      );
-      await Deno.writeTextFile(githubOutput, "");
-      const stale = await runProject(
-        [
-          "github-actions",
-          "task",
-          "cache-key",
-          "--expect-layout",
-          expectedLayout,
-        ],
-        fixture,
-        {
-          ...environment,
-          GITHUB_OUTPUT: githubOutput,
-          RUNNER_DEBUG: "1",
-        },
-      );
-      assertEquals(stale.code, 1);
-      assertStringIncludes(stale.stderr, "task layout is stale");
-      const staleRecord = diagnosticRecord(stale.stderr);
-      assert(staleRecord !== undefined);
-      assertEquals(
-        staleRecord.operations.at(-1)?.errorType,
-        "registry_layout_mismatch",
-      );
-      await Deno.writeTextFile(
-        resolve(fixture, ".github/workflows.ts"),
-        entrypointSource,
-      );
-
-      await Deno.writeTextFile(githubOutput, "");
-      const resolvedArtifact = await runProject(
-        [
-          "github-actions",
-          "task",
-          "cache-key",
-          "--expect-layout",
-          expectedLayout,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(resolvedArtifact.code, 0, resolvedArtifact.stderr);
-      const firstOutputs = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      );
-      const artifactKey = firstOutputs["artifact-key"];
-      assert(artifactKey !== undefined);
-      assertEquals(
-        firstOutputs["cache-path"],
-        resolve(fixture, `test-cache/tsugiori/cache/artifacts/${artifactKey}`),
-      );
-
-      await Deno.writeTextFile(githubOutput, "");
-      const firstPrepare = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          artifactKey,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(firstPrepare.code, 0, firstPrepare.stderr);
-      assertStringIncludes(firstPrepare.stdout, "cache miss");
-
-      await Deno.remove(resolve(fixture, "test-cache/tsugiori/runtimes"), {
-        recursive: true,
-      });
-      await Deno.writeTextFile(githubOutput, "");
-      const secondPrepare = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          artifactKey,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(secondPrepare.code, 0, secondPrepare.stderr);
-      assertStringIncludes(secondPrepare.stdout, "cache hit");
-      const baselineRuntime = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      )["runtime-path"];
-      const baselineBinary = await Deno.readFile(baselineRuntime);
-      const baselineInode = (await Deno.stat(baselineRuntime)).ino;
-      const concurrentPrepare = async (ordinal: number) => {
-        const output = resolve(fixture, `concurrent-output-${ordinal}`);
+      assert(!yaml.includes("Resolve task artifact"));
+      assertStringIncludes(yaml, "runner.os");
+      assertStringIncludes(yaml, "runner.arch");
+      const script = yaml.match(
+        /name: Prepare task artifact[\s\S]*?run: \|-\n((?: {10}.*\n)+)/,
+      )?.[1]
+        .split("\n").filter((line) => line.length > 0).map((line) =>
+          line.slice(10)
+        ).join("\n");
+      assert(script !== undefined);
+      const sourceKey = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
+      assert(sourceKey !== undefined);
+      const prepare = async (extra: Record<string, string> = {}) => {
         await Deno.writeTextFile(output, "");
-        const result = await runProject(
-          [
-            "github-actions",
-            "task",
-            "prepare",
-            "--expect-layout",
-            expectedLayout,
-            "--expected-key",
-            artifactKey,
-          ],
-          fixture,
-          { ...environment, GITHUB_OUTPUT: output },
-        );
-        assertEquals(result.code, 0, result.stderr);
-        assertEquals(
-          parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"],
-          baselineRuntime,
-        );
+        return await run("/bin/bash", ["-c", script], fixture, {
+          ...environment,
+          ...extra,
+        });
       };
-      await Promise.all([
-        concurrentPrepare(1),
-        concurrentPrepare(2),
-        (async () => {
-          for (let index = 0; index < 3; index++) {
-            const output = resolve(fixture, `concurrent-reader-${index}`);
-            await Deno.writeTextFile(output, "");
-            const result = await run(
-              baselineRuntime,
-              ["workflows/ci.yml/test/task-1"],
-              fixture,
-              { ...environment, GITHUB_OUTPUT: output },
-            );
-            assertEquals(result.code, 0, result.stderr);
-          }
-        })(),
-      ]);
-      assertEquals((await Deno.stat(baselineRuntime)).ino, baselineInode);
+      const first = await prepare();
+      assertEquals(first.code, 0, first.stderr);
+      const invocations = await Deno.readTextFile(invocationLog);
+      for (
+        const command of [
+          "--version",
+          "run --frozen=true",
+          "info --json",
+          "compile -A",
+        ]
+      ) assertStringIncludes(invocations, command);
+      const binary = await Deno.readFile(resolve(delivery, "task-runtime"));
+      const manifest = await Deno.readTextFile(
+        resolve(delivery, "manifest.json"),
+      );
+      assertEquals(JSON.parse(manifest).schemaVersion, 4);
+      assertEquals(JSON.parse(manifest).sourceKey, sourceKey);
+      const runtime =
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
+      await Deno.remove(resolve(tools, "deno"));
       await Deno.remove(resolve(fixture, "test-cache/tsugiori/runtimes"), {
         recursive: true,
       });
-      await Promise.all([
-        concurrentPrepare(3),
-        concurrentPrepare(4),
-        concurrentPrepare(5),
-      ]);
-      const recoverRuntime = async () => {
-        await Deno.writeTextFile(githubOutput, "");
-        const result = await runProject(
-          [
-            "github-actions",
-            "task",
-            "prepare",
-            "--expect-layout",
-            expectedLayout,
-            "--expected-key",
-            artifactKey,
-          ],
-          fixture,
-          { ...environment, GITHUB_OUTPUT: githubOutput },
-        );
-        assertEquals(result.code, 0, result.stderr);
-        assertStringIncludes(result.stdout, "cache hit");
-        const runtimePath = parseGitHubOutputs(
-          await Deno.readTextFile(githubOutput),
-        )["runtime-path"];
-        assert(runtimePath !== baselineRuntime);
-        assertEquals(await Deno.readFile(runtimePath), baselineBinary);
-        const executed = await run(
-          runtimePath,
-          ["workflows/ci.yml/test/task-1"],
-          fixture,
-          { ...environment, GITHUB_OUTPUT: githubOutput },
-        );
-        assertEquals(executed.code, 0, executed.stderr);
-      };
-      await Deno.writeTextFile(baselineRuntime, "corrupt-runtime");
-      await recoverRuntime();
-      await Deno.remove(baselineRuntime);
-      await recoverRuntime();
-      await Deno.remove(
-        resolve(fixture, "test-cache/tsugiori/runtimes", artifactKey),
-        { recursive: true },
-      );
-      await concurrentPrepare(6);
-
-      await Deno.writeTextFile(
-        resolve(fixture, ".github/deno.json"),
-        JSON.stringify({
-          imports: {
-            "@atty303/tsugiori": "workspace:*",
-            "consumer-only": "./consumer-only.ts",
-          },
-          compilerOptions: { strict: true },
-        }),
-      );
-      await Deno.writeTextFile(githubOutput, "");
-      const configurationOnlyChange = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          artifactKey,
-        ],
-        fixture,
-        {
-          ...environment,
-          GITHUB_OUTPUT: githubOutput,
-        },
-      );
+      const offline = { DENO_DIR: resolve(fixture, "empty-deno-cache") };
+      const hit = await prepare(offline);
+      assertEquals(hit.code, 0, hit.stderr);
+      assertStringIncludes(hit.stdout, "cache hit");
+      assertEquals(await Deno.readTextFile(invocationLog), invocations);
       assertEquals(
-        configurationOnlyChange.code,
-        0,
-        configurationOnlyChange.stderr,
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"],
+        runtime,
       );
-      assertStringIncludes(configurationOnlyChange.stdout, "cache hit");
-
-      await Deno.writeTextFile(
-        resolve(fixture, ".github/workflows.ts"),
-        entrypointSource.replace("echo setup", "echo changed-setup"),
-      );
-      await Deno.writeTextFile(githubOutput, "");
-      const keyChangedDuringPreparation = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          artifactKey,
-        ],
-        fixture,
-        {
-          ...environment,
-          GITHUB_OUTPUT: githubOutput,
-          RUNNER_DEBUG: "1",
-        },
-      );
-      assertEquals(keyChangedDuringPreparation.code, 1);
-      assertStringIncludes(
-        keyChangedDuringPreparation.stderr,
-        "inputs changed after the cache key was resolved",
-      );
-      assertEquals(
-        diagnosticRecord(keyChangedDuringPreparation.stderr)?.operations.at(-1)
-          ?.errorType,
-        "artifact_key_mismatch",
-      );
-
-      await Deno.writeTextFile(githubOutput, "");
-      const changedArtifact = await runProject(
-        [
-          "github-actions",
-          "task",
-          "cache-key",
-          "--expect-layout",
-          expectedLayout,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(changedArtifact.code, 0, changedArtifact.stderr);
-      const changedArtifactKey = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      )["artifact-key"];
-      assert(changedArtifactKey !== undefined);
-      assert(changedArtifactKey !== artifactKey);
-
-      await Deno.writeTextFile(githubOutput, "");
-      const configurationChanged = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          changedArtifactKey,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(configurationChanged.code, 0, configurationChanged.stderr);
-      assertStringIncludes(configurationChanged.stdout, "cache miss");
-      const changedRuntime = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      )["runtime-path"];
-      assert(changedRuntime !== baselineRuntime);
-      assertEquals(await Deno.readFile(baselineRuntime), baselineBinary);
-
-      const materializedManifest = JSON.parse(
-        await Deno.readTextFile(
-          resolve(
-            fixture,
-            `test-cache/tsugiori/runtimes/${changedArtifactKey}/manifest.json`,
-          ),
-        ),
-      ) as {
-        artifactKey: string;
-        schemaVersion: number;
-        tsugioriBuildId?: unknown;
-        tsugioriVersion: string;
-      };
-      assertEquals(materializedManifest.schemaVersion, 3);
-      assertEquals(
-        materializedManifest.tsugioriVersion,
-        "0.1.0",
-      );
-      assertEquals("tsugioriBuildId" in materializedManifest, false);
-      await Deno.writeTextFile(
-        resolve(
-          fixture,
-          `test-cache/tsugiori/cache/artifacts/${materializedManifest.artifactKey}/task-runtime`,
-        ),
-        "corrupt",
-      );
-      await Deno.remove(resolve(fixture, "test-cache/tsugiori/runtimes"), {
-        recursive: true,
-      });
-      await Deno.writeTextFile(githubOutput, "");
-      const recovered = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          changedArtifactKey,
-        ],
-        fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
-      );
-      assertEquals(recovered.code, 0, recovered.stderr);
-      assertStringIncludes(recovered.stdout, "cache miss");
-
-      await Deno.chmod(
-        resolve(
-          fixture,
-          `test-cache/tsugiori/cache/artifacts/${changedArtifactKey}/task-runtime`,
-        ),
-        0o000,
-      );
-      await Deno.remove(resolve(fixture, "test-cache/tsugiori/runtimes"), {
-        recursive: true,
-      });
-      await Deno.writeTextFile(githubOutput, "");
-      const unreadableEntry = await runProject(
-        [
-          "github-actions",
-          "task",
-          "prepare",
-          "--expect-layout",
-          expectedLayout,
-          "--expected-key",
-          changedArtifactKey,
-        ],
-        fixture,
-        {
-          ...environment,
-          GITHUB_OUTPUT: githubOutput,
-          RUNNER_DEBUG: "1",
-        },
-      );
-      assertEquals(unreadableEntry.code, 0, unreadableEntry.stderr);
-      assertStringIncludes(unreadableEntry.stdout, "cache miss");
-      assertEquals(
-        diagnosticRecord(unreadableEntry.stderr)?.operations.filter(
-          (operation) => operation.name === "cache.restore",
-        ),
-        [{
-          name: "cache.restore",
-          status: "error",
-          errorType: "cache_restore_failed",
-          attributes: { artifactKey: changedArtifactKey },
-        }],
-      );
-
-      const runtime = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      )["runtime-path"];
-      assert(runtime !== undefined);
-      await assertRejects(
-        () => Deno.stat(resolve(fixture, ".tsugiori")),
-        Deno.errors.NotFound,
-      );
-      await Deno.writeTextFile(githubOutput, "");
       const executed = await run(
         runtime,
         ["workflows/ci.yml/test/task-1"],
         fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
+        { ...environment, ...offline },
       );
       assertEquals(executed.code, 0, executed.stderr);
-      assertStringIncludes(executed.stdout, "task-log-private");
-      assertEquals(diagnosticRecord(executed.stderr), undefined);
       assertEquals(
         await Deno.readTextFile(resolve(fixture, "task-result.txt")),
-        await Deno.realPath(fixture),
+        "first",
       );
-      assertStringIncludes(
-        await Deno.readTextFile(githubOutput),
-        "result<<tsugiori_",
-      );
-      assertStringIncludes(
-        await Deno.readTextFile(githubOutput),
-        "first\nsecond\n",
-      );
-
-      const debugged = await run(
+      assertStringIncludes(await Deno.readTextFile(output), "first\nsecond\n");
+      const failedTask = await run(
         runtime,
         ["workflows/ci.yml/test/task-1"],
         fixture,
-        { ...environment, GITHUB_OUTPUT: githubOutput, RUNNER_DEBUG: "1" },
+        { ...environment, TASK_FAIL: "1" },
       );
-      assertEquals(debugged.code, 0, debugged.stderr);
-      const debugRecord = diagnosticRecord(debugged.stderr);
-      assert(debugRecord !== undefined);
-      assertEquals(
-        debugRecord.operations[0],
-        {
-          name: "task.dispatch",
-          status: "success",
-          attributes: { entrypoint: "workflows/ci.yml/test/task-1" },
-        },
-      );
-      assertEquals(debugRecord.status, "success");
-      assertEquals(debugRecord.completeness, "complete");
-      assertEquals(debugged.stderr.includes("task-log-private"), false);
+      assertEquals(failedTask.code, 1);
+      assertStringIncludes(failedTask.stderr, "task-failure-private");
+      assertEquals(await Deno.readTextFile(invocationLog), invocations);
+      const inode = (await Deno.stat(runtime)).ino;
+      await Promise.all([prepare(), prepare()]);
+      assertEquals((await Deno.stat(runtime)).ino, inode);
+      await Deno.writeTextFile(runtime, "corrupt-runtime");
+      const recoveredRuntime = await prepare();
+      assertEquals(recoveredRuntime.code, 0, recoveredRuntime.stderr);
+      const recoveryPath =
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
+      assert(recoveryPath !== runtime);
+      assertEquals(await Deno.readFile(recoveryPath), binary);
 
-      const taskFailure = await run(
-        runtime,
-        ["workflows/ci.yml/test/task-1"],
-        fixture,
-        {
-          ...environment,
-          RUNNER_DEBUG: "1",
-          TSUGIORI_TASK_FAILURE: "1",
-        },
-      );
-      assertEquals(taskFailure.code, 1);
-      assertStringIncludes(taskFailure.stderr, "task-failure-private");
-      const taskFailureRecord = diagnosticRecord(taskFailure.stderr);
-      assert(taskFailureRecord !== undefined);
-      assertEquals(taskFailureRecord.operations[0].errorType, "task_failed");
-      assertEquals(
-        taskFailure.stderr.includes("task-error-type-private"),
-        false,
-      );
-
-      await Deno.writeTextFile(resolve(fixture, "fail-entrypoint"), "fail\n");
-      const entrypointFailure = await run(
-        runtime,
-        ["workflows/ci.yml/test/task-1"],
-        fixture,
-        { ...environment, RUNNER_DEBUG: "1" },
-      );
-      assertEquals(entrypointFailure.code, 1);
-      assertStringIncludes(entrypointFailure.stderr, "entrypoint-load-private");
-      assertEquals(diagnosticRecord(entrypointFailure.stderr), undefined);
+      // Restore a usable external Deno for fallback; it must be the only binary used.
       await Deno.writeTextFile(
-        resolve(fixture, ".github/fail-entrypoint"),
-        "fail\n",
+        resolve(tools, "deno"),
+        `#!/bin/bash\nprintf '%s\\n' "$*" >> '${invocationLog}'\nexec '${Deno.execPath()}' "$@"\n`,
       );
-      const directEntrypointFailure = await run(
-        Deno.execPath(),
-        ["run", "--frozen=true", "-A", "./workflows.ts", "generate", "--check"],
-        resolve(fixture, ".github"),
-        { ...environment, RUNNER_DEBUG: "1" },
-      );
-      assertEquals(directEntrypointFailure.code, 1);
+      await Deno.chmod(resolve(tools, "deno"), 0o755);
+      for (
+        const damage of ["checksum", "startup", "manifest", "miss", "restore"]
+      ) {
+        await Deno.writeFile(resolve(delivery, "task-runtime"), binary);
+        await Deno.chmod(resolve(delivery, "task-runtime"), 0o755);
+        await Deno.writeTextFile(resolve(delivery, "manifest.json"), manifest);
+        if (damage === "checksum") {
+          await Deno.writeTextFile(
+            resolve(delivery, "manifest.json"),
+            JSON.stringify({
+              ...JSON.parse(manifest),
+              binarySha256: "invalid",
+            }),
+          );
+        }
+        if (damage === "startup") {
+          await Deno.writeTextFile(
+            resolve(delivery, "task-runtime"),
+            "#!/bin/bash\nexit 7\n",
+          );
+        }
+        if (damage === "manifest") {
+          await Deno.writeTextFile(resolve(delivery, "manifest.json"), "{}");
+        }
+        if (damage === "miss") await Deno.remove(delivery, { recursive: true });
+        if (damage === "restore") {
+          await Deno.chmod(resolve(delivery, "manifest.json"), 0o000);
+        }
+        const recovered = await prepare();
+        assertEquals(recovered.code, 0, `${damage}: ${recovered.stderr}`);
+        const recoveredManifest = JSON.parse(
+          await Deno.readTextFile(resolve(delivery, "manifest.json")),
+        );
+        assertEquals(
+          await sha256File(resolve(delivery, "task-runtime")),
+          recoveredManifest.binarySha256,
+        );
+        assertEquals(recoveredManifest.sourceKey, sourceKey);
+      }
+      // Same checksum-correct but unstartable binary in delivery, local cache, and runtime.
+      const key = JSON.parse(manifest).artifactKey;
+      const unstartable = new TextEncoder().encode("#!/bin/bash\nexit 7\n");
+      const failedManifest = {
+        ...JSON.parse(manifest),
+        binarySha256: await sha256Bytes(unstartable),
+      };
+      for (
+        const directory of [
+          delivery,
+          resolve(fixture, "test-cache/tsugiori/cache/artifacts", key),
+          resolve(fixture, "test-cache/tsugiori/runtimes", key),
+        ]
+      ) {
+        await Deno.writeFile(resolve(directory, "task-runtime"), unstartable);
+        await Deno.chmod(resolve(directory, "task-runtime"), 0o755);
+        await Deno.writeTextFile(
+          resolve(directory, "manifest.json"),
+          JSON.stringify(failedManifest),
+        );
+      }
+      const callsBeforeRebuild = await Deno.readTextFile(invocationLog);
+      const rebuilt = await prepare();
+      assertEquals(rebuilt.code, 0, rebuilt.stderr);
       assertStringIncludes(
-        directEntrypointFailure.stderr,
-        "entrypoint-load-private",
+        (await Deno.readTextFile(invocationLog)).slice(
+          callsBeforeRebuild.length,
+        ),
+        "compile -A",
       );
-      assertEquals(diagnosticRecord(directEntrypointFailure.stderr), undefined);
-      await Deno.remove(resolve(fixture, "fail-entrypoint"));
-      await Deno.remove(resolve(fixture, ".github/fail-entrypoint"));
-
-      const unknown = await run(
-        runtime,
-        ["workflows/ci.yml/test/task-99"],
+      const rebuiltRuntime =
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
+      assert(rebuiltRuntime !== runtime);
+      assertEquals(await Deno.readFile(runtime), unstartable);
+      const rebuiltTask = await run(
+        rebuiltRuntime,
+        ["workflows/ci.yml/test/task-1"],
         fixture,
-        { ...environment, RUNNER_DEBUG: "1" },
+        environment,
       );
-      assertEquals(unknown.code, 1);
-      assertStringIncludes(unknown.stderr, "Unknown task entrypoint");
-      const unknownRecord = diagnosticRecord(unknown.stderr);
-      assert(unknownRecord !== undefined);
+      assertEquals(rebuiltTask.code, 0, rebuiltTask.stderr);
+      const existingDeno = await Deno.readTextFile(resolve(tools, "deno"));
+      await Deno.remove(resolve(tools, "deno"));
+      const afterRecovery = await prepare({
+        DENO_DIR: resolve(fixture, "offline-after-recovery"),
+      });
+      assertEquals(afterRecovery.code, 0, afterRecovery.stderr);
+      assertStringIncludes(afterRecovery.stdout, "cache hit");
+      const afterRecoveryRuntime =
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
+      assert(afterRecoveryRuntime !== runtime);
+      const afterRecoveryTask = await run(
+        afterRecoveryRuntime,
+        ["workflows/ci.yml/test/task-1"],
+        fixture,
+        environment,
+      );
+      assertEquals(afterRecoveryTask.code, 0, afterRecoveryTask.stderr);
+      await Deno.writeTextFile(resolve(tools, "deno"), existingDeno);
+      await Deno.chmod(resolve(tools, "deno"), 0o755);
+      // Exercise the exact download/extract bridge without contacting GitHub.
+      const archive = resolve(fixture, "deno.zip");
+      await Deno.writeFile(
+        archive,
+        Uint8Array.from(
+          atob(
+            "UEsDBBQAAAAAAEloRl0AFTl7XgAAAF4AAAAEAAAAZGVubyMhL2Jpbi9iYXNoCnByaW50ZiAnJXN8JXNcbicgIiRUU1VHSU9SSV9ERU5PIiAiJCoiID4+ICIkREVOT19DQUxMX0xPRyIKZXhlYyAiJFRFU1RfREVOTyIgIiRAIgpQSwECFAMUAAAAAABJaEZdABU5e14AAABeAAAABAAAAAAAAAAAAAAAgAEAAAAAZGVub1BLBQYAAAAAAQABADIAAACAAAAAAAA=",
+          ),
+          (c) => c.charCodeAt(0),
+        ),
+      );
+      const downloads = resolve(fixture, "downloads");
+      await Deno.writeTextFile(
+        resolve(tools, "curl"),
+        `#!/bin/bash
+printf '%s\\n' "$*" >> "$DOWNLOAD_LOG"
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "-o" ]; then /bin/cp "$DENO_ZIP" "$2"; exit 0; fi
+  shift
+done
+exit 1
+`,
+      );
+      await Deno.chmod(resolve(tools, "curl"), 0o755);
+      await Deno.symlink("/usr/bin/unzip", resolve(tools, "unzip"));
+      for (const selection of ["absent", "old"]) {
+        await Deno.remove(resolve(fixture, "test-cache/tsugiori/cache"), {
+          recursive: true,
+        });
+        await Deno.remove(delivery, { recursive: true });
+        if (selection === "absent") await Deno.remove(resolve(tools, "deno"));
+        else {
+          await Deno.writeTextFile(
+            resolve(tools, "deno"),
+            '#!/bin/bash\necho "deno 1.0.0"\n',
+          );
+          await Deno.chmod(resolve(tools, "deno"), 0o755);
+        }
+        const downloaded = await prepare({
+          TEST_DENO: Deno.execPath(),
+          DENO_ZIP: archive,
+          DOWNLOAD_LOG: downloads,
+          DENO_CALL_LOG: invocationLog,
+        });
+        assertEquals(downloaded.code, 0, downloaded.stderr);
+        const selectedCalls = (await Deno.readTextFile(invocationLog)).split(
+          "\n",
+        ).filter((line) => line.includes("|"));
+        for (
+          const call of selectedCalls.filter((line) =>
+            /[|](run|info|compile) /.test(line)
+          )
+        ) {
+          assertStringIncludes(call.split("|")[0], "/tsugiori-deno.");
+        }
+        assertStringIncludes(
+          await Deno.readTextFile(downloads),
+          `https://github.com/denoland/deno/releases/latest/download/deno-${Deno.build.target}.zip`,
+        );
+        for await (const entry of Deno.readDir(fixture)) {
+          assert(!entry.name.startsWith("tsugiori-deno."));
+        }
+        assertEquals(environment.PATH, tools);
+      }
+      // Reuse the existing app binary without replacing it or changing PATH.
+      await Deno.remove(resolve(tools, "deno"));
+      await Deno.symlink(Deno.execPath(), resolve(tools, "deno"));
+      await Deno.writeTextFile(
+        resolve(fixture, "dependency.ts"),
+        'export const marker = "changed";\n',
+      );
+      const stale = await run(
+        Deno.execPath(),
+        ["task", "tsugiori", "generate", "--check"],
+        fixture,
+        environment,
+      );
+      assertEquals(stale.code, 1);
+      assertStringIncludes(stale.stderr, "changed: workflows/ci.yml");
+      const changed = await prepare();
+      assertEquals(changed.code, 0, changed.stderr);
+      await assertRejects(() => Deno.stat(delivery), Deno.errors.NotFound);
+      const changedRuntime =
+        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
+      const changedTask = await run(
+        changedRuntime,
+        ["workflows/ci.yml/test/task-1"],
+        fixture,
+        environment,
+      );
+      assertEquals(changedTask.code, 0, changedTask.stderr);
       assertEquals(
-        unknownRecord.operations[0].errorType,
-        "entrypoint_not_found",
+        await Deno.readTextFile(resolve(fixture, "task-result.txt")),
+        "changed",
       );
+      // A missing source reaches fallback, which reports graph/import failure.
+      await Deno.mkdir(delivery);
+      await Deno.writeFile(resolve(delivery, "task-runtime"), binary);
+      await Deno.chmod(resolve(delivery, "task-runtime"), 0o755);
+      await Deno.writeTextFile(resolve(delivery, "manifest.json"), manifest);
+      await Deno.remove(resolve(fixture, "dependency.ts"));
+      const missing = await prepare();
+      assertEquals(missing.code, 1);
+      assertStringIncludes(missing.stderr, "source changed or is missing");
+      const records = [];
+      for await (
+        const entry of Deno.readDir(
+          resolve(fixture, "test-cache/tsugiori/diagnostics"),
+        )
+      ) {
+        records.push(
+          JSON.parse(
+            await Deno.readTextFile(
+              resolve(fixture, "test-cache/tsugiori/diagnostics", entry.name),
+            ),
+          ),
+        );
+      }
+      assert(
+        records.some((record) =>
+          record.operations.some((op: { errorType?: string }) =>
+            op.errorType === "source_mismatch"
+          )
+        ),
+      );
+      assert(
+        records.every((record) =>
+          !JSON.stringify(record).includes("task-failure-private")
+        ),
+      );
+      // Failed acquisition is terminal and leaves the application binary alone.
+      const appBinary = await Deno.readLink(resolve(tools, "deno"));
+      await Deno.remove(resolve(tools, "deno"));
+      await Deno.remove(delivery, { recursive: true });
+      await Deno.writeTextFile(
+        resolve(tools, "curl"),
+        "#!/bin/bash\nexit 22\n",
+      );
+      await Deno.chmod(resolve(tools, "curl"), 0o755);
+      const failedDownload = await prepare();
+      assertEquals(failedDownload.code, 1);
+      assertStringIncludes(
+        failedDownload.stderr,
+        "Failed to download Tsugiori's fallback Deno",
+      );
+      assertEquals((await Deno.stat(appBinary)).isFile, true);
+      for await (const entry of Deno.readDir(fixture)) {
+        assert(!entry.name.startsWith("tsugiori-deno."));
+      }
     } finally {
       await Deno.remove(fixture, { recursive: true });
     }
@@ -815,7 +578,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
           ? "aarch64-apple-darwin"
           : "x86_64-unknown-linux-gnu",
       );
-      assert(targetChanged !== baseline);
+      assertEquals(targetChanged, externalChanged);
     } finally {
       await server.shutdown();
       await Deno.remove(fixture, { recursive: true });
@@ -908,27 +671,10 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assert(expectedLayout !== undefined);
       const githubOutput = resolve(fixture, "github-output");
       await Deno.writeTextFile(githubOutput, "");
-      const resolved = await run(
-        Deno.execPath(),
-        [
-          "run",
-          "--frozen=true",
-          "-A",
-          "./workflows.ts",
-          "github-actions",
-          "task",
-          "cache-key",
-          "--expect-layout",
-          expectedLayout,
-        ],
+      const artifactKey = await resolveSourceArtifactKey(
         project,
-        { ...environment, GITHUB_OUTPUT: githubOutput },
+        resolve(fixture, "deno-cache"),
       );
-      assertEquals(resolved.code, 0, resolved.stderr);
-      const artifactKey = parseGitHubOutputs(
-        await Deno.readTextFile(githubOutput),
-      )["artifact-key"];
-      assert(artifactKey !== undefined);
       await Deno.writeTextFile(githubOutput, "");
       const prepared = await run(
         Deno.execPath(),
@@ -1041,49 +787,24 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
 
 async function resolveSourceArtifactKey(
   fixture: string,
-  denoDirectory: string,
-  target?: string,
+  _denoDirectory: string,
+  _target?: string,
 ): Promise<string> {
-  const output = resolve(fixture, `github-output-${crypto.randomUUID()}`);
-  await Deno.writeTextFile(output, "");
+  // Import the consumer so cacheVersion comes from the actual project value.
   const result = await run(
     Deno.execPath(),
-    [
-      "run",
-      "-A",
-      "--frozen=true",
-      "./workflows.ts",
-      "github-actions",
-      "task",
-      "cache-key",
-      ...(target === undefined ? [] : ["--target", target]),
-    ],
+    ["run", "--frozen=true", "-A", "./workflows.ts", "generate"],
     fixture,
     {
       ...Deno.env.toObject(),
-      DENO_DIR: denoDirectory,
-      GITHUB_OUTPUT: output,
+      DENO_DIR: _denoDirectory,
     },
   );
   assertEquals(result.code, 0, result.stderr);
-  const artifactKey = parseGitHubOutputs(await Deno.readTextFile(output))[
-    "artifact-key"
-  ];
-  assert(artifactKey !== undefined);
-  return artifactKey;
-}
-
-async function runProject(
-  args: readonly string[],
-  fixture: string,
-  env: Readonly<Record<string, string>>,
-): Promise<Readonly<{ code: number; stdout: string; stderr: string }>> {
-  return await run(
-    Deno.execPath(),
-    ["run", "--frozen=true", "-A", "./workflows.ts", ...args],
-    resolve(fixture, ".github"),
-    env,
-  );
+  const yaml = await Deno.readTextFile(resolve(fixture, "workflows/ci.yml"));
+  const key = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
+  assert(key !== undefined);
+  return key;
 }
 
 async function run(
@@ -1105,30 +826,6 @@ async function run(
     stdout: new TextDecoder().decode(result.stdout),
     stderr: new TextDecoder().decode(result.stderr),
   };
-}
-
-type DiagnosticRecord = Readonly<{
-  status: "error" | "success";
-  completeness: "complete" | "partial";
-  operations: readonly Readonly<{
-    name: string;
-    status: "error" | "success";
-    errorType?: string;
-    attributes?: Readonly<Record<string, string>>;
-  }>[];
-}>;
-
-function diagnosticRecord(stderr: string): DiagnosticRecord | undefined {
-  return diagnosticRecords(stderr)[0];
-}
-
-function diagnosticRecords(stderr: string): readonly DiagnosticRecord[] {
-  const records: DiagnosticRecord[] = [];
-  for (const line of stderr.split("\n")) {
-    if (!line.startsWith('{"schemaVersion":1,')) continue;
-    records.push(JSON.parse(line) as DiagnosticRecord);
-  }
-  return records;
 }
 
 function parseGitHubOutputs(content: string): Readonly<Record<string, string>> {

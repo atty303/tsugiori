@@ -13,10 +13,11 @@ import {
 } from "../task-runtime/diagnostics.ts";
 import {
   prepareTaskArtifact,
-  resolveTaskArtifact,
-  taskArtifactCachePath,
+  restoreTaskArtifact,
   type ToolIdentity,
 } from "../task-runtime/prepare.ts";
+import { requireSupportedDeno } from "../task-runtime/deno.ts";
+import { computeSourceIdentity } from "../task-runtime/source.ts";
 import { TSUGIORI_PACKAGE_VERSION } from "../package_identity.ts";
 
 const SOURCE_TOOL_IDENTITY: ToolIdentity = {
@@ -44,6 +45,12 @@ export async function runProject(
   args: readonly string[] = Deno.args,
   tool: ToolIdentity = SOURCE_TOOL_IDENTITY,
 ): Promise<number> {
+  try {
+    requireSupportedDeno();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
   if (args.length === 1 && args[0].includes("/")) {
     return await dispatchTask(options.project, args[0], tool);
   }
@@ -109,9 +116,22 @@ export async function runProject(
         options.entrypointUrl,
       );
       recorder.operation({ name: "project.source", status: "success" });
+      const hasTasks = source.project.workflows.some((workflow) =>
+        workflow.jobs.some((job) =>
+          job.steps.some((step) => step.type === "task")
+        )
+      );
+      const identity = hasTasks
+        ? await computeSourceIdentity({
+          projectDirectory: source.projectDirectory,
+          entrypointPath: source.entrypointPath,
+          cacheVersion: source.project.cacheVersion,
+        })
+        : undefined;
       const files = await generateFiles(
         source.project,
         source.entrypointArgument,
+        identity?.sourceKey ?? "unused",
       );
       if (parsed.options.check === "true") {
         const stale = await checkGeneratedFiles(
@@ -155,29 +175,18 @@ export async function runProject(
       return 0;
     }
 
-    if (isGitHubActionsTaskCommand(parsed, "cache-key")) {
-      const source = projectSource(
-        options.project,
-        options.entrypointUrl,
-      );
-      recorder.operation({ name: "project.source", status: "success" });
-      const plan = await resolveTaskArtifact({
-        projectDirectory: Deno.cwd(),
-        entrypointPath: source.entrypointPath,
-        entrypointArgument: source.entrypointArgument,
-        project: source.project,
+    if (isGitHubActionsTaskCommand(parsed, "restore")) {
+      const runtimePath = await restoreTaskArtifact({
+        project: options.project,
         expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
-        target: parsed.options.target,
-        tool,
+        expectedSourceKey: requiredOption(parsed.options, "expectedKey"),
+        directory: requiredOption(parsed.options, "cacheDirectory"),
+        expectedTarget: parsed.options.target,
         recorder,
       });
-      await writeGitHubOutputs({
-        "artifact-key": plan.artifactKey,
-        "cache-path": taskArtifactCachePath(plan.artifactKey),
-      });
-      recorder.operation({ name: "github.output", status: "success" });
+      await writeGitHubOutputs({ "runtime-path": runtimePath });
       await recorder.finish("success");
-      console.log("Resolved task artifact cache key.");
+      console.log("Task artifact ready (cache hit).");
       return 0;
     }
 
@@ -193,7 +202,9 @@ export async function runProject(
         entrypointArgument: source.entrypointArgument,
         project: source.project,
         expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
-        expectedArtifactKey: requiredOption(parsed.options, "expectedKey"),
+        expectedSourceKey: requiredOption(parsed.options, "expectedKey"),
+        deliveryDirectory: parsed.options.cacheDirectory,
+        rebuild: parsed.options.rebuild === "true",
         target: parsed.options.target,
         tool,
         recorder,
@@ -216,7 +227,7 @@ export async function runProject(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: deno run -A <entrypoint-file> generate [--check [--output <path>]] | actions add <uses> | github-actions task cache-key | github-actions task prepare",
+      "Usage: deno run -A <entrypoint-file> generate [--check [--output <path>]] | actions add <uses> | github-actions task prepare",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -227,7 +238,7 @@ export async function runProject(
     });
     await recorder.finish("error");
     console.error(error instanceof Error ? error.message : String(error));
-    return 1;
+    return parsed.command[2] === "restore" ? 2 : 1;
   }
 }
 
@@ -346,7 +357,7 @@ async function dispatchTask(
       status: "success",
       attributes: { entrypoint },
     });
-    recorder.finish("success");
+    await recorder.finish("success");
     return 0;
   } catch (error) {
     if (error instanceof TaskRuntimeError) {
@@ -358,7 +369,7 @@ async function dispatchTask(
       errorType,
       attributes: { entrypoint },
     });
-    recorder.finish("error");
+    await recorder.finish("error");
     console.error(
       error instanceof Error ? error.stack ?? error.message : String(error),
     );
@@ -395,8 +406,9 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
       rawName !== "expect-layout" &&
-      rawName !== "expected-key" && rawName !== "target" &&
-      rawName !== "check" && rawName !== "output"
+      rawName !== "expected-key" && rawName !== "cache-directory" &&
+      rawName !== "target" &&
+      rawName !== "check" && rawName !== "rebuild" && rawName !== "output"
     ) {
       throw new TaskRuntimeError(
         "usage_invalid",
@@ -407,14 +419,14 @@ function parseArguments(args: readonly string[]): ParsedArguments {
       /-([a-z])/g,
       (_, letter: string) => letter.toUpperCase(),
     );
-    if (name === "check") {
+    if (name === "check" || name === "rebuild") {
       if (equals >= 0) {
         throw new TaskRuntimeError(
           "usage_invalid",
-          "Option --check takes no value.",
+          `Option --${rawName} takes no value.`,
         );
       }
-      options.check = "true";
+      options[name] = "true";
       continue;
     }
     const value = equals >= 0 ? argument.slice(equals + 1) : args[++index];
@@ -435,7 +447,7 @@ function parseArguments(args: readonly string[]): ParsedArguments {
 
 function isGitHubActionsTaskCommand(
   parsed: ParsedArguments,
-  operation: "cache-key" | "prepare",
+  operation: "restore" | "prepare",
 ): boolean {
   return parsed.command.length === 3 &&
     parsed.command[0] === "github-actions" &&

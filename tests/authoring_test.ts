@@ -194,14 +194,14 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertEquals(lowered.workflows.length, 1);
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(yaml, "name: Resolve task artifact");
+  assert(!yaml.includes("name: Resolve task artifact"));
   assertStringIncludes(yaml, "name: Cache task artifact");
   assertStringIncludes(yaml, "name: Prepare task artifact");
   assertStringIncludes(yaml, "permissions:\n  contents: read");
   assertStringIncludes(yaml, 'persist-credentials: "false"');
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A './tsugiori.ts' github-actions task cache-key --expect-layout '.github/workflows/ci.yml/test=sha256:",
+    "\"$deno_binary\" run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout '.github/workflows/ci.yml/test=sha256:",
   );
   assertStringIncludes(
     yaml,
@@ -209,11 +209,11 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "deno run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout '.github/workflows/ci.yml/test=sha256:",
+    "\"$deno_binary\" run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout '.github/workflows/ci.yml/test=sha256:",
   );
   assertStringIncludes(
     yaml,
-    'key: "tsugiori-task-${{ steps.tsugiori-task-artifact.outputs.artifact-key }}"',
+    'key: "tsugiori-task-unresolved-${{ runner.os }}-${{ runner.arch }}"',
   );
   assertEquals(yaml.match(/uses: actions\/cache@/g)?.length, 1);
   assert(!yaml.includes("actions/cache/restore@"));
@@ -285,7 +285,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
     job
       .runsOn("ubuntu-latest")
       .run({
-        id: "tsugiori-task-artifact",
+        id: "tsugiori-task-cache",
         name: "Authored",
         run: "true",
       })
@@ -297,9 +297,8 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
   );
   const steps = lowered.workflows[0].workflow.jobs[0].steps;
   assertEquals(steps.map((step) => step.id).filter(Boolean), [
-    "tsugiori-task-artifact",
-    "tsugiori-task-artifact-2",
     "tsugiori-task-cache",
+    "tsugiori-task-cache-2",
     "tsugiori-task-prepare",
   ]);
   const prepareStep = steps.find((step) =>
@@ -308,7 +307,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
   assert(prepareStep?.type === "run");
   assertStringIncludes(
     prepareStep.run,
-    "steps.tsugiori-task-artifact-2.outputs.artifact-key",
+    "--expected-key 'unresolved'",
   );
 });
 

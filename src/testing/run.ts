@@ -292,8 +292,7 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
 
 function internalKind(
   step: Step,
-): "artifact" | "cache" | "prepare" | undefined {
-  if (step.name === "Resolve task artifact") return "artifact";
+): "cache" | "prepare" | undefined {
   if (step.name === "Cache task artifact") return "cache";
   if (step.name === "Prepare task artifact") return "prepare";
   return undefined;

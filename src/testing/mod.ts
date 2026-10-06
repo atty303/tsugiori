@@ -236,7 +236,7 @@ export class InstanceScenario<Job> {
     return this;
   }
   internal(
-    which: "artifact" | "cache" | "prepare",
+    which: "cache" | "prepare",
     outcome: StepOutcome,
   ): this {
     this.rules.internals.set(which, outcome);

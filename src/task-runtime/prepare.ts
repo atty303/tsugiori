@@ -1,19 +1,23 @@
 import type { ProjectConfig } from "../github_actions/mod.ts";
-import { dirname, relative, resolve, sep } from "node:path";
-import { homedir } from "node:os";
+import { dirname, resolve } from "node:path";
 import { lowerProject } from "../compiler/authoring.ts";
 import {
+  ARTIFACT_METADATA_SYMBOL,
+  artifactKey,
+  embeddedArtifact,
   sha256File,
-  sourceArtifactKey,
+  type SourceIdentity,
   TASK_ARTIFACT_FORMAT_VERSION,
   type TaskArtifactManifest,
   TaskRuntimeError,
 } from "./artifact.ts";
-import { TSUGIORI_PACKAGE_IDENTITY } from "../package_identity.ts";
+import { computeSourceIdentity } from "./source.ts";
+import { runDeno } from "./deno.ts";
 import {
   copyDirectory,
   LocalTaskArtifactCache,
   removeIfPresent,
+  taskCacheDirectory,
 } from "./cache.ts";
 import type { DiagnosticRecorder } from "./diagnostics.ts";
 
@@ -27,7 +31,9 @@ export type PrepareOptions = Readonly<{
   entrypointArgument: string;
   project: ProjectConfig;
   expectedLayouts: readonly string[];
-  expectedArtifactKey?: string;
+  expectedSourceKey?: string;
+  deliveryDirectory?: string;
+  rebuild?: boolean;
   target?: string;
   tool: ToolIdentity;
   recorder: DiagnosticRecorder;
@@ -42,14 +48,16 @@ export type PrepareResult = Readonly<{
 
 export type TaskArtifactPlan = Readonly<{
   artifactKey: string;
+  source: SourceIdentity;
   denoVersion: string;
   target: string;
   entrypoints: readonly string[];
 }>;
 
-export async function resolveTaskArtifact(
+export async function planTaskArtifact(
   options: PrepareOptions,
 ): Promise<TaskArtifactPlan> {
+  const registryStarted = performance.now();
   const lowered = await lowerProject(
     options.project,
     options.entrypointArgument,
@@ -57,6 +65,7 @@ export async function resolveTaskArtifact(
   validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
     name: "task.registry",
+    durationMs: performance.now() - registryStarted,
     status: "success",
     attributes: { entrypointCount: lowered.tasks.length },
   });
@@ -77,32 +86,64 @@ export async function resolveTaskArtifact(
     );
   }
   const entrypoints = lowered.tasks.map((task) => task.entrypoint);
-  const artifactKey = await computeArtifactKey({
+  const graphStarted = performance.now();
+  const source = await computeSourceIdentity({
     projectDirectory: options.projectDirectory,
     entrypointPath: options.entrypointPath,
-    target,
     cacheVersion: options.project.cacheVersion,
   });
+  const key = artifactKey(source.sourceKey, target);
   options.recorder.operation({
     name: "artifact.key",
+    durationMs: performance.now() - graphStarted,
     status: "success",
-    attributes: { artifactKey, target },
+    attributes: { artifactKey: key, target },
   });
-  return { artifactKey, denoVersion, target, entrypoints };
+  return { artifactKey: key, source, denoVersion, target, entrypoints };
 }
 
 export async function prepareTaskArtifact(
   options: PrepareOptions,
 ): Promise<PrepareResult> {
-  const plan = await resolveTaskArtifact(options);
+  let rejectedChecksum: string | undefined;
+  if (options.rebuild) {
+    rejectedChecksum = "unknown";
+  }
+  if (options.rebuild && options.deliveryDirectory !== undefined) {
+    try {
+      rejectedChecksum = await sha256File(
+        resolve(options.deliveryDirectory, "task-runtime"),
+      );
+    } catch {
+      /* Unreadable failed binaries cannot be reused by checksum validation either. */
+    }
+  }
   if (
-    options.expectedArtifactKey !== undefined &&
-    options.expectedArtifactKey !== plan.artifactKey
+    rejectedChecksum !== undefined && rejectedChecksum !== "unknown" &&
+    options.expectedSourceKey !== undefined
   ) {
-    throw new TaskRuntimeError(
-      "artifact_key_mismatch",
-      "The task artifact inputs changed after the cache key was resolved.",
+    await rejectArtifact(
+      artifactKey(
+        options.expectedSourceKey,
+        options.target ?? Deno.build.target,
+      ),
+      rejectedChecksum,
     );
+  }
+  const plan = await planTaskArtifact(options);
+  if (
+    options.expectedSourceKey !== undefined &&
+    options.expectedSourceKey !== plan.source.sourceKey
+  ) {
+    options.recorder.operation({
+      name: "artifact.key",
+      status: "error",
+      errorType: "source_mismatch",
+    });
+    // actions/cache must never save the new binary under the generated old key.
+    if (options.deliveryDirectory !== undefined) {
+      await removeIfPresent(options.deliveryDirectory);
+    }
   }
 
   const tsugioriDirectory = taskCacheDirectory();
@@ -123,7 +164,9 @@ export async function prepareTaskArtifact(
   try {
     let restore: "hit" | "miss" | "failed";
     try {
-      restore = await cache.restore(plan.artifactKey, restoredDirectory);
+      restore = options.rebuild
+        ? "miss"
+        : await cache.restore(plan.artifactKey, restoredDirectory);
     } catch {
       options.recorder.operation({
         name: "cache.restore",
@@ -139,12 +182,15 @@ export async function prepareTaskArtifact(
         const manifest = await validateArtifact(
           restoredDirectory,
           plan.artifactKey,
+          plan.target,
         );
         const runtimePath = await materializeArtifact(
           restoredDirectory,
           runtimeDirectory,
           plan.artifactKey,
+          plan.target,
         );
+        await deliverArtifact(options, plan, restoredDirectory);
         options.recorder.operation({
           name: "cache.restore",
           status: "success",
@@ -174,16 +220,19 @@ export async function prepareTaskArtifact(
     }
 
     const builtDirectory = resolve(workDirectory, "built");
+    const buildStarted = performance.now();
     const manifest = await buildArtifact({
       ...options,
       outputDirectory: builtDirectory,
       artifactKey: plan.artifactKey,
+      source: plan.source,
       denoVersion: plan.denoVersion,
       target: plan.target,
       entrypoints: plan.entrypoints,
     });
     options.recorder.operation({
       name: "artifact.build",
+      durationMs: performance.now() - buildStarted,
       status: "success",
       attributes: { artifactKey: plan.artifactKey, target: plan.target },
     });
@@ -207,10 +256,13 @@ export async function prepareTaskArtifact(
       });
     }
 
+    await deliverArtifact(options, plan, builtDirectory);
     const runtimePath = await materializeArtifact(
       builtDirectory,
       runtimeDirectory,
       plan.artifactKey,
+      plan.target,
+      rejectedChecksum,
     );
     return {
       artifactKey: plan.artifactKey,
@@ -223,7 +275,7 @@ export async function prepareTaskArtifact(
   }
 }
 
-function validateExpectedLayouts(
+export function validateExpectedLayouts(
   expected: readonly string[],
   current: ReadonlyMap<string, string>,
 ): void {
@@ -252,6 +304,7 @@ async function buildArtifact(
     & Readonly<{
       outputDirectory: string;
       artifactKey: string;
+      source: SourceIdentity;
       denoVersion: string;
       target: string;
       entrypoints: readonly string[];
@@ -260,7 +313,8 @@ async function buildArtifact(
   await Deno.mkdir(options.outputDirectory, { recursive: true });
   const binary = resolve(options.outputDirectory, "task-runtime");
   const manifestWithoutChecksum = {
-    schemaVersion: 3 as const,
+    schemaVersion: 4 as const,
+    sourceKey: options.source.sourceKey,
     artifactKey: options.artifactKey,
     artifactFormatVersion: TASK_ARTIFACT_FORMAT_VERSION,
     target: options.target,
@@ -268,12 +322,27 @@ async function buildArtifact(
     tsugioriVersion: options.tool.version,
     entrypoints: [...options.entrypoints].sort(),
   };
-  const args = ["compile", "-A", "--output", binary];
+  const preload = resolve(options.outputDirectory, "metadata.ts");
+  // Computed before creating this module; generated metadata never hashes itself.
+  await Deno.writeTextFile(
+    preload,
+    `Object.defineProperty(globalThis, Symbol.for(${
+      JSON.stringify(ARTIFACT_METADATA_SYMBOL)
+    }), { value: ${
+      JSON.stringify({
+        ...options.source,
+        target: options.target,
+        entrypointArgument: options.entrypointArgument,
+      })
+    } });\n`,
+  );
+  const args = ["compile", "-A", "--preload", preload, "--output", binary];
   if (options.target !== Deno.build.target) {
     args.push("--target", options.target);
   }
   args.push("--frozen=true", options.entrypointPath);
   await runDeno(args, options.projectDirectory, "artifact_build_failed");
+  await Deno.remove(preload);
   await Deno.chmod(binary, 0o755);
 
   const manifest: TaskArtifactManifest = {
@@ -291,10 +360,26 @@ async function materializeArtifact(
   source: string,
   runtimeDirectory: string,
   artifactKey: string,
+  target: string,
+  rejectedChecksum?: string,
 ): Promise<string> {
   let destination = runtimeDirectory;
   try {
-    await validateArtifact(runtimeDirectory, artifactKey);
+    const existing = await validateArtifact(
+      runtimeDirectory,
+      artifactKey,
+      target,
+    );
+    if (
+      (rejectedChecksum === "unknown" ||
+        existing.binarySha256 === rejectedChecksum)
+    ) {
+      await rejectArtifact(artifactKey, existing.binarySha256);
+      throw new TaskRuntimeError(
+        "artifact_start_failed",
+        "Published task artifact failed to start.",
+      );
+    }
     return resolve(runtimeDirectory, "task-runtime");
   } catch {
     try {
@@ -316,7 +401,7 @@ async function materializeArtifact(
     } catch (error) {
       // A concurrent publisher may have won. Reuse only a complete valid entry.
       try {
-        await validateArtifact(destination, artifactKey);
+        await validateArtifact(destination, artifactKey, target);
       } catch {
         throw error;
       }
@@ -330,13 +415,15 @@ async function materializeArtifact(
 async function validateArtifact(
   directory: string,
   expectedKey: string,
+  target: string,
 ): Promise<TaskArtifactManifest> {
   const manifest = JSON.parse(
     await Deno.readTextFile(resolve(directory, "manifest.json")),
   ) as TaskArtifactManifest;
   if (
-    manifest.schemaVersion !== 3 || manifest.artifactKey !== expectedKey ||
-    manifest.artifactFormatVersion !== TASK_ARTIFACT_FORMAT_VERSION
+    manifest.schemaVersion !== 4 || manifest.artifactKey !== expectedKey ||
+    manifest.artifactFormatVersion !== TASK_ARTIFACT_FORMAT_VERSION ||
+    manifest.target !== target || !/^[a-f0-9]{64}$/.test(manifest.binarySha256)
   ) {
     throw new TaskRuntimeError(
       "cache_corrupt",
@@ -350,68 +437,37 @@ async function validateArtifact(
       "Task artifact checksum mismatch.",
     );
   }
+  if (await rejectedArtifact(expectedKey, manifest.binarySha256)) {
+    throw new TaskRuntimeError(
+      "artifact_start_failed",
+      "This task artifact previously failed to start.",
+    );
+  }
   return manifest;
 }
 
-async function computeArtifactKey(
-  input: Readonly<{
-    projectDirectory: string;
-    entrypointPath: string;
-    target: string;
-    cacheVersion: number;
-  }>,
-): Promise<string> {
-  const args = ["info", "--json", "--frozen=true", input.entrypointPath];
-  const output = await runDeno(
-    args,
-    input.projectDirectory,
-    "module_graph_failed",
-  );
-  const graph = JSON.parse(output) as {
-    modules?: readonly { local?: string; specifier?: string }[];
-  };
-  const modulePaths = new Map<string, string>();
-  for (const module of graph.modules ?? []) {
-    if (module.local === undefined || !module.specifier?.startsWith("file:")) {
-      continue;
-    }
-    const path = resolve(module.local);
-    const relativePath = relative(input.projectDirectory, path);
-    modulePaths.set(relativePath.split(sep).join("/"), path);
-  }
-  const modules = [];
-  for (
-    const [relativePath, path] of [...modulePaths].sort(([left], [right]) =>
-      left.localeCompare(right)
-    )
-  ) {
-    modules.push({
-      path: relativePath,
-      sha256: await sha256File(path),
-    });
-  }
-  return await sourceArtifactKey({
-    artifactFormatVersion: TASK_ARTIFACT_FORMAT_VERSION,
-    cacheVersion: input.cacheVersion,
-    modules,
-    target: input.target,
-    tsugioriPackage: TSUGIORI_PACKAGE_IDENTITY,
-  });
+function rejectionPath(key: string, checksum: string): string {
+  return resolve(taskCacheDirectory(), "runtimes/.rejected", key, checksum);
 }
 
-/** Runner-local storage; paths are never part of artifact identity or generated YAML. */
-export function taskCacheDirectory(): string {
-  const base = Deno.env.get("XDG_CACHE_HOME") ??
-    (Deno.build.os === "darwin"
-      ? resolve(homedir(), "Library/Caches")
-      : Deno.build.os === "windows"
-      ? Deno.env.get("LOCALAPPDATA") ?? resolve(homedir(), "AppData/Local")
-      : resolve(homedir(), ".cache"));
-  return resolve(base, "tsugiori");
+async function rejectArtifact(key: string, checksum: string): Promise<void> {
+  const path = rejectionPath(key, checksum);
+  await Deno.mkdir(dirname(path), { recursive: true });
+  // This marker is outside published runtimes; their binaries stay immutable.
+  await Deno.writeTextFile(path, "", { mode: 0o600 });
 }
 
-export function taskArtifactCachePath(key: string): string {
-  return resolve(taskCacheDirectory(), "cache/artifacts", key);
+async function rejectedArtifact(
+  key: string,
+  checksum: string,
+): Promise<boolean> {
+  try {
+    await Deno.stat(rejectionPath(key, checksum));
+    return true;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return false;
+    throw error;
+  }
 }
 
 async function readDenoVersion(projectDirectory: string): Promise<string> {
@@ -423,30 +479,92 @@ async function readDenoVersion(projectDirectory: string): Promise<string> {
   return output.split("\n", 1)[0]?.trim() ?? "unknown";
 }
 
-async function runDeno(
-  args: readonly string[],
-  cwd: string,
-  errorType: string,
-): Promise<string> {
-  const result = await new Deno.Command("deno", {
-    args: [...args],
-    cwd,
-    stdout: "piped",
-    stderr: "piped",
-  }).output();
-  const stdout = new TextDecoder().decode(result.stdout);
-  if (!result.success) {
-    const stderr = new TextDecoder().decode(result.stderr).trim();
-    throw new TaskRuntimeError(
-      errorType,
-      stderr.length > 0
-        ? stderr
-        : `deno ${args[0]} failed with ${result.code}.`,
-    );
-  }
-  return stdout;
-}
-
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function deliverArtifact(
+  options: PrepareOptions,
+  plan: TaskArtifactPlan,
+  source: string,
+): Promise<void> {
+  if (
+    options.deliveryDirectory === undefined ||
+    options.expectedSourceKey !== plan.source.sourceKey
+  ) return;
+  const staging = `${options.deliveryDirectory}.tmp-${crypto.randomUUID()}`;
+  try {
+    await copyDirectory(source, staging);
+    await removeIfPresent(options.deliveryDirectory);
+    await Deno.rename(staging, options.deliveryDirectory);
+  } finally {
+    await removeIfPresent(staging);
+  }
+}
+
+/** Called only by the restored executable. Never resolves a graph or starts Deno. */
+export async function restoreTaskArtifact(
+  options: Readonly<{
+    project: ProjectConfig;
+    expectedLayouts: readonly string[];
+    expectedSourceKey: string;
+    directory: string;
+    expectedTarget?: string;
+    recorder: DiagnosticRecorder;
+  }>,
+): Promise<string> {
+  const metadata = embeddedArtifact();
+  if (
+    metadata === undefined ||
+    metadata.sourceKey !== options.expectedSourceKey ||
+    metadata.target !== Deno.build.target ||
+    (options.expectedTarget !== undefined &&
+      metadata.target !== options.expectedTarget)
+  ) {
+    throw new TaskRuntimeError(
+      "cache_corrupt",
+      "Incompatible task artifact metadata.",
+    );
+  }
+  const key = artifactKey(metadata.sourceKey, metadata.target);
+  const manifest = await validateArtifact(
+    options.directory,
+    key,
+    metadata.target,
+  );
+  for (const module of metadata.modules) {
+    let matches = false;
+    try {
+      matches =
+        await sha256File(resolve(Deno.cwd(), module.path)) === module.sha256;
+    } catch { /* A missing source is a cache miss. */ }
+    if (!matches) {
+      throw new TaskRuntimeError(
+        "source_mismatch",
+        "Task artifact source changed or is missing.",
+      );
+    }
+  }
+  const lowered = await lowerProject(
+    options.project,
+    metadata.entrypointArgument,
+  );
+  validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
+  if (
+    manifest.sourceKey !== metadata.sourceKey ||
+    JSON.stringify(manifest.entrypoints) !==
+      JSON.stringify(lowered.tasks.map((task) => task.entrypoint).sort())
+  ) {
+    throw new TaskRuntimeError(
+      "cache_corrupt",
+      "Invalid task artifact registry manifest.",
+    );
+  }
+  options.recorder.operation({ name: "artifact.validate", status: "success" });
+  return await materializeArtifact(
+    options.directory,
+    resolve(taskCacheDirectory(), "runtimes", key),
+    key,
+    metadata.target,
+  );
 }

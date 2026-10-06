@@ -144,60 +144,83 @@ step gets an entrypoint of the form
 within the job. Generated preparation steps include a job-layout fingerprint
 so changed task ordering is detected before dispatch.
 
-Each task-backed job contains visible steps to resolve the artifact key, run a
-pinned `actions/cache` action, and prepare the artifact. Preparation first
-checks the runner-local cache, then compiles the entrypoint into one Deno
-binary for its tasks on a miss or invalid entry. The binary is compiled with
-`-A`; the current invocation contract rejects Windows task artifacts. Each
-task step invokes the prepared binary directly with its own entrypoint.
-The GitHub Actions backend owns these preparation steps and internal commands;
-they are not a public handwritten-workflow interface.
+Each task-backed job contains a pinned `actions/cache` step followed by a normal
+Bash preparation step. The backend embeds a generate-time source key in YAML
+and combines it with GitHub's runner OS and architecture for cache delivery.
+Generation and fallback builds share the `deno info` local-source identity
+calculation. `generate --check` guards source-key changes as well as structure.
 
-The local entry is `<platform-cache>/tsugiori/cache/artifacts/<artifact-key>/`.
-`XDG_CACHE_HOME` overrides the platform cache base. Artifact preparation uses
-the project’s explicit native `workingDirectory`; that setting does not alter
-task-body or normal run-step execution directories. Preparation publishes a
-immutable runtime binary in an artifact-key-specific directory under `runtimes/`
-and passes its absolute path
-through a step output, resolved on the runner rather than during generation.
-The artifact contains the
-binary and a runtime-owned JSON manifest with the artifact key, format,
-target, Deno and Tsugiori versions, entrypoints, and binary
-checksum. Restored entries are validated before use. Valid published runtimes remain in
-place for concurrent readers; a corrupt runtime is recovered to a separate
-key-specific path. A failed restore or an
-invalid entry can fall back to a local build. Failure to store an otherwise
-valid build in the local cache is reported but does not discard the binary.
+The compiled artifact owns hit validation and immutable runtime publication.
+Build-time metadata is embedded using a preload module, calculated before that
+module is created so it cannot hash itself. The original executable entrypoint
+and its `import.meta.main` behavior are preserved. Metadata contains the source
+key, project-relative module paths and hashes, target, and original entrypoint
+argument. A runtime-owned format-4 manifest contains source and platform keys,
+target, Deno and Tsugiori versions, entrypoints, and checksum. The restored
+binary validates these inputs and checkout files directly without an external
+Deno, dependency resolution, or fetching. Published runtimes remain in place
+for concurrent readers; corrupt paths recover to a separate key directory.
 
-The automatic artifact key covers the reachable local `file:` module graph, including project-external imports.
-Source paths are project-relative rather than machine-absolute. It also covers, target platform, artifact format, and Tsugiori package identity.
-The project-wide `cacheVersion` is an additional key input. Remote modules,
-lockfiles, and Deno settings and versions are not
-tracked automatically; authors increase `cacheVersion` when changes to these
-inputs require a new artifact. This key is a cache reuse contract rather than
-a complete build-reproducibility claim.
+The shell owns executable startup and fallback tool acquisition. Restore miss,
+validation failure, or startup failure leads to source preparation. A startup
+failure forces a rebuild and prevents reuse of a published runtime with the
+failed binary checksum. Rejected checksums are retained outside immutable
+runtime directories and consulted by both restore and source preparation. It reuses
+Deno >= 2.6.0 from PATH or downloads the latest stable official platform ZIP
+into an invocation-owned temporary directory. The selected absolute binary
+path is propagated to graph and compile subprocesses; the shell cleans up its
+download and does not change the application's toolchain or later steps' PATH.
+The same minimum-version definition drives shell selection and the source
+`runProject` gate. The compiled path does not check external Deno. Task-body
+execution happens in subsequent native Actions steps and never triggers
+preparation fallback.
 
-The GitHub cache transport key is `tsugiori-task-<artifact-key>`. The generated
-`actions/cache` step is best-effort and can save a new entry through its post
-action after a successful job if there was no exact hit. A corrupt remote
-entry cannot be overwritten at the same key; recovery requires deleting that
-entry or changing the key. GitHub's cache scope and write authorization remain
-the remote authenticity boundary.
+Artifact preparation uses the project's native `workingDirectory`; normal
+steps and task bodies retain native defaults. Transport artifacts live under
+`runner.temp/tsugiori-artifacts/<source-key>-<runner-os>-<runner-arch>/`.
+Runner-local build caches and immutable runtimes live under the platform cache's
+`tsugiori/` directory (`XDG_CACHE_HOME` overrides the base). Each task receives
+the runtime's absolute path via the prepare step's output.
+
+Automatic identity covers reachable local `file:` modules, including
+project-external imports. Paths are project-relative rather than
+machine-absolute. Source identity also includes artifact format, Tsugiori
+package identity, and `cacheVersion`; runtime identity adds the Deno target.
+Remote modules, lockfiles, and Deno settings and versions remain excluded;
+authors increase `cacheVersion` for those inputs. This is a reuse contract,
+not a complete reproducibility claim. Linux/macOS X64/ARM64 map to their
+corresponding Deno targets; Windows task artifacts remain unsupported.
+
+GitHub's transport key is `tsugiori-task-<source-key>-<runner-os>-<runner-arch>`.
+The best-effort cache action saves after a successful job without an exact hit.
+If current source has a different key, preparation builds and publishes its
+runtime but removes the old transport directory and never puts the new artifact
+there. Only a subsequent generate updates the remote key. A corrupt exact
+remote entry cannot be overwritten; delete it or change its key. GitHub's cache
+scope and write authorization own the remote authenticity boundary.
 
 ## Diagnostics
 
-When `RUNNER_DEBUG=1`, a project entrypoint or compiled runtime invocation emits
-one bounded JSON diagnostic record to standard error. Normal runs emit no
-structured diagnostic record, and neither path retains diagnostic files.
-Import and top-level entrypoint failures occur before the runner and use Deno's
-error output.
+Source commands, artifact restore, and task dispatch use a bounded local
+recorder, enabled unless `TSUGIORI_DIAGNOSTICS=0`. It retains up to 32 records
+under `<platform-cache>/tsugiori/diagnostics/`, preferring failures, and caps each
+run at 64 operations. A capped record is marked partial. Records contain
+command, runtime/platform, stable stage and error types, and cache identities;
+task values and raw exceptions are excluded. Recording failure reports
+degradation without changing the command result. `RUNNER_DEBUG=1` also displays
+records. There is no remote exporter. Users can list/read records as JSON and
+delete the directory to clear them.
 
-The scenario library can emit per-workflow start/completion/error operations to
-an optional host-owned observation sink, linked through nested calls. Events
-contain generated operation IDs, stage, status and stable error type; no input,
-secret, env, expression or fixture values enter the sink. A missing or failing
-sink does not affect results. The library owns no provider, recording store or
-exporter. Deterministic compiler/schema failures retain operation-specific typed
+The Bash bridge separately retains up to 32 bootstrap stage histories under
+`runner.temp/tsugiori-diagnostics/`, with the same opt-out. It distinguishes
+miss, validation failure, startup failure, selection/download, and final prepare
+result. Import or top-level entrypoint failures precede the command recorder;
+the bridge records their startup/fallback outcome. Shell evidence lasts only as
+long as runner temporary storage.
+
+The scenario library emits workflow operations to an optional host-owned sink;
+consumer absence or failure does not alter results. It owns no provider,
+recording store, or exporter. Deterministic compiler/schema failures retain typed
 diagnostics and can be rerun safely from the same authoring input.
 
 ## Type service

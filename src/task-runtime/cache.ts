@@ -1,3 +1,6 @@
+import { resolve } from "node:path";
+import { homedir } from "node:os";
+
 export type CacheRestoreResult = "hit" | "miss";
 
 export class LocalTaskArtifactCache {
@@ -68,4 +71,15 @@ export async function removeIfPresent(path: string): Promise<void> {
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error;
   }
+}
+
+/** Runner-local storage; paths never participate in source identity. */
+export function taskCacheDirectory(): string {
+  const base = Deno.env.get("XDG_CACHE_HOME") ??
+    (Deno.build.os === "darwin"
+      ? resolve(homedir(), "Library/Caches")
+      : Deno.build.os === "windows"
+      ? Deno.env.get("LOCALAPPDATA") ?? resolve(homedir(), "AppData/Local")
+      : resolve(homedir(), ".cache"));
+  return resolve(base, "tsugiori");
 }

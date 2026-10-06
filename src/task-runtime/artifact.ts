@@ -1,7 +1,8 @@
-export const TASK_ARTIFACT_FORMAT_VERSION = "3";
+export const TASK_ARTIFACT_FORMAT_VERSION = "4";
 
 export type TaskArtifactManifest = Readonly<{
-  schemaVersion: 3;
+  schemaVersion: 4;
+  sourceKey: string;
   artifactKey: string;
   artifactFormatVersion: string;
   target: string;
@@ -38,7 +39,6 @@ export async function sourceArtifactKey(
     artifactFormatVersion: string;
     cacheVersion: number;
     modules: readonly Readonly<{ path: string; sha256: string }>[];
-    target: string;
     tsugioriPackage: string;
   }>,
 ): Promise<string> {
@@ -46,7 +46,6 @@ export async function sourceArtifactKey(
     artifactFormatVersion: input.artifactFormatVersion,
     cacheVersion: input.cacheVersion,
     modules: input.modules,
-    target: input.target,
     tsugioriPackage: input.tsugioriPackage,
   });
   return `sha256-${await sha256Bytes(new TextEncoder().encode(canonical))}`;
@@ -54,4 +53,37 @@ export async function sourceArtifactKey(
 
 function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export type SourceIdentity = Readonly<{
+  sourceKey: string;
+  modules: readonly Readonly<{ path: string; sha256: string }>[];
+}>;
+
+export type EmbeddedArtifact =
+  & SourceIdentity
+  & Readonly<{
+    target: string;
+    entrypointArgument: string;
+  }>;
+
+export const ARTIFACT_METADATA_SYMBOL = "tsugiori.task-artifact.v4";
+
+export function embeddedArtifact(): EmbeddedArtifact | undefined {
+  return Deno.build.standalone
+    ? Reflect.get(globalThis, Symbol.for(ARTIFACT_METADATA_SYMBOL))
+    : undefined;
+}
+
+export function artifactKey(sourceKey: string, target: string): string {
+  if (
+    !/^sha256-[a-f0-9]{64}$/.test(sourceKey) ||
+    !/^(x86_64|aarch64)-(apple-darwin|unknown-linux-gnu)$/.test(target)
+  ) {
+    throw new TaskRuntimeError(
+      "artifact_identity_invalid",
+      "Invalid task artifact source key or target.",
+    );
+  }
+  return `${sourceKey}-${target}`;
 }

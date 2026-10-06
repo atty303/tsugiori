@@ -12,7 +12,7 @@ import {
 } from "./github_actions/validation.ts";
 
 const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
-const ARTIFACT_STEP_ID = "tsugiori-task-artifact";
+import { preparationScript } from "../task-runtime/bootstrap.ts";
 const CACHE_STEP_ID = "tsugiori-task-cache";
 const PREPARE_STEP_ID = "tsugiori-task-prepare";
 
@@ -49,6 +49,7 @@ export class AuthoringValidationError extends Error {
 export async function lowerProject(
   project: ProjectConfig,
   entrypointArgument: string,
+  sourceKey = "unresolved",
 ): Promise<LoweredProject> {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
@@ -171,6 +172,7 @@ export async function lowerProject(
             usedStepIds,
             projectDirectory,
             prepareStepId,
+            sourceKey,
           ));
           preparationEmitted = true;
         }
@@ -306,59 +308,35 @@ function preparationSteps(
   usedStepIds: Set<string>,
   projectDirectory: string,
   prepareStepId: string,
+  sourceKey: string,
 ): readonly Step[] {
-  const artifactStepId = allocateStepId(ARTIFACT_STEP_ID, usedStepIds);
-  const cacheStepId = allocateStepId(
-    CACHE_STEP_ID,
-    usedStepIds,
-  );
-  const artifactKeyExpression =
-    `\${{ steps.${artifactStepId}.outputs.artifact-key }}`;
-  const cachePathExpression =
-    `\${{ steps.${artifactStepId}.outputs.cache-path }}`;
-  const cacheKey = `tsugiori-task-${artifactKeyExpression}`;
-  const entrypointPath = entrypointArgument;
-  const entrypoint = entrypointPath.startsWith(".")
-    ? entrypointPath
-    : `./${entrypointPath}`;
-  const commonArguments = ["--expect-layout", quotePosix(expectedLayout)];
+  const cacheStepId = allocateStepId(CACHE_STEP_ID, usedStepIds);
+  const suffix = `${sourceKey}-\${{ runner.os }}-\${{ runner.arch }}`;
+  const cachePath = `\${{ runner.temp }}/tsugiori-artifacts/${suffix}`;
+  const entrypoint = entrypointArgument.startsWith(".")
+    ? entrypointArgument
+    : `./${entrypointArgument}`;
   return [
-    {
-      type: "run",
-      name: "Resolve task artifact",
-      id: artifactStepId,
-      workingDirectory: projectDirectory,
-      run: [
-        `deno run --frozen=true -A ${
-          quotePosix(entrypoint)
-        } github-actions task cache-key`,
-        ...commonArguments,
-      ].join(" "),
-    },
     {
       type: "uses",
       name: "Cache task artifact",
       id: cacheStepId,
       continueOnError: true,
       uses: `actions/cache@${ACTIONS_CACHE_COMMIT}`,
-      with: {
-        path: cachePathExpression,
-        key: cacheKey,
-      },
+      with: { path: cachePath, key: `tsugiori-task-${suffix}` },
     },
     {
       type: "run",
       name: "Prepare task artifact",
       id: prepareStepId,
       workingDirectory: projectDirectory,
-      run: [
-        `deno run --frozen=true -A ${
-          quotePosix(entrypoint)
-        } github-actions task prepare`,
-        ...commonArguments,
-        "--expected-key",
-        quotePosix(artifactKeyExpression),
-      ].join(" "),
+      shell: "bash",
+      env: {
+        TSUGIORI_ARTIFACT_CACHE: cachePath,
+        TSUGIORI_RUNNER_OS: "\${{ runner.os }}",
+        TSUGIORI_RUNNER_ARCH: "\${{ runner.arch }}",
+      },
+      run: preparationScript(entrypoint, expectedLayout, sourceKey),
     },
   ];
 }

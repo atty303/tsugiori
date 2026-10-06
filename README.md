@@ -131,23 +131,51 @@ from `@atty303/tsugiori/github-actions`, or import only
 automatic artifact key; increase `cacheVersion` when they change the task
 binary.
 
-Task-backed jobs include visible artifact-key, `actions/cache`, and preparation
-steps before the task invocation. The generated cache step can restore a
-matching artifact; on a successful cache miss, its post action can save it.
-The preparation step supplies the runtime path to each task step. Artifacts
-are stored outside the repository under the platform cache directory
-(`XDG_CACHE_HOME` when set, otherwise `~/Library/Caches` on macOS,
-`~/.cache` on Linux, or `LOCALAPPDATA` on Windows), in `tsugiori/`.
-Runtime binaries are separated by artifact key. Task entrypoints use
-`<workflow-path>/<job-id>/task-<ordinal>`. The current binary is compiled with
-Deno `-A` and targets POSIX invocation; Windows task artifacts are rejected.
+Task-backed jobs include two visible preparation steps: `actions/cache`, then
+prepare. Generation uses `deno info` to compute a source key and embeds it in
+YAML; the cache key also includes the runner's OS and architecture. Regenerate
+and commit YAML after tracked source changes. `generate --check` detects stale
+source keys even when the workflow structure is unchanged.
 
-The artifact key follows all reachable local source modules, including imports
-outside the project, with paths relative to the project, target platform,
-artifact format, Tsugiori package identity, and `cacheVersion`. Increase
-`cacheVersion` when an excluded input such as a remote module, lockfile, or
-Deno setting changes the task binary. See [Architecture](docs/ARCHITECTURE.md)
-for the exact boundary and [Roadmap](docs/ROADMAP.md) for unfinished work.
+A restored compiled artifact verifies its embedded local-module paths and
+hashes against the checkout, plus its manifest, binary checksum, platform, and
+expected task layout. A valid hit needs no external Deno or dependency download.
+On a miss, changed or missing source, damaged artifact, or startup failure,
+prepare falls back to the current source. A changed source key permits execution
+but leaves the old transport cache path empty, so GitHub cannot save the new
+artifact under the old key. Task failures belong to the subsequent task steps
+and are not retried by preparation.
+
+Tsugiori source commands require Deno **2.6.0 or newer**, checked at the common
+`runProject` entrypoint. Local commands report an insufficient version and do
+not install Deno. Import or syntax failures on older runtimes can occur before
+that check. CI fallback reuses a suitable Deno on PATH; otherwise it downloads
+the latest stable official ZIP into a temporary private directory. Preparation
+uses that binary explicitly for all subprocesses, removes downloaded tools on
+exit, and leaves application Deno settings, lockfiles, and later steps' PATH
+alone. No separate setup action, Deno cache, or runner tool-cache lookup is used.
+
+Runtime binaries are stored outside the repository in the platform cache's
+`tsugiori/runtimes/` directory (`XDG_CACHE_HOME` overrides the base;
+otherwise `~/Library/Caches` on macOS or `~/.cache` on Linux). The Actions
+transport path lives under `runner.temp`. Each task receives an absolute
+runtime path and uses `<workflow-path>/<job-id>/task-<ordinal>` as its entrypoint.
+The binary is compiled with Deno `-A`; task artifacts support Linux and macOS
+on X64 and ARM64. Windows task artifacts are rejected.
+
+The source key follows all reachable local modules, including imports outside
+the project, using project-relative paths, artifact format, Tsugiori package
+identity, and `cacheVersion`. Remote modules, lockfiles, and Deno settings and
+versions remain excluded. Increase `cacheVersion` when such changes require a
+new binary. See [Architecture](docs/ARCHITECTURE.md) for these boundaries.
+
+Preparation and task commands retain bounded local diagnostics under
+`<platform-cache>/tsugiori/diagnostics/` (32 recent records, failures preferred).
+Bootstrap stage records live under `runner.temp/tsugiori-diagnostics/` (32 runs).
+Set `TSUGIORI_DIAGNOSTICS=0` to disable recording; `RUNNER_DEBUG=1` also displays
+command records. Records omit task inputs, outputs, environment values, and
+raw exception messages; no remote diagnostic export is configured. Delete these
+directories to clear diagnostics.
 
 ## Test workflow logic
 

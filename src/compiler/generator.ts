@@ -16,8 +16,9 @@ export function generatedWorkflowHeader(entrypointArgument: string): string {
 export async function generateFiles(
   project: ProjectConfig,
   entrypointArgument: string,
+  sourceKey: string,
 ): Promise<readonly GeneratedFile[]> {
-  const lowered = await lowerProject(project, entrypointArgument);
+  const lowered = await lowerProject(project, entrypointArgument, sourceKey);
   return lowered.workflows.map((workflow) => ({
     path: workflow.path,
     content: generatedWorkflowHeader(entrypointArgument) +
