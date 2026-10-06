@@ -34,8 +34,6 @@ const sample = defineWorkflow("workflows/tsugiori.yml", {
     })
     .task({
       name: "Say hello",
-      inputs: {},
-      outputs: {},
       run: () => {
         console.log("Hello from Tsugiori!");
       },

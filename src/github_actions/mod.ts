@@ -1401,7 +1401,7 @@ export type AuthoringTaskStep = Readonly<{
    * scenarios never invoke it. A rejection fails the task step.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest").task({ name: "Report", inputs: {}, outputs: {}, run: ({ logger }) => logger.info("done") });
+   * job.runsOn("ubuntu-latest").task({ name: "Report", run: ({ logger }) => logger.info("done") });
    * ```
    */
   run: (
@@ -2377,6 +2377,7 @@ export interface RunStepDefinition<
 }
 /** A step condition can skip execution, and continue-on-error can prevent a step failure from failing the job.
  * Typed task input/output contracts and the task callback are additional runtime contracts, not GitHub workflow fields.
+ * Each contract map may be omitted when empty. A nonempty explicitly annotated contract requires its declaration; run annotations do not declare contracts.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
@@ -2393,7 +2394,44 @@ export interface RunStepDefinition<
  * ```
  */
 
-export interface TaskStepDefinition<
+export type TaskStepDefinition<
+  Id extends string | undefined = undefined,
+  Inputs extends TaskInputDefinitions = E,
+  Outputs extends OutputDefinitions = E,
+  Needs extends Record<string, readonly string[]> = E,
+  Steps extends StepReferences = E,
+  Matrix extends object = E,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+  Proof extends string = never,
+  Condition extends
+    | StepField<
+      "jobs.<job_id>.steps.if",
+      Needs,
+      Steps,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >
+    | undefined = undefined,
+> =
+  & TaskOptions<
+    Id,
+    Inputs,
+    Outputs,
+    Needs,
+    Steps,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Condition
+  >
+  & TaskContracts<Inputs, Outputs>;
+interface TaskOptions<
   Id extends string | undefined = undefined,
   Inputs extends TaskInputDefinitions = E,
   Outputs extends OutputDefinitions = E,
@@ -2443,14 +2481,14 @@ export interface TaskStepDefinition<
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
-   *   name: "Report", inputs: {}, outputs: {},
+   *   name: "Report",
    *   if: ({ github }) => github.ref.eq("refs/heads/main"),
    *   run: ({ logger }) => logger.info("main branch"),
    * });
    * ```
    */
   readonly if?: Condition;
-  /** Pairs each input contract with its runtime expression source. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
+  /** Pairs each input contract with its runtime expression source. Omission is equivalent to an empty map; run still receives an empty inputs object. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
@@ -2465,7 +2503,7 @@ export interface TaskStepDefinition<
    * });
    * ```
    */
-  readonly inputs: AuthoringValue<
+  readonly inputs?: AuthoringValue<
     Inputs,
     Scope<
       "jobs.<job_id>.steps.env",
@@ -2478,7 +2516,7 @@ export interface TaskStepDefinition<
       Proof | ConditionProof<Condition>
     >
   >;
-  /** Declares native output contracts and whether each write is required.
+  /** Declares native output contracts and whether each write is required. Omission is equivalent to an empty map; run still receives an output writer with no declared names.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
@@ -2493,7 +2531,7 @@ export interface TaskStepDefinition<
    * });
    * ```
    */
-  readonly outputs: Outputs;
+  readonly outputs?: Outputs;
   /** Runs in the compiled task runtime with native values; await output writes.
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -2510,9 +2548,18 @@ export interface TaskStepDefinition<
    * ```
    */
   readonly run: (
-    context: TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>,
+    context: NoInfer<
+      TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>
+    >,
   ) => void | Promise<void>;
 }
+
+type TaskContracts<
+  I extends TaskInputDefinitions,
+  O extends OutputDefinitions,
+> =
+  & (keyof I extends never ? unknown : Readonly<{ inputs: object }>)
+  & (keyof O extends never ? unknown : Readonly<{ outputs: object }>);
 const jobDefinition = Symbol("tsugiori.job-definition");
 /** Identity key carrying a completed composite definition. Obtain it through {@link defineCompositeAction}; do not fabricate a definition or use this as a GitHub runtime value.
  */
@@ -3478,8 +3525,8 @@ interface ExecBase<
    */
   task<
     const Id extends string | undefined,
-    const I extends TaskInputDefinitions,
-    const O extends OutputDefinitions,
+    const I extends TaskInputDefinitions = E,
+    const O extends OutputDefinitions = E,
     const C extends
       | StepField<
         "jobs.<job_id>.steps.if",
@@ -3490,7 +3537,17 @@ interface ExecBase<
         Secrets,
         InputValues
       >
-      | undefined,
+      | undefined =
+        | StepField<
+          "jobs.<job_id>.steps.if",
+          Needs,
+          E,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >
+        | undefined,
     const F extends boolean | undefined = undefined,
   >(
     definition:
@@ -3508,9 +3565,8 @@ interface ExecBase<
         C
       >
       & Readonly<{
-        /** Named outputs or output contracts for this representation. See the owning type and its output mapping method; declaration alone does not write a value.
-         */
-        outputs: O;
+        /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
+        outputs?: O;
         /** GitHub runtime condition. A callback builds the expression during authoring; it does not decide whether to run on the host.
          */
         if?: C;
@@ -3824,13 +3880,13 @@ interface CStepBase<
   /** Append a compiled Deno task. The inputs map callback builds GitHub expressions during authoring; run executes later with parsed native inputs and an output writer. Composite tasks support workingDirectory and omit timeoutMinutes. See {@link TaskStepDefinition} and {@link defineCompositeAction}.
    * @example Given a composite state `built` after an earlier step.
    * ```ts
-   * built.task({ name: "Report", inputs: {}, outputs: {}, run: ({ logger }) => logger.info("done") });
+   * built.task({ name: "Report", run: ({ logger }) => logger.info("done") });
    * ```
    */
   task<
     const Id extends string | undefined,
-    const I extends TaskInputDefinitions,
-    const O extends OutputDefinitions,
+    const I extends TaskInputDefinitions = E,
+    const O extends OutputDefinitions = E,
     const C extends
       | StepField<
         "jobs.<job_id>.steps.if",
@@ -3841,7 +3897,17 @@ interface CStepBase<
         Secrets,
         InputValues
       >
-      | undefined,
+      | undefined =
+        | StepField<
+          "jobs.<job_id>.steps.if",
+          Needs,
+          Steps,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >
+        | undefined,
     const F extends boolean | undefined = undefined,
   >(
     definition:
@@ -3867,13 +3933,8 @@ interface CStepBase<
            */
           workingDirectory?: string;
 
-          /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeDraft.steps}.
-           * @example Given a composite state `built` whose `build` run step declares `version`, and metadata declaring public output `version`.
-           * ```ts
-           * built.outputs(({ steps }) => ({ version: steps.build.outputs.version }));
-           * ```
-           */
-          outputs: O;
+          /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
+          outputs?: O;
 
           /** GitHub runtime condition. A callback builds the expression during authoring; it does not decide whether to run on the host.
            */
@@ -4523,8 +4584,8 @@ interface StepBase<
    */
   task<
     const Id extends string | undefined,
-    const I extends TaskInputDefinitions,
-    const O extends OutputDefinitions,
+    const I extends TaskInputDefinitions = E,
+    const O extends OutputDefinitions = E,
     const C extends
       | StepField<
         "jobs.<job_id>.steps.if",
@@ -4535,7 +4596,17 @@ interface StepBase<
         Secrets,
         InputValues
       >
-      | undefined,
+      | undefined =
+        | StepField<
+          "jobs.<job_id>.steps.if",
+          Needs,
+          Steps,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >
+        | undefined,
     const F extends boolean | undefined = undefined,
   >(
     definition:
@@ -4554,20 +4625,8 @@ interface StepBase<
       >
       & Readonly<
         {
-          /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
-           * This list declares output names for typed references; it does not write values or execute the script.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.runsOn("ubuntu-latest").run({
-           *   id: "build",
-           *   name: "Build",
-           *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-           *   outputs: ["version"],
-           * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
-           * ```
-           */
-          outputs: O;
+          /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
+          outputs?: O;
           /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
            * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -6772,7 +6831,7 @@ function createExecutionJobFacade(
         taskStep(definition, draft.contracts, draft.proofPaths),
         Object.keys(definition.outputs ?? {}),
         Object.fromEntries(
-          Object.entries(definition.outputs).map(([name, output]) => [
+          Object.entries(definition.outputs ?? {}).map(([name, output]) => [
             name,
             {
               contract: output.contract,

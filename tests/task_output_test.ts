@@ -66,3 +66,26 @@ Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github
     "Required task output",
   );
 });
+
+Deno.test("runner keeps the empty task context when both contracts are omitted", async () => {
+  const core = new URL("../src/github_actions/mod.ts", import.meta.url).href;
+  const runner = new URL("../src/runner/main.ts", import.meta.url).href;
+  const program = `import {defineProject,defineWorkflow} from ${
+    JSON.stringify(core)
+  };
+import {runProject} from ${JSON.stringify(runner)};
+const run = ({inputs, outputs}) => {
+  if (Object.keys(inputs).length !== 0 || typeof outputs.set !== "function") throw new Error("Invalid empty context");
+};
+const project = defineProject({workflows:[defineWorkflow("ci.yml", {on:{push:{}}}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({name:"Omitted",run}).task({name:"Explicit",inputs:{},outputs:{},run}))]});
+for (const entry of ["ci.yml/test/task-1", "ci.yml/test/task-2"]) {
+  if (await runProject({project,entrypointUrl:import.meta.url},[entry]) !== 0) Deno.exit(1);
+}`;
+  const result = await new Deno.Command(Deno.execPath(), {
+    args: ["eval", program],
+    env: { TSUGIORI_DIAGNOSTICS: "0" },
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  assertEquals(result.code, 0, new TextDecoder().decode(result.stderr));
+});

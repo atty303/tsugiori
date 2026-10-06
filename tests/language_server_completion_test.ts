@@ -392,6 +392,32 @@ const publish = contract;`;
         assert(hover.includes(expected), `Expected ${expected} in ${hover}`);
       }
 
+      const emptyTaskSource =
+        `import { defineWorkflow } from "../src/github_actions/mod.ts";
+const flow = defineWorkflow("empty.yml", { on: { push: {} } });`;
+      const emptyHover = await sourceHover(
+        writer,
+        stream,
+        80,
+        "empty-task-context",
+        `${emptyTaskSource} flow.job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Empty", run: (context) => { context/*completion*/; } }));`,
+        true,
+      );
+      assert(emptyHover.includes("TaskContext<E, E,"), emptyHover);
+      const emptySignature = await sourceHover(
+        writer,
+        stream,
+        81,
+        "empty-task-signature",
+        `${emptyTaskSource} flow.job("test", ({ job }) => job.runsOn("ubuntu-latest").task(/*completion*/{ name: "Empty", run: () => {} }));`,
+        true,
+        "signatureHelp",
+      );
+      assert(
+        emptySignature.includes("TaskOptions<string | undefined, E, E,"),
+        emptySignature,
+      );
+
       const displays: Record<string, string> = {};
       for (const [index, fixture] of displayFixtures().entries()) {
         const hover = await sourceHover(

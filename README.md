@@ -111,8 +111,6 @@ const sample = defineWorkflow("workflows/tsugiori.yml", {
     })
     .task({
       name: "Say hello",
-      inputs: {},
-      outputs: {},
       run: () => {
         console.log("Hello from Tsugiori!");
       },
@@ -166,7 +164,9 @@ deno task tsugiori generate --check
 
 Workflow paths are relative to this Deno project directory. GitHub Actions owns
 job and step execution; top-level TypeScript constructs definitions, and task
-bodies run on the prepared task runtime.
+bodies run on the prepared task runtime. Task `inputs` and `outputs` can each be
+omitted when empty; the task context still provides `inputs` and the output
+writer.
 
 Composite Actions use a metadata file path:
 `defineCompositeAction("actions/greet/action.yml", metadata).steps(...)`. Both

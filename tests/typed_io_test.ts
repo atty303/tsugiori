@@ -1,6 +1,7 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
+  defineCompositeAction,
   defineProject,
   defineWorkflow,
   fromJSON,
@@ -435,4 +436,72 @@ Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github
   } finally {
     await Deno.remove(directory, { recursive: true });
   }
+});
+
+Deno.test("omitted task contracts lower identically to explicit empty contracts", () => {
+  const run = () => {};
+  const text = textValue();
+  const projects = [false, true].map((explicit) =>
+    defineProject({
+      localTaskPrepareAction: "./actions/task-prepare",
+      workflows: [
+        defineWorkflow("optional.yml", { on: { push: {} } }).job(
+          "test",
+          ({ job }) =>
+            job.runsOn("ubuntu-latest")
+              .task({
+                name: "Empty",
+                ...(explicit ? { inputs: {}, outputs: {} } : {}),
+                run,
+              })
+              .task({
+                name: "Produce",
+                ...(explicit ? { inputs: {} } : {}),
+                outputs: { value: { contract: names, required: true } },
+                run,
+              })
+              .task({
+                name: "Consume",
+                inputs: ({ github }) => ({
+                  value: { contract: text, from: github.sha },
+                }),
+                ...(explicit ? { outputs: {} } : {}),
+                run,
+              }),
+        ),
+      ],
+      actions: [
+        defineCompositeAction("actions/optional/action.yml", {
+          name: "Optional",
+          description: "Optional contracts",
+        }).steps(({ step }) =>
+          step.task({
+            name: "Empty",
+            ...(explicit ? { inputs: {}, outputs: {} } : {}),
+            run,
+          })
+            .task({
+              name: "Produce",
+              ...(explicit ? { inputs: {} } : {}),
+              outputs: { value: { contract: names, required: true } },
+              run,
+            })
+            .task({
+              name: "Consume",
+              inputs: ({ github }) => ({
+                value: { contract: text, from: github.sha },
+              }),
+              ...(explicit ? { outputs: {} } : {}),
+              run,
+            })
+            .outputs(() => ({}))
+        ),
+      ],
+    })
+  );
+  const lowered = projects.map((project) =>
+    lowerProject(project, "./tsugiori.ts", "fixture-source")
+  );
+  assertEquals(lowered[0], lowered[1]);
+  assertEquals(lowered[0].tasks.length, 6);
 });

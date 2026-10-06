@@ -288,8 +288,6 @@ export interface TaskContext<
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Read configuration",
-   *   inputs: {},
-   *   outputs: {},
    *   run: ({ cwd, logger }) => {
    *     logger.info(Deno.readTextFileSync(`${cwd}/deno.json`));
    *   },

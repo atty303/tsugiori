@@ -38,7 +38,7 @@ import { defineProject, defineWorkflow, runProject, textValue } from "./src/gith
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
 const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
-  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {},
+  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
     outputs: { result: { contract: textValue(), required: true } },
     run: async (ctx) => {
       if (Deno.env.get("TASK_FAIL") === "1") throw new Error("task-failure-private");
@@ -627,7 +627,7 @@ void remoteMarker;
 const ci = defineWorkflow("workflows/ci.yml", {
   on: { push: {  } },
 }).job("test", ({ job }) =>
-  job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
+  job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} })
 );
 const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] });
 export default project;
@@ -847,7 +847,7 @@ import { marker } from "../outside.ts";
 import { defineProject, defineWorkflow } from "./src/github_actions.ts";
 void marker;
 export default defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
-  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} }))] });
+  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} }))] });
 `,
     );
     await Deno.writeTextFile(
