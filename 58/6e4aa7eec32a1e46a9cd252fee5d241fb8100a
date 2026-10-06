@@ -1,0 +1,16 @@
+Task: Merge Tsugiori initialization into main
+Anchor: 586e4aa7eec32a1e46a9cd252fee5d241fb8100a
+Base: fe3bb81
+Branch: main
+Commits: 586e4aa7eec32a1e46a9cd252fee5d241fb8100a merges c5cded76a178c2ef57bac95ce951397a1ad582d8 into the committed inline snapshot migration
+Guidance: Current repository AGENTS.md; develop-repository and atty303 profile; design-review; review; git-task-evidence
+Conditions: Main checkout was clean; separate feature worktree remained intact; source code and standard notes fetched; local merge only
+## Evidence
+- Merged source regenerated CI source keys. Exactly one inline snapshot changed its fallback Deno pin from 2.9.5 to 2.9.7; no main-side snapshot migration was discarded.
+- mise run check and mise run test succeeded on merged main sources; 148 passed, 0 failed; 186 published TypeScript examples typechecked.
+- Fresh independent review found no actionable issues; staged diff matched the reviewed patch SHA-256 f052809c37f31762865b0cb7cc0890ca58d1e2011e828fd78411a609348ee7ac.
+Authority: Explicit human merge-to-main request; existing feat minor and Deno 2.9.7 approvals; repository guidance; no push, deploy or publication authorized
+## Transcript
+- U1:
+    merge to main
+  - A: Retrieved complete thread history and confirmed this new cycle starts after the completed implementation handoff. Verified clean main at fe3bb81 and clean feature at c5cded7, fetched code and notes, merged locally without immediate commit. Resolved generated CI YAML conflict by regeneration and updated only the expected inline snapshot Deno pin. Ran focused snapshot update, standard checks, full suite and fresh independent review; all passed. Verified reviewed diff unchanged and created merge commit 586e4aa. Reported no push.
