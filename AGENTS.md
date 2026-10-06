@@ -47,6 +47,21 @@ versions and superseded decisions. Do not add historical decision records.
 - Add focused compiler, expression, and validation tests when changing those
   capabilities.
 
+## DSL type design
+
+- Keep inferred LSP type displays compact when consumers omit type annotations.
+  Do not expect consumers to understand behavior by decoding type names.
+- Give principal public types appropriate names. Prefer short names meaningful
+  within Tsugiori for intermediate states and helper types.
+- Choose aliases, interfaces, grouped type parameters and flat reference maps
+  while preserving inference, completion, state-specific operations, readonly
+  information, scenario types and runtime contracts.
+- Verify representative DSL code through actual LSP hover and signature displays.
+  Adding an alias alone does not demonstrate shorter inferred displays, and
+  compiler truncation does not count as an improvement.
+- Preserve type information and complete public JSDoc when shortening displays.
+  These criteria do not independently authorize public API compatibility changes.
+
 ## Public API documentation
 
 - Treat JSDoc as the detailed JSR public documentation. Every API reachable from
