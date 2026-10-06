@@ -1,0 +1,17 @@
+Task: Rename repository GitHub Actions config file to pipelines.ts
+Anchor: 1ebe044c01ea992185ca314156153b2cb5cabacc
+Base: 8f4acd244a5742b923c8ca915c6b08a81234d6e2
+Branch: main
+Commits: 1ebe044c01ea992185ca314156153b2cb5cabacc refactor: name repository pipeline config by purpose
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability; review
+Conditions: Current checkout only; release none approved; no push, release, or external repository changes
+## Evidence
+mise run check passed; mise run test passed with 98 tests; .github generate:check passed; fresh independent review found no issues. Reviewed diff SHA-256 78041f32d21130d5a0027e58e9e6816268363235a29767b57782651c0bf66951.
+Authority: User request and approval; AGENTS.md; repository source and generated workflow
+## Transcript
+- U1: .github/tsugiori.tsもpipelines.tsのほうがよくない？
+  - A: リポジトリ設定入口を .github/pipelines.ts に改名し、Deno tasks、README、architecture、生成 CI と release workflow の参照を更新。既存 fixture 名は任意 path の例として保持。
+- U2: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_kdAkSvklufYjxmxSXeBFHUj8\",0]","question":"設定ファイル名と生成 workflow 内の参照を変える変更です。公開 API の追加はないため、今回の commit は release なし（`refactor`）としてよいですか？ 実装・検証は進め、commit は回答後に行います。","answer":"はい、release なし"}]
+    </send_user_message_question_reply>
+  - A: release なしの判断を受け、check、98 テスト、generate:check、独立レビューを完了し、refactor commit を作成。
