@@ -1,0 +1,118 @@
+Task: Unify YAML rendering and parsing with eemeli
+Anchor: 85ad678938fa565df2edab2a892f78abde457b07
+Base: e7d67ee1d15e2e88563f03c49b00e7a0619465b3
+Branch: main
+Commits: 85ad678938fa565df2edab2a892f78abde457b07 implements approved fix patch and pre-consumer parser changes
+Guidance: Repository AGENTS.md; dig; develop-repository and atty303 profile; design-review; design-program-observability applicability; investigate-problem; review; git-task-evidence
+Conditions: macOS local checkout; JSR eemeli/yaml 2.9.1; repository mise toolchain; sandbox cache and Git writes approved; no push, PR, deploy or release
+Authority: Human implementation request, accepted design decisions, explicit local fix patch approval, explicit type-service unification and pre-consumer breaking-change approval; applicable repository guidance
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) yaml renderで必要なときだけquoteにできない？
+  - A: Read dig skill and current compiler/source. Confirmed std/yaml conservatively quotes braces; discussed general plain-scalar policy without implementing.
+- U2:
+        description: 'The version of mise to use. If not specified, will use the latest release.'
+    これがquoteされるのはなぜ？
+  - A: Explained comma triggers the existing dumper's conservative quoting; block mapping description can be plain.
+- U3:
+    積極的にquoteしないようにしたい。どの程度カスタマイズしなければならない？
+  - A: Compared settings versus shared output processing and raised customization ownership decision.
+- U4:
+    生成されたYAMLを編集するということか？
+  - A: Clarified output processing and revised recommendation toward serializer evaluation.
+- U5:
+    A
+  - A: Verified @eemeli/yaml 2.9.1 through official documentation, current registries and isolated Deno probes; values and existing YAML round-tripped.
+- U6:
+    A. runも@std/yamlの制限で|-にしていただけ。eemeliで自然に出力できるなら特別扱いしない
+  - A: Confirmed native run scalar styles preserve trailing newlines, whitespace, tabs and CR; proposed removing placeholders and literal restrictions.
+- U7:
+    A
+  - A: Produced implementation request with shared parser/serializer and natural scalar output.
+- U8:
+    空行やコメント処理もlibraryで設定できないの？
+  - A: Verified Document node spaceBefore and comment can handle workflow spacing and inline references without text processing.
+- U9:
+    他に独自整形が残っていないか？
+  - A: Inventoried generator, emitter and file writer; found header concatenation, scalar/spacing/comment processing, ordering and annotation escaping.
+- U10:
+    B. first nodeのbeforeを指定するよりここだけは文字列連結のほうが意味的にシンプルじゃない？常にファイルの先頭だから
+  - A: Kept generator header concatenation as requested; issued revised implementation request.
+- U11:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の YAML parser／serializer を `@std/yaml` から `jsr:@eemeli/yaml@2.9.1` に置き換えてください。Workflow と Composite Action の scalar 出力をライブラリの通常判定に任せ、Workflow の空行・Action 参照コメントは Document API で指定してください。生成元ヘッダーは現在の文字列連結を維持してください。
+    
+    ## 目的
+    - 値・型・構造を保ちながら不要な quote を省く。
+    - YAML 本文の独自整形を削除し、serializer に出力を任せる。
+    
+    ## 成功条件
+    - カンマを含む description、`${{ github.ref }}`、`cache-${{ runner.os }}` が quote なしで出力される。
+    - 文字列の `"false"`、`"123"`、空文字、前後に空白がある文字列、`a: b`、`a # comment` には必要な quote が付く。
+    - Workflow と Composite Action の値・型・構造が再 parse 後も保たれる。
+    - `run` の単一行、複数行、末尾改行なし・一つ・複数、先頭空白、タブ、CR が元の文字列として保たれる。
+    - 既存のキー順、インデント、折り返しなし、anchor 不使用が維持される。
+    - Workflow のジョブ・ステップ間の空行と `uses` の末尾コメントを、出力テキストの加工なしで指定できる。
+    - 生成元ヘッダーが引き続きファイル先頭に付く。
+    - 不要な依存・独自整形を削除し、関連テスト・snapshot・生成物を整合させる。
+    
+    ## 決定事項
+    - parse／stringify をともに `jsr:@eemeli/yaml@2.9.1` に置き換える。
+      - 理由: Deno で利用でき、希望する plain scalar 出力に対応し、YAML の依存を一つに保てる。
+      - 主な棄却案: serializer だけの置き換えは二つの YAML ライブラリを維持するため棄却。
+    - quote の要否・種類と scalar の形式はライブラリの通常判定に任せる。
+      - 理由: 文脈に応じた構文と型の保存を serializer に集約できる。
+      - 主な棄却案: quote 除去の後処理、独自判定、ライブラリの fork は保守対象を増やすため棄却。
+    - `run` の特別扱いを削除する。
+      - 理由: eemeli は通常出力で単一行、複数行、末尾改行、必要な escape を表現できる。
+      - 主な棄却案: 一律 literal block の強制は不要な特別扱いになるため棄却。
+    - Workflow の空行・Action 参照コメントは Document API の node に指定する。
+      - 理由: 出力行の再判定や加工を削除できる。
+      - 主な棄却案: 既存の行単位の整形処理を残す案は棄却。
+    - 生成元ヘッダーは `generatedWorkflowHeader()` による文字列連結を維持する。
+      - 理由: 常にファイル先頭に置く注釈であり、最初の node に結び付けるより意味的にシンプル。
+      - 主な棄却案: 先頭 node の `commentBefore` に移す案は、ファイル全体の注釈を特定 node に結び付けるため棄却。
+    - 出力順の指定とコメント内容の escape は維持する。
+      - 理由: Tsugiori 固有の配置方針と、一行の注釈として扱うための処理である。
+      - 主な棄却案: なし。
+    
+    ## 制約
+    - quote の省略や空行の配置で値・型・構造を変えない。
+    - YAML 本文の文字列加工を新設しない。
+    - 公開 DSL API と GitHub Actions の実行契約を変更しない。
+    - Composite Action に、現在存在しない空行・参照コメントの配置を新たに追加しない。
+    - Push、PR 作成、release、deploy は今回の依頼に含めない。
+    
+    ## 対象外
+    - YAML 出力オプションの公開。
+    - GitHub Actions の機能追加。
+    - 出力順や生成元ヘッダー形式の変更。
+    
+    ## 未検証の前提
+    - 全テスト、snapshot、生成物への影響は実装時に確認する。
+    - parser の置き換えによる既存入力の解釈差は、現在の利用箇所とテストで確認する。
+    - 代表値と既存の CI／task-prepare YAML は、候補 serializer の出力を現在の parser で読んでも値・型・構造が保たれることを確認済み。統合検証は未実施。
+    
+    ## 実装時の指示
+    - 主な対象は `src/deps.ts`、`src/compiler/github_actions/emitter.ts`、`src/compiler/github_actions/action.ts`。`src/compiler/generator.ts` のヘッダー連結は維持する。
+    - `RUN_PLACEHOLDER`、placeholder への置換、`literalRunBlock()`、literal block 専用の検証・拒否処理を削除する。
+    - `formatWorkflowYaml()` の行単位の加工を削除する。空行は node の `spaceBefore`、`uses` の参照コメントは scalar の `comment` で指定する。
+    - コメント内の改行・制御文字を一行の注釈へ escape する既存処理は維持する。
+    - イベント・env・inputs・permissions 等のソート、依存順のジョブ配置、runner label の `self-hosted` 優先は維持する。
+    - 新ライブラリでは折り返し無効が `lineWidth: 0`、重複オブジェクトの anchor 無効が `aliasDuplicateObjects: false`。設定名・値を対応させる。
+    - `|+` の後など、ライブラリが値の保存のために次の node の空行指定を調整する場合は、その自然な挙動を受け入れる。
+    - 一律の `run: |` を要求するテストと CR を拒否するテストは、値の保存を確認する検証へ更新する。
+    - quote の省略・保持、末尾改行、空行・コメント、コメント内の制御文字を検証する。
+    - snapshot と生成 YAML を確認し、意図した表現変更以外の差分がないことを確かめる。
+  - A: Read develop-repository, design-review, observability and applicable references; fetched code and notes, installed configured tools, implemented emitter and composite changes, updated snapshots and generated workflows. Targeted checks passed; old formatting assertions were updated. Initial root-directory generation mistake produced two owned temporary workflow files, which were removed. Asked for local fix patch release-impact approval.
+- U12:
+    fix として patch 対象にする（推奨）
+  - A: Recorded approval for fix patch local commit; continued implementation and tests without push or release.
+- U13:
+    type-serviceも残す理由がないので統一
+  - A: Unified type-service parser and regenerated lockfile removing std/yaml. Full mise run test passed 128 tests, 186 published examples and Worker upload dry-run. Fresh independent review identified old v1 scalar/merge/timestamp differences; presented compatibility choices and withheld commit pending direction.
+- U14:
+    まだconsumerはいないので破壊的変更でいい
+  - A: Accepted explicitly authorized pre-consumer breaking v1 interpretation changes. Added core-scalar/merge metadata fixture and architecture description; 8 service tests and final mise run check passed. Delta review found no actionable issues and withdrew the compatibility finding. Created local fix commit 85ad678; working tree clean. Hosted Actions and cloud deployment were not exercised.
