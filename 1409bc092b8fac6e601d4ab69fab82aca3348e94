@@ -1,0 +1,125 @@
+Task: Rename runProject values and executable entrypoint options
+Anchor: 1409bc092b8fac6e601d4ab69fab82aca3348e94
+Base: 1420fdf59cbb4f1f42d4fa087f9003d8c2ccc596
+Branch: main
+Commits: 1409bc092b8fac6e601d4ab69fab82aca3348e94 (public option names, related internal terminology, documentation and fixtures)
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: Clean current main checkout; fetched code and standard notes; baseline v0.5.0; feat maximum minor approved; repository-managed Deno via mise; no remote writes; full thread retrieval9pages91human messages and cycle8messages verified
+## Evidence
+- Full suite105passed0failed; standard check and own workflow generate --check passed. Generated YAML, Deno settings/tasks, action mappings and dependency lock remained unchanged.
+- Separate definition module fixture generated provenance from executable workflows.ts and quoted task preparation commands targeting that entrypoint; graph identity remains portable and responds to outside source changes.
+- Archive build used version0.6.0 for local validation and deno publish --dry-run completed. Existing source-content/exports comparison remains intact; no unpublished API verification against JSR claimed.
+- Fresh reviewer checked fixed patch SHA25622d0816fc289b7666c16f2788299c58888d578534d006f424bdff82ece881002; sole finding was YAML test's missing POSIX quotes, corrected and final suite passed. Other public config options unchanged.
+Authority: User implementation request and minor approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) runProjectの引数のconfig/configUrlという名前は今でも適切だと思うか？
+    
+  - A: Applied dig and inspected runProject's public options, source validation, compiler and task preparation responsibilities; asked whether the project value should use project.
+- U2:
+    A
+    
+  - A: Agreed on project; examined the executable URL's responsibility and proposed entrypointUrl.
+- U3:
+    A
+    
+  - A: Agreed on entrypointUrl; scoped corresponding internal names and diagnostics.
+- U4:
+    A
+    
+  - A: Agreed on internal consistency while preserving other public APIs' config options.
+- U5:
+    A
+    
+  - A: Confirmed Deno.cwd directory selection and executable entrypoint import.meta.url even for a separately imported project value.
+- U6:
+    A
+    
+  - A: Confirmed the complete design and delivered a standalone implementation request covering names, docs, compatibility removal and verification.
+- U7:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の `runProject()` の引数名を `config`／`configUrl` から `project`／`entrypointUrl` に変更し、対応する内部名と利用例を整理してください。
+    
+    ## 目的
+    - `defineProject()` が返す値を `runProject()` に渡す関係を、名前で明確にする。
+    - project の設定値、Deno 設定ファイル、実行入口ファイルの URL を区別する。
+    
+    ## 成功条件
+    - 次の形で `runProject()` を呼び出せる。
+      ```ts
+      const project = defineProject({
+        workingDirectory: ".github",
+        cacheVersion: 3,
+        workflows: [ci, release],
+      });
+      export default project;
+    
+      if (import.meta.main) {
+        Deno.exitCode = await runProject({
+          project,
+          entrypointUrl: import.meta.url,
+        });
+      }
+      ```
+    - 公開引数の型は `project: ProjectConfig` と `entrypointUrl: string | URL` になる。
+    - 旧 `config`・`configUrl` 引数の互換 alias は残らない。
+    - 対応する内部の値・フィールド・型・関数名、診断、Doc コメント、README、テスト・fixture、自身の `.github/workflows.ts` が新しい用語を使う。
+    - `entrypointUrl` が実行入口ファイルを指し、生成 YAML の出典と task artifact のコンパイル入口に使われることを公開 Doc コメントで説明する。
+    - project directory は引き続き `Deno.cwd()` から決まる。
+    - リポジトリの check、test、生成 workflow の鮮度確認が通る。
+    
+    ## 決定事項
+    - `config` 引数を `project` に改名する。
+      - 理由: `defineProject()`・`runProject()` と用語を揃え、Deno 設定ファイルとの混同を避ける。
+      - 主な棄却案: `config` の維持。`ProjectConfig` とは整合するが、渡す値の対象が名前から分かりにくい。
+    - `configUrl` 引数を `entrypointUrl` に改名する。
+      - 理由: project の定義を別ファイルから import する場合も、渡すべき URL が実行入口のものだと明確になる。
+      - 主な棄却案: `sourceUrl` はコンパイル入口としての役割が伝わりにくい。`configUrl` は Deno 設定ファイルの URL と混同しやすい。
+    - 対応する内部名、診断、文書も役割に合わせて更新する。
+      - 理由: 公開 API と内部実装で同じ値を読み替える必要をなくす。
+      - 主な棄却案: 公開引数と利用例だけを改名する案。内部に旧用語が残る。
+    - `ProjectConfig`・`defineProject()` と他の公開 API の引数は維持する。
+      - 理由: 今回は `runProject()` の値と入口 URL の命名を整理する変更である。
+      - 主な棄却案: 他の API の `config` も一律に改名する案。変更範囲が広がる。
+    - 旧引数名の互換 alias は残さない。
+      - 理由: 新名へ統一し、新旧の組み合わせや優先順位を管理しない。
+      - 主な棄却案: deprecated alias を残す案。公開契約が二重になる。
+    
+    ## 制約
+    - 変更は `/Users/a13400/src/atty303/tsugiori` 内に限定する。
+    - 現在の checkout で作業し、既存の unrelated な変更と並行作業を保持する。
+    - provider 別の公開入口、`ProjectConfig`、`defineProject()`、`runProject()`、`kind: "github-actions.project"` を維持する。
+    - `runProject()` の引数の型、コマンド処理、終了コード、project directory の決定方法を変更しない。
+    - workflow graph、task entrypoint、task artifact の生成・実行契約を変更しない。
+    - 設定ファイル名、Deno task 名、Action import mapping、依存 version を変更しない。
+    - publish、release、deploy、push、PR 作成、外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - 他の公開 API の引数・プロパティの改名。
+    - project model や新しい CLI 入口の追加。
+    - 旧引数名の互換 alias。
+    - 外部利用者の移行。
+    
+    ## 未検証の前提
+    - 実装開始時の checkout における旧引数名と関連する内部名の参照範囲。
+    - 内部の `config` が project の値、入口ファイル、Deno 設定などのどれを指しているか。
+    - 改名後も JSR 公開アーカイブの dry-run と内容・exports の照合保証を維持できること。
+    
+    ## 実装時の指示
+    - 開始時に既存差分を確認する。
+    - `src/runner/main.ts`、`src/compiler/source.ts` と関連する compiler・task runtime を調査し、同じ概念を表す内部名だけを一貫して更新する。
+    - `configSource()` や `LoadedConfig` は現在の責務を確認し、project の値と入口ファイルの情報を扱う名前へ整理する。名前に合わせた新しい読み込み処理は追加しない。
+    - 他の公開 API の `config` と Deno 設定ファイルを指す用語は、機械的に全置換しない。
+    - project の値が別モジュールで定義されていても、`entrypointUrl` に渡すのは実行入口の `import.meta.url` であることを文書化する。
+    - 生成 YAML に差分が必要なら `.github/workflows.ts` から再生成し、名前の整理による不要な graph・task layout の変更がないことを確認する。
+    - `mise run check`、`mise run test`、生成 workflow の check、JSR 公開アーカイブの dry-run を実施する。
+    - 未公開の新しい引数名が JSR 上で動作したとは主張しない。
+    
+  - A: Applied develop-repository, design-review and observability applicability assessment. Verified clean current main, fetched code/standard notes, baseline v0.5.0. Proposed feat/minor asynchronously. Renamed runProject options, project/source/compiler/task preparation internals and diagnostics; maintained scenario config and Deno configuration terms. Updated README, architecture, own entrypoint and fixtures. Existing bounded host recorder retained; no new loading, dependency or execution mode. Added split-definition fixture provenance and executable command assertions. Check and workflow freshness passed; generated YAML unchanged. Built version-injected source archive with deno publish --dry-run, preserving exports/content verification implementation. Fresh read-only reviewer identified the test's missing POSIX path quotes; full suite initially104pass1fail confirmed actual YAML uses correct quoted entrypoint. Applied investigate-problem, corrected only assertion to match existing emitter, reran full test.
+- U8:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_LWvx3uUXe5uK0cIqqai7YuU5\",0]","question":"develop-repository の規則による commit 影響の確認です。基準 release は v0.5.0、今回の公開引数の破壊的改名を feat（最大 minor release）として記録してよいですか？ 実装・検証は進め、commit は回答後に行います。","answer":"はい、minor release を承認"}]
+    </send_user_message_question_reply>
+  - A: Minor release approval recorded. Final full suite105pass0fail; standard check passed within full test. Reviewer otherwise had no API/runtime findings; the only post-review delta is the deterministic quoted test expectation. Changes committed locally as 1409bc092b8fac6e601d4ab69fab82aca3348e94 with self-contained feat message. Retrieved full thread9pages91human messages and compared the cycle's eight human messages; recorded this standard note. No publish/release/deploy/push/PR/external edits; dry-run evidence is local only. Removed task-owned temporary logs, patch, archive and diagnostic record after preserving outcomes.
