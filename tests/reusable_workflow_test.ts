@@ -1,4 +1,9 @@
-import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert";
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import {
   defineProject,
   defineWorkflow,
@@ -196,7 +201,7 @@ for (const fail of [false, true]) {
 }
 
 Deno.test("local references require config membership and input contracts", async () => {
-  await assertRejects(
+  assertThrows(
     () => lowerProject(defineProject({ workflows: [main] }), "config.ts"),
     Error,
     "included in the same project",

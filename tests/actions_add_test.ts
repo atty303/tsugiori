@@ -131,7 +131,7 @@ Deno.test("actions add encodes subpaths and refs and rejects ambiguous or invali
         [],
         ["a/b@v1", "extra"],
         ["a/b@v1", "--check"],
-        ["a/b@v1", "--expect-layout", "ignored"],
+        ["a/b@v1", "--expected-key", "ignored"],
         ["a/b"],
         ["./b@v1"],
         ["a/b/../c@v1"],

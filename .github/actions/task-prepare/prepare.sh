@@ -19,7 +19,7 @@ case "$TSUGIORI_RUNNER_OS-$TSUGIORI_RUNNER_ARCH" in
   macOS-ARM64) target=aarch64-apple-darwin ;;
   *) record platform unsupported; echo "Unsupported task artifact platform." >&2; exit 1 ;;
 esac
-args=(--expect-layout "$TSUGIORI_EXPECTED_LAYOUT" --expected-key "$TSUGIORI_SOURCE_KEY" --cache-directory "$TSUGIORI_ARTIFACT_CACHE" --target "$target")
+args=(--expected-key "$TSUGIORI_SOURCE_KEY" --cache-directory "$TSUGIORI_ARTIFACT_CACHE" --target "$target")
 rebuild=""
 record cache.restore started
 if [ -x "$TSUGIORI_ARTIFACT_CACHE/task-runtime" ]; then
@@ -28,6 +28,10 @@ if [ -x "$TSUGIORI_ARTIFACT_CACHE/task-runtime" ]; then
     exit 0
   else
     restore_status=$?
+  fi
+  if [ "$restore_status" = 3 ]; then
+    record cache.restore source_drift
+    exit 1
   fi
   if [ "$restore_status" = 2 ]; then record cache.restore validation_failed; else record cache.restore startup_failed; rebuild="--rebuild"; fi
 elif [ -e "$TSUGIORI_ARTIFACT_CACHE/task-runtime" ]; then

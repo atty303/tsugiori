@@ -7,9 +7,6 @@ inputs:
   entrypoint:
     description: Executable project module relative to the project directory.
     required: true
-  expected-layout:
-    description: Expected task layout fingerprint.
-    required: true
   source-key:
     description: Source identity embedded during generation.
     required: true
@@ -29,7 +26,6 @@ runs:
       env:
         TSUGIORI_PROJECT_DIRECTORY: ${{ inputs.project-directory }}
         TSUGIORI_ENTRYPOINT: ${{ inputs.entrypoint }}
-        TSUGIORI_EXPECTED_LAYOUT: ${{ inputs.expected-layout }}
         TSUGIORI_SOURCE_KEY: ${{ inputs.source-key }}
         TSUGIORI_ARTIFACT_CACHE: ${{ inputs.cache-directory }}
         TSUGIORI_RUNNER_OS: ${{ runner.os }}

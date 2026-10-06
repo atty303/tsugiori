@@ -15,7 +15,7 @@ Deno.test("diagnostic recording retains bounded failures, supports opt-out and s
     failed.operation({
       name: "artifact.validate",
       status: "error",
-      errorType: "source_mismatch",
+      errorType: "source_drift",
     });
     await failed.finish("error");
     for (let index = 0; index < 33; index++) {

@@ -124,10 +124,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       );
       assertStringIncludes(yaml, "uses: ./.github/actions/task-prepare");
       assert(!yaml.includes("deno_binary"));
-      const expectedLayout = yaml.match(
-        /workflows\/ci[.]yml\/test=sha256:[0-9a-f]+/,
-      )?.[0];
-      assert(expectedLayout !== undefined);
+      assert(!yaml.includes("expected-layout"));
       const sourceKey = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
       assert(sourceKey !== undefined);
       const prepare = async (extra: Record<string, string> = {}) => {
@@ -136,7 +133,6 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
           TSUGIORI_ACTION_PATH: actionPath,
           TSUGIORI_PROJECT_DIRECTORY: basename(fixture),
           TSUGIORI_ENTRYPOINT: "./workflows.ts",
-          TSUGIORI_EXPECTED_LAYOUT: expectedLayout,
           TSUGIORI_SOURCE_KEY: sourceKey,
           TSUGIORI_INSTALL_DENO_VERSION: step.env.TSUGIORI_INSTALL_DENO_VERSION,
           ...environment,
@@ -378,8 +374,13 @@ exit 1
         }
         assertEquals(environment.PATH, tools);
       }
-      // Reuse the existing app binary without replacing it or changing PATH.
-      await Deno.symlink(Deno.execPath(), resolve(tools, "deno"));
+      // Drift is terminal even offline: no fallback tool or task output is produced.
+      await Deno.remove(resolve(fixture, "task-result.txt"));
+      const callsBeforeDrift = await Deno.readTextFile(invocationLog);
+      const downloadsBeforeDrift = await Deno.readTextFile(downloads);
+      const binaryBeforeDrift = await Deno.readFile(
+        resolve(delivery, "task-runtime"),
+      );
       await Deno.writeTextFile(
         resolve(fixture, "dependency.ts"),
         'export const marker = "changed";\n',
@@ -392,31 +393,106 @@ exit 1
       );
       assertEquals(stale.code, 1);
       assertStringIncludes(stale.stderr, "changed: workflows/ci.yml");
-      const changed = await prepare();
-      assertEquals(changed.code, 0, changed.stderr);
-      await assertRejects(() => Deno.stat(delivery), Deno.errors.NotFound);
-      const changedRuntime =
-        parseGitHubOutputs(await Deno.readTextFile(output))["runtime-path"];
-      const changedTask = await run(
-        changedRuntime,
-        ["workflows/ci.yml/test/task-1"],
-        fixture,
-        environment,
-      );
-      assertEquals(changedTask.code, 0, changedTask.stderr);
+      const changed = await prepare(offline);
+      assertEquals(changed.code, 1, changed.stderr);
+      assertStringIncludes(changed.stderr, "Regenerate and commit");
+      assertEquals(await Deno.readTextFile(output), "");
+      assertEquals(await Deno.readTextFile(invocationLog), callsBeforeDrift);
+      assertEquals(await Deno.readTextFile(downloads), downloadsBeforeDrift);
       assertEquals(
-        await Deno.readTextFile(resolve(fixture, "task-result.txt")),
-        "changed",
+        await Deno.readFile(resolve(delivery, "task-runtime")),
+        binaryBeforeDrift,
       );
-      // A missing source reaches fallback, which reports graph/import failure.
-      await Deno.mkdir(delivery);
-      await Deno.writeFile(resolve(delivery, "task-runtime"), binary);
-      await Deno.chmod(resolve(delivery, "task-runtime"), 0o755);
-      await Deno.writeTextFile(resolve(delivery, "manifest.json"), manifest);
+      await assertRejects(
+        () => Deno.stat(resolve(fixture, "task-result.txt")),
+        Deno.errors.NotFound,
+      );
       await Deno.remove(resolve(fixture, "dependency.ts"));
-      const missing = await prepare();
+      const missing = await prepare(offline);
       assertEquals(missing.code, 1);
       assertStringIncludes(missing.stderr, "source changed or is missing");
+      assertEquals(await Deno.readTextFile(output), "");
+      assertEquals(await Deno.readTextFile(invocationLog), callsBeforeDrift);
+      assertEquals(await Deno.readTextFile(downloads), downloadsBeforeDrift);
+      // A miss and startup failure also stop on the computed key before compile/publication.
+      await Deno.symlink(Deno.execPath(), resolve(tools, "deno"));
+      await Deno.writeTextFile(
+        resolve(fixture, "dependency.ts"),
+        'export const marker = "changed";\n',
+      );
+      const shaForDriftStartup = await sha256Bytes(
+        new TextEncoder().encode("#!/bin/bash\nexit 8\n"),
+      );
+      const runtimesBefore = [];
+      for await (
+        const entry of Deno.readDir(
+          resolve(fixture, "test-cache/tsugiori/runtimes"),
+        )
+      ) runtimesBefore.push(entry.name);
+      for (const damage of ["miss", "startup"]) {
+        await removeIfPresent(delivery);
+        if (damage === "startup") {
+          await Deno.mkdir(delivery);
+          await Deno.writeTextFile(
+            resolve(delivery, "task-runtime"),
+            "#!/bin/bash\nexit 8\n",
+          );
+          await Deno.chmod(resolve(delivery, "task-runtime"), 0o755);
+        }
+        const drift = await prepare();
+        assertEquals(drift.code, 1, drift.stderr);
+        assertStringIncludes(drift.stderr, "source key is stale");
+        assertEquals(await Deno.readTextFile(output), "");
+        await assertRejects(
+          () => Deno.stat(resolve(delivery, "manifest.json")),
+          Deno.errors.NotFound,
+        );
+      }
+      const runtimesAfter = [];
+      for await (
+        const entry of Deno.readDir(
+          resolve(fixture, "test-cache/tsugiori/runtimes"),
+        )
+      ) runtimesAfter.push(entry.name);
+      assertEquals(runtimesAfter.sort(), runtimesBefore.sort());
+      await assertRejects(
+        () =>
+          Deno.stat(
+            resolve(
+              fixture,
+              "test-cache/tsugiori/runtimes/.rejected",
+              key,
+              shaForDriftStartup,
+            ),
+          ),
+        Deno.errors.NotFound,
+      );
+      await assertRejects(
+        () => Deno.stat(resolve(fixture, "task-result.txt")),
+        Deno.errors.NotFound,
+      );
+      // Removing the last task is drift too, before registry validation.
+      const authored = await Deno.readTextFile(
+        resolve(fixture, "workflows.ts"),
+      );
+      await Deno.writeTextFile(
+        resolve(fixture, "workflows.ts"),
+        `
+import { defineProject, defineWorkflow, runProject } from "./src/github_actions.ts";
+const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [
+  defineWorkflow("workflows/ci.yml", { on: { push: {} } }).job("test", ({ job }) =>
+    job.runsOn("ubuntu-latest").run({ name: "Native", run: "true" }))] });
+export default project;
+if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+`,
+      );
+      await removeIfPresent(delivery);
+      const removedTasks = await prepare();
+      assertEquals(removedTasks.code, 1, removedTasks.stderr);
+      assertStringIncludes(removedTasks.stderr, "source key is stale");
+      assertEquals(await Deno.readTextFile(output), "");
+      await assertRejects(() => Deno.stat(delivery), Deno.errors.NotFound);
+      await Deno.writeTextFile(resolve(fixture, "workflows.ts"), authored);
       const records = [];
       for await (
         const entry of Deno.readDir(
@@ -434,7 +510,22 @@ exit 1
       assert(
         records.some((record) =>
           record.operations.some((op: { errorType?: string }) =>
-            op.errorType === "source_mismatch"
+            op.errorType === "source_drift"
+          )
+        ),
+      );
+      const driftRecords = records.filter((record) =>
+        record.operations.some((op: { errorType?: string }) =>
+          op.errorType === "source_drift"
+        )
+      );
+      assert(driftRecords.length >= 4);
+      assert(
+        driftRecords.every((record) =>
+          !record.operations.some((op: { name: string }) =>
+            ["artifact.build", "artifact.materialize", "cache.store"].includes(
+              op.name,
+            )
           )
         ),
       );
@@ -446,7 +537,7 @@ exit 1
       // Failed acquisition is terminal and leaves the application binary alone.
       const appBinary = await Deno.readLink(resolve(tools, "deno"));
       await Deno.remove(resolve(tools, "deno"));
-      await Deno.remove(delivery, { recursive: true });
+      await removeIfPresent(delivery);
       await Deno.writeTextFile(
         resolve(tools, "curl"),
         "#!/bin/bash\nexit 22\n",
@@ -693,10 +784,6 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       );
       assertStringIncludes(workflow, "project-directory: ci/workflows");
       assertStringIncludes(workflow, "./workflows.ts");
-      const expectedLayout = workflow.match(
-        /workflows\/ci\.yml\/test=sha256:[0-9a-f]+/,
-      )?.[0];
-      assert(expectedLayout !== undefined);
       const githubOutput = resolve(fixture, "github-output");
       await Deno.writeTextFile(githubOutput, "");
       const artifactKey = await resolveSourceArtifactKey(
@@ -714,8 +801,6 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
           "github-actions",
           "task",
           "prepare",
-          "--expect-layout",
-          expectedLayout,
           "--expected-key",
           artifactKey,
         ],

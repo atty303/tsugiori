@@ -137,14 +137,17 @@ YAML; the cache key also includes the runner's OS and architecture. Regenerate
 and commit YAML after tracked source changes. `generate --check` detects stale
 source keys even when the workflow structure is unchanged.
 
-A restored compiled artifact verifies its embedded local-module paths and
-hashes against the checkout, plus its manifest, binary checksum, platform, and
-expected task layout. A valid hit needs no external Deno or dependency download.
-On a miss, changed or missing source, damaged artifact, or startup failure,
-prepare falls back to the current source. A changed source key permits execution
-but leaves the old transport cache path empty, so GitHub cannot save the new
-artifact under the old key. Task failures belong to the subsequent task steps
-and are not retried by preparation.
+A restored compiled artifact verifies its embedded local-module paths and hashes
+against the checkout, plus its manifest, binary checksum, and platform. A valid
+hit needs no external Deno or dependency download. Changed or missing tracked
+source stops preparation as YAML drift: regenerate and commit the workflow YAML
+before running tasks. This conservatively rejects source changes even if they
+would leave the workflow structure unchanged. On a cache miss, restore failure,
+damaged artifact, or startup failure, prepare falls back to source preparation
+only when the current source key matches YAML. A different key stops before
+building or publishing a runtime. YAML-only edits remain the responsibility of
+`generate --check`. Task failures belong to the subsequent task steps and are
+not retried by preparation.
 
 Tsugiori source commands require Deno **2.6.0 or newer**, checked at the common
 `runProject` entrypoint. Local commands report an insufficient version and do

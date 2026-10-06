@@ -188,10 +188,6 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       ".github/workflows/ci.yml/test/task-2",
     ],
   );
-  assertEquals(
-    lowered.layoutFingerprints.get(".github/workflows/ci.yml/test"),
-    "sha256:ff5c58fbaafd33cb17646375e2e84a9615a2ed642d953ecd5d9b3e982220ca44",
-  );
   assertEquals(lowered.workflows.length, 1);
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assert(!yaml.includes("name: Resolve task artifact"));
@@ -199,18 +195,12 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, "name: Prepare task artifact");
   assertStringIncludes(yaml, "permissions:\n  contents: read");
   assertStringIncludes(yaml, 'persist-credentials: "false"');
-  assertStringIncludes(
-    yaml,
-    'expected-layout: ".github/workflows/ci.yml/test=sha256:',
-  );
+  assert(!yaml.includes("expected-layout"));
   assertStringIncludes(
     yaml,
     "uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
   );
-  assertStringIncludes(
-    yaml,
-    'expected-layout: ".github/workflows/ci.yml/test=sha256:',
-  );
+
   assertStringIncludes(
     yaml,
     'key: "tsugiori-task-unresolved-${{ runner.os }}-${{ runner.arch }}"',
@@ -232,7 +222,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertEquals(yaml.match(/name: Cache task artifact/g)?.length, 1);
 });
 
-Deno.test("duplicate workflow outputs fail before generation", async () => {
+Deno.test("duplicate workflow outputs fail before generation", () => {
   const first = defineWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job(
@@ -246,7 +236,7 @@ Deno.test("duplicate workflow outputs fail before generation", async () => {
     ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
   );
 
-  await assertRejects(
+  assertThrows(
     () =>
       lowerProject(
         defineProject({ workflows: [first, second] }),
@@ -257,7 +247,7 @@ Deno.test("duplicate workflow outputs fail before generation", async () => {
   );
 });
 
-Deno.test("task-backed steps reject Windows runners", async () => {
+Deno.test("task-backed steps reject Windows runners", () => {
   const ci = defineWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job(
@@ -271,7 +261,7 @@ Deno.test("task-backed steps reject Windows runners", async () => {
       }),
   );
 
-  await assertRejects(
+  assertThrows(
     () => lowerProject(defineProject({ workflows: [ci] }), "./tsugiori.ts"),
     AuthoringValidationError,
     "unsupported Windows runner",
@@ -443,7 +433,7 @@ Deno.test("direct project preserves invalid provider-native values for validatio
       project: (await import(entrypointUrl.href)).default,
       entrypointArgument: "./tsugiori.ts",
     };
-    const error = await assertRejects(
+    const error = assertThrows(
       () => lowerProject(source.project, source.entrypointArgument),
       AuthoringValidationError,
       "Workflow permissions must be an object.",
@@ -568,7 +558,7 @@ Deno.test("direct project does not let JSON-unsafe provider values bypass valida
       project: (await import(entrypointUrl.href)).default,
       entrypointArgument: "./tsugiori.ts",
     };
-    const error = await assertRejects(
+    const error = assertThrows(
       () => lowerProject(source.project, source.entrypointArgument),
       AuthoringValidationError,
       "Workflow permission must be",

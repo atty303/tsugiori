@@ -32,7 +32,6 @@ export type LoweredWorkflow = Readonly<{
 export type LoweredProject = Readonly<{
   workflows: readonly LoweredWorkflow[];
   tasks: readonly RegisteredTask[];
-  layoutFingerprints: ReadonlyMap<string, string>;
 }>;
 
 export class AuthoringValidationError extends Error {
@@ -46,15 +45,14 @@ export class AuthoringValidationError extends Error {
   }
 }
 
-export async function lowerProject(
+export function lowerProject(
   project: ProjectConfig,
   entrypointArgument: string,
   sourceKey = "unresolved",
-): Promise<LoweredProject> {
+): LoweredProject {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
   const tasks: RegisteredTask[] = [];
-  const layoutFingerprints = new Map<string, string>();
   const outputs = new Set<string>();
   const loweredWorkflows: LoweredWorkflow[] = [];
   const projectDirectory = project.workingDirectory;
@@ -110,12 +108,6 @@ export async function lowerProject(
         );
       }
       const layoutKey = `${workflow.path}/${job.id}`;
-      const fingerprint = await layoutFingerprint(
-        workflow.path,
-        job.id,
-        taskNames,
-      );
-      layoutFingerprints.set(layoutKey, fingerprint);
 
       let taskOrdinal = 0;
       let preparationEmitted = false;
@@ -168,7 +160,6 @@ export async function lowerProject(
         if (!preparationEmitted) {
           steps.push(...preparationSteps(
             entrypointArgument,
-            `${layoutKey}=${fingerprint}`,
             usedStepIds,
             projectDirectory,
             prepareStepId,
@@ -265,7 +256,6 @@ export async function lowerProject(
   return Object.freeze({
     workflows: Object.freeze(loweredWorkflows),
     tasks: Object.freeze(tasks),
-    layoutFingerprints,
   });
 }
 
@@ -289,23 +279,8 @@ function validateWorkflowPath(
   outputs.add(workflow.path);
 }
 
-async function layoutFingerprint(
-  workflowPath: string,
-  jobId: string,
-  taskNames: readonly string[],
-): Promise<string> {
-  const bytes = new TextEncoder().encode(JSON.stringify({
-    workflowPath,
-    jobId,
-    taskNames,
-  }));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return `sha256:${toHex(new Uint8Array(digest))}`;
-}
-
 function preparationSteps(
   entrypointArgument: string,
-  expectedLayout: string,
   usedStepIds: Set<string>,
   projectDirectory: string,
   prepareStepId: string,
@@ -335,7 +310,6 @@ function preparationSteps(
       with: {
         "project-directory": projectDirectory,
         entrypoint,
-        "expected-layout": expectedLayout,
         "source-key": sourceKey,
         "cache-directory": cachePath,
       },
@@ -363,10 +337,6 @@ function formatDiagnostic(diagnostic: Diagnostic): string {
     ? "<root>"
     : diagnostic.path.join(".");
   return `${diagnostic.code} at ${path}: ${diagnostic.message}`;
-}
-
-function toHex(bytes: Uint8Array): string {
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function validateCalls(project: ProjectConfig, diagnostics: string[]): void {

@@ -139,16 +139,15 @@ a field-specific scenario value; unsupported forms never silently succeed.
 ## Task artifact lifecycle
 
 Compiler lowering records inline task functions in a registry. A task-backed
-step gets an entrypoint of the form
-`<workflow-path>/<job-id>/task-<ordinal>`, where the ordinal counts task steps
-within the job. Generated preparation steps include a job-layout fingerprint
-so changed task ordering is detected before dispatch.
+step gets an entrypoint of the form `<workflow-path>/<job-id>/task-<ordinal>`,
+where the ordinal counts task steps within the job.
 
 Each task-backed job contains a pinned `actions/cache` step followed by a normal
-composite preparation Action provided by this repository. The backend embeds a generate-time source key in YAML
-and combines it with GitHub's runner OS and architecture for cache delivery.
-Generation and fallback builds share the `deno info` local-source identity
-calculation. `generate --check` guards source-key changes as well as structure.
+composite preparation Action provided by this repository. The backend embeds a
+generate-time source key in YAML and combines it with GitHub's runner OS and
+architecture for cache delivery. Generation and fallback builds share the
+`deno info` local-source identity calculation. `generate --check` guards
+source-key changes as well as structure.
 
 The compiled artifact owns hit validation and immutable runtime publication.
 Build-time metadata is embedded using a preload module, calculated before that
@@ -158,28 +157,33 @@ key, project-relative module paths and hashes, target, and original entrypoint
 argument. A runtime-owned format-4 manifest contains source and platform keys,
 target, Deno and Tsugiori versions, entrypoints, and checksum. The restored
 binary validates these inputs and checkout files directly without an external
-Deno, dependency resolution, or fetching. Published runtimes remain in place
-for concurrent readers; corrupt paths recover to a separate key directory.
+Deno, dependency resolution, or fetching. Published runtimes remain in place for
+concurrent readers; corrupt paths recover to a separate key directory.
 
 The shell owns executable startup and fallback tool acquisition. Restore miss,
-validation failure, or startup failure leads to source preparation. A startup
-failure forces a rebuild and prevents reuse of a published runtime with the
-failed binary checksum. Rejected checksums are retained outside immutable
-runtime directories and consulted by both restore and source preparation. It reuses
-the Deno binary on PATH unchanged. If absent, it downloads the official platform
-ZIP at the pin in the Action, verified against this repository's mise toolchain,
-into an invocation-owned temporary directory. An old PATH binary fails without
-replacement. The selected absolute binary
-path is propagated to graph and compile subprocesses; the shell cleans up its
-download and does not change the application's toolchain or later steps' PATH.
-Only the source `runProject` gate enforces the minimum Deno version. The compiled path does not check external Deno. Task-body
-execution happens in subsequent native Actions steps and never triggers
-preparation fallback.
+artifact validation failure, or startup failure leads to source preparation.
+Tracked source changes or missing files are terminal YAML drift, reported by the
+compiled executable before the shell selects or installs Deno. Source
+preparation computes the current source key and rejects a mismatch with YAML
+before building or publishing a runtime. No YAML generation or comparison is
+performed during preparation; `generate --check` retains that responsibility. A
+startup failure forces a rebuild and prevents reuse of a published runtime with
+the failed binary checksum. Rejected checksums are retained outside immutable
+runtime directories and consulted by both restore and source preparation. It
+reuses the Deno binary on PATH unchanged. If absent, it downloads the official
+platform ZIP at the pin in the Action, verified against this repository's mise
+toolchain, into an invocation-owned temporary directory. An old PATH binary
+fails without replacement. The selected absolute binary path is propagated to
+graph and compile subprocesses; the shell cleans up its download and does not
+change the application's toolchain or later steps' PATH. Only the source
+`runProject` gate enforces the minimum Deno version. The compiled path does not
+check external Deno. Task-body execution happens in subsequent native Actions
+steps and never triggers preparation fallback.
 
 The Action passes the project's `workingDirectory` to its own script, referenced
 through the Action's absolute directory. Its `runtime-path` output forwards the
-inner prepare step's output. Normal
-steps and task bodies retain native defaults. Transport artifacts live under
+inner prepare step's output. Normal steps and task bodies retain native
+defaults. Transport artifacts live under
 `runner.temp/tsugiori-artifacts/<source-key>-<runner-os>-<runner-arch>/`.
 Runner-local build caches and immutable runtimes live under the platform cache's
 `tsugiori/` directory (`XDG_CACHE_HOME` overrides the base). Each task receives
@@ -190,17 +194,19 @@ project-external imports. Paths are project-relative rather than
 machine-absolute. Source identity also includes artifact format, Tsugiori
 package identity, and `cacheVersion`; runtime identity adds the Deno target.
 Remote modules, lockfiles, and Deno settings and versions remain excluded;
-authors increase `cacheVersion` for those inputs. This is a reuse contract,
-not a complete reproducibility claim. Linux/macOS X64/ARM64 map to their
+authors increase `cacheVersion` for those inputs. This is a reuse contract, not
+a complete reproducibility claim. Linux/macOS X64/ARM64 map to their
 corresponding Deno targets; Windows task artifacts remain unsupported.
 
-GitHub's transport key is `tsugiori-task-<source-key>-<runner-os>-<runner-arch>`.
-The best-effort cache action saves after a successful job without an exact hit.
-If current source has a different key, preparation builds and publishes its
-runtime but removes the old transport directory and never puts the new artifact
-there. Only a subsequent generate updates the remote key. A corrupt exact
-remote entry cannot be overwritten; delete it or change its key. GitHub's cache
-scope and write authorization own the remote authenticity boundary.
+GitHub's transport key is
+`tsugiori-task-<source-key>-<runner-os>-<runner-arch>`. The best-effort cache
+action saves after a successful job without an exact hit. Source drift fails the
+prepare step and prevents task execution and successful job cache saving.
+Preparation never writes a new artifact under a stale key; the existing
+transport directory is left intact. A subsequent generate updates the remote
+key. A corrupt exact remote entry cannot be overwritten; delete it or change its
+key. GitHub's cache scope and write authorization own the remote authenticity
+boundary.
 
 ## Diagnostics
 

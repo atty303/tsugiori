@@ -30,8 +30,7 @@ export type PrepareOptions = Readonly<{
   entrypointPath: string;
   entrypointArgument: string;
   project: ProjectConfig;
-  expectedLayouts: readonly string[];
-  expectedSourceKey?: string;
+  expectedSourceKey: string;
   deliveryDirectory?: string;
   rebuild?: boolean;
   target?: string;
@@ -57,12 +56,32 @@ export type TaskArtifactPlan = Readonly<{
 export async function planTaskArtifact(
   options: PrepareOptions,
 ): Promise<TaskArtifactPlan> {
+  const target = options.target ?? Deno.build.target;
+  const graphStarted = performance.now();
+  const source = await computeSourceIdentity({
+    projectDirectory: options.projectDirectory,
+    entrypointPath: options.entrypointPath,
+    cacheVersion: options.project.cacheVersion,
+  });
+  const key = artifactKey(source.sourceKey, target);
+  options.recorder.operation({
+    name: "artifact.key",
+    durationMs: performance.now() - graphStarted,
+    status: "success",
+    attributes: { artifactKey: key, target },
+  });
+  if (options.expectedSourceKey !== source.sourceKey) {
+    throw new TaskRuntimeError(
+      "source_drift",
+      "Generated workflow source key is stale. Regenerate and commit the workflow YAML before running tasks.",
+    );
+  }
+
   const registryStarted = performance.now();
   const lowered = await lowerProject(
     options.project,
     options.entrypointArgument,
   );
-  validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
     name: "task.registry",
     durationMs: performance.now() - registryStarted,
@@ -78,7 +97,6 @@ export async function planTaskArtifact(
   }
 
   const denoVersion = await readDenoVersion(options.projectDirectory);
-  const target = options.target ?? Deno.build.target;
   if (target.includes("windows")) {
     throw new TaskRuntimeError(
       "target_unsupported",
@@ -86,25 +104,13 @@ export async function planTaskArtifact(
     );
   }
   const entrypoints = lowered.tasks.map((task) => task.entrypoint);
-  const graphStarted = performance.now();
-  const source = await computeSourceIdentity({
-    projectDirectory: options.projectDirectory,
-    entrypointPath: options.entrypointPath,
-    cacheVersion: options.project.cacheVersion,
-  });
-  const key = artifactKey(source.sourceKey, target);
-  options.recorder.operation({
-    name: "artifact.key",
-    durationMs: performance.now() - graphStarted,
-    status: "success",
-    attributes: { artifactKey: key, target },
-  });
   return { artifactKey: key, source, denoVersion, target, entrypoints };
 }
 
 export async function prepareTaskArtifact(
   options: PrepareOptions,
 ): Promise<PrepareResult> {
+  const plan = await planTaskArtifact(options);
   let rejectedChecksum: string | undefined;
   if (options.rebuild) {
     rejectedChecksum = "unknown";
@@ -118,10 +124,7 @@ export async function prepareTaskArtifact(
       /* Unreadable failed binaries cannot be reused by checksum validation either. */
     }
   }
-  if (
-    rejectedChecksum !== undefined && rejectedChecksum !== "unknown" &&
-    options.expectedSourceKey !== undefined
-  ) {
+  if (rejectedChecksum !== undefined && rejectedChecksum !== "unknown") {
     await rejectArtifact(
       artifactKey(
         options.expectedSourceKey,
@@ -130,22 +133,6 @@ export async function prepareTaskArtifact(
       rejectedChecksum,
     );
   }
-  const plan = await planTaskArtifact(options);
-  if (
-    options.expectedSourceKey !== undefined &&
-    options.expectedSourceKey !== plan.source.sourceKey
-  ) {
-    options.recorder.operation({
-      name: "artifact.key",
-      status: "error",
-      errorType: "source_mismatch",
-    });
-    // actions/cache must never save the new binary under the generated old key.
-    if (options.deliveryDirectory !== undefined) {
-      await removeIfPresent(options.deliveryDirectory);
-    }
-  }
-
   const tsugioriDirectory = taskCacheDirectory();
   const runtimeDirectory = resolve(
     tsugioriDirectory,
@@ -190,7 +177,7 @@ export async function prepareTaskArtifact(
           plan.artifactKey,
           plan.target,
         );
-        await deliverArtifact(options, plan, restoredDirectory);
+        await deliverArtifact(options, restoredDirectory);
         options.recorder.operation({
           name: "cache.restore",
           status: "success",
@@ -256,7 +243,7 @@ export async function prepareTaskArtifact(
       });
     }
 
-    await deliverArtifact(options, plan, builtDirectory);
+    await deliverArtifact(options, builtDirectory);
     const runtimePath = await materializeArtifact(
       builtDirectory,
       runtimeDirectory,
@@ -272,29 +259,6 @@ export async function prepareTaskArtifact(
     };
   } finally {
     await removeIfPresent(workDirectory);
-  }
-}
-
-export function validateExpectedLayouts(
-  expected: readonly string[],
-  current: ReadonlyMap<string, string>,
-): void {
-  for (const value of expected) {
-    const separator = value.lastIndexOf("=");
-    if (separator < 1) {
-      throw new TaskRuntimeError(
-        "layout_expectation_invalid",
-        `Invalid layout expectation ${JSON.stringify(value)}.`,
-      );
-    }
-    const key = value.slice(0, separator);
-    const fingerprint = value.slice(separator + 1);
-    if (current.get(key) !== fingerprint) {
-      throw new TaskRuntimeError(
-        "registry_layout_mismatch",
-        `Generated workflow task layout is stale for ${key}. Run the consumer's generate task.`,
-      );
-    }
   }
 }
 
@@ -485,13 +449,9 @@ function errorMessage(error: unknown): string {
 
 async function deliverArtifact(
   options: PrepareOptions,
-  plan: TaskArtifactPlan,
   source: string,
 ): Promise<void> {
-  if (
-    options.deliveryDirectory === undefined ||
-    options.expectedSourceKey !== plan.source.sourceKey
-  ) return;
+  if (options.deliveryDirectory === undefined) return;
   const staging = `${options.deliveryDirectory}.tmp-${crypto.randomUUID()}`;
   try {
     await copyDirectory(source, staging);
@@ -506,7 +466,6 @@ async function deliverArtifact(
 export async function restoreTaskArtifact(
   options: Readonly<{
     project: ProjectConfig;
-    expectedLayouts: readonly string[];
     expectedSourceKey: string;
     directory: string;
     expectedTarget?: string;
@@ -537,11 +496,13 @@ export async function restoreTaskArtifact(
     try {
       matches =
         await sha256File(resolve(Deno.cwd(), module.path)) === module.sha256;
-    } catch { /* A missing source is a cache miss. */ }
+    } catch {
+      /* Missing or unreadable tracked source cannot establish consistency. */
+    }
     if (!matches) {
       throw new TaskRuntimeError(
-        "source_mismatch",
-        "Task artifact source changed or is missing.",
+        "source_drift",
+        "Tracked task artifact source changed or is missing. Regenerate and commit the workflow YAML before running tasks.",
       );
     }
   }
@@ -549,7 +510,6 @@ export async function restoreTaskArtifact(
     options.project,
     metadata.entrypointArgument,
   );
-  validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   if (
     manifest.sourceKey !== metadata.sourceKey ||
     JSON.stringify(manifest.entrypoints) !==

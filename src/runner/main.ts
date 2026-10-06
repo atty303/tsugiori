@@ -84,8 +84,7 @@ export async function runProject(
     if (parsed.command[0] === "actions") {
       if (
         parsed.command.length !== 3 || parsed.command[1] !== "add" ||
-        Object.keys(parsed.options).length !== 0 ||
-        Object.keys(parsed.multipleOptions).length !== 0
+        Object.keys(parsed.options).length !== 0
       ) {
         throw new TaskRuntimeError(
           "usage_invalid",
@@ -178,7 +177,6 @@ export async function runProject(
     if (isGitHubActionsTaskCommand(parsed, "restore")) {
       const runtimePath = await restoreTaskArtifact({
         project: options.project,
-        expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
         expectedSourceKey: requiredOption(parsed.options, "expectedKey"),
         directory: requiredOption(parsed.options, "cacheDirectory"),
         expectedTarget: parsed.options.target,
@@ -201,7 +199,6 @@ export async function runProject(
         entrypointPath: source.entrypointPath,
         entrypointArgument: source.entrypointArgument,
         project: source.project,
-        expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
         expectedSourceKey: requiredOption(parsed.options, "expectedKey"),
         deliveryDirectory: parsed.options.cacheDirectory,
         rebuild: parsed.options.rebuild === "true",
@@ -238,7 +235,10 @@ export async function runProject(
     });
     await recorder.finish("error");
     console.error(error instanceof Error ? error.message : String(error));
-    return parsed.command[2] === "restore" ? 2 : 1;
+    // Restore status 3 is terminal drift; status 2 permits source fallback.
+    return isGitHubActionsTaskCommand(parsed, "restore")
+      ? errorType === "source_drift" ? 3 : 2
+      : 1;
   }
 }
 
@@ -389,13 +389,11 @@ function errorTypeOf(error: unknown): string {
 type ParsedArguments = Readonly<{
   command: readonly string[];
   options: Readonly<Record<string, string | undefined>>;
-  multipleOptions: Readonly<Record<string, readonly string[] | undefined>>;
 }>;
 
 function parseArguments(args: readonly string[]): ParsedArguments {
   const command: string[] = [];
   const options: Record<string, string | undefined> = {};
-  const multipleOptions: Record<string, string[]> = {};
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (!argument.startsWith("--")) {
@@ -405,7 +403,6 @@ function parseArguments(args: readonly string[]): ParsedArguments {
     const equals = argument.indexOf("=");
     const rawName = argument.slice(2, equals < 0 ? undefined : equals);
     if (
-      rawName !== "expect-layout" &&
       rawName !== "expected-key" && rawName !== "cache-directory" &&
       rawName !== "target" &&
       rawName !== "check" && rawName !== "rebuild" && rawName !== "output"
@@ -436,13 +433,9 @@ function parseArguments(args: readonly string[]): ParsedArguments {
         `Option --${rawName} requires a value.`,
       );
     }
-    if (name === "expectLayout") {
-      (multipleOptions[name] ??= []).push(value);
-    } else {
-      options[name] = value;
-    }
+    options[name] = value;
   }
-  return { command, options, multipleOptions };
+  return { command, options };
 }
 
 function isGitHubActionsTaskCommand(
