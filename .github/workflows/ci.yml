@@ -20,7 +20,7 @@ jobs:
 
       - name: Check generated workflow
         run: |-
-          deno task generate:check
+          deno task tsugiori generate --check
         working-directory: .github
 
       - name: Resolve task artifact

@@ -27,7 +27,7 @@ const ci = defineWorkflow("workflows/ci.yml", {
     })
     .run({
       name: "Check generated workflow",
-      run: "deno task generate:check",
+      run: "deno task tsugiori generate --check",
       workingDirectory: ".github",
     })
     .task({
@@ -62,7 +62,7 @@ const release = defineWorkflow("workflows/release.yml", {
     .uses(mise, { name: "Install toolchain" })
     .run({
       name: "Check generated workflows",
-      run: "deno task generate:check",
+      run: "deno task tsugiori generate --check",
       workingDirectory: ".github",
     })
     .run({ name: "Run repository checks and tests", run: "mise run test" })

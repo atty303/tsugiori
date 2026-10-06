@@ -1,3 +1,4 @@
+import { addAction } from "./actions.ts";
 import { generateFiles } from "../compiler/generator.ts";
 import { checkGeneratedFiles } from "../compiler/check.ts";
 import { configSource } from "../compiler/source.ts";
@@ -27,10 +28,12 @@ export type RunOptions = Readonly<{
   configUrl: string | URL;
 }>;
 
-/** Handles the config file's generate, check, and internal task commands in the
+/** Handles the config file's generation, actions add, and internal task commands in the
  * consumer's Deno project without importing the config again. It does not run
  * a GitHub Actions workflow. Returns 0 on success and 1 on command failure;
- * callers can assign the result to `Deno.exitCode`.
+ * callers can assign the result to `Deno.exitCode`. `actions add <uses>` edits
+ * the invocation directory's inline Deno imports only; it does not fetch modules,
+ * update the lockfile, or add imports to the authoring source.
  */
 export async function runProject(
   options: RunOptions,
@@ -58,13 +61,36 @@ export async function runProject(
     console.error(error instanceof Error ? error.message : String(error));
     return 1;
   }
-  const commandName = parsed.command.join(".") || "unknown";
+  const commandName = parsed.command[0] === "actions"
+    ? "actions.add"
+    : parsed.command.join(".") || "unknown";
   const recorder = new DiagnosticRecorder(
     commandName,
     tool.version,
     diagnosticsEnabled(),
   );
   try {
+    if (parsed.command[0] === "actions") {
+      if (
+        parsed.command.length !== 3 || parsed.command[1] !== "add" ||
+        Object.keys(parsed.options).length !== 0 ||
+        Object.keys(parsed.multipleOptions).length !== 0
+      ) {
+        throw new TaskRuntimeError(
+          "usage_invalid",
+          "Usage: deno task tsugiori actions add <owner/repo[/path]@ref>",
+        );
+      }
+      const changed = await addAction(parsed.command[2], Deno.cwd(), recorder);
+      await recorder.finish("success");
+      console.log(
+        changed
+          ? "Added Action import mapping. Run deno install before importing it."
+          : "Action import mapping already exists.",
+      );
+      return 0;
+    }
+
     if (parsed.command.length === 1 && parsed.command[0] === "generate") {
       if (
         parsed.options.output !== undefined && parsed.options.check !== "true"
@@ -186,7 +212,7 @@ export async function runProject(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: deno run -A <config-file> generate [--check [--output <path>]] | github-actions task cache-key | github-actions task prepare",
+      "Usage: deno run -A <config-file> generate [--check [--output <path>]] | actions add <uses> | github-actions task cache-key | github-actions task prepare",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);

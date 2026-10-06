@@ -6,7 +6,6 @@
     "atty303/repository-template/release": "https://tsugiori.atty303.workers.dev/github/actions/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A ./workflows.ts generate",
-    "generate:check": "deno run --frozen=true -A ./workflows.ts generate --check"
+    "tsugiori": "deno run --frozen=true -A ./workflows.ts"
   }
 }

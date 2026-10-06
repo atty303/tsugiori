@@ -44,7 +44,12 @@ directory; direct invocations must use it explicitly. The project owns
 import resolution and its lockfile. External projects can map the package name
 to one JSR version; the YAML dependency uses a direct `jsr:` specifier in
 the package source. The runner consumes the object in-process;
-it does not load it again or parse the project's Deno configuration. Top-level
+it does not load it again. Generation uses Deno's import resolution rather than
+parsing the project's Deno configuration. The `tsugiori` task selects generation
+or `actions add <uses>`. Action addition edits inline imports in exactly one
+Deno JSON/JSONC configuration in the invocation directory, preserving comments
+and unrelated settings. Dependency fetching and lockfile updates remain Deno's
+responsibility; the addition command has no network boundary. Top-level
 code constructs the workflow definition; task callbacks run only through the
 prepared task artifact.
 
@@ -105,7 +110,7 @@ bytes to configured files and reports missing or changed outputs. It does not
 scan directories or modify files.
 `--output <path>` limits the check to one workflow. Normal generation does not
 delete extra files. The checked-in [CI config](../.github/workflows.ts) emits the
-[CI workflow](../.github/workflows/ci.yml); CI runs `generate:check`.
+[CI workflow](../.github/workflows/ci.yml); CI runs `tsugiori generate --check`.
 
 ## Scenario interpretation
 
@@ -282,8 +287,8 @@ repository defaults.
 
 JSR retries compare the complete registry file manifest (path, byte count and
 SHA-256) and exports against the source archive. The publication config excludes
-workspace and import-map settings; sources use explicit relative, `node:` or
-`jsr:` imports. Adding publish-time transformations requires updating this
+workspace and import-map settings; sources use explicit relative, `node:`,
+`npm:`, or `jsr:` imports. Adding publish-time transformations requires updating this
 comparison contract. Registry versions are never removed on failure.
 
 An Actions concurrency group serializes releases. The main branch condition

@@ -36,13 +36,13 @@ provider entrypoint through the local workspace package. From `.github`, generat
 commit the resulting YAML:
 
 ```sh
-deno task generate
+deno task tsugiori generate
 ```
 
 Check the committed output without changing it:
 
 ```sh
-deno task generate:check
+deno task tsugiori generate --check
 ```
 
 Check mode reports missing or changed configured outputs. Unconfigured files
@@ -90,7 +90,7 @@ if (import.meta.main) {
 }
 ```
 
-Set the Deno project's `generate` and `generate:check` tasks as in
+Set the Deno project's `tsugiori` task as in
 [.github/deno.json](.github/deno.json). Workflow paths are relative to the Deno
 project directory, taken from `Deno.cwd()`. Deno tasks set that directory to
 the task project; direct invocation must run from the same directory.
@@ -110,14 +110,14 @@ and advanced subpath imports resolve through this single mapping:
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A ./workflows.ts generate",
-    "generate:check": "deno run --frozen=true -A ./workflows.ts generate --check"
+    "tsugiori": "deno run --frozen=true -A ./workflows.ts"
   }
 }
 ```
 
-Replace `<released-version>` with a version that includes these exports and
-commit the workflow project's Deno lockfile. For example, import the umbrella
+Replace `<released-version>` with a version that includes these exports, run
+`deno install` to prepare the entrypoint dependencies, and commit the workflow
+project's Deno lockfile. For example, import the umbrella
 from `@atty303/tsugiori/github-actions`, or import only
 `@atty303/tsugiori/github-actions/authoring`,
 `@atty303/tsugiori/github-actions/run`,
@@ -290,7 +290,45 @@ comparison, truthiness, and logical operator evaluation.
 
 The official type service is
 [tsugiori.atty303.workers.dev](https://tsugiori.atty303.workers.dev). Map an
-action metadata URL in your Deno project's `deno.json`:
+Action reference with the same `owner/repo[/path]@ref` used by GitHub Actions.
+Run these steps from your workflow's Deno project directory:
+
+1. Add the mapping before adding its import to `workflows.ts`:
+
+   ```sh
+   deno task tsugiori actions add actions/checkout@v4
+   ```
+
+2. Fetch and lock the mapped dependency with Deno:
+
+   ```sh
+   deno install
+   ```
+
+3. Write `import checkout from "#actions/actions/checkout";` in `workflows.ts`
+   and pass the contract to `job.uses()` as below.
+4. Generate the workflows:
+
+   ```sh
+   deno task tsugiori generate
+   ```
+
+5. Check committed workflow freshness:
+
+   ```sh
+   deno task tsugiori generate --check
+   ```
+
+The task loads `workflows.ts` and its existing imports before processing the
+command, so its dependencies must already be installed. `actions add` edits only
+inline `imports` in the task project directory's `deno.json` or `deno.jsonc`. It
+preserves comments and unrelated settings, and never fetches metadata, updates
+the lockfile, or writes source imports. An identical mapping succeeds without a
+write; a conflicting alias fails without changing the file. Missing or ambiguous
+configuration, external `importMap`, malformed JSONC, and duplicate root/import
+keys fail explicitly. Other manually chosen aliases remain supported.
+
+The example command adds this entry to your existing configuration:
 
 ```json
 {

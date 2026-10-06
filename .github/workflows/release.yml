@@ -28,7 +28,7 @@ jobs:
 
       - name: Check generated workflows
         run: |-
-          deno task generate:check
+          deno task tsugiori generate --check
         working-directory: .github
 
       - name: Run repository checks and tests
