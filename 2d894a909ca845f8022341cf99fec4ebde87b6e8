@@ -1,0 +1,123 @@
+Task: Typed composite Action definitions and self-contained task distribution
+Anchor: 2d894a909ca845f8022341cf99fec4ebde87b6e8
+Base: a741f5c620096cce8560c9f839aef8be5665ff84
+Branch: main; existing checkout; no worktree or branch changes
+Commits: 2d894a909ca845f8022341cf99fec4ebde87b6e8 implements the complete approved composite authoring and task distribution request (feat; approved SemVer minor)
+Guidance: repository AGENTS.md; develop-repository and atty303 profile; design-review; design-program-observability; review; investigate-problem; git-task-evidence and data-handling references
+Conditions: local macOS ARM64; repository-managed Deno 2.9.5; workspace-write sandbox; escalated local Git writes; configured 1Password SSH signing; no new dependency; no push, PR, release, deploy or publication
+## Evidence
+- Local mise run check passed formatter, lint and type checks; mise run test passed 118 tests; project generate --check reported generated files up to date.
+- Self-contained payload tests removed author-side sources before execution and exercised JSONC/import-map/custom-lock relocation, absolute prefixes, symlink aliases and macOS filesystem aliases.
+- Local composite runtime tests exercised cache miss/hit, source drift, task failure, repeated calls, task working-directory semantics and offline restore without caller Deno; failure diagnostics retained bounded stage evidence without private exception contents.
+- Independent read-only review found and rechecked packaging defects; final exact diff review had no remaining actionable findings. Existing workflow generation and runtime suite passed.
+- GitHub runner execution was not performed; local runtime evidence is not hosted execution evidence. Wrangler type-service validation was a local dry-run build, not deployment.
+Authority: current human implementation request and minor approval; repository AGENTS.md and applicable skill contracts; source/tests/living documentation; explicit local-only boundary
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) composite action定義の記述能力はあるか？
+  - A: Inspected existing workflow authoring, ActionContract metadata and generation boundaries; began the requested dig design dialogue.
+- U2: A. これをtyped dslからも利用可能にする
+  - A: Explored typed DSL action definitions and internal typed calls while retaining standard action metadata.
+- U3: B
+  - A: Continued the step authoring design, including reuse of task functions in composites.
+- U4: A
+  - A: Continued distribution design for source/configuration packaging and on-use cache/build preparation.
+- U5: B
+  - A: Continued local reference design discussion; the next human message made the path ownership explicit.
+- U6: actionを定義するときはworkflowと同じくlocal pathを指定する。そしてhttp importできるcontractもgenerateする。そうすれば、dslから内部を呼ぶときはdefineしたobjectからlocal pathが参照できるし、外部はcontractのままにできる
+  - A: Accepted one local path on the definition object and explored external HTTP contract generation through the existing type service.
+- U7: A
+  - A: Selected the existing type service for public contracts from published action.yml instead of standalone locally generated contract files.
+- U8: github自体の標準仕様にあわせる。特別扱いしない
+  - A: Accepted GitHub standard execution and working-directory semantics without implicit checkout or task cwd changes.
+- U9: B. composite actionを前提にしているが、actionの記述としてそれだけで十分なのか？
+  - A: Compared composite, JavaScript and Docker action authoring capabilities.
+- U10: js, docker actionをtyped dslで記述するメリットがあると思うか？
+  - A: Analyzed JS/Docker DSL value and recommended composite implementation with shared extensible metadata.
+- U11: A. 実装はcompositeに絞るが、contractは3種に拡張できる余地を残す
+  - A: Confirmed composite-only implementation and an execution-independent metadata contract extensible to other action kinds.
+- U12: A
+  - A: Completed design consensus and provided the implementation request; no repository edits were made in the dig phase.
+- U13:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori に、composite actionをTypeScriptのtyped DSLで定義し、標準の `action.yml` と必要なtask配布物を生成する機能を実装してください。生成したActionを既存のtyped DSLから型付きで呼び出せるようにしてください。
+    
+    ## 目的
+    - Actionの定義と内部呼び出しで、local path・inputs・outputsの情報を一元管理する。
+    - 生成したActionを、手書きworkflowや別repositoryからも標準の `uses` で利用できるようにする。
+    - Composite action内でも、既存の `.task()` によるDeno関数を記述できるようにする。
+    
+    ## 成功条件
+    - Workflow定義と同様にlocal pathを指定してcomposite actionを定義でき、標準の `action.yml` を生成できる。
+    - Actionのみのprojectでも生成できる。
+    - Compositeの `run`・`uses`・`.task()`、metadata、inputs・outputs、条件、環境変数、および関連する式を型付きで記述できる。
+    - 内部では `.uses(actionDefinition, options)` の形で定義objectを渡し、local pathとinputs・outputsの型を共有できる。誤った入力名、必須入力の欠落、未定義output参照を型検査できる。
+    - 外部向けcontractは、生成したYAMLを既存type serviceへ渡すことで生成でき、既存の `ActionContract` として利用できる。
+    - Taskソースと必要な設定をActionに同梱し、呼び出し元にTsugiori設定を要求せず、利用時のキャッシュ確認と必要時ビルドを行える。
+    - Task準備と各task実行が、生成されたcomposite内の通常のActions stepとして確認できる。
+    - `generate --check` がActionのYAMLと必要な生成配布物の欠落・変更を検出できる。
+    - 型検査、生成・validation、task実行のローカル検証が通り、既存workflow生成とruntimeの挙動を維持する。
+    - README・ARCHITECTURE・ROADMAPが実装後の能力と制約を正確に説明する。
+    
+    ## 決定事項
+    - 実装対象はcomposite actionに限定する。
+      - 理由: Step列と式を型付けでき、既存task記述を再利用する具体的な価値がある。
+      - 主な棄却案: JS／Docker actionの同時実装。Metadata生成だけでは追加効果が小さく、現在の用途に不要。
+    - Action定義の共通metadataと種別固有の実行部分を分ける。
+      - 理由: 将来JS／Dockerを追加できる構造を保つ。
+      - 主な棄却案: 共通のAction定義contractをcomposite固有のstep構造と一体化する設計。種別追加時に共通部分まで変更する必要が生じる。
+    - 定義時にlocal pathを指定し、内部呼び出しは定義objectを直接使う。
+      - 理由: 生成先と内部呼び出しの参照先・型を同じ定義から導出できる。
+      - 主な棄却案: 呼び出しごとに `.at(...)` などでlocal pathを再指定する設計。情報が重複する。
+    - 外部向けcontractは既存type serviceが公開済み `action.yml` から生成する。
+      - 理由: 既存のHTTP import、revision解決、SHA固定を活用できる。
+      - 主な棄却案: Standaloneなcontractの `.ts` ファイルをローカル生成・配信する方式。公開先・revisionの追加管理が必要。
+    - Composite内で `.task()` を使用可能にする。
+      - 理由: Deno関数による既存のtask記述能力をActionでも利用したい。
+      - 主な棄却案: `run`・`uses` のみへの対応。要求を満たさない。
+    - Taskソースと必要な設定をActionに同梱し、利用時に必要ならビルドする。
+      - 理由: 呼び出し元のTsugiori設定に依存せず、既存の準備・キャッシュ設計を活用できる。
+      - 主な棄却案: Platformごとの事前ビルドruntime配布。作者側のビルド・配布工程が増える。
+    - 実行の意味はGitHub Actions標準に合わせる。
+      - 理由: 標準Actionとして予測可能な挙動を維持する。
+      - 主な棄却案: TaskだけActionディレクトリを既定cwdにするなど、独自の実行規則を設ける設計。
+    
+    ## 制約
+    - 呼び出し用 `ActionContract` は実行方式に依存しない既存のmetadata contractを維持する。
+    - 将来の種別追加に備えて、未実装のJS／Dockerフィールド、runtime、ビルド機構を先行実装しない。
+    - Task runtimeの対応platformは既存のLinux/macOS・X64/ARM64を維持する。通常の `run`・`uses` にtask固有の制約を拡大しない。
+    - Actionのinputs・outputs、shell、working-directory、context、条件、参照先の解決はGitHub標準に従う。
+    - 生成先pathと実行時のAction参照pathの基準を正しく扱う。暗黙のcheckoutやcwd変更を追加しない。
+    - Taskの準備場所とtask本体の作業ディレクトリを分離する。
+    - 今回の依頼はローカル実装と検証までとし、push、PR作成、公開、release、deployは行わない。
+    
+    ## 対象外
+    - JavaScript／Docker actionの定義・生成の実装。
+    - JavaScript bundler、Docker imageビルド・配布。
+    - 新しいcontract配信serviceやローカルcontractファイルの生成。
+    - Windows task runtime対応。
+    - Hosted CI control planeや独自のAction実行基盤。
+    
+    ## 未検証の前提
+    - 既存taskのsource graph、entrypoint、Deno設定・lockfileの扱いを、呼び出し元projectに依存しないAction配布物へ適用できるか。実装前に現在のsourceとruntimeから確認する。
+    - Compositeの内部stepで既存の準備・cache lifecycleを使う際の、複数回呼び出し・入れ子・IDとruntime参照の分離を確認する。
+    - Repositoryの固定仕様snapshotが、今回必要なAction metadataと参照規則をどこまで扱っているか確認する。
+    
+    ## 実装時の指示
+    - 最初に既存のauthoring、compiler、generator、ActionContract、type service、task runtimeの接続点を確認し、重複する仕組みを作らない。
+    - 具体的な定義API名と内部構造は、既存のimmutable builderとprovider-native authoringに整合する最小の設計を選ぶ。
+    - Action配布物には実行に必要なソースと設定を含め、作者のmachine固有pathや呼び出し元のauthoring entrypointに依存させない。
+    - Actionの公開inputs・outputsと内部taskのtyped I/Oを区別し、境界で既存の変換・検証を活用する。
+    - Workflowからの定義object呼び出しと、composite内の `uses` で必要な参照規則の違いをGitHub標準に照らして扱う。
+    - 検証では、生成YAML、型付き呼び出し、contract生成互換性、task cache hit/miss、source drift、task failure、複数回呼び出しを重点的に確認する。
+    - ローカル検証とGitHub runner上の実行証拠を区別し、未確認の挙動を実証済みと報告しない。
+  - A: Read development/design/observability guidance and source integration points, implemented typed composite authoring, standard metadata generation and bundled task delivery, updated living docs and focused tests; requested minor release approval.
+- U14: minorを承認
+  - A: Accepted minor approval, completed local compiler/type/runtime validation and independent review. Fixed import-map prefixes, symlink module aliases and macOS filesystem ancestry packaging; delta review found no further actionable issues.
+- U15: *emitCompositeActionなんでemitなの？ defineWorkflowと整合してなくない？*
+  - A: Explained that emitCompositeAction is the internal YAML emitter matching emitWorkflow, while defineCompositeAction is the public authoring API matching defineWorkflow.
+- U16: わかった
+  - A: Completed mise run check, mise run test (118 passing), and generate --check; staged all 22 owned paths. Signed commit failed because the configured 1Password SSH signing agent returned an error; asked for unlock and preserved staged changes.
+- U17: retry
+  - A: Retried the configured signed commit successfully: 2d894a909ca845f8022341cf99fec4ebde87b6e8. Confirmed clean working tree and absent existing note; retrieved and compared all 17 human messages before composing this normalized local task note.
