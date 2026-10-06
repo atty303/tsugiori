@@ -133,7 +133,11 @@ export class Expression<T = unknown, Proof extends string = never> {
   /** Reject host-language string interpolation with TypeError. Use format() or pass the expression into a supported field; GitHub values are unavailable during authoring.
    * @example
    * ```ts
-   * format("branch-{0}", literal("main"));
+   * try {
+   *   literal("main").toString(); // throws TypeError during authoring
+   * } catch (error) {
+   *   console.error(error);
+   * }
    * ```
    */
   toString(): never {
