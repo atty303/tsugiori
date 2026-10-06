@@ -255,7 +255,8 @@ operational audit.
 ## Package release boundary
 
 `.github/workflows.ts` imports action metadata from the official type service
-with the existing action commit SHAs and a checked-in Deno lockfile. It owns CI
+through `/github/actions/v1/` URLs and `#actions/` aliases, retaining the
+existing action commit SHAs and a checked-in Deno lockfile. It owns CI
 and the release workflow; generated YAML stays visible and checked in. Regular releases delegate version selection, tag/Release
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,

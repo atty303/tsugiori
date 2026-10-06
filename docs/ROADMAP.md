@@ -17,9 +17,6 @@ behavior is documented in the [README](../README.md) and
 - Extend validation and tests when new provider-native fields or expression
   forms are added. Preserve a readable, reviewable generated workflow.
 
-- Deploy the versioned `/github/actions/v1/` service, then migrate the
-  repository's own Action import mappings and lockfile together. Cold frozen
-  retrieval must succeed before retiring the current deployed routes.
 - Verify effective Cloudflare account permissions and public GitHub API rate
   limits in the deployed type-service environment; local workerd and dry-run
   checks do not establish those operational limits.

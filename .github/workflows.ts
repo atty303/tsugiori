@@ -4,9 +4,9 @@ import {
   runProject,
 } from "@atty303/tsugiori/github-actions";
 
-import checkout from "actions/checkout";
-import mise from "jdx/mise-action";
-import releaseAction from "atty303/repository-template/release";
+import checkout from "#actions/actions/checkout";
+import mise from "#actions/jdx/mise-action";
+import releaseAction from "#actions/atty303/repository-template/.github/actions/release";
 
 const ci = defineWorkflow("workflows/ci.yml", {
   name: "ci",
@@ -73,7 +73,7 @@ const release = defineWorkflow("workflows/release.yml", {
     }));
 
 const config = defineProject({
-  cacheVersion: 2,
+  cacheVersion: 3,
   workingDirectory: ".github",
   workflows: [ci, release],
 });

@@ -1,9 +1,9 @@
 {
   "imports": {
     "@atty303/tsugiori": "workspace:*",
-    "actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-    "jdx/mise-action": "https://tsugiori.atty303.workers.dev/github/actions/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
-    "atty303/repository-template/release": "https://tsugiori.atty303.workers.dev/github/actions/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724"
+    "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "#actions/jdx/mise-action": "https://tsugiori.atty303.workers.dev/github/actions/v1/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c",
+    "#actions/atty303/repository-template/.github/actions/release": "https://tsugiori.atty303.workers.dev/github/actions/v1/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724"
   },
   "tasks": {
     "tsugiori": "deno run --frozen=true -A ./workflows.ts"

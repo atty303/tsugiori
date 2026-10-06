@@ -25,15 +25,10 @@
       "integrity": "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="
     }
   },
-  "redirects": {
-    "https://tsugiori.atty303.workers.dev/github/actions/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "https://tsugiori.atty303.workers.dev/_resolved/g1/3d3c42e5aac5ba805825da76410c181273ba90b1/github/actions/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-    "https://tsugiori.atty303.workers.dev/github/actions/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724": "https://tsugiori.atty303.workers.dev/_resolved/g1/124ee84f8b01ac242d16b352f2d1e37627124724/github/actions/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724",
-    "https://tsugiori.atty303.workers.dev/github/actions/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c": "https://tsugiori.atty303.workers.dev/_resolved/g1/c2a87611a18de5b3828c5652fe268e992400cb5c/github/actions/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c"
-  },
   "remote": {
-    "https://tsugiori.atty303.workers.dev/_resolved/g1/124ee84f8b01ac242d16b352f2d1e37627124724/github/actions/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724": "6e90ba22041d3400f2b34c89fd76114b65e29aebc9877f0ba788721b5a8823e8",
-    "https://tsugiori.atty303.workers.dev/_resolved/g1/3d3c42e5aac5ba805825da76410c181273ba90b1/github/actions/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "fe5f472beaa6ef06bd8f8ffc181963ae521cae3545f35d1e06f91d19f1dc6aa8",
-    "https://tsugiori.atty303.workers.dev/_resolved/g1/c2a87611a18de5b3828c5652fe268e992400cb5c/github/actions/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c": "85e5f81543e7a63a5daf6fa112cbcc132d90a38714846b6225f1ddb0d52a4fdf"
+    "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1": "fe5f472beaa6ef06bd8f8ffc181963ae521cae3545f35d1e06f91d19f1dc6aa8",
+    "https://tsugiori.atty303.workers.dev/github/actions/v1/atty303/repository-template/.github/actions/release@124ee84f8b01ac242d16b352f2d1e37627124724": "6e90ba22041d3400f2b34c89fd76114b65e29aebc9877f0ba788721b5a8823e8",
+    "https://tsugiori.atty303.workers.dev/github/actions/v1/jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c": "85e5f81543e7a63a5daf6fa112cbcc132d90a38714846b6225f1ddb0d52a4fdf"
   },
   "workspace": {
     "dependencies": [
