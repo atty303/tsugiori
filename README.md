@@ -6,10 +6,41 @@
 
 # Tsugiori
 
-Tsugiori authors GitHub Actions workflows and composite actions in TypeScript
-and emits ordinary workflow YAML and `action.yml` files. It can also compile
-inline Deno task functions into one task artifact and invoke each task from a
-separate, visible Actions step. GitHub Actions still runs the jobs and steps.
+**Write workflows and tasks together in Deno TypeScript. Keep your GitHub
+Actions jobs, steps, and existing Actions.**
+
+Tsugiori brings task code directly into your GitHub Actions definitions. Combine
+existing Actions, shell commands, and inline Deno tasks in the step order you
+choose. Tsugiori generates standard YAML and manages task compilation, runtime
+preparation, and artifact caching; GitHub Actions runs each job and step.
+
+## Why Tsugiori?
+
+- **Define the workflow and the work together.** Write Deno task bodies
+  alongside their triggers, conditions, inputs, and outputs. Reuse functions and
+  libraries through the same Deno project and lockfile, without maintaining a
+  separate task build and packaging pipeline.
+
+- **Keep every task visible as a GitHub Actions step.** Each task runs in its
+  own native step, preserving the boundaries you authored for ordering,
+  conditions, failures, outputs, and logs. GitHub Actions owns orchestration.
+
+- **Build on the Actions you already use.** Place tasks between existing `uses`
+  and `run` steps. Continue using GitHub Actions features such as matrices, job
+  dependencies, permissions, environments, and reusable workflows.
+
+- **Let Tsugiori prepare the task runtime.** Tsugiori compiles Deno tasks into a
+  shared executable artifact, prepares it on the runner, and reuses validated
+  artifacts through `actions/cache`. You write the task; Tsugiori handles how it
+  reaches the runner.
+
+- **Adopt tasks incrementally.** Workflows can use existing Actions and shell
+  commands without any Deno tasks. Once a workflow is authored in Tsugiori,
+  replace individual shell steps with tasks as needed.
+
+- **Check definitions before CI runs.** Typed Action contracts, expressions, and
+  task inputs and outputs help catch mistakes during authoring. Commit the
+  generated YAML for review and use `generate --check` to detect stale output.
 
 ## Getting started
 
@@ -88,6 +119,34 @@ deno task tsugiori generate --check
 Workflow paths are relative to this Deno project directory. GitHub Actions owns
 job and step execution; top-level TypeScript constructs definitions, and task
 bodies run on the prepared task runtime.
+
+## How it compares
+
+Several OSS tools let you describe automation in a programming language.
+Tsugiori focuses on keeping GitHub Actions jobs and steps explicit while
+integrating Deno task code and its execution preparation.
+
+| Approach                                                                                 | Standard model                                                                                                                                                                           | What Tsugiori addresses                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workflow generators                                                                      | Define workflow configuration in code; task bodies commonly remain in shell commands, scripts, or separately packaged Actions.                                                           | Write workflow definitions and Deno task bodies together, without maintaining a separate task build and packaging pipeline.                                                                                                     |
+| [github-workflows-kt](https://github.com/typesafegithub/github-workflows-kt)             | Supports experimental inline Kotlin logic in separate native steps, executed through Kotlin/JVM scripting.                                                                               | Provides a compiled Deno task artifact lifecycle, including runner preparation, validation, and caching, rather than executing the authoring script for each task.                                                              |
+| [NUKE](https://nuke.build/docs/cicd/github-actions/) / [Fallout](https://fallout.build/) | Define C# targets and CI configuration together; generated steps invoke a build runner that manages target dependencies.                                                                 | Keep task ordering and dependencies in native GitHub Actions jobs and steps. Each authored task has its own step, where it can be placed between existing Actions.                                                              |
+| [Zuke](https://zuke.build/docs/concepts/)                                                | Define Deno TypeScript targets and CI configuration together. Normally run a target graph inside a step, or generate one job per target; custom pipelines can invoke individual targets. | Define each task directly at its intended step position, without separately maintaining target invocation commands or deriving job boundaries from the target graph. Also manages compiled runtime artifact delivery and reuse. |
+| [Dagger](https://docs.dagger.io/reference/cli/)                                          | Execute pipeline functions through the Dagger engine, which can be invoked from GitHub Actions.                                                                                          | Integrate task code while leaving orchestration with GitHub Actions. Existing Actions and tasks share the same native step sequence without introducing another pipeline engine.                                                |
+
+**Tsugiori combines workflow and Deno task authoring, explicit native job and
+step boundaries, and managed task execution preparation.** Existing Actions and
+shell steps remain usable alongside tasks, so adoption can proceed one step at a
+time.
+
+These comparisons describe the tools' standard models; custom integrations can
+narrow the differences. github-workflows-kt's logic steps are the closest match
+in execution structure. The comparison concerns execution architecture and
+preparation, rather than benchmarked performance.
+
+Task artifacts currently support Linux and macOS runners. See
+[specification coverage](docs/GITHUB_ACTIONS_SPEC.md) for the supported GitHub
+Actions authoring surface.
 
 ## API documentation
 
