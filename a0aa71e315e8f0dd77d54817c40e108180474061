@@ -1,0 +1,30 @@
+Task: Shorten source and artifact identities with padded uppercase Base36
+Anchor: a0aa71e315e8f0dd77d54817c40e108180474061
+Base: bd6fa5c41ac0b443f66aa7535bdd15fb6516113a
+Branch: main
+Commits: a0aa71e315e8f0dd77d54817c40e108180474061 perf: shorten task artifact keys with uppercase Base36
+Guidance: User request and AGENTS.md; develop-repository, design-program-observability, design-review, review and Git task evidence
+Conditions: Existing main checkout; mise-managed Deno; no new dependencies or remote writes; isolated E2E; complete human history compared across five root session segments
+Authority: User key-format instruction and patch approval, AGENTS.md and current source
+## Transcript
+- U1:
+    tsugiori-task-sha256- のsha256-って余分じゃない？
+    
+  - A: Inspected sourceArtifactKey and cache composition; confirmed sha256- was unnecessary for cache identity and proposed removing the algorithm prefix.
+- U2:
+    source-keyはSHA256だよね？ hexではなくBase36のほうが短くならない？
+    
+  - A: Confirmed SHA-256 identity is encoded as 64 hex digits, while uppercase Base36 can preserve all 256 bits in 50 padded digits.
+- U3:
+    Base36 uppercaseでTSだとradix: 36だけで実装できるよね
+    
+  - A: Explained BigInt hex parsing, radix-36 conversion, uppercase normalization and optional padding.
+- U4:
+    prefixを"S"にしてpaddingもして。artifact keyも同様に"A"prefixのbase36にする。
+    
+  - A: Applied develop-repository and existing observability/design-review contracts. Proposed patch impact and continued authorized work. Confirmed clean main at bd6fa5c, fetched origin code/notes and notes-only merge was already up to date. Changed source keys to S plus padded uppercase Base36 and artifact keys to A plus SHA256 of canonical sourceKey/target pair. Converted artifactKey to async and awaited every caller. Preserved hex module/binary checksums, updated regex tests/docs and generated YAML. Static check and independent known vectors, including a leading-zero source vector, passed; independent fresh read-only review reported no defects.
+- U5:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_sEdPmIC6MSjGf4mSAFsFTB4M\",0]","question":"今回のキー短縮はpatch release対象（perf）で進める方針を提案します。よいですか？ develop-repository skillの「Agree on commit release impact」により、taskごとのrelease影響をcommit前に確認します。","answer":"patch release対象にする"}]
+    </send_user_message_question_reply>
+  - A: Patch release was approved. Final mise run check passed; full mise run test passed 111 tests (43s), including no-Deno compiled hits, drift stops and recovery. generate --check passed and reviewed snapshot exactly matched the committed diff. Created signed local commit a0aa71e315e8f0dd77d54817c40e108180474061. Preserved all five human messages from complete root history, excluding injected open-page context. No push/publish/release/deploy; hosted Actions execution remains unverified.
