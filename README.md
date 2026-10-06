@@ -52,6 +52,11 @@ Install Deno and map a released package version in your workflow project's
   "imports": {
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
   },
+  "permissions": {
+    "default": {
+      "import": ["jsr.io:443", "tsugiori.atty303.workers.dev:443"]
+    }
+  },
   "tasks": { "tsugiori": "deno run --frozen=true -A ./workflows.ts" }
 }
 ```
@@ -98,10 +103,13 @@ if (import.meta.main) {
 }
 ```
 
-Install dependencies and commit the Deno lockfile:
+Install dependencies with the configured permission set and commit the Deno
+lockfile. `-P` explicitly loads `permissions.default`; configuring it alone does
+not grant access. The import list replaces Deno's default hosts, so it includes
+both JSR and the Tsugiori type service used by typed Action imports.
 
 ```sh
-deno install
+deno install -P
 ```
 
 Generate and commit the workflow YAML:
