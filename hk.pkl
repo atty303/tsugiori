@@ -3,6 +3,9 @@ amends "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Config.pk
 import "package://github.com/jdx/hk/releases/download/v2.0.0/hk@2.0.0#/Builtins.pkl"
 
 steps {
+  ["generate-check"] {
+    check = "cd .github && deno task tsugiori generate --check"
+  }
   ["deno-fmt"] = Builtins.deno
   ["deno-lint"] {
     glob = List("**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx")
