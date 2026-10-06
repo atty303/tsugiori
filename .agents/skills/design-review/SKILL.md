@@ -22,8 +22,10 @@ Read only the relevant subset:
 Check for these issues:
 
 - The change implies Tsugiori replaces GitHub Actions as the execution platform.
-- The change introduces a provider-neutral pipeline model that erases native
+- The change introduces a provider-neutral CI model that erases native
   provider concepts or hides work inside one opaque Actions step.
+- The change uses generic authoring terms instead of the selected provider's
+  native terms (`workflow`, `job`, and `step` for GitHub Actions).
 - The change treats GitHub runtime values such as `matrix`, `needs`, and
   `secrets` as host-language values during generation.
 - The change claims an API or behavior exists before code and tests support it.

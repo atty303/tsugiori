@@ -2,7 +2,7 @@
 
 ## Project boundary
 
-Tsugiori authors CI pipelines for a selected provider. Its implemented
+Tsugiori authors CI definitions for a selected provider. Its implemented
 provider backend is GitHub Actions. Preserve these constraints in changes:
 
 - Compile to standard `.github/workflows/*.yml`; GitHub Actions owns
@@ -10,10 +10,9 @@ provider backend is GitHub Actions. Preserve these constraints in changes:
 - Keep provider-native jobs and steps visible. Task-backed steps invoke the
   compiled task runtime through distinct normal Actions steps; task bodies
   stay out of generated YAML.
-- Keep `pipeline` as the general authoring term and `workflow`, `job`, and
-  `step` as GitHub Actions terms. Do not introduce a provider-neutral pipeline
-  model that erases native concepts or one opaque command that hides the job
-  graph.
+- Use provider-native authoring terms: `workflow`, `job`, and `step` for
+  GitHub Actions. Preserve each provider's native concepts; do not introduce
+  a provider-neutral CI model or one opaque command that hides the job graph.
 - Commit generated workflow YAML and use `generate --check` as the CI stale
   output guard. Local hooks are a convenience.
 - Keep the implemented task preparation lifecycle owned by the GitHub Actions
