@@ -115,3 +115,6 @@ Authority: Human implementation request; explicit feat minor approval; explicit 
 - U7:
     変更は競合していないのか？
   - A: Compared overlapping files without merging: deno.json can merge text automatically; generated .github/workflows/ci.yml has a source-key conflict and must be regenerated after integration. Combined-branch tests remain unverified. Committed source archive and /init export passed deno publish --dry-run; no publication/deploy/push occurred.
+- U8:
+    だからcheckoutが分かれているからこちらにmain側の変更を保持しなくてrestoreしていい
+  - A: Confirmed inherited main-side changes were already removed from this worktree, task-only commit exists and working tree is clean. Accepted final clarification to discard the temporary recovery snapshot without restoring it.
