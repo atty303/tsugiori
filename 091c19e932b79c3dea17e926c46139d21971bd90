@@ -1,0 +1,101 @@
+Task: GitHub Actions authoring terminologyをworkflowへ統一
+Anchor: 091c19e932b79c3dea17e926c46139d21971bd90
+Base: 1ebe044c01ea992185ca314156153b2cb5cabacc
+Branch: main
+Commits: a4d961f5fd8169e9e2aad98c74d491bcf51f09aa (API/internal/docs/config); 091c19e932b79c3dea17e926c46139d21971bd90 (agent guidance)
+Guidance: AGENTS.md; dig; develop-repository; design-program-observability; design-review; maintain-agent-guidance; review; Git task evidence
+Conditions: Current checkout; clean initial tree; Deno through mise; SemVer baseline v0.3.0; approved maximum minor; local-only writes; no compatibility aliases
+Authority: User implementation request and release-impact approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) pipelineという命名はなんでだっけ？ workflowのほうが実体をあってない？
+  - A: 調査したsourceとGit履歴から、pipelineは将来providerを含む一般用語として選ばれたこと、現在はGitHub provider入口と1定義1workflowの実体にworkflowが適合することを確認。Q33で公開API全体の改名を提示。
+- U2:
+    A
+  - A: 公開API全体のworkflow改名を確定し、Q34で内部用語とtask entrypoint契約の扱いを提示。
+- U3:
+    A
+  - A: 内部用語もworkflowへ統一し、task entrypointの形式と値は維持する方針を確定。Q35で設定ファイル名を提示。
+- U4:
+    A
+  - A: .github/workflows.tsを採用し、Q36で公開API、内部、guidance、設定パスの変更範囲を確認。
+- U5:
+    A
+  - A: 共通理解を確定し、互換aliasなし、project API維持、task契約維持、repo限定、no-push/no-publishの実装依頼文を出力。
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の GitHub Actions provider で、CI 定義を表す公開 API と内部の用語を `pipeline` から `workflow` に統一してください。リポジトリ自身の設定ファイルも `.github/workflows.ts` に変更してください。
+    
+    ## 目的
+    - GitHub Actions の1定義が1つの workflow YAML に対応する実体を、API の名前で明確にする。
+    - provider 別の公開入口で、その provider に自然な用語を使う。
+    - 公開 API、内部実装、文書、設定ファイルの用語を一貫させる。
+    
+    ## 成功条件
+    - `/github-actions` と `/github-actions/authoring` から `defineWorkflow()` を利用できる。
+    - `defineProject()` が受け取る配列と `ProjectConfig` の公開プロパティが `workflows` になる。
+    - `PipelineOptions`、`AuthoringPipeline`、`ReusablePipeline`、`TestablePipeline`、関連する公開状態型・イベント型・入力型などが、役割に対応する `Workflow…` 名になる。
+    - scenario API の関連型・フィールド・診断も `workflow` に揃う。
+    - GitHub Actions の内部型・変数・フィールド・診断・Doc コメント・テスト・fixture が新しい用語を使う。
+    - 旧 `definePipeline()`、旧 `pipelines` プロパティ、旧 `Pipeline…` 公開型の互換 alias は残らない。
+    - `.github/pipelines.ts` が `.github/workflows.ts` に改名され、Deno task、README、関連文書、生成 workflow が新しいパスを参照する。
+    - `AGENTS.md` の「pipeline を一般的な authoring 用語として使う」という方針が、provider 固有の用語を使う方針に更新される。
+    - リポジトリの check と test、生成 workflow の鮮度確認、公開アーカイブの dry-run が通る。
+    
+    ## 決定事項
+    - GitHub Actions の公開用語を `workflow` に統一する。
+      - 理由: 現在の定義は GitHub 固有のイベント・job・step を持ち、1定義から1つの workflow YAML を生成する。公開入口も `/github-actions` に分かれている。
+      - 主な棄却案: `defineWorkflow()` だけ改名する案。配列や型に `pipeline` が残り、同じ概念の呼び方が混在する。
+    - GitHub Actions の内部用語も `workflow` に統一する。
+      - 理由: 内部も provider 固有の実装であり、公開概念との読み替えを残す必要がない。
+      - 主な棄却案: 公開 API だけ改名する案。内部で同じ概念を別名で扱い続ける。
+    - リポジトリ設定ファイルを `.github/workflows.ts` にする。
+      - 理由: 複数の workflow 定義をまとめるファイルの役割を表す。
+      - 主な棄却案: `.github/project.ts` は定義内容が伝わりにくい。`.github/pipelines.ts` は今回廃止する用語が残る。
+    - `defineProject()`、`ProjectConfig`、`runProject()` と `kind: "github-actions.project"` を維持する。
+      - 理由: project は複数の workflow と共通設定をまとめる概念として引き続き適切である。
+      - 主な棄却案: なし。
+    - 旧名・旧プロパティの互換 alias は残さない。
+      - 理由: 用語の整理を完了し、二重の公開 API を維持しない。
+      - 主な棄却案: deprecated alias を残す案。旧用語が公開面に残る。
+    - task entrypoint の形式と実行方式を維持する。
+      - 理由: 今回は用語と名前の整理であり、実行契約を変更する目的はない。
+      - 主な棄却案: 識別子の構造や task artifact format も変更する案。不要な互換性変更が増える。
+    
+    ## 制約
+    - 変更は `/Users/a13400/src/atty303/tsugiori` 内に限定する。
+    - 現在の checkout で作業し、既存の unrelated な変更を保持する。
+    - provider 別アンブレラと部分利用用サブパスの構造を維持する。
+    - 既存の `WorkflowCall` など、意味が変わらない API は維持する。内部の補助型が改名先と衝突する場合は、その役割を表す名前を選ぶ。
+    - GitHub Actions の workflow graph、生成・実行方式、task artifact の実行契約を変更しない。
+    - task entrypoint は `<workflow-id>/<job-id>/task-<ordinal>` と呼び直すが、同じ ID に対する文字列の形式と値は維持する。
+    - 製品名、package 名、`TSUGIORI_INPUT_*` などを一律に変更しない。
+    - publish、release、push、PR 作成、外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - GitLab backend の実装。
+    - provider 中立の workflow model の導入。
+    - 新しい生成・実行方式。
+    - 旧 API の互換 alias。
+    - 外部利用者の移行。
+    
+    ## 未検証の前提
+    - GitHub Actions 定義を指す `pipeline` の参照が、公開型、内部構造、生成物、診断、fixture、guidance のどこまで存在するか。
+    - 改名後も公開アーカイブのファイル内容・exports の照合保証と JSR dry-run が維持できるか。
+    
+    ## 実装時の指示
+    - 公開入口、authoring、compiler、runner、scenario、task runtime、Doc コメント、README、関連文書、テストと fixture を調査し、一貫して更新する。
+    - `PipelineCall` のような内部補助型は、既存の `WorkflowCall` と衝突させず、抽出対象や役割を表す名前にする。
+    - 一般的な CI の説明や将来の GitLab 固有の文脈にある `pipeline` は、意味を確認してから扱い、機械的に全置換しない。
+    - `AGENTS.md` と関連する design-review guidance を新しい用語方針に整合させる。
+    - `.github/deno.json` の task を新しい設定パスに更新し、生成 YAML は `.github/workflows.ts` から再生成する。
+    - 生成 YAML の差分を確認し、用語・設定パスの変更から不要な workflow graph や task layout の変更が生じていないことを確かめる。
+    - `mise run check`、`mise run test`、生成 workflow の check、公開アーカイブの dry-run を実施する。未公開の API が JSR 上で動作したとは主張しない。
+  - A: develop-repository、design-program-observability、design-review、maintain-agent-guidanceを適用。main 1ebe044で作業開始、codeとnotesをfetch。notesのnon-fast-forwardは別refで取得しremoteがlocalのancestorで既存内容が保持されていると確認、一時refをCAS削除。v0.3.0とSemVer release workflowを確認しminor release影響の承認を非同期で依頼。新しいprogram経路は追加せず実行と観測契約を維持。
+- U7:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_ZFHU8lh4rq7znGQlPtsYXemk\",0]","question":"develop-repository の規則により commit の release 影響を確認します。基準は v0.3.0 で、公開 API とプロパティの破壊的改名を `feat`（最大 minor release）として記録してよいですか？ 実装・検証は進め、commit は回答後に行います。","answer":"はい、minor release を承認"}]
+    </send_user_message_question_reply>
+  - A: minorを承認済みとして公開API、内部、scenario、docs、fixturesを改名。WorkflowCallを維持し内部抽出型をCallContractOfに改名。configをworkflows.tsへ移動して生成、YAML差分はowner/headerとconfig pathのみ。固定fingerprintキーを維持し既存testでdigestを確認。mise run check成功、mise run test 98 passed、authoring 16 passed、generate:check成功、公開archiveのdeno publish --dry-run成功。fresh read-only independent reviewは指摘なし。a4d961fにAPI/実装/利用文書、091c19eにguidanceをlocal commit。公開物照合実装とexportsは維持。hosted GitHub Actions、未公開JSR versionの利用は未検証。push/publish/release/PR/外部repo変更なし。complete thread 6 pages 56 turnsからcycleの7 human messagesを照合し標準noteを作成。
