@@ -126,7 +126,7 @@ Deno.test("direct actions reject invalid values even when type checks are bypass
 });
 
 Deno.test("action ref annotations survive lowering without changing YAML values", async () => {
-  const { lowerConfig } = await import("../src/compiler/authoring.ts");
+  const { lowerProject } = await import("../src/compiler/authoring.ts");
   const { emitWorkflow } = await import(
     "../src/compiler/github_actions/emitter.ts"
   );
@@ -147,7 +147,7 @@ Deno.test("action ref annotations survive lowering without changing YAML values"
       job.runsOn("ubuntu-latest").uses(pinned).uses(pinned, { uses: "a/b@v5" })
         .run({ name: "Hello", run: "echo hello" }).uses(dangerous),
   );
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [workflow] }),
     "./workflows.ts",
   );

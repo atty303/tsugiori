@@ -9,12 +9,12 @@ export type StaleGeneratedFile = Readonly<{
 
 export async function checkGeneratedFiles(
   projectDirectory: string,
-  configArgument: string,
+  entrypointArgument: string,
   files: readonly GeneratedFile[],
   selectedOutput?: string,
 ): Promise<readonly StaleGeneratedFile[]> {
   const destinations = resolveGeneratedDestinations(projectDirectory, files);
-  void configArgument;
+  void entrypointArgument;
   const selected = selectedOutput === undefined
     ? undefined
     : resolveGeneratedDestinations(projectDirectory, [{

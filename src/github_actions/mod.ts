@@ -3881,7 +3881,7 @@ export type ReusableJobState<
     >,
   ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
-   * Tsugiori: requires the callee in the same config and validates its explicit contract; inherit cannot prove GitHub secret availability.
+   * Tsugiori: requires the callee in the same project and validates its explicit contract; inherit cannot prove GitHub secret availability.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
    * @example
    * ```ts

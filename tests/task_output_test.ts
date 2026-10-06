@@ -28,8 +28,8 @@ Deno.test("task output writer writes declared multiline values and permits omitt
       JSON.stringify(core)
     };
 import {runProject} from ${JSON.stringify(runner)};
-const config = defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{contract:textValue(),required:true},omitted:{contract:textValue(),required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]});
-Deno.exitCode = await runProject({config,configUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
+const project = defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{contract:textValue(),required:true},omitted:{contract:textValue(),required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]});
+Deno.exitCode = await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["eval", program],
       env: { ...Deno.env.toObject(), GITHUB_OUTPUT: output },
@@ -53,8 +53,8 @@ Deno.test("runner rejects a required task output that was not set", async () => 
     JSON.stringify(core)
   };
 import {runProject} from ${JSON.stringify(runner)};
-const config=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test",({job})=>job.runsOn("ubuntu-latest").task({name:"Task",inputs:{},outputs:{result:{contract:textValue(),required:true}},run:()=>{}}))]});
-Deno.exitCode=await runProject({config,configUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
+const project=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test",({job})=>job.runsOn("ubuntu-latest").task({name:"Task",inputs:{},outputs:{result:{contract:textValue(),required:true}},run:()=>{}}))]});
+Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
   const result = await new Deno.Command(Deno.execPath(), {
     args: ["eval", program],
     stdout: "piped",

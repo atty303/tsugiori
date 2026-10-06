@@ -17,7 +17,7 @@ import {
   success,
   toJSON,
 } from "@atty303/tsugiori/github-actions";
-import { lowerConfig } from "../src/compiler/authoring.ts";
+import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { parse } from "../src/deps.ts";
 import { emitExpression } from "../src/github_actions/expression.ts";
@@ -94,7 +94,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
       ),
     ],
   });
-  const lowered = await lowerConfig(config, "./tsugiori.ts");
+  const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(yaml, "contains(needs.prepare.outputs.matrix, 'dev')");
   assertStringIncludes(yaml, "fromJSON(needs.prepare.outputs.matrix)");
@@ -135,7 +135,7 @@ Deno.test("a step ID colliding with an expression method is addressable", async 
           }))),
     ],
   });
-  const lowered = await lowerConfig(config, "./tsugiori.ts");
+  const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(yaml, "steps.eq.outputs.result");
 });
@@ -202,7 +202,7 @@ Deno.test("a complete matrix can come from one typed expression", async () => {
           .run({ name: "Test", run: "true" })),
     ],
   });
-  const lowered = await lowerConfig(config, "./tsugiori.ts");
+  const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertStringIncludes(
     yaml,

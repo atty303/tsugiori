@@ -1,7 +1,7 @@
 import { addAction } from "./actions.ts";
 import { generateFiles } from "../compiler/generator.ts";
 import { checkGeneratedFiles } from "../compiler/check.ts";
-import { configSource } from "../compiler/source.ts";
+import { projectSource } from "../compiler/source.ts";
 import type { ProjectConfig } from "../github_actions/mod.ts";
 import { parseWireValue, serializeValue } from "../task/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
@@ -24,12 +24,16 @@ const SOURCE_TOOL_IDENTITY: ToolIdentity = {
 };
 
 export type RunOptions = Readonly<{
-  config: ProjectConfig;
-  configUrl: string | URL;
+  project: ProjectConfig;
+  /** Local executable entrypoint's `import.meta.url`, even when `project` is
+   * imported from another module. Used for generated YAML provenance and the
+   * task artifact compilation entrypoint; the project directory is `Deno.cwd()`.
+   */
+  entrypointUrl: string | URL;
 }>;
 
-/** Handles the config file's generation, actions add, and internal task commands in the
- * consumer's Deno project without importing the config again. It does not run
+/** Handles generation, actions add, and internal task commands in the consumer's
+ * Deno project using the supplied project value without importing it again. It does not run
  * a GitHub Actions workflow. Returns 0 on success and 1 on command failure;
  * callers can assign the result to `Deno.exitCode`. `actions add <uses>` edits
  * the invocation directory's inline Deno imports only; it does not fetch modules,
@@ -41,7 +45,7 @@ export async function runProject(
   tool: ToolIdentity = SOURCE_TOOL_IDENTITY,
 ): Promise<number> {
   if (args.length === 1 && args[0].includes("/")) {
-    return await dispatchTask(options.config, args[0], tool);
+    return await dispatchTask(options.project, args[0], tool);
   }
   let parsed: ParsedArguments;
   try {
@@ -100,19 +104,19 @@ export async function runProject(
           "Option --output requires --check.",
         );
       }
-      const loaded = configSource(
-        options.config,
-        options.configUrl,
+      const source = projectSource(
+        options.project,
+        options.entrypointUrl,
       );
-      recorder.operation({ name: "source.load", status: "success" });
+      recorder.operation({ name: "project.source", status: "success" });
       const files = await generateFiles(
-        loaded.config,
-        loaded.argument,
+        source.project,
+        source.entrypointArgument,
       );
       if (parsed.options.check === "true") {
         const stale = await checkGeneratedFiles(
-          loaded.projectDirectory,
-          loaded.argument,
+          source.projectDirectory,
+          source.entrypointArgument,
           files,
           parsed.options.output,
         );
@@ -140,7 +144,7 @@ export async function runProject(
         console.log("Generated workflow files are up to date.");
         return 0;
       }
-      await writeGeneratedFiles(loaded.projectDirectory, files);
+      await writeGeneratedFiles(source.projectDirectory, files);
       recorder.operation({
         name: "workflow.generate",
         status: "success",
@@ -152,16 +156,16 @@ export async function runProject(
     }
 
     if (isGitHubActionsTaskCommand(parsed, "cache-key")) {
-      const loaded = configSource(
-        options.config,
-        options.configUrl,
+      const source = projectSource(
+        options.project,
+        options.entrypointUrl,
       );
-      recorder.operation({ name: "source.load", status: "success" });
+      recorder.operation({ name: "project.source", status: "success" });
       const plan = await resolveTaskArtifact({
         projectDirectory: Deno.cwd(),
-        configPath: loaded.absolutePath,
-        configArgument: loaded.argument,
-        config: loaded.config,
+        entrypointPath: source.entrypointPath,
+        entrypointArgument: source.entrypointArgument,
+        project: source.project,
         expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
         target: parsed.options.target,
         tool,
@@ -178,16 +182,16 @@ export async function runProject(
     }
 
     if (isGitHubActionsTaskCommand(parsed, "prepare")) {
-      const loaded = configSource(
-        options.config,
-        options.configUrl,
+      const source = projectSource(
+        options.project,
+        options.entrypointUrl,
       );
-      recorder.operation({ name: "source.load", status: "success" });
+      recorder.operation({ name: "project.source", status: "success" });
       const result = await prepareTaskArtifact({
         projectDirectory: Deno.cwd(),
-        configPath: loaded.absolutePath,
-        configArgument: loaded.argument,
-        config: loaded.config,
+        entrypointPath: source.entrypointPath,
+        entrypointArgument: source.entrypointArgument,
+        project: source.project,
         expectedLayouts: parsed.multipleOptions.expectLayout ?? [],
         expectedArtifactKey: requiredOption(parsed.options, "expectedKey"),
         target: parsed.options.target,
@@ -212,7 +216,7 @@ export async function runProject(
 
     throw new TaskRuntimeError(
       "usage_invalid",
-      "Usage: deno run -A <config-file> generate [--check [--output <path>]] | actions add <uses> | github-actions task cache-key | github-actions task prepare",
+      "Usage: deno run -A <entrypoint-file> generate [--check [--output <path>]] | actions add <uses> | github-actions task cache-key | github-actions task prepare",
     );
   } catch (error) {
     const errorType = errorTypeOf(error);
@@ -228,7 +232,7 @@ export async function runProject(
 }
 
 async function dispatchTask(
-  config: ProjectConfig,
+  project: ProjectConfig,
   entrypoint: string,
   tool: ToolIdentity,
 ): Promise<number> {
@@ -240,8 +244,8 @@ async function dispatchTask(
   let errorType = "schema_invalid";
   try {
     if (
-      config?.kind !== "github-actions.project" ||
-      !Array.isArray(config.workflows)
+      project?.kind !== "github-actions.project" ||
+      !Array.isArray(project.workflows)
     ) {
       throw new TaskRuntimeError(
         "schema_invalid",
@@ -249,7 +253,7 @@ async function dispatchTask(
       );
     }
     let task: AuthoringTaskStep | undefined;
-    for (const workflow of config.workflows) {
+    for (const workflow of project.workflows) {
       for (const job of workflow.jobs) {
         let ordinal = 0;
         for (const step of job.steps) {

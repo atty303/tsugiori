@@ -1,7 +1,7 @@
 import type { ProjectConfig } from "../github_actions/mod.ts";
 import { dirname, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
-import { lowerConfig } from "../compiler/authoring.ts";
+import { lowerProject } from "../compiler/authoring.ts";
 import {
   sha256File,
   sourceArtifactKey,
@@ -23,9 +23,9 @@ export type ToolIdentity = Readonly<{
 
 export type PrepareOptions = Readonly<{
   projectDirectory: string;
-  configPath: string;
-  configArgument: string;
-  config: ProjectConfig;
+  entrypointPath: string;
+  entrypointArgument: string;
+  project: ProjectConfig;
   expectedLayouts: readonly string[];
   expectedArtifactKey?: string;
   target?: string;
@@ -50,9 +50,9 @@ export type TaskArtifactPlan = Readonly<{
 export async function resolveTaskArtifact(
   options: PrepareOptions,
 ): Promise<TaskArtifactPlan> {
-  const lowered = await lowerConfig(
-    options.config,
-    options.configArgument,
+  const lowered = await lowerProject(
+    options.project,
+    options.entrypointArgument,
   );
   validateExpectedLayouts(options.expectedLayouts, lowered.layoutFingerprints);
   options.recorder.operation({
@@ -64,7 +64,7 @@ export async function resolveTaskArtifact(
   if (lowered.tasks.length === 0) {
     throw new TaskRuntimeError(
       "task_registry_empty",
-      "The configuration does not contain any task-backed steps.",
+      "The project does not contain any task-backed steps.",
     );
   }
 
@@ -79,9 +79,9 @@ export async function resolveTaskArtifact(
   const entrypoints = lowered.tasks.map((task) => task.entrypoint);
   const artifactKey = await computeArtifactKey({
     projectDirectory: options.projectDirectory,
-    configPath: options.configPath,
+    entrypointPath: options.entrypointPath,
     target,
-    cacheVersion: options.config.cacheVersion,
+    cacheVersion: options.project.cacheVersion,
   });
   options.recorder.operation({
     name: "artifact.key",
@@ -272,7 +272,7 @@ async function buildArtifact(
   if (options.target !== Deno.build.target) {
     args.push("--target", options.target);
   }
-  args.push("--frozen=true", options.configPath);
+  args.push("--frozen=true", options.entrypointPath);
   await runDeno(args, options.projectDirectory, "artifact_build_failed");
   await Deno.chmod(binary, 0o755);
 
@@ -356,12 +356,12 @@ async function validateArtifact(
 async function computeArtifactKey(
   input: Readonly<{
     projectDirectory: string;
-    configPath: string;
+    entrypointPath: string;
     target: string;
     cacheVersion: number;
   }>,
 ): Promise<string> {
-  const args = ["info", "--json", "--frozen=true", input.configPath];
+  const args = ["info", "--json", "--frozen=true", input.entrypointPath];
   const output = await runDeno(
     args,
     input.projectDirectory,

@@ -72,16 +72,16 @@ const release = defineWorkflow("workflows/release.yml", {
       env: { FNOX_AGE_KEY: ({ secrets }) => secrets.FNOX_AGE_KEY },
     }));
 
-const config = defineProject({
+const project = defineProject({
   cacheVersion: 3,
   workingDirectory: ".github",
   workflows: [ci, release],
 });
-export default config;
+export default project;
 
 if (import.meta.main) {
   Deno.exitCode = await runProject({
-    config,
-    configUrl: import.meta.url,
+    project,
+    entrypointUrl: import.meta.url,
   });
 }

@@ -1,5 +1,5 @@
 import type { AuthoringJob, ProjectConfig } from "../github_actions/mod.ts";
-import { lowerConfig } from "../compiler/authoring.ts";
+import { lowerProject } from "../compiler/authoring.ts";
 import type { Job, Step } from "../compiler/github_actions/ast.ts";
 import { parseWireValue, serializeValue } from "../task/mod.ts";
 import {
@@ -752,7 +752,7 @@ async function interpretScenario(
     }
     return { result: "skipped", jobs: {} };
   }
-  const lowered = await lowerConfig(config, "./tsugiori.ts");
+  const lowered = await lowerProject(config, "./tsugiori.ts");
   const workflow =
     lowered.workflows.find((p) => p.path === author.path)!.workflow;
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));

@@ -13,7 +13,7 @@ import {
 } from "@atty303/tsugiori/github-actions";
 import {
   AuthoringValidationError,
-  lowerConfig,
+  lowerProject,
 } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { pathToFileURL } from "node:url";
@@ -45,7 +45,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
       .outputs(() => ({
         result: rawExpression("steps.deploy.outputs.result"),
       })));
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [deploy] }),
     "./tsugiori.ts",
   );
@@ -90,7 +90,7 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
         run: () => {},
       }));
 
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [ci] }),
     "./tsugiori.ts",
   );
@@ -140,7 +140,7 @@ Deno.test("workflow dispatch string inputs are emitted from authoring options", 
     ({ job }) =>
       job.runsOn("ubuntu-24.04").run({ name: "Deploy", run: "true" }),
   );
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [deploy] }),
     "./tsugiori.ts",
   );
@@ -176,7 +176,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       .run({ name: "Inspect", run: "echo inspected" })
       .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [ci] }),
     "./tsugiori.ts",
   );
@@ -248,7 +248,7 @@ Deno.test("duplicate workflow outputs fail before generation", async () => {
 
   await assertRejects(
     () =>
-      lowerConfig(
+      lowerProject(
         defineProject({ workflows: [first, second] }),
         "./tsugiori.ts",
       ),
@@ -272,7 +272,7 @@ Deno.test("task-backed steps reject Windows runners", async () => {
   );
 
   await assertRejects(
-    () => lowerConfig(defineProject({ workflows: [ci] }), "./tsugiori.ts"),
+    () => lowerProject(defineProject({ workflows: [ci] }), "./tsugiori.ts"),
     AuthoringValidationError,
     "unsupported Windows runner",
   );
@@ -291,7 +291,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
       })
       .task({ name: "Task", inputs: {}, outputs: {}, run: () => {} }));
 
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [ci] }),
     "./tsugiori.ts",
   );
@@ -326,11 +326,11 @@ Deno.test("workflow states are immutable and dependencies use prior job referenc
       .runsOn("ubuntu-latest")
       .run({ name: "Build", run: "true" }));
 
-  const first = await lowerConfig(
+  const first = await lowerProject(
     defineProject({ workflows: [testOnly] }),
     "./tsugiori.ts",
   );
-  const second = await lowerConfig(
+  const second = await lowerProject(
     defineProject({ workflows: [complete] }),
     "./tsugiori.ts",
   );
@@ -414,8 +414,8 @@ Deno.test("normalized duplicate outputs fail before any file is written", async 
   }
 });
 
-Deno.test("direct config preserves invalid provider-native values for validation", async () => {
-  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
+Deno.test("direct project preserves invalid provider-native values for validation", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-project-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
     await Deno.writeTextFile(
@@ -442,13 +442,13 @@ Deno.test("direct config preserves invalid provider-native values for validation
 };
 `,
     );
-    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
-    const loaded = {
-      config: (await import(configUrl.href)).default,
-      argument: "./tsugiori.ts",
+    const entrypointUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const source = {
+      project: (await import(entrypointUrl.href)).default,
+      entrypointArgument: "./tsugiori.ts",
     };
     const error = await assertRejects(
-      () => lowerConfig(loaded.config, loaded.argument),
+      () => lowerProject(source.project, source.entrypointArgument),
       AuthoringValidationError,
       "Workflow permissions must be an object.",
     );
@@ -458,7 +458,7 @@ Deno.test("direct config preserves invalid provider-native values for validation
   }
 });
 
-Deno.test("direct config preserves deployment workflow fields", async () => {
+Deno.test("direct project preserves deployment workflow fields", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-deploy-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
@@ -478,12 +478,15 @@ Deno.test("direct config preserves deployment workflow fields", async () => {
       }]
     };`,
     );
-    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
-    const loaded = {
-      config: (await import(configUrl.href)).default,
-      argument: "./tsugiori.ts",
+    const entrypointUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const source = {
+      project: (await import(entrypointUrl.href)).default,
+      entrypointArgument: "./tsugiori.ts",
     };
-    const lowered = await lowerConfig(loaded.config, loaded.argument);
+    const lowered = await lowerProject(
+      source.project,
+      source.entrypointArgument,
+    );
     const yaml = emitWorkflow(lowered.workflows[0].workflow);
     assertStringIncludes(yaml, "branches:\n      - master");
     assertStringIncludes(yaml, "cancel-in-progress: false");
@@ -493,7 +496,7 @@ Deno.test("direct config preserves deployment workflow fields", async () => {
   }
 });
 
-Deno.test("direct config preserves task step ID and environment", async () => {
+Deno.test("direct project preserves task step ID and environment", async () => {
   const root = await Deno.makeTempDir({ prefix: "tsugiori-task-step-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
@@ -509,12 +512,15 @@ Deno.test("direct config preserves task step ID and environment", async () => {
   }]
 };`,
     );
-    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
-    const loaded = {
-      config: (await import(configUrl.href)).default,
-      argument: "./tsugiori.ts",
+    const entrypointUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const source = {
+      project: (await import(entrypointUrl.href)).default,
+      entrypointArgument: "./tsugiori.ts",
     };
-    const lowered = await lowerConfig(loaded.config, loaded.argument);
+    const lowered = await lowerProject(
+      source.project,
+      source.entrypointArgument,
+    );
     const yaml = emitWorkflow(lowered.workflows[0].workflow);
     assertStringIncludes(yaml, "id: plan");
     assertStringIncludes(yaml, 'TOKEN: "${{ secrets.TOKEN }}"');
@@ -527,8 +533,8 @@ Deno.test("direct config preserves task step ID and environment", async () => {
   }
 });
 
-Deno.test("direct config does not let JSON-unsafe provider values bypass validation", async () => {
-  const root = await Deno.makeTempDir({ prefix: "tsugiori-config-" });
+Deno.test("direct project does not let JSON-unsafe provider values bypass validation", async () => {
+  const root = await Deno.makeTempDir({ prefix: "tsugiori-project-" });
   try {
     await Deno.writeTextFile(`${root}/deno.json`, "{}\n");
     await Deno.writeTextFile(
@@ -561,13 +567,13 @@ Deno.test("direct config does not let JSON-unsafe provider values bypass validat
 };
 `,
     );
-    const configUrl = pathToFileURL(`${root}/tsugiori.ts`);
-    const loaded = {
-      config: (await import(configUrl.href)).default,
-      argument: "./tsugiori.ts",
+    const entrypointUrl = pathToFileURL(`${root}/tsugiori.ts`);
+    const source = {
+      project: (await import(entrypointUrl.href)).default,
+      entrypointArgument: "./tsugiori.ts",
     };
     const error = await assertRejects(
-      () => lowerConfig(loaded.config, loaded.argument),
+      () => lowerProject(source.project, source.entrypointArgument),
       AuthoringValidationError,
       "Workflow permission must be",
     );
@@ -635,11 +641,11 @@ Deno.test("workflowOutputs replaces direct native outputs without mutating earli
   const replacement = direct.workflowOutputs(({ jobs }) => ({
     replacement: jobs.run.outputs.value,
   }));
-  const first = await lowerConfig(
+  const first = await lowerProject(
     defineProject({ workflows: [direct] }),
     "config.ts",
   );
-  const second = await lowerConfig(
+  const second = await lowerProject(
     defineProject({ workflows: [replacement] }),
     "config.ts",
   );

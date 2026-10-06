@@ -47,13 +47,13 @@ deno task tsugiori generate --check
 
 Check mode reports missing or changed configured outputs. Unconfigured files
 are ignored. Add `--output workflows/ci.yml` to check one output. The
-generated file's first line identifies its owning config. The repository CI
+generated file's first line identifies its owning entrypoint. The repository CI
 runs the check task before its task-backed test step.
 
 ## Author a workflow
 
 An authoring file imports the GitHub Actions API and runner from the
-`/github-actions` entrypoint. It exports the config and calls `runProject()`
+`/github-actions` entrypoint. It exports the project and calls `runProject()`
 when executed:
 
 ```ts
@@ -77,18 +77,23 @@ const ci = defineWorkflow("workflows/ci.yml", {
     },
   }));
 
-const config = defineProject({
+const project = defineProject({
   workingDirectory: ".github", cacheVersion: 1, workflows: [ci],
 });
-export default config;
+export default project;
 
 if (import.meta.main) {
   Deno.exitCode = await runProject({
-    config,
-    configUrl: import.meta.url,
+    project,
+    entrypointUrl: import.meta.url,
   });
 }
 ```
+
+Pass the executable `workflows.ts` module's `import.meta.url` as `entrypointUrl`,
+including when the project value is imported from another module. This URL
+identifies the generated YAML's source and the task artifact compilation
+entrypoint; it does not determine the project directory.
 
 Set the Deno project's `tsugiori` task as in
 [.github/deno.json](.github/deno.json). Workflow paths are relative to the Deno
@@ -100,7 +105,7 @@ The project directory supplies Deno imports and its lockfile. Top-level
 authoring code should construct deterministic definitions; task work belongs
 inside `.task()` callbacks.
 
-An external repository can use the same config entrypoint. Its workflow
+An external repository can use the same project entrypoint. Its workflow
 project's `deno.json` maps one package name to a released JSR version. Provider
 and advanced subpath imports resolve through this single mapping:
 
@@ -442,7 +447,7 @@ retains the locked redirect. An import ref change creates a new entry URL.
 ## Reusable workflows and the specification basis
 
 Tsugiori emits native reusable workflow files and caller jobs. Include each
-local callee in the same config. Calling a local workflow checks input names,
+local callee in the same project. Calling a local workflow checks input names,
 primitive types and required values, explicit secrets and declared output
 references. `secrets: "inherit"` forwards one hop; it cannot prove repository
 secret availability or organization/enterprise eligibility.

@@ -5,7 +5,7 @@ import {
   rawExpression,
   rawNode,
 } from "../src/github_actions/mod.ts";
-import { lowerConfig } from "../src/compiler/authoring.ts";
+import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { scenario } from "../src/testing/mod.ts";
 import { parse } from "../src/deps.ts";
@@ -107,7 +107,7 @@ Deno.test("typed reusable call emits the explicit native reference independently
         platform,
         { with: { module: "app" }, secrets: "inherit" },
       ));
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [platform, caller] }),
     "./config.ts",
   );
@@ -118,7 +118,7 @@ Deno.test("typed reusable call emits the explicit native reference independently
 });
 
 Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
-  const lowered = await lowerConfig(config, ".github/tsugiori.ts");
+  const lowered = await lowerProject(config, ".github/tsugiori.ts");
   const caller = parse(emitWorkflow(lowered.workflows[0].workflow)) as {
     jobs: Record<string, Record<string, unknown>>;
   };
@@ -197,9 +197,9 @@ for (const fail of [false, true]) {
 
 Deno.test("local references require config membership and input contracts", async () => {
   await assertRejects(
-    () => lowerConfig(defineProject({ workflows: [main] }), "config.ts"),
+    () => lowerProject(defineProject({ workflows: [main] }), "config.ts"),
     Error,
-    "included in the same config",
+    "included in the same project",
   );
   const invalid = defineWorkflow(".github/workflows/invalid.yml", {
     on: { push: {} },
@@ -327,7 +327,7 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
         timeoutMinutes: 10,
       }),
   );
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [dispatch] }),
     "config.ts",
   );
@@ -423,7 +423,7 @@ Deno.test("native defaults emit only specified values and tasks retain step time
           },
         ),
     );
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [p] }),
     "config.ts",
   );

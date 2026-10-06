@@ -10,7 +10,7 @@ import { removeIfPresent } from "../src/task-runtime/cache.ts";
 
 Deno.test({
   name:
-    "config entrypoint generates, prepares, caches, and dispatches a task artifact",
+    "project entrypoint generates, prepares, caches, and dispatches a task artifact",
   sanitizeOps: false,
   sanitizeResources: false,
   fn: async () => {
@@ -46,7 +46,7 @@ Deno.test({
         resolve(fixture, ".github/consumer-only.ts"),
         "export const consumerMarker = true;\n",
       );
-      const configSource = `import { consumerMarker } from "consumer-only";
+      const entrypointSource = `import { consumerMarker } from "consumer-only";
 void consumerMarker;
 import { defineProject, defineWorkflow, runProject, textValue } from "@atty303/tsugiori/github-actions";
 
@@ -54,8 +54,8 @@ const base = defineWorkflow("workflows/ci.yml", {
   on: { push: {  } },
 });
 try {
-  Deno.statSync("fail-config");
-  throw new Error("config-load-private");
+  Deno.statSync("fail-entrypoint");
+  throw new Error("entrypoint-load-private");
 } catch (error) {
   if (!(error instanceof Deno.errors.NotFound)) throw error;
 }
@@ -85,13 +85,13 @@ const ci = base.job("test", ({ job }) =>
     })
 );
 
-const config = defineProject({ workingDirectory: ".github", workflows: [ci] });
-export default config;
-if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url });
+const project = defineProject({ workingDirectory: ".github", workflows: [ci] });
+export default project;
+if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `;
       await Deno.writeTextFile(
         resolve(fixture, ".github/workflows.ts"),
-        configSource,
+        entrypointSource,
       );
 
       const environment: Record<string, string> = {
@@ -158,7 +158,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
 
       await Deno.writeTextFile(
         resolve(fixture, ".github/workflows.ts"),
-        configSource.replace('name: "Test"', 'name: "Changed"'),
+        entrypointSource.replace('name: "Test"', 'name: "Changed"'),
       );
       const staleWorkflow = await runProject(
         [
@@ -205,7 +205,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
       );
       await Deno.writeTextFile(
         resolve(fixture, ".github/workflows.ts"),
-        configSource,
+        entrypointSource,
       );
 
       await Deno.writeTextFile(githubOutput, "");
@@ -396,7 +396,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
 
       await Deno.writeTextFile(
         resolve(fixture, ".github/workflows.ts"),
-        configSource.replace("echo setup", "echo changed-setup"),
+        entrypointSource.replace("echo setup", "echo changed-setup"),
       );
       await Deno.writeTextFile(githubOutput, "");
       const keyChangedDuringPreparation = await runProject(
@@ -628,31 +628,34 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
         false,
       );
 
-      await Deno.writeTextFile(resolve(fixture, "fail-config"), "fail\n");
-      const configFailure = await run(
+      await Deno.writeTextFile(resolve(fixture, "fail-entrypoint"), "fail\n");
+      const entrypointFailure = await run(
         runtime,
         ["workflows/ci.yml/test/task-1"],
         fixture,
         { ...environment, RUNNER_DEBUG: "1" },
       );
-      assertEquals(configFailure.code, 1);
-      assertStringIncludes(configFailure.stderr, "config-load-private");
-      assertEquals(diagnosticRecord(configFailure.stderr), undefined);
+      assertEquals(entrypointFailure.code, 1);
+      assertStringIncludes(entrypointFailure.stderr, "entrypoint-load-private");
+      assertEquals(diagnosticRecord(entrypointFailure.stderr), undefined);
       await Deno.writeTextFile(
-        resolve(fixture, ".github/fail-config"),
+        resolve(fixture, ".github/fail-entrypoint"),
         "fail\n",
       );
-      const directConfigFailure = await run(
+      const directEntrypointFailure = await run(
         Deno.execPath(),
         ["run", "--frozen=true", "-A", "./workflows.ts", "generate", "--check"],
         resolve(fixture, ".github"),
         { ...environment, RUNNER_DEBUG: "1" },
       );
-      assertEquals(directConfigFailure.code, 1);
-      assertStringIncludes(directConfigFailure.stderr, "config-load-private");
-      assertEquals(diagnosticRecord(directConfigFailure.stderr), undefined);
-      await Deno.remove(resolve(fixture, "fail-config"));
-      await Deno.remove(resolve(fixture, ".github/fail-config"));
+      assertEquals(directEntrypointFailure.code, 1);
+      assertStringIncludes(
+        directEntrypointFailure.stderr,
+        "entrypoint-load-private",
+      );
+      assertEquals(diagnosticRecord(directEntrypointFailure.stderr), undefined);
+      await Deno.remove(resolve(fixture, "fail-entrypoint"));
+      await Deno.remove(resolve(fixture, ".github/fail-entrypoint"));
 
       const unknown = await run(
         runtime,
@@ -733,7 +736,7 @@ Deno.test({
         externalModule,
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
-      const configSource =
+      const entrypointSource =
         `import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
@@ -744,11 +747,14 @@ const ci = defineWorkflow("workflows/ci.yml", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
-const config = defineProject({ cacheVersion, workflows: [ci] });
-export default config;
-if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url });
+const project = defineProject({ cacheVersion, workflows: [ci] });
+export default project;
+if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `;
-      await Deno.writeTextFile(resolve(fixture, "workflows.ts"), configSource);
+      await Deno.writeTextFile(
+        resolve(fixture, "workflows.ts"),
+        entrypointSource,
+      );
 
       const firstDenoDirectory = resolve(fixture, "deno-cache-first");
       const secondDenoDirectory = resolve(fixture, "deno-cache-second");
@@ -790,7 +796,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
       );
       await Deno.writeTextFile(
         resolve(fixture, "workflows.ts"),
-        `${configSource}\n// repository-local source edit\n`,
+        `${entrypointSource}\n// repository-local source edit\n`,
       );
       const localSourceChanged = await resolveSourceArtifactKey(
         fixture,
@@ -798,7 +804,10 @@ if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: impo
       );
       assert(localSourceChanged !== baseline);
 
-      await Deno.writeTextFile(resolve(fixture, "workflows.ts"), configSource);
+      await Deno.writeTextFile(
+        resolve(fixture, "workflows.ts"),
+        entrypointSource,
+      );
       const targetChanged = await resolveSourceArtifactKey(
         fixture,
         secondDenoDirectory,
@@ -863,12 +872,12 @@ Deno.test({
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
 import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
-const config = defineProject({ workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
+const project = defineProject({ workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
 }))] });
-export default config;
-if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url });\n`,
+export default project;
+if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });\n`,
       );
       const environment = {
         ...Deno.env.toObject(),
@@ -973,16 +982,35 @@ Deno.test("local graph keys remain portable when the project and outside imports
       'export const marker = "first";\n',
     );
     await Deno.writeTextFile(
-      resolve(project, "workflows.ts"),
+      resolve(project, "definition.ts"),
       `
 import { marker } from "../outside.ts";
-import { defineProject, defineWorkflow, runProject } from "./src/github_actions.ts";
+import { defineProject, defineWorkflow } from "./src/github_actions.ts";
 void marker;
-const config = defineProject({ workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+export default defineProject({ workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} }))] });
-if (import.meta.main) Deno.exitCode = await runProject({ config, configUrl: import.meta.url });
 `,
     );
+    await Deno.writeTextFile(
+      resolve(project, "workflows.ts"),
+      `
+import project from "./definition.ts";
+import { runProject } from "./src/github_actions.ts";
+export default project;
+if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+`,
+    );
+    const generated = await run(
+      Deno.execPath(),
+      ["run", "--frozen=true", "-A", "./workflows.ts", "generate"],
+      project,
+      { ...Deno.env.toObject(), DENO_DIR: resolve(original, "deno-cache") },
+    );
+    assertEquals(generated.code, 0, generated.stderr);
+    const yaml = await Deno.readTextFile(resolve(project, "workflows/ci.yml"));
+    assert(yaml.startsWith("# Generated by Tsugiori from workflows.ts\n"));
+    assertStringIncludes(yaml, "'./workflows.ts' github-actions task");
+    assert(!yaml.includes("definition.ts"));
     const baseline = await resolveSourceArtifactKey(
       project,
       resolve(original, "deno-cache"),

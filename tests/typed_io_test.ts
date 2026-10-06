@@ -8,7 +8,7 @@ import {
   textValue,
 } from "../src/github_actions/mod.ts";
 import { parseWireValue, serializeValue } from "../src/task/mod.ts";
-import { lowerConfig } from "../src/compiler/authoring.ts";
+import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { resolve } from "node:path";
 
@@ -84,7 +84,7 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
         }),
   );
 
-  const lowered = await lowerConfig(
+  const lowered = await lowerProject(
     defineProject({ workflows: [complete] }),
     "./tsugiori.ts",
   );
@@ -267,10 +267,10 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value))throw new TypeError();return value;}});
 const first=defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
-const config=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+const project=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
       JSON.stringify(resultPath)
     },JSON.stringify(inputs.targets));}}))]});
-Deno.exitCode=await runProject({config,configUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
+Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["eval", program],
       env: { ...Deno.env.toObject(), TSUGIORI_INPUT_TARGETS: "" },
@@ -346,10 +346,10 @@ Deno.test("runner parses JSON input and rejects absent or invalid wire values", 
       };
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value)||!value.every(item=>typeof item==="string"))throw new TypeError("invalid names");return value;}});
-const config=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+const project=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
         JSON.stringify(resultPath)
       },JSON.stringify(inputs.targets));}}))]});
-Deno.exitCode=await runProject({config,configUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
+Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
     for (
       const [wire, expectedCode] of [["[]", 0], ["", 1], ["null", 1], [
         "{}",

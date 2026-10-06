@@ -36,9 +36,11 @@ requiredness and string outputs; a string reference provides no declared output
 names. Action values are strings or string expressions, while reusable workflow
 call inputs retain their declared primitive types.
 
-Authoring and task execution share a config file. The file exports a config
-object and calls `runProject()` under `import.meta.main`, passing that object,
-and its file URL. The invocation directory (`Deno.cwd()`) is the Deno project
+Authoring and task execution share an executable entrypoint. It exports a project
+value and calls `runProject()` under `import.meta.main`, passing `project` and
+`entrypointUrl`. The URL identifies the entrypoint used as generated YAML
+provenance and as the task artifact compilation root. The invocation directory
+(`Deno.cwd()`) is the Deno project
 base for output paths and local source identity. Deno tasks establish that
 directory; direct invocations must use it explicitly. The project owns
 import resolution and its lockfile. External projects can map the package name
@@ -60,7 +62,7 @@ retain the `on.workflow_call` input/secret/output contract separately from
 the input reference union across configured events, and emit normal caller jobs with
 uses/with/secrets. Calls specify a native `uses` reference and a callee
 definition separately; no output path is converted to a GitHub reference.
-The config contains both callers and callees; lowering checks
+The project contains both callers and callees; lowering checks
 membership, contracts, nesting and output references. Workflow env stays within
 each workflow. Run defaults remain native job settings and per-step overrides
 remain explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
@@ -109,7 +111,7 @@ workflow placement. Each generated file starts with a source comment.
 bytes to configured files and reports missing or changed outputs. It does not
 scan directories or modify files.
 `--output <path>` limits the check to one workflow. Normal generation does not
-delete extra files. The checked-in [CI config](../.github/workflows.ts) emits the
+delete extra files. The checked-in [CI entrypoint](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `tsugiori generate --check`.
 
 ## Scenario interpretation
@@ -144,7 +146,7 @@ so changed task ordering is detected before dispatch.
 
 Each task-backed job contains visible steps to resolve the artifact key, run a
 pinned `actions/cache` action, and prepare the artifact. Preparation first
-checks the runner-local cache, then compiles the config into one Deno
+checks the runner-local cache, then compiles the entrypoint into one Deno
 binary for its tasks on a miss or invalid entry. The binary is compiled with
 `-A`; the current invocation contract rejects Windows task artifacts. Each
 task step invokes the prepared binary directly with its own entrypoint.
@@ -169,7 +171,7 @@ valid build in the local cache is reported but does not discard the binary.
 
 The automatic artifact key covers the reachable local `file:` module graph, including project-external imports.
 Source paths are project-relative rather than machine-absolute. It also covers, target platform, artifact format, and Tsugiori package identity.
-The config-wide `cacheVersion` is an additional key input. Remote modules,
+The project-wide `cacheVersion` is an additional key input. Remote modules,
 lockfiles, and Deno settings and versions are not
 tracked automatically; authors increase `cacheVersion` when changes to these
 inputs require a new artifact. This key is a cache reuse contract rather than
@@ -184,10 +186,10 @@ the remote authenticity boundary.
 
 ## Diagnostics
 
-When `RUNNER_DEBUG=1`, a config entrypoint or compiled runtime invocation emits
+When `RUNNER_DEBUG=1`, a project entrypoint or compiled runtime invocation emits
 one bounded JSON diagnostic record to standard error. Normal runs emit no
 structured diagnostic record, and neither path retains diagnostic files.
-Import and top-level config failures occur before the runner and use Deno's
+Import and top-level entrypoint failures occur before the runner and use Deno's
 error output.
 
 The scenario library can emit per-workflow start/completion/error operations to

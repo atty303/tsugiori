@@ -29,7 +29,7 @@ export type LoweredWorkflow = Readonly<{
   workflow: ValidatedWorkflow;
 }>;
 
-export type LoweredConfig = Readonly<{
+export type LoweredProject = Readonly<{
   workflows: readonly LoweredWorkflow[];
   tasks: readonly RegisteredTask[];
   layoutFingerprints: ReadonlyMap<string, string>;
@@ -46,26 +46,26 @@ export class AuthoringValidationError extends Error {
   }
 }
 
-export async function lowerConfig(
-  config: ProjectConfig,
-  configArgument: string,
-): Promise<LoweredConfig> {
+export async function lowerProject(
+  project: ProjectConfig,
+  entrypointArgument: string,
+): Promise<LoweredProject> {
   const diagnostics: string[] = [];
-  validateCalls(config, diagnostics);
+  validateCalls(project, diagnostics);
   const tasks: RegisteredTask[] = [];
   const layoutFingerprints = new Map<string, string>();
   const outputs = new Set<string>();
   const loweredWorkflows: LoweredWorkflow[] = [];
-  const projectDirectory = config.workingDirectory;
+  const projectDirectory = project.workingDirectory;
 
-  if (config.kind !== "github-actions.project") {
+  if (project.kind !== "github-actions.project") {
     diagnostics.push("Default export must be created by defineProject().");
   }
-  if (config.workflows.length === 0) {
-    diagnostics.push("Configuration must contain at least one workflow.");
+  if (project.workflows.length === 0) {
+    diagnostics.push("Project must contain at least one workflow.");
   }
 
-  for (const workflow of config.workflows) {
+  for (const workflow of project.workflows) {
     validateWorkflowPath(workflow, outputs, diagnostics);
     const jobs: Job[] = [];
 
@@ -166,7 +166,7 @@ export async function lowerConfig(
         taskOrdinal += 1;
         if (!preparationEmitted) {
           steps.push(...preparationSteps(
-            configArgument,
+            entrypointArgument,
             `${layoutKey}=${fingerprint}`,
             usedStepIds,
             projectDirectory,
@@ -301,7 +301,7 @@ async function layoutFingerprint(
 }
 
 function preparationSteps(
-  configArgument: string,
+  entrypointArgument: string,
   expectedLayout: string,
   usedStepIds: Set<string>,
   projectDirectory: string,
@@ -317,10 +317,10 @@ function preparationSteps(
   const cachePathExpression =
     `\${{ steps.${artifactStepId}.outputs.cache-path }}`;
   const cacheKey = `tsugiori-task-${artifactKeyExpression}`;
-  const configPath = configArgument;
-  const entrypoint = configPath.startsWith(".")
-    ? configPath
-    : `./${configPath}`;
+  const entrypointPath = entrypointArgument;
+  const entrypoint = entrypointPath.startsWith(".")
+    ? entrypointPath
+    : `./${entrypointPath}`;
   const commonArguments = ["--expect-layout", quotePosix(expectedLayout)];
   return [
     {
@@ -389,8 +389,8 @@ function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
-  const workflows = new Set(config.workflows);
+function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
+  const workflows = new Set(project.workflows);
   const visit = (
     workflow: AuthoringWorkflow,
     ancestors: readonly AuthoringWorkflow[],
@@ -411,7 +411,7 @@ function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
       const location = `${workflow.path}.${job.id}`;
       if (!workflows.has(target)) {
         diagnostics.push(
-          `${location}: called workflow must be included in the same config.`,
+          `${location}: called workflow must be included in the same project.`,
         );
       }
       if (!Object.hasOwn(target.on, "workflow_call")) {
@@ -466,5 +466,5 @@ function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
       visit(target, [...ancestors, workflow]);
     }
   };
-  for (const workflow of config.workflows) visit(workflow, []);
+  for (const workflow of project.workflows) visit(workflow, []);
 }
