@@ -1,0 +1,196 @@
+Task: Shorten generated task preparation via a release-pinned composite Action
+Anchor: 9b0c832400f057dae43fa541087b3a00b3368507
+Base: 1c5d79d9e380516e3299863250d3a8ebc850030e
+Branch: main
+Commits: 9b0c832400f057dae43fa541087b3a00b3368507 perf: move task preparation into a release-pinned action
+Guidance: User implementation request and AGENTS.md; dig, develop-repository, design-review, design-program-observability, review; investigate-problem for signing failure
+Conditions: Current checkout; workspace-write; Git metadata writes escalated; patch approved; no remote writes or actual publication/deployment authorized; complete root thread retrieved from five session segments and compared (23 cycle messages)
+## Evidence
+- mise run check and mise run test succeeded; 111 tests passed. Action/runtime E2E proves no-Deno offline hit, task execution, fallback failures, source-key changes and old-key save prevention.
+- Real Deno 2.5.0 exited 1 with required Deno >= 2.6.0 message. Four official 2.9.5 target ZIP endpoints returned redirects.
+- Fresh read-only reviewer inspected fixed diff and found no actionable findings; final delta only regenerated deterministic YAML source-key fields.
+- Final generate --check passed. Release packaging from signed commit and deno publish --dry-run passed. Hosted Actions execution remains unverified.
+Authority: Current user implementation request and patch/retry approvals, repository AGENTS.md and current source; memory was context only
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) tsugiori-task-prepare のスクリプトが長い。短くする手段はないか？
+    
+  - A: Applied dig; explored moving the long generated preparation script to a provided Action.
+- U2:
+    B. このrepoから提供する
+    
+  - A: Accepted same-repository Action delivery and asked about implementation form.
+- U3:
+    A
+    
+  - A: Accepted composite Action and existing Bash script; discussed release alignment.
+- U4:
+    A. だがどうやってgenearteするSHAを判定する？
+    
+  - A: Proposed embedding the release source commit SHA into the published package so generate avoids consumer Git/network resolution.
+- U5:
+    A
+    
+  - A: Accepted package-release SHA binding and considered repository-local development.
+- U6:
+    A
+    
+  - A: Accepted checkout-local Action for the repository and discussed explicit configuration.
+- U7:
+    A
+    
+  - A: Accepted explicit project local Action override and explained missing-release-identity errors.
+- U8: shaが決まればminimum versionは静的に決定するからparameterである必要がないよね
+  - A: Agreed minimum version follows the selected release; explored ownership rather than consumer parameters.
+- U9:
+    B. jsonではなくaction内にハードコードしたらいいのでは？ 実際の処理にはaction内の値から渡せばいいよね
+    
+  - A: Explored Action-owned values and possible shared definitions.
+- U10:
+    なるほどね。共通化するとしたら具体的な方法は？
+    
+  - A: Explained possible common definitions and release-time transformations.
+- U11:
+    利用者とこのrepo localを分けて考える。repo開発側の複雑さを利用者へ持ち込まないことを重視する
+    
+  - A: Separated consumer behavior from repository development and release consistency work.
+- U12:
+    ts定数をcommitするのは必須なのか？
+    
+  - A: Clarified committed TypeScript constants are not mandatory; explored release-only representations.
+- U13:
+    利用者側ってのはaction内のスクリプトだよね。どういうイメージ？
+    
+  - A: Described the Action script consumption model.
+- U14:
+    いや、release時のpackage versionを読む時のイメージね
+    
+  - A: Clarified existing package version reading and release metadata injection.
+- U15:
+    そのケースで利用者側とrepo側の両方を出して
+    
+  - A: Provided consumer and repository examples for the release-time case.
+- U16:
+    package versionとmin versionが混在していてよくわからなくなった
+    
+  - A: Separated package version, release SHA, minimum Deno requirement, and install pin.
+- U17:
+    やっぱりなにかおかしい。shaやpackage version、checkoutからmin versionは決定的だよな。むしろbash側にmin versionを環境変数にしているが、何に使っている？
+    
+  - A: Inspected Bash selection: minimum was used only to reject/replace PATH binaries and validate downloads.
+- U18:
+    bash側のmin versionが不要では？ denoがPATHになければmin versionとは別の意味のpinしたバージョンをinstallし、min versionのcheckはts側に寄せればいい。PATHのdenoがmin versionを満たさないとき実行できなくなるが、それは救済しなくていい。それを救済するために過度に複雑になっている
+    
+  - A: Accepted deleting Bash minimum validation and automatic rescue, using TS common entrypoint validation only; asked about install pin ownership.
+- U19:
+    A
+    
+  - A: Accepted pin alignment with the repository development toolchain.
+- U20:
+    A
+    
+  - A: Confirmed consensus and supplied the implementation prompt; no implementation in the design turn.
+- U21:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、生成YAMLの長い `tsugiori-task-prepare` Bashを、このrepoが提供するcomposite Actionとscriptへ移してください。
+    
+    あわせてfallback時のDeno選択を簡略化し、最低versionの検証をTS共通入口へ集約してください。
+    
+    ## 目的
+    - 利用者の生成YAMLを短くする。
+    - repo開発側の整合性管理やrelease処理を、利用者の設定・実行手順へ持ち込まない。
+    - 古いDenoの自動救済を削除し、準備処理の複雑さを減らす。
+    - cache hit時の外部Deno不要という現行動作を維持する。
+    
+    ## 成功条件
+    - artifact準備は引き続き、独立した `cache → prepare` の2 stepとして見える。
+    - prepare stepはこのrepoのcomposite Actionを参照し、長いBashを生成YAMLに含めない。
+    - `runtime-path` outputを維持し、後続task stepが準備したcompiled runtimeを実行できる。
+    - 公開packageでgenerateしたYAMLは、そのpackageのrelease元commit SHAでActionを固定する。
+    - このrepo自身の生成YAMLは、project設定に明示したcheckout内のlocal Actionを参照する。
+    - cache hit時は、Denoの探索・version検証・install・依存取得を行わない。
+    - fallback時、PATH上にDenoがあればそのbinaryを使う。最低version未満ならTS共通入口で失敗し、別versionのinstallや再実行で救済しない。
+    - PATH上にDenoがなければ、repo開発toolchainと同じpin versionの公式release ZIPを専用directoryへdownload・展開する。
+    - 選択したDenoを明示したpathで使用し、子processも同じbinaryを使用する。
+    - アプリ用Denoの設定・binary・lockfileと、後続stepのPATHを変更しない。
+    - artifact検証、source不一致時のfallback、古いsourceキーへの保存防止など、現行のartifact準備保証を維持する。
+    - 関連テスト、ドキュメント、snapshot、生成YAMLが最終動作と整合する。
+    
+    ## 決定事項
+    - このrepoからcomposite Actionを提供し、既存Bashをscriptへ移す。
+      - 理由: 利用者のYAMLを短くし、既存処理を小さい変更で移せる。
+      - 主な棄却案: JavaScriptへの再実装、利用者repoへのhelper script生成。実装・配布管理を増やすため。
+    
+    - 公開packageへrelease元commit SHAを埋め込み、generateがAction参照に使う。
+      - 理由: compilerとActionを同じreleaseへ揃え、generate時のネットワーク問い合わせを不要にする。
+      - 主な棄却案: Actionの独立version管理、generate時のGit HEADによる判定。対応関係の管理や利用者repoとの混同を招くため。
+    
+    - このrepo自身はproject設定にlocal Actionのpathを明示する。
+      - 理由: 未公開の変更を同じcheckoutで検証でき、生成YAMLへ自身のcommit SHAを埋め込む循環を避ける。
+      - 主な棄却案: repo名・配置による自動判定、直近releaseのActionを常用する方式。暗黙の判定や開発中の変更との不一致を避けるため。
+    
+    - fallback時は、PATHにDenoがあればそのまま使用し、なければpin versionをinstallする。
+      - 理由: 最低version未満の既存Denoを自動救済する複雑さは不要。
+      - 主な棄却案: Bashで最低versionを比較して古いDenoを置き換える方式。
+    
+    - install用のpin versionは、このrepoで検証している開発toolchainのDeno versionと揃える。
+      - 理由: 別のversionの検証・更新管理を増やさない。
+      - 主な棄却案: 最新stableのdownload、Action専用versionの独立管理。
+    
+    - 最低Deno versionの検証はTS共通入口へ集約する。
+      - 理由: 実行要件の検証を一箇所に保つ。install用pinとは別の意味の値である。
+      - 主な棄却案: Bashとの重複検証、Action inputや環境変数による最低versionの受け渡し、Action定義からの最低version読み取り、release時の最低version metadata生成。
+    
+    ## 制約
+    - 通常の利用者にActionのSHA、最低version、install用pinの指定を要求しない。
+    - 公開packageの通常のgenerateは、埋め込まれたSHAを使用する。利用者repoのHEADからActionのSHAを決めない。
+    - local Action指定も埋め込まれたSHAもない場合は、説明付きのgenerate errorにする。
+    - install用pinの参照・整合性管理はこのrepo側で完結させ、利用者のtoolchain設定を参照しない。
+    - compiled artifact経路では外部Denoの最低versionを検証しない。
+    - task本体の実行失敗をprepare失敗としてfallback・再実行しない。
+    - sourceキー計算、到達可能なproject外ローカルmoduleの追跡、cacheVersionの役割、platform分離、manifest・checksum・layout検証を維持する。
+    - 生成時と実行時のsourceキーが異なる場合も現在sourceをbuild・実行でき、新しいartifactを古いキーで保存しない。
+    - 観測結果からcache miss、検証失敗、起動失敗、Deno導入失敗、source側の実行失敗を識別できる状態を維持する。
+    - release処理のコード変更は対象だが、実際のpublish・release・deployは行わない。
+    
+    ## 対象外
+    - 古いPATH上のDenoの自動更新・救済。
+    - アプリ用Denoのsetup管理。
+    - local環境のDeno自動install。
+    - setup-deno action、Deno用cache、runner tool cache探索。
+    - 最低version用の追加JSON、生成TypeScript定数、package metadata。
+    - artifact依存graph取得や検証方式の再設計。
+    - Actionの独立release系列。
+    
+    ## 未検証の前提
+    - 現行release workflowの対象commitと、package buildで取得するSHAの対応。
+    - release対象sourceと取得SHAの一致を検証できる範囲。
+    - 現行toolchainのDeno pinと、対応platformの公式release ZIPの取得先。
+    - composite Actionでのscript配置、実行権限、output伝播、project working directoryの扱い。
+    - 現行の最低version未満のDenoで、共通入口の説明付きerrorまで到達できる範囲。
+    
+    ## 実装時の指示
+    - 主な関連箇所は `src/compiler/authoring.ts`、`src/task-runtime/bootstrap.ts`、`src/task-runtime/deno.ts`、`src/package_identity.ts`、`scripts/release/package.ts`、project設定定義、`.github/workflows.ts`。
+    - 現行のartifact準備実装を確認し、移動とDeno選択の簡略化へ変更を集中させる。
+    - Actionのpathやinput名は、GitHub Actions backend内部の用途に合わせて決める。手書きworkflow向けの汎用公開contractへ広げない。
+    - `uses` stepではnativeのworking-directoryを設定できないため、project directoryをActionへ渡し、従来と同じcwdで処理する。
+    - Actionのscriptは自身の配置を基準に参照し、利用者checkoutの同名scriptを誤って実行しない。
+    - release元SHAの埋め込みは既存release packagingへ統合する。開発checkoutのlocal Action指定と明確に区別する。
+    - 最低versionは現行TS定義を維持する。Bashからversion比較処理と最低versionのerror生成を削除する。
+    - install用pinとrepo toolchainの一致を、このrepoの既存checkまたはtestで保証する。最小の保守可能な方法を選ぶ。
+    - 外部Denoなしのcache hit、PATH上の利用可能なDeno、最低version未満のDenoでの失敗、Deno不在時のpin install、install失敗を検証する。
+    - Action参照の生成、local指定、release metadata、output・cwd伝播を検証する。
+    - README、ARCHITECTURE、関連テスト・snapshot・生成YAMLを更新する。
+    
+  - A: Applied develop-repository, design-review and design-program-observability. Verified clean main at 1c5d79d, fetched code and preserved/merged Git notes. Implemented Action/script, release SHA stamping from immutable Git tree, explicit local project override, generate errors, simplified PATH/install selection, tests/docs/YAML. Proposed commit release impact asynchronously.
+- U22:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_IzgPuAWBv1rOiRGgZTr3wdQv\",0]","question":"この変更は準備処理と配布方式のrefactorなので、このtaskのcommitはrelease対象なし（refactor）を提案します。この方針で進めてよいですか？ develop-repository skillの「Agree on commit release impact」により、release workflowがあるrepoではcommit前にrelease影響の合意が必要です。","answer":"patch release対象にする"}]
+    </send_user_message_question_reply>
+  - A: Accepted patch impact. check and test passed (111 tests); generate --check passed after final regeneration. Fresh independent review found no actionable defects. Verified actual Deno 2.5.0 explanatory minimum error and official pin platform release URLs. Commit initially failed at 1Password SSH signing; kept staged changes and requested unlock/retry. No push/publish/release/deploy performed.
+- U23:
+    再試行
+    
+  - A: Retried signing successfully, producing 9b0c832. Committed-source release packaging and JSR publish dry-run succeeded for a validation version 0.6.1; temporary archive removed. Preparing this CAS-protected task note and cleanup.
