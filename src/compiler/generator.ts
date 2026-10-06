@@ -1,3 +1,4 @@
+import { posix } from "node:path";
 import { actionPayload } from "./action_payload.ts";
 import { emitCompositeAction } from "./github_actions/action.ts";
 import { TASK_PREPARE_SCRIPT } from "../task-runtime/bootstrap.ts";
@@ -51,7 +52,7 @@ export async function generateFiles(
       step.type === "task"
     );
     files.push({
-      path: `${action.action.path}/action.yml`,
+      path: action.action.path,
       content: generatedWorkflowHeader(entrypointArgument) +
         emitCompositeAction(action, needsPayload ? payload : undefined),
     });
@@ -59,11 +60,18 @@ export async function generateFiles(
       files.push(
         ...payload.files.map((file) => ({
           ...file,
-          path: `${action.action.path}/.tsugiori/${file.path}`,
+          path: posix.join(
+            posix.dirname(action.action.path),
+            ".tsugiori",
+            file.path,
+          ),
         })),
       );
       files.push({
-        path: `${action.action.path}/.tsugiori/prepare.sh`,
+        path: posix.join(
+          posix.dirname(action.action.path),
+          ".tsugiori/prepare.sh",
+        ),
         content: TASK_PREPARE_SCRIPT,
       });
     }

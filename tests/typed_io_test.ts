@@ -29,6 +29,8 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
   assertEquals(parseWireValue(names, ""), null);
   assertEquals(parseWireValue(textValue(), ""), null);
   assertThrows(() => serializeValue(textValue(), ""), TypeError);
+  assertEquals(serializeValue(textValue(), "  "), "  ");
+  assertEquals(parseWireValue(textValue(), "  "), "  ");
   assertThrows(() => serializeValue(names, null as never), TypeError);
   assertThrows(() => parseWireValue(names, "null"), TypeError);
   assertThrows(

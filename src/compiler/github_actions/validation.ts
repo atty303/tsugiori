@@ -510,14 +510,14 @@ function validateExpressionMap(
   if (
     !isPlainRecord(value) ||
     Object.entries(value).some(([key, entry]) =>
-      isBlank(key) || typeof entry !== "string" || isBlank(entry)
+      isBlank(key) || typeof entry !== "string"
     )
   ) {
     diagnostics.push(
       diagnostic(
         code,
         path,
-        "Map must have nonempty keys and nonempty string values.",
+        "Map must have nonempty keys and string values.",
       ),
     );
   }

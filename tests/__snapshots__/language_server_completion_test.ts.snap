@@ -2,7 +2,7 @@ export const snapshot = {};
 
 snapshot[`Deno language server exposes only context-valid authoring candidates 1`] = `
 {
-  "composite-draft": 'const actionDraft: CompositeDraft<"actions/greet", {
+  "composite-draft": 'const actionDraft: CompositeDraft<"actions/greet/action.yml", {
     readonly name: "Greet";
     readonly description: "Greeting";
     readonly inputs: {
@@ -17,7 +17,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
         };
     };
 }>',
-  "composite-method": '(method) CStepBase<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: TaskStepDefinition<Id, I, O, E, {
+  "composite-method": '(method) CStepBase<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: TaskStepDefinition<Id, I, O, E, {
     readonly one: NS<"one", readonly ["value"]>;
     readonly two: TR<"two", {
         readonly who: string;
@@ -36,7 +36,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     if?: C | undefined;
     continueOnError?: F | undefined;
     id?: Exclude<Id, "one" | "two"> | undefined;
-}>): CStep<"actions/greet", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, {
+}>): CStep<"actions/greet/action.yml", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, {
     readonly one: NS<"one", readonly ["value"]>;
     readonly two: TR<"two", {
         readonly who: string;
@@ -52,14 +52,14 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
         readonly who: string;
     };
 }>',
-  "composite-signature": 'run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CStep<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>',
-  "composite-start": '(parameter) step: Pick<CStep<"actions/greet", "composite", E, {
+  "composite-signature": 'run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CStep<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>',
+  "composite-start": '(parameter) step: Pick<CStep<"actions/greet/action.yml", "composite", E, {
     readonly secrets: never;
     readonly inputs: {
         readonly who: string;
     };
 }>, "uses" | "run" | "task">',
-  "composite-steps": 'const state: CStep<"actions/greet", "composite", {
+  "composite-steps": 'const state: CStep<"actions/greet/action.yml", "composite", {
     readonly one: NS<"one", readonly ["value"]>;
     readonly two: TR<"two", {
         readonly who: string;

@@ -103,6 +103,7 @@
  * @module
  */
 import { addAction } from "./actions.ts";
+import { collectCompositeActions } from "../compiler/composite.ts";
 import { generateFiles } from "../compiler/generator.ts";
 import { checkGeneratedFiles } from "../compiler/check.ts";
 import { projectSource } from "../compiler/source.ts";
@@ -227,7 +228,7 @@ export async function runProject(
         options.entrypointUrl,
       );
       recorder.operation({ name: "project.source", status: "success" });
-      const hasTasks = (source.project.actions ?? []).some((action) =>
+      const hasTasks = collectCompositeActions(source.project).some((action) =>
         action.runs.steps.some((step) =>
           step.type === "task"
         )
@@ -398,7 +399,7 @@ async function dispatchTask(
         }
       }
     }
-    for (const action of project.actions ?? []) {
+    for (const action of collectCompositeActions(project)) {
       let ordinal = 0;
       for (const step of action.runs.steps) {
         if (step.type !== "task") continue;

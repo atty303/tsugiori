@@ -128,6 +128,15 @@ Workflow paths are relative to this Deno project directory. GitHub Actions owns
 job and step execution; top-level TypeScript constructs definitions, and task
 bodies run on the prepared task runtime.
 
+Composite Actions use a metadata file path:
+`defineCompositeAction("actions/greet/action.yml", metadata).steps(...)`. Both
+`action.yml` and `action.yaml`, including files at the project root, are
+supported. Replace directory arguments with the metadata file path. Generation
+collects internal Actions referenced by workflows and other Actions recursively.
+Use `defineProject({ actions: [...] })` to generate additional unreferenced
+Actions or an Action-only project. Identical definitions generate once; distinct
+definitions cannot share an Action directory.
+
 ## API documentation
 
 The [JSR API reference](https://jsr.io/@atty303/tsugiori/doc) contains detailed

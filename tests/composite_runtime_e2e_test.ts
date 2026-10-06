@@ -32,13 +32,14 @@ Deno.test({
         `
 import { defineCompositeAction, defineProject, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
-const draft = defineCompositeAction("action", { name: "Task", description: "Independent task", inputs: { who: { description: "Recipient", required: true } }, outputs: { result: { description: "Result" } } });
+const draft = defineCompositeAction("action.yaml", { name: "Task", description: "Independent task", inputs: { who: { description: "Recipient", required: true } }, outputs: { result: { description: "Result" } } });
 const action = draft.steps(({ step }) => step.task({ id: "tsugiori-task-prepare", name: "Execute", inputs: { who: { contract: textValue(), from: draft.inputs.who } }, outputs: { result: { contract: textValue(), required: true } }, run: async ({ inputs, outputs }) => {
   if (Deno.env.get("TASK_FAIL") === "1") throw new Error("private task failure");
   await Deno.writeTextFile("result.txt", marker + ":" + inputs.who);
   await outputs.set("result", inputs.who);
 }}).outputs(({ steps }) => ({ result: steps["tsugiori-task-prepare"].outputs.result })));
-const project = defineProject({ actions: [action], cacheVersion: 7 });
+const parent = defineCompositeAction("parent/action.yml", { name: "Parent", description: "Parent" }).steps(({ step }) => step.uses(action, { with: { who: "world" } }));
+const project = defineProject({ actions: [parent], cacheVersion: 7 });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `,
@@ -66,17 +67,17 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assertEquals((await check()).code, 0);
       const copiedDependency = resolve(
         author,
-        "action/.tsugiori/source/dependency.ts",
+        ".tsugiori/source/dependency.ts",
       );
       await Deno.writeTextFile(copiedDependency, "// changed\n");
       assertStringIncludes(
         (await check()).stderr,
-        "changed: action/.tsugiori/source/dependency.ts",
+        "changed: .tsugiori/source/dependency.ts",
       );
       await Deno.remove(copiedDependency);
       assertStringIncludes(
         (await check()).stderr,
-        "missing: action/.tsugiori/source/dependency.ts",
+        "missing: .tsugiori/source/dependency.ts",
       );
       assertEquals(
         (await run(
@@ -88,7 +89,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
         0,
       );
       const yaml = await Deno.readTextFile(
-        resolve(author, "action/action.yml"),
+        resolve(author, "action.yaml"),
       );
       const action = parse(yaml) as {
         runs: {
@@ -105,7 +106,14 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       const prepare = action.runs.steps[1];
       assertEquals(prepare.id, "tsugiori-task-prepare-2");
       const actionDirectory = resolve(consumer, "action");
-      await copyDirectory(resolve(author, "action"), actionDirectory);
+      await copyDirectory(
+        resolve(author, ".tsugiori"),
+        resolve(actionDirectory, ".tsugiori"),
+      );
+      await Deno.copyFile(
+        resolve(author, "action.yaml"),
+        resolve(actionDirectory, "action.yaml"),
+      );
       await Deno.remove(author, { recursive: true });
       const sourceKey = prepare.env!.TSUGIORI_SOURCE_KEY;
       const bootstrapEnv = {
@@ -154,10 +162,15 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assertStringIncludes(offline.stdout, "cache hit");
 
       for (const who of ["one", "two"]) {
-        const task = await run(runtime, ["action/composite/task-1"], consumer, {
-          ...env,
-          TSUGIORI_INPUT_WHO: who,
-        });
+        const task = await run(
+          runtime,
+          ["action.yaml/composite/task-1"],
+          consumer,
+          {
+            ...env,
+            TSUGIORI_INPUT_WHO: who,
+          },
+        );
         assertEquals(task.code, 0, task.stderr);
         assertEquals(
           await Deno.readTextFile(resolve(consumer, "result.txt")),
@@ -171,7 +184,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       );
       const failure = await run(
         runtime,
-        ["action/composite/task-1"],
+        ["action.yaml/composite/task-1"],
         consumer,
         { ...env, TSUGIORI_INPUT_WHO: "bad", TASK_FAIL: "1" },
       );

@@ -15,7 +15,7 @@ Deno.test("whole callbacks execute once in their own scope and preserve generate
     counts.set(field, (counts.get(field) ?? 0) + 1);
   const text = textValue();
   const build = (callbacks: boolean) => {
-    const composite = defineCompositeAction("actions/echo", {
+    const composite = defineCompositeAction("actions/echo/action.yml", {
       name: "Echo",
       description: "Echo input",
       inputs: { value: { description: "Value" } },

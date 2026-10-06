@@ -809,7 +809,7 @@ function displayFixtures(): readonly {
   const sequence =
     `const state = job.needs(jobs.build).runsOn("ubuntu-latest").strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] } }).run({ id: "test", name: "Test", run: "true" }).run({ id: "report", name: "Report", run: "true" });`;
   const composite =
-    `const actionDraft = defineCompositeAction("actions/greet", { name: "Greet", description: "Greeting", inputs: { who: { description: "Recipient", required: true } }, outputs: { greeting: { description: "Greeting" } } });`;
+    `const actionDraft = defineCompositeAction("actions/greet/action.yml", { name: "Greet", description: "Greeting", inputs: { who: { description: "Recipient", required: true } }, outputs: { greeting: { description: "Greeting" } } });`;
   const compositeBody =
     `${composite} const action = actionDraft.steps(({ step }) => { BODY });`;
   const compositeSequence =

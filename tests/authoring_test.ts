@@ -645,3 +645,38 @@ Deno.test("workflowOutputs replaces direct native outputs without mutating earli
     replacement: { value: "${{ jobs.run.outputs.value }}" },
   });
 });
+
+Deno.test("GitHub string maps preserve empty and whitespace values through public authoring", async () => {
+  const values = { EMPTY: "", SPACE: "  ", PADDED: " value \t" };
+  const workflow = defineWorkflow("values.yml", {
+    on: { push: {} },
+    env: values,
+  })
+    .job("values", ({ job }) =>
+      job.runsOn("ubuntu-latest").env(values)
+        .run({ name: "Run", run: "true", env: values })
+        .uses("example/action@v1", { env: values, with: values })
+        .outputs(() => ({ empty: literal("") })));
+  const { generateFiles } = await import("../src/compiler/generator.ts");
+  const { parse } = await import("../src/deps.ts");
+  const files = await generateFiles(
+    defineProject({ workflows: [workflow] }),
+    "values.ts",
+    "unused",
+  );
+  const decoded = parse(String(files[0].content)) as {
+    env: typeof values;
+    jobs: {
+      values: {
+        env: typeof values;
+        outputs: { empty: string };
+        steps: { env: typeof values; with?: typeof values }[];
+      };
+    };
+  };
+  assertEquals(decoded.env, values);
+  assertEquals(decoded.jobs.values.env, values);
+  for (const step of decoded.jobs.values.steps) assertEquals(step.env, values);
+  assertEquals(decoded.jobs.values.steps[1].with, values);
+  assertEquals(decoded.jobs.values.outputs.empty, "${{ '' }}");
+});

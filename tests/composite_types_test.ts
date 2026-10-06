@@ -5,7 +5,7 @@ import {
   textValue,
 } from "../src/github_actions/mod.ts";
 
-const draft = defineCompositeAction("actions/greet", {
+const draft = defineCompositeAction("actions/greet/action.yml", {
   name: "Greet",
   description: "Greeting",
   inputs: {

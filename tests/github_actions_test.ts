@@ -284,13 +284,13 @@ Deno.test("rejects invalid deployment-specific native fields", () => {
       if: " ",
       timeoutMinutes: 0,
       environment: " ",
-      outputs: { result: " " },
+      outputs: { " ": " " },
       strategy: { matrix: { env: [] } },
       concurrency: { group: "app", cancelInProgress: "no" },
       steps: [{
         type: "run",
         run: "true",
-        env: { AWS_REGION: " " },
+        env: { " ": " " },
         workingDirectory: " ",
       }],
     }],
@@ -583,3 +583,66 @@ function job(id: string, needs: readonly string[]): Workflow["jobs"][number] {
     steps: [{ type: "run", run: "true" }],
   };
 }
+
+Deno.test("internal GitHub string maps retain values and still validate keys and types", () => {
+  const values = { empty: "", spaces: "  ", padded: " text " };
+  const native: Workflow = {
+    name: "Values",
+    on: { push: {} },
+    env: values,
+    jobs: [{
+      id: "values",
+      needs: [],
+      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
+      env: values,
+      outputs: values,
+      steps: [{
+        type: "uses",
+        uses: "example/action@v1",
+        env: values,
+        with: values,
+      }],
+    }],
+  };
+  const result = validateWorkflow(native);
+  assert(result.ok);
+  const decoded = parse(emitWorkflow(result.value)) as {
+    env: typeof values;
+    jobs: {
+      values: {
+        env: typeof values;
+        outputs: typeof values;
+        steps: { env: typeof values; with: typeof values }[];
+      };
+    };
+  };
+  assertEquals(decoded.env, values);
+  assertEquals(decoded.jobs.values.env, values);
+  assertEquals(decoded.jobs.values.outputs, values);
+  assertEquals(decoded.jobs.values.steps[0].env, values);
+  assertEquals(decoded.jobs.values.steps[0].with, values);
+  for (const invalid of [{ " ": "" }, { empty: null }, { empty: 0 }]) {
+    const rejected = validateWorkflow(
+      {
+        ...native,
+        env: invalid,
+        jobs: [{
+          ...native.jobs[0],
+          env: invalid,
+          outputs: invalid,
+          steps: [{ ...native.jobs[0].steps[0], env: invalid, with: invalid }],
+        }],
+      } as unknown as Workflow,
+    );
+    assert(!rejected.ok);
+    assertEquals(rejected.diagnostics.map((d) => d.code), [
+      "step.env.invalid",
+      "step.env.invalid",
+      "job.outputs.invalid",
+      Object.keys(invalid)[0] === " "
+        ? "step.with.key.empty"
+        : "step.with.value.invalid",
+      "step.env.invalid",
+    ]);
+  }
+});

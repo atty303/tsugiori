@@ -127,6 +127,7 @@
  * {@link githubActionsSpec} exposes the frozen specification basis and capability coverage. Generation, validation and scenarios do not fetch specifications. Coverage does not prove hosted GitHub execution or authorization.
  * @module
  */
+import { posix } from "node:path";
 import type { ActionContract, ActionContractInput } from "./action_contract.ts";
 export type {
   ActionContract,
@@ -1120,6 +1121,7 @@ type RawCallInputs = Readonly<
 >;
 /** An action receives named parameters from the step with map, using the input names declared by the action.
  * Tsugiori checks contract names and requiredness without verifying the action implementation.
+ * String values, including empty strings and whitespace, are preserved without trimming.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepswith
  * @example
  * ```ts
@@ -1128,6 +1130,7 @@ type RawCallInputs = Readonly<
  */
 export type ActionInputs = Readonly<Record<string, ActionInput>>;
 /** More-specific job/step values override workflow env; values in one env map cannot refer to each other.
+ * Values may be empty or whitespace-only and are preserved without trimming; keys must be nonempty.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
  * @example
  * ```ts
@@ -1267,7 +1270,7 @@ export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 export type AuthoringUsesStep = Readonly<{
   /** Materialized uses step discriminator. */
   type: "uses";
-  /** Local composite definition retained for project membership and nested-call validation.
+  /** Local composite definition retained for automatic collection and nested-call validation.
    */
   calleeAction?: AuthoringCompositeAction;
   /** A unique job identifier used by needs and output/result references.
@@ -1507,7 +1510,7 @@ export type AuthoringWorkflow = Readonly<{
    */
   jobs: readonly AuthoringJob[];
 }>;
-/** Materialized project returned by {@link defineProject}. Pass it to runProject for generation. Workflow paths and Action directories are relative to the invocation Deno project, not the source module URL.
+/** Materialized project returned by {@link defineProject}. Pass it to runProject for generation. Workflow and Action metadata paths are relative to the invocation Deno project, not the source module URL.
  */
 export type ProjectConfig = Readonly<{
   /** Discriminant identifying the representation or result category.
@@ -1525,7 +1528,7 @@ export type ProjectConfig = Readonly<{
   /** Completed workflows to generate together; include local reusable callees. See {@link defineProject}.
    */
   workflows: readonly AuthoringWorkflow[];
-  /** Completed composite Actions to generate together. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
+  /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
    */
   actions?: readonly AuthoringCompositeAction[];
 }>;
@@ -3940,10 +3943,10 @@ export type ActionMetadata = Readonly<{
   >;
 }>;
 
-/** Materialized composite definition retained by {@link Composite}. Generation emits action.yml and, for task steps, its source payload. Prefer {@link defineCompositeAction} to constructing records.
+/** Materialized composite definition retained by {@link Composite}. Generation emits its metadata file and, for task steps, its source payload. Prefer {@link defineCompositeAction} to constructing records.
  */
 export type AuthoringCompositeAction = Readonly<{
-  /** Project-relative Action output directory. Generation writes action.yml here.
+  /** Project-relative metadata output file, ending in action.yml or action.yaml.
    */
   path: string;
   /** Public name, description, input and output declarations. See {@link ActionMetadata}.
@@ -4039,10 +4042,10 @@ export interface CompositeDraft<
 }
 
 /**
- * Declare a composite Action directory and its public metadata, then define its steps.
- * The directory is project-relative for generation; parent traversal and absolute
+ * Declare a composite Action metadata file and its public metadata, then define its steps.
+ * The file is project-relative and must end in action.yml or action.yaml; parent traversal and absolute
  * paths throw TypeError. This call creates a draft, not an executable Action.
- * Call {@link CompositeDraft.steps} and include the result in defineProject.
+ * Call {@link CompositeDraft.steps}. Referenced internal Actions are collected automatically; use defineProject actions for additional generation roots.
  *
  * Output metadata describes the public interface. A run step declares output names
  * and writes their values to GITHUB_OUTPUT; a task declares contracts and calls
@@ -4051,9 +4054,10 @@ export interface CompositeDraft<
  * resulting Action outputs from later workflow/composite steps. Those references
  * build GitHub expressions, not values available during authoring.
  *
- * `defineCompositeAction(directory, metadata).steps(...)` generates a standard
- * `action.yml` in the project-relative directory. Include completed definitions
- * in `defineProject({ actions: [...] })`; a project can contain actions, workflows,
+ * `defineCompositeAction(path, metadata).steps(...)` generates the specified
+ * metadata file. Its parent directory owns local uses references and task payloads.
+ * Root action.yml and action.yaml are supported. Directory arguments are rejected;
+ * migrate them by appending /action.yml or /action.yaml. A project can contain actions, workflows,
  * or both. Common metadata remains separate from the composite execution part.
  * JavaScript and Docker action authoring are not implemented.
  *
@@ -4066,10 +4070,10 @@ export interface CompositeDraft<
  * receive automatic `INPUT_*` variables. Secrets must be passed by callers.
  *
  * `.uses(action, options)` shares declared input names, requiredness and output
- * names. Include its definition in the project. Generation resolves its local
+ * names. Generation recursively collects its definition. Generation resolves its local
  * reference from the project's checkout-relative `workingDirectory` (default
  * `.`). If the Deno project is `.github`, set `workingDirectory: ".github"`;
- * `actions/greet` then generates there and is called as
+ * `actions/greet/action.yml` then generates there and is called as
  * `./.github/actions/greet`. This setting does not change task execution cwd.
  * An explicit `uses` override selects a different standard reference while keeping
  * the contract's types.
@@ -4083,7 +4087,7 @@ export interface CompositeDraft<
  * the existing {@link ActionContract} type service; no contract file is
  * generated locally.
  *
- * Actions containing tasks also generate `.tsugiori/` beside `action.yml`.
+ * Actions containing tasks also generate `.tsugiori/` beside the metadata file.
  * Commit this directory with the YAML. It contains the reachable local module
  * graph, discovered Deno configuration, workspace configuration, import maps,
  * lockfiles and the preparation bridge. The executable authoring entrypoint is
@@ -4103,7 +4107,7 @@ export interface CompositeDraft<
  *
  * @example
  * ```ts
- * defineCompositeAction("actions/version", {
+ * defineCompositeAction("actions/version/action.yml", {
  *   name: "Version", description: "Expose a version",
  *   outputs: { version: { description: "Version string" } },
  * });
@@ -4119,14 +4123,16 @@ export function defineCompositeAction<
   if (
     !/^(?:\.\/)?[A-Za-z0-9._/-]+$/.test(path) ||
     path.split("/").includes("..") || path.startsWith("/") ||
-    path.includes("//")
+    path.includes("//") ||
+    !/^(?:.*\/)?action\.ya?ml$/.test(path)
   ) {
     throw new TypeError(
-      "Action path must be a project-relative directory without parent traversal.",
+      "Action path must be a project-relative action.yml or action.yaml file without parent traversal; replace directory arguments with <directory>/action.yml.",
     );
   }
   metadata = copyNative(metadata);
-  const normalized = path.replace(/^\.\//, "").replace(/\/$/, "");
+  const normalized = posix.normalize(path);
+  const directory = posix.dirname(normalized);
   const owner = Symbol(normalized);
   type Inputs = CompositeInputs<M>;
   type Start = CStepOf<
@@ -4184,7 +4190,7 @@ export function defineCompositeAction<
       });
       return Object.freeze({
         ...copyNative(metadata),
-        uses: `./${normalized}`,
+        uses: directory === "." ? "./" : `./${directory}`,
         [compositeActionDefinition]: action,
       }) as Composite<M>;
     },
@@ -6118,7 +6124,7 @@ export function defineWorkflow<
   >(draft, false);
 }
 
-/** Materializes completed workflow definitions; generation validates caller/callee configuration membership.
+/** Materializes completed workflow definitions and explicit Action roots. Generation recursively collects internal Composite references, deduplicates identical definitions, and rejects distinct Actions sharing a directory. Local reusable workflow callees must still be listed explicitly.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobs
  * @example Given a completed workflow `ci`.
  * ```ts
@@ -6153,7 +6159,7 @@ export function defineProject<
      * ```
      */
     workflows?: Workflows;
-    /** Completed composite Actions to generate together. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
+    /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
      */
     actions?: readonly Readonly<
       {

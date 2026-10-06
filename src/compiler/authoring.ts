@@ -1,3 +1,4 @@
+import { collectCompositeActions } from "./composite.ts";
 import type {
   AuthoringCompositeAction,
   AuthoringWorkflow,
@@ -63,7 +64,9 @@ export function lowerProject(
 ): LoweredProject {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
-  const actionSet = new Set(project.actions ?? []);
+  const collectedActions = internalActionLowering
+    ? []
+    : collectCompositeActions(project);
   const inspectSteps = (
     steps: readonly import("../github_actions/mod.ts").AuthoringStep[],
     ancestors: readonly AuthoringCompositeAction[],
@@ -71,11 +74,6 @@ export function lowerProject(
     for (const step of steps) {
       if (step.type !== "uses" || !step.calleeAction) continue;
       const target = step.calleeAction;
-      if (!actionSet.has(target)) {
-        diagnostics.push(
-          `Called Action ${target.path} must be included in the same project.`,
-        );
-      }
       if (ancestors.includes(target)) {
         diagnostics.push(`Composite Action cycle at ${target.path}.`);
         continue;
@@ -93,7 +91,7 @@ export function lowerProject(
     for (const workflow of project.workflows) {
       for (const job of workflow.jobs) inspectSteps(job.steps, []);
     }
-    for (const action of project.actions ?? []) {
+    for (const action of collectedActions) {
       inspectSteps(action.runs.steps, [action]);
     }
   }
@@ -166,7 +164,7 @@ export function lowerProject(
             uses: step.calleeAction
               ? localActionReference(
                 project.workingDirectory,
-                step.calleeAction.path,
+                posix.dirname(step.calleeAction.path),
               )
               : step.uses,
             ...(step.originalRef === undefined
@@ -303,11 +301,19 @@ export function lowerProject(
   }
 
   const actions: LoweredCompositeAction[] = [];
-  for (const action of project.actions ?? []) {
+  const actionDirectories = new Set<string>();
+  for (const action of collectedActions) {
     if (!action.metadata.name.trim() || !action.metadata.description.trim()) {
       diagnostics.push(`Action ${action.path} requires name and description.`);
     }
-    const output = `${action.path}/action.yml`;
+    const output = action.path;
+    const directory = posix.dirname(output);
+    if (actionDirectories.has(directory)) {
+      diagnostics.push(
+        `Action directory ${directory} is duplicated by distinct definitions.`,
+      );
+    }
+    actionDirectories.add(directory);
     if (outputs.has(output)) {
       diagnostics.push(`Action output ${output} is duplicated.`);
     }
@@ -559,5 +565,5 @@ function localActionReference(directory: string, path: string): string {
       "Action references must remain inside the Actions checkout.",
     ]);
   }
-  return `./${location}`;
+  return location === "." ? "./" : `./${location}`;
 }

@@ -39,8 +39,9 @@ call inputs retain their declared primitive types.
 The authoring type surface groups optional context and materializes flat maps of
 prior job and step references. Named readonly interfaces retain contract and
 scenario fixture identity without repeatedly expanding their structure in IDE
-hovers. These representations preserve field scopes and phase-specific operations;
-consumers obtain them through inference rather than supplying type annotations.
+hovers. These representations preserve field scopes and phase-specific
+operations; consumers obtain them through inference rather than supplying type
+annotations.
 
 Authoring and task execution share an executable entrypoint. It exports a
 project value and calls `runProject()` under `import.meta.main`, passing
@@ -114,7 +115,7 @@ when an output is required during an actual task run.
 Composite definitions contain common Action metadata and a separate
 `runs.using: composite` step sequence. Their completed objects implement the
 existing, execution-independent `ActionContract` and retain an authoring
-identity for project membership and local reference resolution. The common
+identity for automatic collection and local reference resolution. The common
 metadata does not contain future JavaScript/Docker execution fields.
 
 The immutable composite step builder shares workflow step construction and typed
@@ -122,13 +123,19 @@ task I/O. It requires run shells and excludes step timeouts and direct secret
 names. Public inputs are strings. Public output descriptions are metadata; step
 output mappings supply their wire values. Action-only projects are valid. The
 compiler validates the native step sequence, metadata, declared mappings, local
-definition membership and composite nesting/cycles.
+placement conflicts and composite nesting/cycles. Workflows and explicit Action
+roots determine the transitive set of internal Actions to generate. Identical
+definitions generate once, ordered by metadata path; traversal still checks
+every call path against the nesting limit. Distinct definitions cannot share an
+Action directory, even with different metadata extensions.
 
-An Action directory is relative to the Deno project for emission. Object calls
-resolve from the project's checkout-relative `workingDirectory`; explicit
-reference overrides retain ordinary GitHub semantics. Local composite `uses`
-references resolve in the caller workspace, never implicitly in the downloaded
-Action directory. No checkout or task cwd change is inserted.
+The Action path identifies its project-relative action.yml or action.yaml file.
+Its parent directory determines local uses and task payload placement, including
+metadata files at the project root. Object calls resolve from the project's
+checkout-relative `workingDirectory`; explicit reference overrides retain
+ordinary GitHub semantics. Local composite `uses` references resolve in the
+caller workspace, never implicitly in the downloaded Action directory. No
+checkout or task cwd change is inserted.
 
 Task actions distribute the reachable local source graph and discovered project
 configuration beneath their own `.tsugiori/` directory. Local file topology is
