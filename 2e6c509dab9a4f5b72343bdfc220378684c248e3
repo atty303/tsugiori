@@ -1,0 +1,39 @@
+Task: Explain Tsugiori's native GitHub Actions integration and Deno task runtime value in README
+Anchor: 2e6c509dab9a4f5b72343bdfc220378684c248e3
+Base: da410c2381ed60e3642719786bbc5a9e653fe46c
+Branch: main
+Commits: 2e6c509 docs README lead, benefits, and OSS comparison; no release
+Guidance: user AGENTS.md; develop-repository; design-review; atty303 engineering policy; git-task-evidence
+Conditions: Documentation only; current checkout; no API/code changes; no push/deploy; Git metadata writes required sandbox escalation; original local notes preserved
+Authority: User approved README application and release-free local commit; current AGENTS.md and applicable skills
+## Transcript
+- U1: 現在のtsugioriを代替できるOSSはあるか？
+  - A: Researched OSS workflow authoring alternatives using primary documentation; initial answer emphasized YAML generators.
+- U2: typed dslはおまけで、本質はtask runtimeだ。既存のOSSはどれもworkflowを記述できても、run stepで実行する内容はbashやjsで書かないとならず、そこをtsで書こうとしたら独立したビルド管理が必要になる。それをtyped dslで一体として記述できるのが最大のメリットだ。
+  - A: Recognized task runtime integration, not typed YAML authoring, as the primary comparison axis.
+- U3: これを最大の価値として調べ直して
+  - A: Reassessed candidates for integrated workflow and executable task authoring and managed preparation.
+- U4: TypeScriptに限らなくていい。workflowの記述をtaskと同じ言語で一体としてかければ候補だ
+  - A: Expanded the language scope; identified experimental Kotlin logic steps as a close candidate.
+- U5: job/step構造を書き手の意図で明確に維持できるのは価値だ。stepから別engineを起動するものは除く。daggerはそれではないか？
+  - A: Excluded Dagger's separate engine from the required execution model and clarified native job/step boundaries.
+- U6: あらためて評価して。ktは比較対象になりそうだが、JVMが必要にならないか？ denoよりオーバーヘッドが大きそうだが
+  - A: Verified Kotlin/JVM scripting and dispatch against source; contrasted cached compiled Tsugiori artifact delivery. No runtime benchmark was performed.
+- U7: NUKE/FalloutやZukeも評価して
+  - A: Inspected NUKE/Fallout generation and Zuke source/docs. Standard build graph execution differs from author-owned native steps; custom Zuke pipelines can narrow that difference.
+- U8: ここまで候補にあがってきたものと比較するとtsguioriが主張すべき価値が理解できるのでは？
+  - A: Synthesized the value proposition: integrated workflow/task authoring, native CI boundaries, and managed task preparation.
+- U9: 既存のactionsの要素をnativeに全て再利用しつつ、自然にtaskを統合できるのもいいよね。移行の摩擦が少ない
+  - A: Added existing Actions reuse and incremental task adoption; distinguished native reuse from complete DSL feature coverage.
+- U10: READMEに書く訴求を箇条書きで
+  - A: Drafted six README benefit bullets.
+- U11: ここまでの対話からあらためてゼロベースでleadと価値の訴求を考えて。別セクションで既存OSSとの比較もつける
+  - A: Read current README, architecture and roadmap; researched primary sources and drafted an English lead, benefits, and OSS comparison.
+- U12: 比較それぞれにおいてtsugioriが解決するポイントも併記して
+  - A: Added the problem Tsugiori addresses for each comparison row.
+- U13: いいね。あらためて全体を出して。TsugioriのTSはDenoに寄せて
+  - A: Rewrote the complete draft around Deno TypeScript and retained factual execution limits.
+- U14: READMEに反映して
+  - A: Applied develop-repository and design-review. Updated only README lead/benefits/comparison, preserving example code. Fetch succeeded after sandbox escalation; remote notes were fetched into a temporary ref and found already included locally. Formatter, scoped check, and whitespace checks passed; committed as 2e6c509.
+- U15: releaseなしでlocal commit
+  - A: User approved docs-only local commit with no release/SemVer bump. Verified clean worktree and complete thread messages against both local rollout files and paginated read_thread; prepared classified task evidence.
