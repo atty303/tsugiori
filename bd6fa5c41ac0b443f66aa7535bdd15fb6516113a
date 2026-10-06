@@ -1,0 +1,152 @@
+Task: Stop task preparation on source drift and remove expected-layout
+Anchor: bd6fa5c41ac0b443f66aa7535bdd15fb6516113a
+Base: 9b0c832400f057dae43fa541087b3a00b3368507
+Branch: main
+Commits: bd6fa5c41ac0b443f66aa7535bdd15fb6516113a fix: stop task preparation on source drift
+Guidance: User implementation request and AGENTS.md; develop-repository, design-program-observability, design-review, review, failure oracle, Git task evidence
+Conditions: Existing checkout/main; repository-managed mise/Deno toolchain; local isolated E2E; no dependencies, push, publish, release or deploy; complete root history read across five session segments
+Authority: Latest user request and release approval, repository AGENTS.md and current source; historical design explanations are descriptive
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) expected-layout ってなんのためにある？
+    
+  - A: Explained the layout fingerprint as a guard for ordinal task mapping when stale YAML could rebuild current source, and asked whether that fallback guarantee should remain.
+- U2:
+    なんでsource-keyだとだめなの？ 内包してない？
+    
+  - A: Confirmed source identity includes layout-affecting source changes; the separate layout check existed only because source-key mismatch previously allowed continued execution.
+- U3:
+    source key不一致でtask layout一致になる実質的なケースってあるのか？
+    
+  - A: Listed task body/helper/cacheVersion changes that alter source identity without altering layout; acknowledged that task names and order alone do not guarantee stale YAML safety.
+- U4:
+    task本体を修正したらsource-key変わるからexpect-layoutいらないよね？ やっぱりexpected-layoutが独立して存在する意義がわからない
+    
+  - A: Agreed expected-layout is redundant when source mismatch stops execution; clarified that its previous role was confined to stale-YAML fallback execution.
+- U5:
+    task実行でsource-key不一致が起こるケースはありえるか？ 不一致はprepare stepで停止するだろ？
+    
+  - A: Inspected prepare source and confirmed mismatch diagnostics/removal followed by continued build, explaining the earlier implementation requirement.
+- U6:
+    いや、prepareでsource-keyを計算してbuildしてpassしたら継続するから、task stepでsource-key不一致自体がおこりえないだろ？
+    
+  - A: Corrected the claim of task-time source mismatch: prepared runtime matches current checkout; stale YAML may still map task ordinals differently.
+- U7:
+    prepareがyamlのcheckもしているよな？ 古いyamlで実行される前提自体がないのでは？
+    
+  - A: Inspected prepare and generate --check boundaries: prepare did not compare YAML, while this repository independently authored generate --check before preparation.
+- U8:
+    YAML driftは異常フローの想定だ。その場合でもtaskが実行できる利用者のメリットはあるか？
+    
+  - A: Agreed drift recovery convenience does not justify stale conditions/inputs; separated artifact failure fallback from source drift recovery.
+- U9:
+    driftしたらtask実装やstepだけでなく、そもそもworkflow全体も意図しない状態になっている可能性があるよな
+    
+  - A: Confirmed workflow-wide trigger/permissions/needs/conditions/matrix may drift, so task-only layout or runtime rebuilding cannot guarantee the workflow.
+- U10:
+    generate --checkではなく軽量なdriftチェックはないか？
+    
+  - A: Proposed compiled-artifact YAML generation/comparison without external Deno, identifying checkout comparison limits; this proposal was superseded by the next user instruction.
+- U11:
+    ほら、YAML生成しなくてもsource-hashが変わっていればYAMLが変わる可能性があるのでdrift扱いで十分ではないか？
+    
+  - A: Accepted conservative source hash drift detection without generating YAML: compiled hit hashes, fallback source-key comparison, and removal of independent layout validation.
+- U12:
+    A
+    
+  - A: Consolidated source-only drift scope, retained same-source failure fallback, and asked final consensus while keeping YAML-only edits under generate --check.
+- U13:
+    A
+    
+  - A: Delivered the agreed implementation request; no implementation had started.
+- U14:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、task artifact準備時のsource不一致を、fallbackで救済せずYAML driftとして停止するよう変更してください。
+    
+    あわせて、不要になる `expected-layout` のAction input、CLI option、fingerprint計算・検証を削除してください。
+    
+    ## 目的
+    - source変更後の古い生成YAMLによるtask実行を防ぐ。
+    - YAMLへの影響を分析せず、source変更を保守的にdriftとして扱う。
+    - 独立したtask layout検証と、source不一致時の救済処理を削除する。
+    - cache hit時の外部Deno不要という動作を維持する。
+    
+    ## 成功条件
+    - 正常なartifactのcache hitでは、埋め込みmodule一覧・相対path・hashをcheckoutと照合し、外部Denoや依存取得なしで準備・task実行できる。
+    - hit経路で追跡sourceの変更・欠落を検出したら、再generateが必要なdriftとして停止する。fallback buildやDeno導入へ進まない。
+    - fallback経路では、現在のsource-keyを計算し、生成YAMLから渡された期待keyと一致する場合だけbuild・準備を続ける。
+    - fallback経路のsource-key不一致では、build・runtimeの公開・task実行へ進まず停止する。
+    - cache miss、restore失敗、artifact破損、起動失敗は、sourceが一致する場合のfallback対象として維持する。
+    - `expected-layout` が生成YAML、composite Action、内部CLI、runtime検証からなくなる。
+    - drift判定のためにYAML再生成、YAML比較、依存graphの独自実装、新しいmetadata生成物を追加しない。
+    - diagnosticsからsource driftとartifact準備失敗を区別できる。
+    - 関連テスト、README、ARCHITECTURE、snapshot、生成YAMLが最終動作と整合する。
+    
+    ## 決定事項
+    - source hashの変更・欠落を、YAMLに影響する可能性があるdriftとして停止する。
+      - 理由: task本体だけでなくworkflow全体が古い定義で動く可能性があり、その継続を救済する利用者メリットは複雑さに見合わない。
+      - 主な棄却案: source-key不一致でも現在sourceをbuild・実行する方式。古いYAMLの条件、inputs、task対応などの整合性を別途保証する必要があるため。
+    
+    - hit経路では既存の埋め込みmodule一覧・hashを利用する。
+      - 理由: 外部Deno、graph再取得、YAML生成なしで追跡sourceの変更を検出できる。
+      - 主な棄却案: hit時に `deno info` または `generate --check` を実行する方式。外部Denoと依存解決への依存を戻すため。
+    
+    - fallback経路では、既存のsource-key計算結果を期待keyと比較して停止を判断する。
+      - 理由: fallback時には外部Denoが利用可能で、既存の `deno info` による計算を再利用できる。
+      - 主な棄却案: 不一致時に別keyでbuild・実行する方式。driftの継続を許すため。
+    
+    - `expected-layout` を削除する。
+      - 理由: source変更をすべて停止するため、変更後のtask配置だけを追加判定する必要がなくなる。
+      - 主な棄却案: layout検証の維持・拡張。source hashによる保守的な停止に対して不要な検証となるため。
+    
+    - YAMLだけの直接編集はprepareのdrift検出対象に含めない。
+      - 理由: 今回はsource hashによる軽量な判定に絞る。
+      - 主な棄却案: artifactからYAMLを再生成して比較する方式。今回不要な処理を増やすため。
+      - 既存の `generate --check` は維持し、YAMLの直接編集や生成結果の厳密な比較はそちらが担う。
+    
+    ## 制約
+    - 以前の「生成時と実行時のsourceキーが異なってもbuild・実行できる」という要件は、今回の停止方針で置き換える。
+    - `cache → prepare` の独立した2 step、release元SHAで固定するcomposite Action、このrepoの明示的なlocal Action指定、`runtime-path` outputを維持する。
+    - sourceキーの計算定義と、到達可能なproject外ローカルmoduleの追跡範囲を維持する。
+    - remote module、lockfile、Deno設定・versionなどの自動追跡対象外入力に対する `cacheVersion` の役割を維持する。
+    - artifactのformat、platform、manifest、binary checksumなど、layout以外の既存検証を維持する。
+    - artifactの検証失敗・起動失敗と、追跡sourceのdriftを混同しない。
+    - hit経路でsource driftを検出した場合、外部Denoの探索・version検証・install・依存取得を行わない。
+    - fallback時のDeno選択は現行方式を維持する。PATHにあればそのbinaryを使い、不在時だけrepo toolchainと一致するpinをinstallする。最低versionの検証はTS共通入口が担う。
+    - アプリ用Denoの設定・binary・lockfile、後続stepのPATHを変更しない。
+    - task本体の実行失敗をprepare失敗としてfallback・再実行しない。
+    - 通常の利用者に追加の設定・metadata管理を要求しない。
+    
+    ## 対象外
+    - prepare内でのYAML生成・比較。
+    - YAMLだけの直接編集の検出。
+    - 自動追跡対象外入力の追跡範囲拡張。
+    - 依存graph取得方式の変更。
+    - Deno導入方式やActionのrelease対応方式の再設計。
+    - 実際のpublish・release・deploy。
+    
+    ## 未検証の前提
+    - restoreの失敗が現在どのexit status・error typeでBashへ伝わり、source driftをterminal failureとして区別する最小の変更がどこに必要か。
+    - 現在のfallback準備処理で、source-key比較より前に行われる処理と、副作用を停止すべき位置。
+    - layout fingerprintを生成・検証以外の内部処理やテストが参照している範囲。
+    - drift停止後のtransport cache directoryの扱いと、`actions/cache` の保存条件との整合性。
+    
+    ## 実装時の指示
+    - 主な関連箇所は `.github/actions/task-prepare/action.yml`、`.github/actions/task-prepare/prepare.sh`、`src/compiler/authoring.ts`、`src/runner/main.ts`、`src/task-runtime/prepare.ts`。
+    - 現行hit経路のmodule hash照合を再利用し、source変更・欠落を検出した際の結果をscriptまで伝えて停止させる。artifact破損などによるfallbackは維持する。
+    - fallback経路では現在sourceのkeyを計算した後、不一致なら準備を失敗させる。現在の「診断を記録し、古いdelivery directoryを削除して継続する」処理を見直す。
+    - driftのerrorは再generateが必要であることを説明する。観測面ではartifact破損や起動失敗と区別可能にする。
+    - layout fingerprint、`expectedLayouts`、`--expect-layout`、Actionの `expected-layout` inputなど、不要になる実装本体と参照を削除する。
+    - 外部Denoなしの正常hit、hit時のsource変更・欠落による停止、fallback時のkey不一致によるbuild前停止、source一致時のcache miss・破損・起動失敗からの復旧を検証する。
+    - drift停止時にtaskが実行されず、hit時にはDeno導入も起こらないことを確認する。
+    - READMEとARCHITECTUREのsource不一致時の継続・layout検証に関する説明を更新する。
+    - 関連テスト・snapshotを更新し、正規generateで生成YAMLから `expected-layout` を除去して `generate --check` を確認する。
+    
+  - A: Applied develop-repository, design-program-observability and repository design-review guidance, confirmed clean main at 9b0c832, inspected source/docs/tests and release workflow, proposed patch release impact, and fetched code/notes. Started implementing drift status and layout removal.
+- U15:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_bkinM4vknkMysuszegwHLTT1\",0]","question":"このtaskは古いYAMLによる実行を防ぐ修正なので、commitをpatch release対象（fix）にする方針を提案します。patchで進めてよいですか？ develop-repository skillの「Agree on commit release impact」により、release workflowがあるrepoではcommit前に合意が必要です。","answer":"patch release対象にする"}]
+    </send_user_message_question_reply>
+  - A: Patch release was approved. Implemented terminal restore status 3/source_drift, shell stop before Deno, fallback key comparison before side effects, removal of layout/fingerprints/options, and updated E2E/docs/generated YAML. A mistaken source-merge command was rejected by automatic review before execution; corrected notes-only merge was already up to date. Fixed lint/type failures caused by making lowering synchronous. Checks, generate --check and initial full 111 tests passed. Fresh read-only reviewer found fallback registry-empty validation preceding drift comparison; reordered source key comparison and added last-task-removal regression. Final mise run check passed, full mise run test passed all 111 tests (42s), generate --check passed, and delta independent review confirmed the finding resolved with no further defects. Reviewed snapshot matched the committed diff. Created signed local commit bd6fa5c41ac0b443f66aa7535bdd15fb6516113a; no push/publish/release/deploy. Task-note history was rechecked across 5 root segments and all 15 human messages matched before saving.
