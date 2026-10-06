@@ -144,6 +144,10 @@ Deno.test("release publication verifies JSR before deployment, propagates failur
 });
 
 Deno.test("release archive binds generation to its committed Action and rejects dirty or unrelated checkout identity", async () => {
+  const workflowEnvironment = {
+    GITHUB_ACTIONS: Deno.env.get("GITHUB_ACTIONS"),
+    GITHUB_SHA: Deno.env.get("GITHUB_SHA"),
+  };
   const cwd = await Deno.makeTempDir({ prefix: "tsugiori-release-source-" });
   const git = async (args: string[]) => {
     const result = await new Deno.Command("git", {
@@ -188,6 +192,14 @@ Deno.test("release archive binds generation to its committed Action and rejects 
       "fixture",
     ]);
     const sha = await git(["rev-parse", "HEAD"]);
+    Deno.env.set("GITHUB_ACTIONS", "true");
+    Deno.env.set("GITHUB_SHA", "0".repeat(40));
+    await assertRejects(
+      () => releaseSource("0.2.0", cwd),
+      Error,
+      "differs from the workflow commit",
+    );
+    Deno.env.set("GITHUB_SHA", sha);
     const files = await releaseSource("0.2.0", cwd);
     await withSource(files, async (directory) => {
       const { generateFiles }:
@@ -237,6 +249,10 @@ Deno.test("release archive binds generation to its committed Action and rejects 
       "committed checkout",
     );
   } finally {
+    for (const [name, value] of Object.entries(workflowEnvironment)) {
+      if (value === undefined) Deno.env.delete(name);
+      else Deno.env.set(name, value);
+    }
     await Deno.remove(cwd, { recursive: true });
   }
 });
