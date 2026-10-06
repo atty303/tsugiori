@@ -201,7 +201,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   assertStringIncludes(yaml, 'persist-credentials: "false"');
   assertStringIncludes(
     yaml,
-    "\"$deno_binary\" run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout '.github/workflows/ci.yml/test=sha256:",
+    'expected-layout: ".github/workflows/ci.yml/test=sha256:',
   );
   assertStringIncludes(
     yaml,
@@ -209,7 +209,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
   );
   assertStringIncludes(
     yaml,
-    "\"$deno_binary\" run --frozen=true -A './tsugiori.ts' github-actions task prepare --expect-layout '.github/workflows/ci.yml/test=sha256:",
+    'expected-layout: ".github/workflows/ci.yml/test=sha256:',
   );
   assertStringIncludes(
     yaml,
@@ -304,11 +304,8 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
   const prepareStep = steps.find((step) =>
     step.name === "Prepare task artifact"
   );
-  assert(prepareStep?.type === "run");
-  assertStringIncludes(
-    prepareStep.run,
-    "--expected-key 'unresolved'",
-  );
+  assert(prepareStep?.type === "uses");
+  assertEquals(prepareStep.with?.["source-key"], "unresolved");
 });
 
 Deno.test("workflow states are immutable and dependencies use prior job references", async () => {

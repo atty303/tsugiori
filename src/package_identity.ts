@@ -4,3 +4,13 @@ export const TSUGIORI_PACKAGE_NAME = metadata.name;
 export const TSUGIORI_PACKAGE_VERSION = metadata.version;
 export const TSUGIORI_PACKAGE_IDENTITY =
   `${TSUGIORI_PACKAGE_NAME}@${TSUGIORI_PACKAGE_VERSION}`;
+
+// Release packaging stamps this value from the verified source commit.
+export const TSUGIORI_RELEASE_COMMIT: string | undefined = undefined;
+
+export function taskPrepareAction(localPath?: string): string | undefined {
+  if (localPath !== undefined) return localPath;
+  return TSUGIORI_RELEASE_COMMIT === undefined
+    ? undefined
+    : `atty303/tsugiori/.github/actions/task-prepare@${TSUGIORI_RELEASE_COMMIT}`;
+}

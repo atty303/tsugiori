@@ -1,6 +1,6 @@
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { archive, digest, unarchive } from "./archive.ts";
-import { verifyContent } from "./package.ts";
+import { releaseSource, verifyContent, withSource } from "./package.ts";
 import { publishRelease } from "./publish.ts";
 import { Recording } from "./diagnostics.ts";
 
@@ -15,8 +15,18 @@ function source() {
           version: "0.1.0",
           license: "MIT",
           exports: { "./github-actions": "./mod.ts" },
-          publish: { include: ["deno.json", "mod.ts"] },
+          publish: {
+            include: ["deno.json", "mod.ts", "src/package_identity.ts"],
+          },
         }),
+      ),
+    ],
+    [
+      "src/package_identity.ts",
+      encode(
+        `export const TSUGIORI_RELEASE_COMMIT: string | undefined = "${
+          "a".repeat(40)
+        }";\n`,
       ),
     ],
     ["mod.ts", encode("export const answer = 42;\n")],
@@ -130,5 +140,103 @@ Deno.test("release publication verifies JSR before deployment, propagates failur
   } finally {
     globalThis.fetch = original;
     await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("release archive binds generation to its committed Action and rejects dirty or unrelated checkout identity", async () => {
+  const cwd = await Deno.makeTempDir({ prefix: "tsugiori-release-source-" });
+  const git = async (args: string[]) => {
+    const result = await new Deno.Command("git", {
+      args,
+      cwd,
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stderr));
+    return new TextDecoder().decode(result.stdout).trim();
+  };
+  const copy = async (source: string, destination: string) => {
+    await Deno.mkdir(destination, { recursive: true });
+    for await (const entry of Deno.readDir(source)) {
+      if (entry.isDirectory) {
+        await copy(`${source}/${entry.name}`, `${destination}/${entry.name}`);
+      } else if (entry.isFile) {
+        await Deno.copyFile(
+          `${source}/${entry.name}`,
+          `${destination}/${entry.name}`,
+        );
+      }
+    }
+  };
+  try {
+    await copy("src", `${cwd}/src`);
+    await copy(".github/actions", `${cwd}/.github/actions`);
+    for (const file of ["README.md", "deno.json", "mise.toml", "mise.lock"]) {
+      await Deno.copyFile(file, `${cwd}/${file}`);
+    }
+    await git(["init", "-q"]);
+    await git(["add", "."]);
+    await git([
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-qm",
+      "fixture",
+    ]);
+    const sha = await git(["rev-parse", "HEAD"]);
+    const files = await releaseSource("0.2.0", cwd);
+    await withSource(files, async (directory) => {
+      const { generateFiles }:
+        typeof import("../../src/compiler/generator.ts") = await import(
+          `file://${directory}/src/compiler/generator.ts`
+        );
+      const { defineProject, defineWorkflow }:
+        typeof import("../../src/github_actions/mod.ts") = await import(
+          `file://${directory}/src/github_actions/mod.ts`
+        );
+      const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+        "test",
+        ({ job }) =>
+          job.runsOn("ubuntu-latest").task({
+            name: "Test",
+            inputs: {},
+            outputs: {},
+            run: () => {},
+          }),
+      );
+      const generated = await generateFiles(
+        defineProject({ workflows: [workflow] }),
+        "./workflows.ts",
+        "source",
+      );
+      assertEquals(
+        generated[0].content.includes(
+          `uses: atty303/tsugiori/.github/actions/task-prepare@${sha}`,
+        ),
+        true,
+      );
+    });
+    await Deno.writeTextFile(
+      `${cwd}/.github/actions/task-prepare/prepare.sh`,
+      "changed",
+    );
+    await assertRejects(
+      () => releaseSource("0.2.0", cwd),
+      Error,
+      "committed checkout",
+    );
+    await git(["checkout", "--", ".github/actions/task-prepare/prepare.sh"]);
+    await Deno.writeTextFile(`${cwd}/src/untracked.ts`, "changed");
+    await assertRejects(
+      () => releaseSource("0.2.0", cwd),
+      Error,
+      "committed checkout",
+    );
+  } finally {
+    await Deno.remove(cwd, { recursive: true });
   }
 });

@@ -82,6 +82,13 @@ export function metadata(
       !files.has(path.slice(2))
     ) throw new Error("Archive is missing an export");
   }
+  const identity = decoder.decode(files.get("src/package_identity.ts"));
+  if (
+    !/export const TSUGIORI_RELEASE_COMMIT: string \| undefined = "[0-9a-f]{40}";/
+      .test(identity)
+  ) {
+    throw new Error("Archive has no release source commit SHA");
+  }
   const included = value.publish?.include;
   if (
     !Array.isArray(included) || included.length !== files.size ||
@@ -107,51 +114,112 @@ export async function readSource(
   return files;
 }
 
+async function git(args: readonly string[], cwd: string): Promise<string> {
+  const result = await new Deno.Command("git", {
+    args: [...args],
+    cwd,
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+  if (!result.success) throw new Error("Cannot read release source commit");
+  return decoder.decode(result.stdout);
+}
+
+export async function releaseSource(
+  version: string,
+  cwd = Deno.cwd(),
+): Promise<Files> {
+  const commit = (await git(["rev-parse", "HEAD"], cwd)).trim();
+  if (!/^[0-9a-f]{40}$/.test(commit)) {
+    throw new Error("Invalid release source commit SHA");
+  }
+  const workflowCommit = Deno.env.get("GITHUB_ACTIONS") === "true"
+    ? Deno.env.get("GITHUB_SHA")
+    : undefined;
+  if (workflowCommit !== undefined && workflowCommit !== commit) {
+    throw new Error("Release source commit differs from the workflow commit");
+  }
+  const paths = [
+    "src",
+    "README.md",
+    "deno.json",
+    ".github/actions/task-prepare",
+    "mise.toml",
+    "mise.lock",
+  ];
+  if (
+    (await git([
+      "status",
+      "--porcelain",
+      "--untracked-files=all",
+      "--",
+      ...paths,
+    ], cwd)).trim()
+  ) {
+    throw new Error(
+      "Release package and Action source must match the committed checkout",
+    );
+  }
+  const files = new Map<string, Uint8Array>();
+  for (
+    const path
+      of (await git(["ls-tree", "-r", "--name-only", commit, "src"], cwd))
+        .trim().split("\n")
+  ) {
+    if (!/\.(ts|json)$/.test(path)) {
+      throw new Error(`Unsupported package source: ${path}`);
+    }
+    files.set(
+      path,
+      encoder.encode(await git(["show", `${commit}:${path}`], cwd)),
+    );
+  }
+  // Read the immutable Git tree, rather than possibly changing working files.
+  files.set(
+    "README.md",
+    encoder.encode(await git(["show", `${commit}:README.md`], cwd)),
+  );
+  await git(["show", `${commit}:.github/actions/task-prepare/action.yml`], cwd);
+  await git(["show", `${commit}:.github/actions/task-prepare/prepare.sh`], cwd);
+  const identityPath = "src/package_identity.ts";
+  const identity = decoder.decode(files.get(identityPath));
+  const declaration =
+    "export const TSUGIORI_RELEASE_COMMIT: string | undefined = undefined;";
+  if (identity.split(declaration).length !== 2) {
+    throw new Error("Missing release commit declaration");
+  }
+  files.set(
+    identityPath,
+    encoder.encode(
+      identity.replace(
+        declaration,
+        `export const TSUGIORI_RELEASE_COMMIT: string | undefined = "${commit}";`,
+      ),
+    ),
+  );
+  const root = JSON.parse(await git(["show", `${commit}:deno.json`], cwd));
+  if (root.name !== packageName || !root.license) {
+    throw new Error("Package name/license is missing");
+  }
+  // Validate publication without the development workspace or import map.
+  const value = {
+    name: root.name,
+    version,
+    license: root.license,
+    exports: root.exports,
+    publish: { include: [...files.keys(), "deno.json"].sort() },
+  };
+  files.set("deno.json", encoder.encode(JSON.stringify(value, null, 2) + "\n"));
+  metadata(files, version);
+  return files;
+}
+
 export async function build(
   version: string,
   directory: string,
   record: Recording,
 ): Promise<void> {
-  const files = await record.operation("build", async () => {
-    const result = await new Deno.Command("git", {
-      args: ["ls-files", "-z", "src"],
-      stdout: "piped",
-      stderr: "inherit",
-    }).output();
-    if (!result.success) throw new Error("Cannot enumerate package source");
-    const files = new Map<string, Uint8Array>();
-    for (
-      const path of decoder.decode(result.stdout).split("\0").filter(Boolean)
-    ) {
-      if (!/\.(ts|json)$/.test(path)) {
-        throw new Error(`Unsupported package source: ${path}`);
-      }
-      if (!(await Deno.lstat(path)).isFile) {
-        throw new Error(`Package source is not a regular file: ${path}`);
-      }
-      files.set(path, await Deno.readFile(path));
-    }
-    files.set("README.md", await Deno.readFile("README.md"));
-    const root = JSON.parse(await Deno.readTextFile("deno.json"));
-    if (root.name !== packageName || !root.license) {
-      throw new Error("Package name/license is missing");
-    }
-    // Removing development import maps makes unresolved bare imports fail validation,
-    // rather than silently introducing publish-time source transformations.
-    const value = {
-      name: root.name,
-      version,
-      license: root.license,
-      exports: root.exports,
-      publish: { include: [...files.keys(), "deno.json"].sort() },
-    };
-    files.set(
-      "deno.json",
-      encoder.encode(JSON.stringify(value, null, 2) + "\n"),
-    );
-    metadata(files, version);
-    return files;
-  });
+  const files = await record.operation("build", () => releaseSource(version));
   await record.operation(
     "validate",
     () =>

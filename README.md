@@ -99,8 +99,7 @@ Set the Deno project's `tsugiori` task as in
 [.github/deno.json](.github/deno.json). Workflow paths are relative to the Deno
 project directory, taken from `Deno.cwd()`. Deno tasks set that directory to
 the task project; direct invocation must run from the same directory.
-`workingDirectory` sets the native Actions working directory only for artifact
-preparation steps. Normal run steps and task bodies keep native job/step defaults.
+`workingDirectory` selects the project directory inside the preparation Action. Normal run steps and task bodies keep native job/step defaults.
 The project directory supplies Deno imports and its lockfile. Top-level
 authoring code should construct deterministic definitions; task work belongs
 inside `.task()` callbacks.
@@ -132,7 +131,8 @@ automatic artifact key; increase `cacheVersion` when they change the task
 binary.
 
 Task-backed jobs include two visible preparation steps: `actions/cache`, then
-prepare. Generation uses `deno info` to compute a source key and embeds it in
+this release's composite preparation Action, pinned to its source commit SHA.
+Generation uses `deno info` to compute a source key and embeds it in
 YAML; the cache key also includes the runner's OS and architecture. Regenerate
 and commit YAML after tracked source changes. `generate --check` detects stale
 source keys even when the workflow structure is unchanged.
@@ -149,11 +149,17 @@ and are not retried by preparation.
 Tsugiori source commands require Deno **2.6.0 or newer**, checked at the common
 `runProject` entrypoint. Local commands report an insufficient version and do
 not install Deno. Import or syntax failures on older runtimes can occur before
-that check. CI fallback reuses a suitable Deno on PATH; otherwise it downloads
-the latest stable official ZIP into a temporary private directory. Preparation
+that check. CI fallback uses Deno on PATH unchanged; an insufficient version
+fails at the same source entrypoint without automatic replacement. Only when
+Deno is absent does it download the official ZIP at the Action's pinned version,
+matching Tsugiori's tested development toolchain, into a temporary private directory. Preparation
 uses that binary explicitly for all subprocesses, removes downloaded tools on
 exit, and leaves application Deno settings, lockfiles, and later steps' PATH
-alone. No separate setup action, Deno cache, or runner tool-cache lookup is used.
+alone. No Deno cache or runner tool-cache lookup is used.
+A source checkout without release identity must explicitly set
+`localTaskPrepareAction` to a checkout-relative path such as
+`"./.github/actions/task-prepare"` to generate task-backed workflows. Released
+packages select their Action automatically.
 
 Runtime binaries are stored outside the repository in the platform cache's
 `tsugiori/runtimes/` directory (`XDG_CACHE_HOME` overrides the base;

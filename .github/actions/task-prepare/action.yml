@@ -1,0 +1,39 @@
+name: Prepare Tsugiori task artifact
+description: Internal preparation bridge for generated Tsugiori workflows.
+inputs:
+  project-directory:
+    description: Project directory relative to the Actions workspace.
+    required: true
+  entrypoint:
+    description: Executable project module relative to the project directory.
+    required: true
+  expected-layout:
+    description: Expected task layout fingerprint.
+    required: true
+  source-key:
+    description: Source identity embedded during generation.
+    required: true
+  cache-directory:
+    description: Restored artifact transport directory.
+    required: true
+outputs:
+  runtime-path:
+    description: Absolute path of the prepared compiled runtime.
+    value: ${{ steps.prepare.outputs.runtime-path }}
+runs:
+  using: composite
+  steps:
+    - id: prepare
+      shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        TSUGIORI_PROJECT_DIRECTORY: ${{ inputs.project-directory }}
+        TSUGIORI_ENTRYPOINT: ${{ inputs.entrypoint }}
+        TSUGIORI_EXPECTED_LAYOUT: ${{ inputs.expected-layout }}
+        TSUGIORI_SOURCE_KEY: ${{ inputs.source-key }}
+        TSUGIORI_ARTIFACT_CACHE: ${{ inputs.cache-directory }}
+        TSUGIORI_RUNNER_OS: ${{ runner.os }}
+        TSUGIORI_RUNNER_ARCH: ${{ runner.arch }}
+        TSUGIORI_INSTALL_DENO_VERSION: "2.9.5"
+        TSUGIORI_ACTION_PATH: ${{ github.action_path }}
+      run: bash "$TSUGIORI_ACTION_PATH/prepare.sh"

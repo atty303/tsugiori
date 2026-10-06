@@ -4,7 +4,8 @@ import {
   assertRejects,
   assertStringIncludes,
 } from "@std/assert";
-import { resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
+import { parse } from "../src/deps.ts";
 import { pathToFileURL } from "node:url";
 import { sha256Bytes, sha256File } from "../src/task-runtime/artifact.ts";
 import { removeIfPresent } from "../src/task-runtime/cache.ts";
@@ -35,7 +36,8 @@ Deno.test({
         `
 import { defineProject, defineWorkflow, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
-const project = defineProject({ workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
+const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {},
     outputs: { result: { contract: textValue(), required: true } },
     run: async (ctx) => {
@@ -53,6 +55,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       await Deno.mkdir(tools);
       for (
         const command of [
+          "bash",
           "mkdir",
           "chmod",
           "ls",
@@ -100,18 +103,42 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assert(!yaml.includes("Resolve task artifact"));
       assertStringIncludes(yaml, "runner.os");
       assertStringIncludes(yaml, "runner.arch");
-      const script = yaml.match(
-        /name: Prepare task artifact[\s\S]*?run: \|-\n((?: {10}.*\n)+)/,
-      )?.[1]
-        .split("\n").filter((line) => line.length > 0).map((line) =>
-          line.slice(10)
-        ).join("\n");
-      assert(script !== undefined);
+      const actionPath = resolve(Deno.cwd(), ".github/actions/task-prepare");
+      const action = parse(
+        await Deno.readTextFile(resolve(actionPath, "action.yml")),
+      ) as {
+        runs: {
+          steps: {
+            run: string;
+            env: Record<string, string>;
+            "working-directory": string;
+          }[];
+        };
+        outputs: { "runtime-path": { value: string } };
+      };
+      const step = action.runs.steps[0];
+      assertEquals(step["working-directory"], "${{ github.workspace }}");
+      assertEquals(
+        action.outputs["runtime-path"].value,
+        "${{ steps.prepare.outputs.runtime-path }}",
+      );
+      assertStringIncludes(yaml, "uses: ./.github/actions/task-prepare");
+      assert(!yaml.includes("deno_binary"));
+      const expectedLayout = yaml.match(
+        /workflows\/ci[.]yml\/test=sha256:[0-9a-f]+/,
+      )?.[0];
+      assert(expectedLayout !== undefined);
       const sourceKey = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
       assert(sourceKey !== undefined);
       const prepare = async (extra: Record<string, string> = {}) => {
         await Deno.writeTextFile(output, "");
-        return await run("/bin/bash", ["-c", script], fixture, {
+        return await run("/bin/bash", ["-c", step.run], dirname(fixture), {
+          TSUGIORI_ACTION_PATH: actionPath,
+          TSUGIORI_PROJECT_DIRECTORY: basename(fixture),
+          TSUGIORI_ENTRYPOINT: "./workflows.ts",
+          TSUGIORI_EXPECTED_LAYOUT: expectedLayout,
+          TSUGIORI_SOURCE_KEY: sourceKey,
+          TSUGIORI_INSTALL_DENO_VERSION: step.env.TSUGIORI_INSTALL_DENO_VERSION,
           ...environment,
           ...extra,
         });
@@ -121,7 +148,6 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       const invocations = await Deno.readTextFile(invocationLog);
       for (
         const command of [
-          "--version",
           "run --frozen=true",
           "info --json",
           "compile -A",
@@ -310,19 +336,22 @@ exit 1
       );
       await Deno.chmod(resolve(tools, "curl"), 0o755);
       await Deno.symlink("/usr/bin/unzip", resolve(tools, "unzip"));
-      for (const selection of ["absent", "old"]) {
+      {
         await Deno.remove(resolve(fixture, "test-cache/tsugiori/cache"), {
           recursive: true,
         });
         await Deno.remove(delivery, { recursive: true });
-        if (selection === "absent") await Deno.remove(resolve(tools, "deno"));
-        else {
-          await Deno.writeTextFile(
-            resolve(tools, "deno"),
-            '#!/bin/bash\necho "deno 1.0.0"\n',
-          );
-          await Deno.chmod(resolve(tools, "deno"), 0o755);
-        }
+        const beforeOld = await Deno.readTextFile(invocationLog);
+        const old = await prepare({ TEST_OLD_VERSION: "1" });
+        assertEquals(old.code, 1);
+        assertStringIncludes(old.stderr, "requires Deno >= 2.6.0; found 2.5.0");
+        const oldCalls = (await Deno.readTextFile(invocationLog)).slice(
+          beforeOld.length,
+        );
+        assertStringIncludes(oldCalls, "run --frozen=true");
+        assert(!oldCalls.includes("--version"));
+        await assertRejects(() => Deno.stat(downloads), Deno.errors.NotFound);
+        await Deno.remove(resolve(tools, "deno"));
         const downloaded = await prepare({
           TEST_DENO: Deno.execPath(),
           DENO_ZIP: archive,
@@ -342,7 +371,7 @@ exit 1
         }
         assertStringIncludes(
           await Deno.readTextFile(downloads),
-          `https://github.com/denoland/deno/releases/latest/download/deno-${Deno.build.target}.zip`,
+          `https://github.com/denoland/deno/releases/download/v${step.env.TSUGIORI_INSTALL_DENO_VERSION}/deno-${Deno.build.target}.zip`,
         );
         for await (const entry of Deno.readDir(fixture)) {
           assert(!entry.name.startsWith("tsugiori-deno."));
@@ -350,7 +379,6 @@ exit 1
         assertEquals(environment.PATH, tools);
       }
       // Reuse the existing app binary without replacing it or changing PATH.
-      await Deno.remove(resolve(tools, "deno"));
       await Deno.symlink(Deno.execPath(), resolve(tools, "deno"));
       await Deno.writeTextFile(
         resolve(fixture, "dependency.ts"),
@@ -510,7 +538,7 @@ const ci = defineWorkflow("workflows/ci.yml", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
 );
-const project = defineProject({ cacheVersion, workflows: [ci] });
+const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", cacheVersion, workflows: [ci] });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `;
@@ -635,7 +663,7 @@ Deno.test({
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
 import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
-const project = defineProject({ workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
+const project = defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
 }))] });
@@ -663,7 +691,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       const workflow = await Deno.readTextFile(
         resolve(project, "workflows/ci.yml"),
       );
-      assertStringIncludes(workflow, "working-directory: ci/workflows");
+      assertStringIncludes(workflow, "project-directory: ci/workflows");
       assertStringIncludes(workflow, "./workflows.ts");
       const expectedLayout = workflow.match(
         /workflows\/ci\.yml\/test=sha256:[0-9a-f]+/,
@@ -733,7 +761,7 @@ Deno.test("local graph keys remain portable when the project and outside imports
 import { marker } from "../outside.ts";
 import { defineProject, defineWorkflow } from "./src/github_actions.ts";
 void marker;
-export default defineProject({ workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+export default defineProject({ localTaskPrepareAction: "./.github/actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", inputs: {}, outputs: {}, run: () => {} }))] });
 `,
     );
@@ -755,7 +783,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
     assertEquals(generated.code, 0, generated.stderr);
     const yaml = await Deno.readTextFile(resolve(project, "workflows/ci.yml"));
     assert(yaml.startsWith("# Generated by Tsugiori from workflows.ts\n"));
-    assertStringIncludes(yaml, "'./workflows.ts' github-actions task");
+    assertStringIncludes(yaml, "entrypoint: ./workflows.ts");
     assert(!yaml.includes("definition.ts"));
     const baseline = await resolveSourceArtifactKey(
       project,

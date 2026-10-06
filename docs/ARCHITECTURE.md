@@ -145,7 +145,7 @@ within the job. Generated preparation steps include a job-layout fingerprint
 so changed task ordering is detected before dispatch.
 
 Each task-backed job contains a pinned `actions/cache` step followed by a normal
-Bash preparation step. The backend embeds a generate-time source key in YAML
+composite preparation Action provided by this repository. The backend embeds a generate-time source key in YAML
 and combines it with GitHub's runner OS and architecture for cache delivery.
 Generation and fallback builds share the `deno info` local-source identity
 calculation. `generate --check` guards source-key changes as well as structure.
@@ -166,16 +166,19 @@ validation failure, or startup failure leads to source preparation. A startup
 failure forces a rebuild and prevents reuse of a published runtime with the
 failed binary checksum. Rejected checksums are retained outside immutable
 runtime directories and consulted by both restore and source preparation. It reuses
-Deno >= 2.6.0 from PATH or downloads the latest stable official platform ZIP
-into an invocation-owned temporary directory. The selected absolute binary
+the Deno binary on PATH unchanged. If absent, it downloads the official platform
+ZIP at the pin in the Action, verified against this repository's mise toolchain,
+into an invocation-owned temporary directory. An old PATH binary fails without
+replacement. The selected absolute binary
 path is propagated to graph and compile subprocesses; the shell cleans up its
 download and does not change the application's toolchain or later steps' PATH.
-The same minimum-version definition drives shell selection and the source
-`runProject` gate. The compiled path does not check external Deno. Task-body
+Only the source `runProject` gate enforces the minimum Deno version. The compiled path does not check external Deno. Task-body
 execution happens in subsequent native Actions steps and never triggers
 preparation fallback.
 
-Artifact preparation uses the project's native `workingDirectory`; normal
+The Action passes the project's `workingDirectory` to its own script, referenced
+through the Action's absolute directory. Its `runtime-path` output forwards the
+inner prepare step's output. Normal
 steps and task bodies retain native defaults. Transport artifacts live under
 `runner.temp/tsugiori-artifacts/<source-key>-<runner-os>-<runner-arch>/`.
 Runner-local build caches and immutable runtimes live under the platform cache's
@@ -286,7 +289,13 @@ and the release workflow; generated YAML stays visible and checked in. Regular r
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,
 version injection and JSR publication from the extracted archive. Development
-metadata is never written back by a release.
+metadata is never written back by a release. Packaging verifies relevant package,
+Action, and toolchain files match HEAD and, on Actions, that HEAD matches the
+workflow SHA. It reads the immutable Git tree and stamps that SHA into the existing
+package identity module. Generated preparation references use this release commit;
+they never consult the consumer's Git HEAD. Tsugiori's own project explicitly
+selects a checkout-local Action to avoid self-referential generated commit keys.
+Task-backed generation without either release identity or a local override fails.
 
 `release:build` also builds the Worker into ignored local `dist/` storage before
 any publication. `release:publish` publishes or verifies the JSR version, then

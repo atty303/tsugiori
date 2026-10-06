@@ -12,7 +12,7 @@ import {
 } from "./github_actions/validation.ts";
 
 const ACTIONS_CACHE_COMMIT = "55cc8345863c7cc4c66a329aec7e433d2d1c52a9";
-import { preparationScript } from "../task-runtime/bootstrap.ts";
+import { taskPrepareAction } from "../package_identity.ts";
 const CACHE_STEP_ID = "tsugiori-task-cache";
 const PREPARE_STEP_ID = "tsugiori-task-prepare";
 
@@ -173,6 +173,7 @@ export async function lowerProject(
             projectDirectory,
             prepareStepId,
             sourceKey,
+            taskPrepareAction(project.localTaskPrepareAction) ?? "unresolved",
           ));
           preparationEmitted = true;
         }
@@ -309,6 +310,7 @@ function preparationSteps(
   projectDirectory: string,
   prepareStepId: string,
   sourceKey: string,
+  action: string,
 ): readonly Step[] {
   const cacheStepId = allocateStepId(CACHE_STEP_ID, usedStepIds);
   const suffix = `${sourceKey}-\${{ runner.os }}-\${{ runner.arch }}`;
@@ -326,17 +328,17 @@ function preparationSteps(
       with: { path: cachePath, key: `tsugiori-task-${suffix}` },
     },
     {
-      type: "run",
+      type: "uses",
       name: "Prepare task artifact",
       id: prepareStepId,
-      workingDirectory: projectDirectory,
-      shell: "bash",
-      env: {
-        TSUGIORI_ARTIFACT_CACHE: cachePath,
-        TSUGIORI_RUNNER_OS: "\${{ runner.os }}",
-        TSUGIORI_RUNNER_ARCH: "\${{ runner.arch }}",
+      uses: action,
+      with: {
+        "project-directory": projectDirectory,
+        entrypoint,
+        "expected-layout": expectedLayout,
+        "source-key": sourceKey,
+        "cache-directory": cachePath,
       },
-      run: preparationScript(entrypoint, expectedLayout, sourceKey),
     },
   ];
 }

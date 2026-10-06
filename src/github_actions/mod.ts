@@ -1332,6 +1332,7 @@ export type AuthoringWorkflow = Readonly<{
 export type ProjectConfig = Readonly<{
   kind: "github-actions.project";
   cacheVersion: number;
+  localTaskPrepareAction?: string;
   workingDirectory: string;
   workflows: readonly AuthoringWorkflow[];
 }>;
@@ -4860,7 +4861,9 @@ export function defineProject<
      * ```
      */
     cacheVersion?: number;
-    /** Native Actions working-directory for artifact preparation only. */
+    /** Checkout-relative Action path for developing Tsugiori itself; released packages select their matching Action automatically. */
+    localTaskPrepareAction?: string;
+    /** Actions project directory for artifact preparation only. */
     workingDirectory?: string;
     /** Completed workflows to generate together, including local reusable callees.
      * @example
@@ -4883,8 +4886,23 @@ export function defineProject<
   if (!Number.isSafeInteger(cacheVersion) || cacheVersion <= 0) {
     throw new TypeError("Cache version must be a positive safe integer.");
   }
+  if (
+    input.localTaskPrepareAction !== undefined &&
+    (!/^\.\/[A-Za-z0-9._/-]+$/.test(
+      input.localTaskPrepareAction,
+    ) ||
+      input.localTaskPrepareAction.includes("//") ||
+      input.localTaskPrepareAction.split("/").includes(".."))
+  ) {
+    throw new TypeError(
+      "Local task prepare Action must be a ./ checkout-relative path without parent traversal.",
+    );
+  }
   return Object.freeze({
     kind: "github-actions.project",
+    ...(input.localTaskPrepareAction === undefined
+      ? {}
+      : { localTaskPrepareAction: input.localTaskPrepareAction }),
     cacheVersion,
     workingDirectory: input.workingDirectory ?? ".",
     workflows: Object.freeze(

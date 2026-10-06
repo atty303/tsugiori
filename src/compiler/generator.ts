@@ -1,5 +1,6 @@
 import type { ProjectConfig } from "../github_actions/mod.ts";
-import { lowerProject } from "./authoring.ts";
+import { taskPrepareAction } from "../package_identity.ts";
+import { AuthoringValidationError, lowerProject } from "./authoring.ts";
 import { emitWorkflow } from "./github_actions/emitter.ts";
 
 export type GeneratedFile = Readonly<{
@@ -19,6 +20,14 @@ export async function generateFiles(
   sourceKey: string,
 ): Promise<readonly GeneratedFile[]> {
   const lowered = await lowerProject(project, entrypointArgument, sourceKey);
+  if (
+    lowered.tasks.length > 0 &&
+    taskPrepareAction(project.localTaskPrepareAction) === undefined
+  ) {
+    throw new AuthoringValidationError([
+      "Task preparation requires a released Tsugiori package with a source commit SHA, or an explicit localTaskPrepareAction checkout path for development.",
+    ]);
+  }
   return lowered.workflows.map((workflow) => ({
     path: workflow.path,
     content: generatedWorkflowHeader(entrypointArgument) +
