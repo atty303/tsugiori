@@ -1,0 +1,13 @@
+Task: Move README API documentation before comparison and push main and notes
+Anchor: bae5578886e3682d348b07d717fa41b761d6a25f
+Base: 2e6c509dab9a4f5b72343bdfc220378684c248e3
+Branch: main
+Commits: bae5578 docs section order only; existing approved documentation-only release policy retained
+Guidance: user AGENTS.md; develop-repository; design-review; git-task-evidence
+Conditions: Current checkout; no example or API changes; sandbox escalation for Git metadata and push; no force push or deploy
+Authority: User explicitly requested main and notes push and then README API section reorder; earlier docs no-release local commit approval applies
+## Transcript
+- U1: push main and notes
+  - A: Began read-only state and remote fetch checks; the turn was interrupted before completion. Authorization remained active.
+- U2: APIをcompareより先にもってきて
+  - A: Moved the complete API documentation section ahead of How it compares with identical section contents. Scoped mise check, Deno formatter check, and git diff --check passed. Created docs commit bae5578. Fetched code and remote notes into a temporary ref; existing remote notes were already incorporated locally. Checked clean worktree and paginated runtime history for both human messages against the active thread. Non-force main push succeeded, advancing origin/main from 2d894a9 to bae5578. Prepared this classified note before notes push and final handoff.
