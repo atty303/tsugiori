@@ -1,12 +1,12 @@
 import {
-  defineTsugiori,
+  defineProject,
+  type ProjectConfig,
   type TestablePipeline,
   type TestJobsOf,
   type TestMatrixOf,
   type TestStepOf,
   type TestStepShape,
   type TestStepsOf,
-  type TsugioriConfig,
 } from "../github_actions/mod.ts";
 import { runScenario } from "./run.ts";
 
@@ -213,7 +213,7 @@ export class InstanceScenario<Job> {
     const child = new PipelineScenario<TestJobsOf<P>>();
     define(child);
     child.program.pipelineId =
-      defineTsugiori({ pipelines: [pipeline] }).pipelines[0].id;
+      defineProject({ pipelines: [pipeline] }).pipelines[0].id;
     this.rules.call = child.program;
     return this;
   }
@@ -343,13 +343,13 @@ export async function scenario<
 >(
   pipeline: Pipeline,
   define: (test: PipelineScenario<TestJobsOf<Pipeline>>) => void,
-  options: Readonly<{ config?: TsugioriConfig; observe?: ScenarioObserver }> =
+  options: Readonly<{ config?: ProjectConfig; observe?: ScenarioObserver }> =
     {},
 ): Promise<ScenarioResult> {
   const builder = new PipelineScenario<TestJobsOf<Pipeline>>();
   define(builder);
-  const primary = defineTsugiori({ pipelines: [pipeline] }).pipelines[0];
-  const config = options.config ?? defineTsugiori({ pipelines: [pipeline] });
+  const primary = defineProject({ pipelines: [pipeline] }).pipelines[0];
+  const config = options.config ?? defineProject({ pipelines: [pipeline] });
   if (!config.pipelines.includes(primary)) {
     throw new ScenarioError(
       "fixture_invalid",

@@ -1,6 +1,6 @@
 import type {
   AuthoringPipeline,
-  TsugioriConfig,
+  ProjectConfig,
 } from "../github_actions/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
 import { isAbsolute, relative } from "node:path";
@@ -49,7 +49,7 @@ export class AuthoringValidationError extends Error {
 }
 
 export async function lowerConfig(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   configArgument: string,
   projectArgument = ".",
 ): Promise<LoweredConfig> {
@@ -70,8 +70,8 @@ export async function lowerConfig(
     ]);
   }
 
-  if (config.kind !== "tsugiori.config") {
-    diagnostics.push("Default export must be created by defineTsugiori().");
+  if (config.kind !== "github-actions.project") {
+    diagnostics.push("Default export must be created by defineProject().");
   }
   if (config.pipelines.length === 0) {
     diagnostics.push("Configuration must contain at least one pipeline.");
@@ -402,7 +402,7 @@ function toHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function validateCalls(config: TsugioriConfig, diagnostics: string[]): void {
+function validateCalls(config: ProjectConfig, diagnostics: string[]): void {
   const pipelines = new Set(config.pipelines);
   const visit = (
     pipeline: AuthoringPipeline,

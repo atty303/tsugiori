@@ -1,8 +1,8 @@
 import {
   type ActionContract,
   definePipeline,
-  defineTsugiori,
-  runTsugiori,
+  defineProject,
+  runProject,
 } from "@atty303/tsugiori/github-actions";
 
 const checkout = {
@@ -96,14 +96,14 @@ const release = definePipeline("release", {
       env: { FNOX_AGE_KEY: ({ secrets }) => secrets.FNOX_AGE_KEY },
     }));
 
-const config = defineTsugiori({
+const config = defineProject({
   cacheVersion: 1,
   pipelines: [ci, release],
 });
 export default config;
 
 if (import.meta.main) {
-  Deno.exitCode = await runTsugiori({
+  Deno.exitCode = await runProject({
     config,
     configUrl: import.meta.url,
     root: new URL("../", import.meta.url),

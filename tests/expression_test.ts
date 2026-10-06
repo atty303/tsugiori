@@ -5,7 +5,7 @@ import {
   caseOf,
   contains,
   definePipeline,
-  defineTsugiori,
+  defineProject,
   endsWith,
   failure,
   format,
@@ -50,7 +50,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
         matrix: steps.source.outputs.matrix,
       }));
     });
-  const config = defineTsugiori({
+  const config = defineProject({
     pipelines: [
       first.job(
         "deploy",
@@ -124,7 +124,7 @@ Deno.test("expression nodes cannot be interpolated as host strings", () => {
 });
 
 Deno.test("a step ID colliding with an expression method is addressable", async () => {
-  const config = defineTsugiori({
+  const config = defineProject({
     pipelines: [
       definePipeline("ci", {
         output: ".github/workflows/ci.yml",
@@ -192,7 +192,7 @@ Deno.test("operators and built-ins retain GitHub expression syntax", () => {
 });
 
 Deno.test("a complete matrix can come from one typed expression", async () => {
-  const config = defineTsugiori({
+  const config = defineProject({
     pipelines: [
       definePipeline("ci", {
         output: ".github/workflows/ci.yml",

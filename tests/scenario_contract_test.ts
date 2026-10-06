@@ -2,7 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
   definePipeline,
-  defineTsugiori,
+  defineProject,
   jsonValue,
   rawExpression,
   scenario,
@@ -517,5 +517,5 @@ Deno.test("common input references follow each trigger and call defaults", async
             return {};
           }));
       }));
-  }, { config: defineTsugiori({ pipelines: [mixed, caller] }) });
+  }, { config: defineProject({ pipelines: [mixed, caller] }) });
 });

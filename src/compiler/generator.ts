@@ -1,4 +1,4 @@
-import type { TsugioriConfig } from "../github_actions/mod.ts";
+import type { ProjectConfig } from "../github_actions/mod.ts";
 import { lowerConfig } from "./authoring.ts";
 import { emitWorkflow } from "./github_actions/emitter.ts";
 
@@ -14,7 +14,7 @@ export function generatedWorkflowHeader(configArgument: string): string {
 }
 
 export async function generateFiles(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   configArgument: string,
   projectArgument: string,
 ): Promise<readonly GeneratedFile[]> {

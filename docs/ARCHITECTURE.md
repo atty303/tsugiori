@@ -28,7 +28,7 @@ provider can have its own entrypoint and import graph without changing the
 GitHub Actions entrypoint. The authoring API uses
 immutable facades: `definePipeline()` groups trigger settings under a native
 `on` object; job methods become available as the definition advances, and
-only a pipeline with a completed, non-empty job can reach `defineTsugiori()`.
+only a pipeline with a completed, non-empty job can reach `defineProject()`.
 Jobs are authored in dependency order, so a new job can reference completed
 jobs. Action steps take a metadata contract or an implementation reference directly
 through `job.uses(contractOrUses, options?)`. Contracts declare input names,
@@ -37,7 +37,7 @@ names. Action values are strings or string expressions, while reusable workflow
 call inputs retain their declared primitive types.
 
 Authoring and task execution share a config file. The file exports a config
-object and calls `runTsugiori()` under `import.meta.main`, passing that object,
+object and calls `runProject()` under `import.meta.main`, passing that object,
 its URL, and the repository root. The Deno project containing that file owns
 import resolution and its lockfile. External projects can map the package name
 to one JSR version; the YAML dependency uses a direct `jsr:` specifier in

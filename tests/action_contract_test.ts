@@ -2,7 +2,7 @@ import { assertEquals, assertThrows } from "@std/assert";
 import {
   type ActionContract,
   definePipeline,
-  defineTsugiori,
+  defineProject,
   literal,
   toJSON,
 } from "../src/github_actions/mod.ts";
@@ -27,7 +27,7 @@ function steps(options: unknown, action: ActionContract | string = contract) {
           options,
         ]),
     );
-  return defineTsugiori({ pipelines: [pipeline] }).pipelines[0].jobs[0].steps;
+  return defineProject({ pipelines: [pipeline] }).pipelines[0].jobs[0].steps;
 }
 Deno.test("direct action contracts retain uses and leave defaults to GitHub", () => {
   assertEquals(steps({ with: { target: "web" } })[0], {

@@ -731,7 +731,7 @@ const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
  *   "release",
  *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
  * );
- * defineTsugiori({ pipelines: [reusable, caller] });
+ * defineProject({ pipelines: [reusable, caller] });
  * ```
  */
 export type ReusablePipeline<
@@ -796,7 +796,7 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  *   "release",
  *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
  * );
- * defineTsugiori({ pipelines: [reusable, caller] });
+ * defineProject({ pipelines: [reusable, caller] });
  * ```
  */
 export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
@@ -829,7 +829,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   "release",
        *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
        * );
-       * defineTsugiori({ pipelines: [reusable, caller] });
+       * defineProject({ pipelines: [reusable, caller] });
        * ```
        */
       with?: CallValues<C>;
@@ -863,7 +863,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   "release",
        *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
        * );
-       * defineTsugiori({ pipelines: [reusable, caller] });
+       * defineProject({ pipelines: [reusable, caller] });
        * ```
        */
       with: CallValues<C>;
@@ -891,7 +891,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   job.reusable().call(deploy, ({ secrets }) => ({
        *     secrets: { token: secrets.DEPLOY_TOKEN },
        *   })));
-       * defineTsugiori({ pipelines: [deploy, caller] });
+       * defineProject({ pipelines: [deploy, caller] });
        * ```
        */
       secrets?: SecretValues<C> | "inherit";
@@ -919,7 +919,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   job.reusable().call(deploy, ({ secrets }) => ({
        *     secrets: { token: secrets.DEPLOY_TOKEN },
        *   })));
-       * defineTsugiori({ pipelines: [deploy, caller] });
+       * defineProject({ pipelines: [deploy, caller] });
        * ```
        */
       secrets: SecretValues<C> | "inherit";
@@ -1360,8 +1360,8 @@ export type AuthoringPipeline = Readonly<{
   permissions?: WorkflowPermissions;
   jobs: readonly AuthoringJob[];
 }>;
-export type TsugioriConfig = Readonly<{
-  kind: "tsugiori.config";
+export type ProjectConfig = Readonly<{
+  kind: "github-actions.project";
   cacheVersion: number;
   pipelines: readonly AuthoringPipeline[];
 }>;
@@ -3620,7 +3620,7 @@ export interface NonEmptyStepState<
  *   "release",
  *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
  * );
- * defineTsugiori({ pipelines: [reusable, caller] });
+ * defineProject({ pipelines: [reusable, caller] });
  * ```
  */
 export type ReusableJobState<
@@ -3960,7 +3960,7 @@ export type ReusableJobState<
    *   "release",
    *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineTsugiori({ pipelines: [reusable, caller] });
+   * defineProject({ pipelines: [reusable, caller] });
    * ```
    */
   call<const C extends WorkflowCall, O extends string>(
@@ -3993,7 +3993,7 @@ export type ReusableJobState<
      *   "release",
      *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
      * );
-     * defineTsugiori({ pipelines: [reusable, caller] });
+     * defineProject({ pipelines: [reusable, caller] });
      * ```
      */
     callee: ReusablePipeline<C, O>,
@@ -4180,7 +4180,7 @@ export interface IndependentJobState<
    *   "release",
    *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineTsugiori({ pipelines: [reusable, caller] });
+   * defineProject({ pipelines: [reusable, caller] });
    * ```
    */
   reusable(): ReusableJobState<
@@ -4262,7 +4262,7 @@ export interface DependentJobState<
    *   "release",
    *   ({ job }) => job.reusable().call(reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineTsugiori({ pipelines: [reusable, caller] });
+   * defineProject({ pipelines: [reusable, caller] });
    * ```
    */
   reusable(): ReusableJobState<
@@ -4482,7 +4482,7 @@ type AddJobReference<
 >;
 type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
   JobId extends keyof Jobs ? never : JobId;
-/** Add a completed job before passing the pipeline to defineTsugiori().
+/** Add a completed job before passing the pipeline to defineProject().
  * @example
  * ```ts
  * definePipeline("ci", {
@@ -4906,10 +4906,10 @@ export function definePipeline<
  *   ({ job }) =>
  *     job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
  * );
- * defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+ * defineProject({ cacheVersion: 1, pipelines: [ci] });
  * ```
  */
-export function defineTsugiori<
+export function defineProject<
   const Pipelines extends NonEmptyReadonlyArray<
     Readonly<{ [pipelineDefinition]: AuthoringPipeline }>
   >,
@@ -4927,7 +4927,7 @@ export function defineTsugiori<
      *     ({ job }) =>
      *       job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
      *   );
-     * defineTsugiori({ cacheVersion: 2, pipelines: [ci] });
+     * defineProject({ cacheVersion: 2, pipelines: [ci] });
      * ```
      */
     cacheVersion?: number;
@@ -4943,18 +4943,18 @@ export function defineTsugiori<
      *     ({ job }) =>
      *       job.runsOn("ubuntu-latest").run({ name: "Test", run: "deno test" }),
      *   );
-     * defineTsugiori({ pipelines: [ci] });
+     * defineProject({ pipelines: [ci] });
      * ```
      */
     pipelines: Pipelines;
   }>,
-): TsugioriConfig {
+): ProjectConfig {
   const cacheVersion = input.cacheVersion ?? 1;
   if (!Number.isSafeInteger(cacheVersion) || cacheVersion <= 0) {
     throw new TypeError("Cache version must be a positive safe integer.");
   }
   return Object.freeze({
-    kind: "tsugiori.config",
+    kind: "github-actions.project",
     cacheVersion,
     pipelines: Object.freeze(
       input.pipelines.map((value) => value[pipelineDefinition]),

@@ -1,4 +1,4 @@
-import type { TsugioriConfig } from "../github_actions/mod.ts";
+import type { ProjectConfig } from "../github_actions/mod.ts";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { lowerConfig } from "../compiler/authoring.ts";
 import {
@@ -21,7 +21,7 @@ export type PrepareOptions = Readonly<{
   projectDirectory: string;
   configPath: string;
   configArgument: string;
-  config: TsugioriConfig;
+  config: ProjectConfig;
   expectedLayouts: readonly string[];
   expectedArtifactKey?: string;
   target?: string;

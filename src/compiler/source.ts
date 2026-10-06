@@ -1,9 +1,9 @@
-import type { TsugioriConfig } from "../github_actions/mod.ts";
+import type { ProjectConfig } from "../github_actions/mod.ts";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export type LoadedConfig = Readonly<{
-  config: TsugioriConfig;
+  config: ProjectConfig;
   absolutePath: string;
   argument: string;
   projectArgument: string;
@@ -20,7 +20,7 @@ export class SourceLoadError extends Error {
 }
 
 export function configSource(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   configUrl: string | URL,
   root: string | URL,
 ): LoadedConfig {
@@ -54,10 +54,11 @@ export function configSource(
     );
   }
   if (
-    config?.kind !== "tsugiori.config" || !Array.isArray(config.pipelines)
+    config?.kind !== "github-actions.project" ||
+    !Array.isArray(config.pipelines)
   ) {
     throw new SourceLoadError(
-      "The configuration default export must be created by defineTsugiori().",
+      "The configuration default export must be created by defineProject().",
     );
   }
   if (!Number.isSafeInteger(config.cacheVersion) || config.cacheVersion <= 0) {

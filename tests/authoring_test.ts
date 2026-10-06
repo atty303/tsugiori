@@ -7,7 +7,7 @@ import {
 } from "@std/assert";
 import {
   definePipeline,
-  defineTsugiori,
+  defineProject,
   literal,
   rawExpression,
 } from "@atty303/tsugiori/github-actions";
@@ -47,7 +47,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
         result: rawExpression("steps.deploy.outputs.result"),
       })));
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [deploy] }),
+    defineProject({ pipelines: [deploy] }),
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
@@ -93,7 +93,7 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
       }));
 
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [ci] }),
+    defineProject({ pipelines: [ci] }),
     "./tsugiori.ts",
   );
   const steps = lowered.pipelines[0].workflow.jobs[0].steps;
@@ -144,7 +144,7 @@ Deno.test("workflow dispatch string inputs are emitted from authoring options", 
       job.runsOn("ubuntu-24.04").run({ name: "Deploy", run: "true" }),
   );
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [deploy] }),
+    defineProject({ pipelines: [deploy] }),
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.pipelines[0].workflow);
@@ -181,7 +181,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [ci] }),
+    defineProject({ pipelines: [ci] }),
     "./tsugiori.ts",
   );
 
@@ -248,7 +248,7 @@ Deno.test("duplicate pipeline outputs fail before generation", async () => {
   await assertRejects(
     () =>
       lowerConfig(
-        defineTsugiori({ pipelines: [first, second] }),
+        defineProject({ pipelines: [first, second] }),
         "./tsugiori.ts",
       ),
     AuthoringValidationError,
@@ -272,7 +272,7 @@ Deno.test("task-backed steps reject Windows runners", async () => {
   );
 
   await assertRejects(
-    () => lowerConfig(defineTsugiori({ pipelines: [ci] }), "./tsugiori.ts"),
+    () => lowerConfig(defineProject({ pipelines: [ci] }), "./tsugiori.ts"),
     AuthoringValidationError,
     "unsupported Windows runner",
   );
@@ -293,7 +293,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
       .task({ name: "Task", inputs: {}, outputs: {}, run: () => {} }));
 
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [ci] }),
+    defineProject({ pipelines: [ci] }),
     "./tsugiori.ts",
   );
   const steps = lowered.pipelines[0].workflow.jobs[0].steps;
@@ -329,11 +329,11 @@ Deno.test("pipeline states are immutable and dependencies use prior job referenc
       .run({ name: "Build", run: "true" }));
 
   const first = await lowerConfig(
-    defineTsugiori({ pipelines: [testOnly] }),
+    defineProject({ pipelines: [testOnly] }),
     "./tsugiori.ts",
   );
   const second = await lowerConfig(
-    defineTsugiori({ pipelines: [complete] }),
+    defineProject({ pipelines: [complete] }),
     "./tsugiori.ts",
   );
 
@@ -354,14 +354,14 @@ Deno.test("authoring rejects runtime-invalid provider-native values", () => {
     "test",
     ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
   );
-  assertEquals(defineTsugiori({ pipelines: [ci] }).cacheVersion, 1);
+  assertEquals(defineProject({ pipelines: [ci] }).cacheVersion, 1);
   assertEquals(
-    defineTsugiori({ cacheVersion: 2, pipelines: [ci] }).cacheVersion,
+    defineProject({ cacheVersion: 2, pipelines: [ci] }).cacheVersion,
     2,
   );
   for (const cacheVersion of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
     assertThrows(
-      () => defineTsugiori({ cacheVersion, pipelines: [ci] }),
+      () => defineProject({ cacheVersion, pipelines: [ci] }),
       TypeError,
       "Cache version must be a positive safe integer.",
     );
@@ -425,7 +425,7 @@ Deno.test("direct config preserves invalid provider-native values for validation
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "tsugiori.config", cacheVersion: 1,
+  kind: "github-actions.project", cacheVersion: 1,
   pipelines: [{
     id: "ci",
     name: "ci",
@@ -470,7 +470,7 @@ Deno.test("direct config preserves deployment workflow fields", async () => {
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-      kind: "tsugiori.config", cacheVersion: 1,
+      kind: "github-actions.project", cacheVersion: 1,
       pipelines: [{ id: "deploy", name: "Deploy", output: ".github/workflows/deploy.yml",
         on: { push: { branches: ["master"] } },
         jobs: [{ id: "deploy", runsOn: "ubuntu-24.04", needs: [],
@@ -505,7 +505,7 @@ Deno.test("direct config preserves task step ID and environment", async () => {
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "tsugiori.config", cacheVersion: 1,
+  kind: "github-actions.project", cacheVersion: 1,
   pipelines: [{ id: "ci", name: "CI", output: ".github/workflows/ci.yml",
     on: { push: {  } }, jobs: [{ id: "test", runsOn: "ubuntu-latest", needs: [],
       steps: [{ type: "task", id: "plan", name: "Plan", inputs: {}, outputs: {}, run: () => {},
@@ -539,7 +539,7 @@ Deno.test("direct config does not let JSON-unsafe provider values bypass validat
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "tsugiori.config", cacheVersion: 1,
+  kind: "github-actions.project", cacheVersion: 1,
   pipelines: [{
     id: "ci",
     name: "ci",
@@ -646,11 +646,11 @@ Deno.test("workflowOutputs replaces direct native outputs without mutating earli
     replacement: jobs.run.outputs.value,
   }));
   const first = await lowerConfig(
-    defineTsugiori({ pipelines: [direct] }),
+    defineProject({ pipelines: [direct] }),
     "config.ts",
   );
   const second = await lowerConfig(
-    defineTsugiori({ pipelines: [replacement] }),
+    defineProject({ pipelines: [replacement] }),
     "config.ts",
   );
   assertEquals(first.pipelines[0].workflow.on.workflow_call?.outputs, {

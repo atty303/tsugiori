@@ -7,7 +7,7 @@ import type {
   NonEmptyPipelineState,
   NonEmptyStepState,
 } from "../src/github_actions/mod.ts";
-import { definePipeline, defineTsugiori } from "../src/github_actions/mod.ts";
+import { definePipeline, defineProject } from "../src/github_actions/mod.ts";
 import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
@@ -121,7 +121,7 @@ function assertAuthoringContracts(): void {
     on: { push: {} },
   });
   // @ts-expect-error an empty pipeline is not finalizable.
-  defineTsugiori({ pipelines: [empty] });
+  defineProject({ pipelines: [empty] });
 
   const withTest = empty.job("test", ({ job }) => {
     const checkedOut = job

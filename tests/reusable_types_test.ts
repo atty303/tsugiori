@@ -1,4 +1,4 @@
-import { definePipeline, defineTsugiori } from "../src/github_actions/mod.ts";
+import { definePipeline, defineProject } from "../src/github_actions/mod.ts";
 
 function assertReusableTypes(): void {
   const definition = definePipeline("callee", {
@@ -116,6 +116,6 @@ function assertReusableTypes(): void {
       secrets: "inherit",
     });
   });
-  void defineTsugiori({ pipelines: [callee, finished] });
+  void defineProject({ pipelines: [callee, finished] });
 }
 void assertReusableTypes;

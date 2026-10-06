@@ -1,4 +1,4 @@
-import type { AuthoringJob, TsugioriConfig } from "../github_actions/mod.ts";
+import type { AuthoringJob, ProjectConfig } from "../github_actions/mod.ts";
 import { lowerConfig } from "../compiler/authoring.ts";
 import type { Job, Step } from "../compiler/github_actions/ast.ts";
 import { parseWireValue, serializeValue } from "../task/mod.ts";
@@ -614,7 +614,7 @@ function checkStep(
   }
 }
 
-function triggered(config: TsugioriConfig, program: Program): boolean {
+function triggered(config: ProjectConfig, program: Program): boolean {
   const pipeline = config.pipelines.find((p) => p.id === program.pipelineId) ??
     config.pipelines[0];
   const github = program.external.github;
@@ -737,7 +737,7 @@ function branchPattern(pattern: string, pipelineId: string): RegExp {
 }
 
 async function interpretScenario(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   program: Program,
   called: boolean,
   observation: ScenarioObservationState,
@@ -1089,7 +1089,7 @@ async function interpretScenario(
 }
 
 export async function runScenario(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   program: Program,
   called = false,
   observation: ScenarioObservationState = { nextId: 0 },

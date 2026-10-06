@@ -1,7 +1,7 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   definePipeline,
-  defineTsugiori,
+  defineProject,
   rawExpression,
   rawNode,
 } from "../src/github_actions/mod.ts";
@@ -96,7 +96,7 @@ const main = definePipeline("main", {
         env: { RESULT: ({ needs }) => needs.ci.outputs.result },
       }),
   );
-const config = defineTsugiori({ pipelines: [main, ci, platform] });
+const config = defineProject({ pipelines: [main, ci, platform] });
 
 Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
   const lowered = await lowerConfig(config, ".github/tsugiori.ts");
@@ -178,7 +178,7 @@ for (const fail of [false, true]) {
 
 Deno.test("local references require config membership and input contracts", async () => {
   await assertRejects(
-    () => lowerConfig(defineTsugiori({ pipelines: [main] }), "config.ts"),
+    () => lowerConfig(defineProject({ pipelines: [main] }), "config.ts"),
     Error,
     "included in the same config",
   );
@@ -199,7 +199,7 @@ Deno.test("local references require config membership and input contracts", asyn
       scenario(invalid, (t) => {
         t.github({ event_name: "push" }).secrets({ token: "fixture" });
         t.job("ci", (j) => j.call(ci, () => {}));
-      }, { config: defineTsugiori({ pipelines: [invalid, ci, platform] }) }),
+      }, { config: defineProject({ pipelines: [invalid, ci, platform] }) }),
     Error,
     "violates declared type",
   );
@@ -313,7 +313,7 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
       }),
   );
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [dispatch] }),
+    defineProject({ pipelines: [dispatch] }),
     "config.ts",
   );
   const yaml = parse(emitWorkflow(lowered.pipelines[0].workflow)) as Record<
@@ -412,7 +412,7 @@ Deno.test("native defaults emit only specified values and tasks retain step time
         ),
     );
   const lowered = await lowerConfig(
-    defineTsugiori({ pipelines: [p] }),
+    defineProject({ pipelines: [p] }),
     "config.ts",
   );
   const w = parse(emitWorkflow(lowered.pipelines[0].workflow)) as {
@@ -456,7 +456,7 @@ Deno.test("caller matrix instance expectations are checked independently", async
               t.job("job", (j) =>
                 j.step("run").fixture({})))
           ));
-      }, { config: defineTsugiori({ pipelines: [caller, callee] }) }),
+      }, { config: defineProject({ pipelines: [caller, callee] }) }),
     Error,
     "Expected value differs",
   );

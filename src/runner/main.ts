@@ -1,7 +1,7 @@
 import { generateFiles } from "../compiler/generator.ts";
 import { checkGeneratedFiles } from "../compiler/check.ts";
 import { configSource } from "../compiler/source.ts";
-import type { TsugioriConfig } from "../github_actions/mod.ts";
+import type { ProjectConfig } from "../github_actions/mod.ts";
 import { parseWireValue, serializeValue } from "../task/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
 import { writeGeneratedFiles } from "../compiler/write.ts";
@@ -22,13 +22,17 @@ const SOURCE_TOOL_IDENTITY: ToolIdentity = {
 };
 
 export type RunOptions = Readonly<{
-  config: TsugioriConfig;
+  config: ProjectConfig;
   configUrl: string | URL;
   root: string | URL;
 }>;
 
-/** Executes from the consumer's Deno project without importing the config again. */
-export async function runTsugiori(
+/** Handles the config file's generate, check, and internal task commands in the
+ * consumer's Deno project without importing the config again. It does not run
+ * a GitHub Actions workflow. Returns 0 on success and 1 on command failure;
+ * callers can assign the result to `Deno.exitCode`.
+ */
+export async function runProject(
   options: RunOptions,
   args: readonly string[] = Deno.args,
   tool: ToolIdentity = SOURCE_TOOL_IDENTITY,
@@ -203,7 +207,7 @@ export async function runTsugiori(
 }
 
 async function dispatchTask(
-  config: TsugioriConfig,
+  config: ProjectConfig,
   entrypoint: string,
   tool: ToolIdentity,
 ): Promise<number> {
@@ -215,11 +219,12 @@ async function dispatchTask(
   let errorType = "schema_invalid";
   try {
     if (
-      config?.kind !== "tsugiori.config" || !Array.isArray(config.pipelines)
+      config?.kind !== "github-actions.project" ||
+      !Array.isArray(config.pipelines)
     ) {
       throw new TaskRuntimeError(
         "schema_invalid",
-        "Invalid Tsugiori configuration.",
+        "Invalid GitHub Actions project configuration.",
       );
     }
     let task: AuthoringTaskStep | undefined;

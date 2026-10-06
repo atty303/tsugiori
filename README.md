@@ -53,11 +53,11 @@ runs the check task before its task-backed test step.
 ## Author a workflow
 
 An authoring file imports the GitHub Actions API and runner from the
-`/github-actions` entrypoint. It exports the config and calls `runTsugiori()`
+`/github-actions` entrypoint. It exports the config and calls `runProject()`
 when executed:
 
 ```ts
-import { definePipeline, defineTsugiori, runTsugiori } from "@atty303/tsugiori/github-actions";
+import { definePipeline, defineProject, runProject } from "@atty303/tsugiori/github-actions";
 
 const ci = definePipeline("ci", {
   output: ".github/workflows/ci.yml",
@@ -78,11 +78,11 @@ const ci = definePipeline("ci", {
     },
   }));
 
-const config = defineTsugiori({ cacheVersion: 1, pipelines: [ci] });
+const config = defineProject({ cacheVersion: 1, pipelines: [ci] });
 export default config;
 
 if (import.meta.main) {
-  Deno.exitCode = await runTsugiori({
+  Deno.exitCode = await runProject({
     config,
     configUrl: import.meta.url,
     root: new URL("../", import.meta.url),
@@ -389,7 +389,7 @@ references. `secrets: "inherit"` forwards one hop; it cannot prove repository
 secret availability or organization/enterprise eligibility.
 
 ```ts
-import { definePipeline, defineTsugiori } from "@atty303/tsugiori/github-actions";
+import { definePipeline, defineProject } from "@atty303/tsugiori/github-actions";
 
 const definition = definePipeline("build", {
   output: ".github/workflows/build.yml",
@@ -422,7 +422,7 @@ const ci = definePipeline("ci", {
     secrets: "inherit",
   }));
 
-export default defineTsugiori({ pipelines: [ci, build] });
+export default defineProject({ pipelines: [ci, build] });
 ```
 
 `definePipeline()` takes a nonempty `on` object with supported event keys;

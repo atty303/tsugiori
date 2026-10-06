@@ -1,6 +1,6 @@
 import {
   definePipeline,
-  defineTsugiori,
+  defineProject,
   type Expression,
   fromJSON,
   rawNode,
@@ -178,7 +178,7 @@ function assertContracts(): void {
           },
         }),
   );
-  defineTsugiori({ pipelines: [second] });
+  defineProject({ pipelines: [second] });
 }
 void assertContracts;
 Deno.test("typed expression contracts compile", () => {});
