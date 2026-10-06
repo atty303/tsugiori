@@ -1,5 +1,5 @@
 [tools]
-deno = "2.9.5"
+deno = "2.9.7"
 hk = "2.0.0"
 node = "24.21.0"
 "npm:wrangler" = "4.147.0"

@@ -27,17 +27,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-S6CQFFR2S5NNQZ9VAWBXW6747U9FHLKBLKHATCDAJE0P43FBF1M-${{ runner.os }}-${{ runner.arch }}
-          path: ${{ runner.temp }}/tsugiori-artifacts/S6CQFFR2S5NNQZ9VAWBXW6747U9FHLKBLKHATCDAJE0P43FBF1M-${{ runner.os }}-${{ runner.arch }}
+          key: tsugiori-task-S58WMVL5W207ZG09XC0NV9RZ3A0OXW90S4J0CDEGRLYPM94AEZV-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/tsugiori-artifacts/S58WMVL5W207ZG09XC0NV9RZ3A0OXW90S4J0CDEGRLYPM94AEZV-${{ runner.os }}-${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S6CQFFR2S5NNQZ9VAWBXW6747U9FHLKBLKHATCDAJE0P43FBF1M-${{ runner.os }}-${{ runner.arch }}
+          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S58WMVL5W207ZG09XC0NV9RZ3A0OXW90S4J0CDEGRLYPM94AEZV-${{ runner.os }}-${{ runner.arch }}
           entrypoint: ./workflows.ts
           project-directory: .github
-          source-key: S6CQFFR2S5NNQZ9VAWBXW6747U9FHLKBLKHATCDAJE0P43FBF1M
+          source-key: S58WMVL5W207ZG09XC0NV9RZ3A0OXW90S4J0CDEGRLYPM94AEZV
 
       - name: Run repository checks and tests
         run: "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" 'workflows/ci.yml/test/task-1'"

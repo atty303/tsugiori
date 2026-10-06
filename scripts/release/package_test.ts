@@ -202,6 +202,65 @@ Deno.test("release archive binds generation to its committed Action and rejects 
     Deno.env.set("GITHUB_SHA", sha);
     const files = await releaseSource("0.2.0", cwd);
     await withSource(files, async (directory) => {
+      const exported =
+        JSON.parse(new TextDecoder().decode(files.get("deno.json"))).exports;
+      assertEquals(exported["./init"], "./src/init.ts");
+      const consumer = `${cwd}/consumer/.github`;
+      await Deno.mkdir(consumer, { recursive: true });
+      const run = async (args: string[]) => {
+        const result = await new Deno.Command(Deno.execPath(), {
+          cwd: consumer,
+          args,
+          env: { XDG_CACHE_HOME: `${cwd}/cache`, TSUGIORI_DIAGNOSTICS: "0" },
+          stdout: "piped",
+          stderr: "piped",
+        }).output();
+        assertEquals(result.code, 0, new TextDecoder().decode(result.stderr));
+      };
+      await run([
+        "run",
+        "--no-config",
+        "--no-lock",
+        "-A",
+        `${directory}${exported["./init"].slice(1)}`,
+      ]);
+      const configuration = JSON.parse(
+        await Deno.readTextFile(`${consumer}/deno.json`),
+      );
+      assertEquals(
+        configuration.imports["@atty303/tsugiori"],
+        "jsr:@atty303/tsugiori@^0.2.0",
+      );
+      assertEquals(
+        (await Array.fromAsync(Deno.readDir(consumer))).map(({ name }) => name)
+          .sort(),
+        ["deno.json", "workflows.ts"],
+      );
+      // Resolve the unpublished release through its actual archived exports.
+      configuration.imports = Object.fromEntries(
+        Object.entries(exported).map(([name, path]) => [
+          `@atty303/tsugiori/${name.slice(2)}`,
+          new URL(path as string, `file://${directory}/`).href,
+        ]),
+      );
+      await Deno.writeTextFile(
+        `${consumer}/deno.json`,
+        JSON.stringify(configuration),
+      );
+      await run(["install", "-P"]);
+      await Deno.stat(`${consumer}/deno.lock`);
+      await run(["task", "tsugiori", "generate"]);
+      await run(["task", "tsugiori", "generate", "--check"]);
+      const yaml = await Deno.readTextFile(
+        `${consumer}/workflows/tsugiori.yml`,
+      );
+      assertEquals(yaml.includes("workflow_dispatch:"), true);
+      assertEquals(yaml.includes("project-directory: .github"), true);
+      assertEquals(
+        yaml.includes(`uses: atty303/tsugiori/actions/task-prepare@${sha}`),
+        true,
+      );
+      await run(["task", "tsugiori", "workflows/tsugiori.yml/hello/task-1"]);
       const { generateFiles }:
         typeof import("../../src/compiler/generator.ts") = await import(
           `file://${directory}/src/compiler/generator.ts`
