@@ -14,6 +14,8 @@ const expressionBrand = Symbol("tsugiori.expression");
  * ```
  */
 export type RawExpression = string & {
+  /** Type-level marker distinguishing explicit raw expressions from literal strings.
+   */
   readonly __rawExpression: unique symbol;
 };
 export type ExpressionInput<T = unknown> =
@@ -114,7 +116,7 @@ type Node =
   | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
 
 /** GitHub expressions compute values from literals, contexts, operators and functions. Comparisons coerce unlike types and ignore string case; && and || return operands rather than necessarily booleans.
- * Tsugiori: stores an expression AST for YAML emission; host string interpolation throws. githubActionsSpec owns the fixed specification basis.
+ * Tsugiori stores an expression AST for YAML emission; host string interpolation throws. githubActionsSpec owns the fixed specification basis.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
  * @example
  * ```ts
@@ -122,13 +124,29 @@ type Node =
  * ```
  */
 export class Expression<T = unknown, Proof extends string = never> {
+  /** Type-level expression value marker; no GitHub runtime value is available on the host.
+   */
   readonly [expressionBrand]!: T;
+  /** Type-level presence proof carried through conjunctive conditions; no runtime value is read during authoring.
+   */
   readonly __proof!: Proof;
+  /** Reject host-language string interpolation with TypeError. Use format() or pass the expression into a supported field; GitHub values are unavailable during authoring.
+   * @example
+   * ```ts
+   * format("branch-{0}", literal("main"));
+   * ```
+   */
   toString(): never {
     throw new TypeError(
       "Expression nodes cannot be interpolated into host-language strings.",
     );
   }
+  /** The public entrypoint exports Expression as a type. Obtain instances through literal(), rawNode() or field references; direct construction is not available through the public entrypoint.
+   * @example
+   * ```ts
+   * const expression: Expression<string> = literal("main");
+   * ```
+   */
   constructor(readonly node: Node) {}
   /** Loose equality with GitHub numeric coercion and case-insensitive string comparison.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
@@ -191,7 +209,7 @@ export class Expression<T = unknown, Proof extends string = never> {
     return binary(this, ">=", value);
   }
   /** Returns the left operand when falsy, otherwise the right operand. Falsy values include false, 0, empty strings and null.
-   * Tsugiori: carries conjunctive presence proofs for typed task references.
+   * Tsugiori carries conjunctive presence proofs for typed task references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
    * @example
    * ```ts
@@ -212,7 +230,7 @@ export class Expression<T = unknown, Proof extends string = never> {
     return result as Expression<FalsyPart<T> | U, Proof | OtherProof>;
   }
   /** Returns the left operand when truthy, otherwise the right operand; use it to select a fallback.
-   * Tsugiori: grants no presence proof for typed task references.
+   * Tsugiori grants no presence proof for typed task references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
    * @example
    * ```ts
@@ -490,7 +508,7 @@ export const join = (
     ? call("join", value)
     : call("join", value, separator);
 /** Returns a pretty-printed JSON representation of a value, useful for inspecting contexts or passing structured data as a string.
- * Tsugiori: the value is evaluated by GitHub, not during generation.
+ * The value is evaluated by GitHub, not during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#tojson
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
@@ -504,54 +522,11 @@ export const join = (
 export const toJSON = (value: Operand<unknown>): Expression<string> =>
   call("toJSON", value);
 /** Returns a JSON object or JSON data type for a value, allowing conversion of strings into objects, booleans and numbers.
- * Tsugiori: typed task references retain their contract; other result types are assertions.
+ * Typed task references retain their contract; other result types are assertions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#fromjson
- * @example
+ * @example Given typed optional references: `depends` needs job `prepare`, whose `stages` output uses a JSON string-array contract; `guarded` additionally proves presence with when(present(...)).
  * ```ts
- * const stages = jsonValue({
- *   parse(value: unknown): readonly string[] {
- *     if (
- *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
- *     ) {
- *       throw new TypeError("Expected stage names");
- *     }
- *     return value;
- *   },
- * });
- * defineWorkflow(".github/workflows/ci.yml", {
- *   on: { push: {} },
- * }).job("prepare", ({ job }) =>
- *   job.runsOn("ubuntu-latest").task({
- *     id: "plan",
- *     name: "Plan",
- *     inputs: {},
- *     outputs: { stages: { contract: stages, required: false } },
- *     run: async ({ outputs }) => {
- *       await outputs.set("stages", ["dev", "prd"]);
- *     },
- *   }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })))
- *   .job(
- *     "deploy",
- *     ({ job, jobs }) =>
- *       job.needs(jobs.prepare).runsOn("ubuntu-latest")
- *         .when(({ needs }) => present(needs.prepare.outputs.stages))
- *         .strategy(({ needs }) => ({
- *           matrix: { stage: fromJSON(needs.prepare.outputs.stages) },
- *         }))
- *         .task({
- *           name: "Deploy",
- *           inputs: {
- *             stage: {
- *               contract: textValue(),
- *               from: ({ matrix }) => matrix.stage,
- *             },
- *           },
- *           outputs: {},
- *           run: ({ inputs, logger }) => {
- *             logger.info(inputs.stage);
- *           },
- *         }),
- *   );
+ * guarded.strategy(({ needs }) => ({ matrix: { stage: fromJSON(needs.prepare.outputs.stages) } }));
  * ```
  */
 export function fromJSON<
@@ -566,56 +541,21 @@ export function fromJSON<
  * ```
  */
 export function fromJSON(value: Operand<unknown>): Expression<unknown>;
+/** Returns a JSON object or JSON data type for a value, allowing conversion of strings into objects, booleans and numbers.
+ * Typed task references retain their contract; other result types are assertions.
+ * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#fromjson
+ * @example Given typed optional references: `depends` needs job `prepare`, whose `stages` output uses a JSON string-array contract; `guarded` additionally proves presence with when(present(...)).
+ * ```ts
+ * guarded.strategy(({ needs }) => ({ matrix: { stage: fromJSON(needs.prepare.outputs.stages) } }));
+ * ```
+ */
 export function fromJSON(value: Operand<unknown>): Expression<unknown> {
   return call("fromJSON", value);
 }
 /** Checks the output wire value for presence and grants a proof to guarded task inputs or matrix expressions.
- * @example
+ * @example Given typed optional references: `depends` needs job `prepare`, whose `stages` output uses a JSON string-array contract; `guarded` additionally proves presence with when(present(...)).
  * ```ts
- * const stages = jsonValue({
- *   parse(value: unknown): readonly string[] {
- *     if (
- *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
- *     ) {
- *       throw new TypeError("Expected stage names");
- *     }
- *     return value;
- *   },
- * });
- * defineWorkflow(".github/workflows/ci.yml", {
- *   on: { push: {} },
- * }).job("prepare", ({ job }) =>
- *   job.runsOn("ubuntu-latest").task({
- *     id: "plan",
- *     name: "Plan",
- *     inputs: {},
- *     outputs: { stages: { contract: stages, required: false } },
- *     run: async ({ outputs }) => {
- *       await outputs.set("stages", ["dev", "prd"]);
- *     },
- *   }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })))
- *   .job(
- *     "deploy",
- *     ({ job, jobs }) =>
- *       job.needs(jobs.prepare).runsOn("ubuntu-latest")
- *         .when(({ needs }) => present(needs.prepare.outputs.stages))
- *         .strategy(({ needs }) => ({
- *           matrix: { stage: fromJSON(needs.prepare.outputs.stages) },
- *         }))
- *         .task({
- *           name: "Deploy",
- *           inputs: {
- *             stage: {
- *               contract: textValue(),
- *               from: ({ matrix }) => matrix.stage,
- *             },
- *           },
- *           outputs: {},
- *           run: ({ inputs, logger }) => {
- *             logger.info(inputs.stage);
- *           },
- *         }),
- *   );
+ * guarded.strategy(({ needs }) => ({ matrix: { stage: fromJSON(needs.prepare.outputs.stages) } }));
  * ```
  */
 export function present<
@@ -631,7 +571,7 @@ export function present<
   return result as Expression<boolean, P>;
 }
 /** Returns the value for the first truthy predicate/value pair, otherwise the final default value.
- * Tsugiori: branches do not grant presence proofs for typed task references.
+ * Branches do not grant presence proofs for typed task references.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#case
  * @example
  * ```ts
@@ -695,7 +635,7 @@ export const success = (): Expression<boolean> => call("success");
  */
 export const failure = (): Expression<boolean> => call("failure");
 /** Returns a SHA-256 hash for files matching the supplied glob patterns within GITHUB_WORKSPACE. Individual file hashes are combined into a final hash; no matches returns an empty string. ! patterns exclude matches; Windows matching is case-insensitive.
- * Tsugiori: scenarios require an explicit site value instead of reading runner files.
+ * Tsugiori scenarios require an explicit site value instead of reading runner files.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#hashfiles
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
@@ -711,7 +651,7 @@ export const hashFiles = (
 ): Expression<string> => call("hashFiles", ...paths);
 
 /** Information about the workflow run and its triggering event. Some properties exist only within runner steps or particular event types.
- * Tsugiori: exposes a supported subset; the string-shaped catalog does not model every event-dependent null value. event remains an unknown payload.
+ * Tsugiori exposes a supported subset; the string-shaped catalog does not model every event-dependent null value. event remains an unknown payload.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
@@ -1759,7 +1699,7 @@ type Functions = {
   hashFiles: typeof hashFiles;
 };
 /** Context availability depends on the workflow field being evaluated: job conditions, step conditions and input expressions do not all expose the same contexts or functions.
- * Tsugiori: narrows fields using the fixed availability catalog; unavailable properties require explicit raw assertions.
+ * Tsugiori narrows fields using the fixed availability catalog; unavailable properties require explicit raw assertions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts

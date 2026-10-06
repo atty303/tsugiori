@@ -1,11 +1,11 @@
 # GitHub Actions specification basis
 
-[The checked-in snapshot](../src/github_actions/github_spec.json)
-owns the GitHub.com verification date, immutable `github/docs` revision, source
-paths and SHA-256 digests, package version, source reconciliation and item-level
-coverage. `githubActionsSpec` exposes that same data to consumers. A release
-uses the snapshot checked into its source; a commit-pinned consumer also pins
-the specification basis. When publishing another package version, update the
+[The checked-in snapshot](../src/github_actions/github_spec.json) owns the
+GitHub.com verification date, immutable `github/docs` revision, source paths and
+SHA-256 digests, package version, source reconciliation and item-level coverage.
+`githubActionsSpec` exposes that same data to consumers. A release uses the
+snapshot checked into its source; a commit-pinned consumer also pins the
+specification basis. When publishing another package version, update the
 snapshot's package version in the same change. Git history owns superseded
 snapshots; configuration does not select multiple baselines.
 
@@ -22,9 +22,9 @@ and Tsugiori's retained limits.
 An implemented syntax field means Tsugiori can emit native YAML. It does not
 mean GitHub authorization, runner availability or remote execution has been
 validated. Expression context availability is owned by
-[the scope catalog](../src/github_actions/expression_scope.ts); a
-catalog entry alone does not make its workflow field available in the public
-API. The coverage inventory owns the public capability assessment.
+[the scope catalog](../src/github_actions/expression_scope.ts); a catalog entry
+alone does not make its workflow field available in the public API. The coverage
+inventory owns the public capability assessment.
 
 Generation, validation and scenarios consume local code and the frozen basis;
 they perform no specification network requests. Raw expressions and external
@@ -43,11 +43,24 @@ changing coverage and asks whether newly discovered capabilities should be
 implemented. Unsupported fields can remain unsupported when advancing the basis.
 Ordinary workflow authoring and generation do not invoke this process.
 
-Public API Doc comments reproduce or adapt the corresponding GitHub specification
-so users can read field meanings, defaults and execution behavior in editor hovers.
-GitHub semantics form the main description; a final `Tsugiori:` paragraph records
-local differences, validation limits or scenario limitations. Source links remain
-attached to the relevant field. Descriptions from [GitHub Docs](https://github.com/github/docs)
-are licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
-They are edited for API names and the supported GitHub.com surface, with Markdown
-templates expanded from the fixed source revision recorded in the snapshot.
+Public API Doc comments explain how to author the supported GitHub capability in
+Tsugiori: what to write, prerequisites, callback context and returned values,
+immutable state order, evaluation timing and validation limits. Include the
+GitHub meanings, defaults and caveats needed to choose the setting; link the
+fixed official sources for detailed semantics. Tsugiori differences belong with
+the relevant usage explanation, rather than in a mandatory trailing paragraph.
+Host callbacks build definitions; GitHub resolves emitted runtime expressions;
+task runtime and scenario behavior have separate Tsugiori-owned contracts.
+
+Shared explanations belong in module or owning API docs, with links from local
+APIs. README contains getting started and API navigation. Examples show the
+local call or setting with prerequisites in prose; the verification harness
+supplies setup while typechecking the actual published snippets. Documentation
+is designed for the JSR public reference, not only compact editor hovers.
+
+Descriptions reproduced or adapted from
+[GitHub Docs](https://github.com/github/docs) are licensed under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Retain field source
+links and the fixed snapshot basis. These descriptions are edited for API names
+and the supported GitHub.com surface, with Markdown templates expanded from the
+fixed source revision recorded in the snapshot.

@@ -1,8 +1,8 @@
 # Architecture
 
-This document describes the implemented GitHub Actions backend and task
-runtime. [README](../README.md) covers authoring and commands;
-[ROADMAP](ROADMAP.md) contains unfinished work.
+This document describes the implemented GitHub Actions backend and task runtime.
+[README](../README.md) provides getting started and links to the detailed API
+docs; [ROADMAP](ROADMAP.md) contains unfinished work.
 
 ## Execution boundary
 
@@ -14,8 +14,8 @@ binary rather than embedded in YAML. The repository commits generated YAML and
 checks it for staleness in CI.
 
 The current implementation has one provider backend. Its API and workflow AST
-model GitHub Actions concepts directly. There is no provider-neutral job or
-step model and no second delivery backend.
+model GitHub Actions concepts directly. There is no provider-neutral job or step
+model and no second delivery backend.
 
 ## Package and authoring
 
@@ -25,61 +25,60 @@ testing. `github-actions/authoring`, `github-actions/run`, and
 `github-actions/testing` support selective imports; `task` exposes common task
 contracts. These entrypoints share a responsibility-based `src/` tree. A future
 provider can have its own entrypoint and import graph without changing the
-GitHub Actions entrypoint. The authoring API uses
-immutable facades: `defineWorkflow()` groups trigger settings under a native
-`on` object; job methods become available as the definition advances, and
-only a workflow with a completed, non-empty job can reach `defineProject()`.
-Jobs are authored in dependency order, so a new job can reference completed
-jobs. Action steps take a metadata contract or an implementation reference directly
-through `job.uses(contractOrUses, options?)`. Contracts declare input names,
+GitHub Actions entrypoint. The authoring API uses immutable facades:
+`defineWorkflow()` groups trigger settings under a native `on` object; job
+methods become available as the definition advances, and only a workflow with a
+completed, non-empty job can reach `defineProject()`. Jobs are authored in
+dependency order, so a new job can reference completed jobs. Action steps take a
+metadata contract or an implementation reference directly through
+`job.uses(contractOrUses, options?)`. Contracts declare input names,
 requiredness and string outputs; a string reference provides no declared output
 names. Action values are strings or string expressions, while reusable workflow
 call inputs retain their declared primitive types.
 
-Authoring and task execution share an executable entrypoint. It exports a project
-value and calls `runProject()` under `import.meta.main`, passing `project` and
-`entrypointUrl`. The URL identifies the entrypoint used as generated YAML
-provenance and as the task artifact compilation root. The invocation directory
-(`Deno.cwd()`) is the Deno project
-base for output paths and local source identity. Deno tasks establish that
-directory; direct invocations must use it explicitly. The project owns
-import resolution and its lockfile. External projects can map the package name
-to one JSR version; the YAML dependency uses a direct `jsr:` specifier in
-the package source. The runner consumes the object in-process;
-it does not load it again. Generation uses Deno's import resolution rather than
-parsing the project's Deno configuration. The `tsugiori` task selects generation
-or `actions add <uses>`. Action addition edits inline imports in exactly one
-Deno JSON/JSONC configuration in the invocation directory, preserving comments
-and unrelated settings. Dependency fetching and lockfile updates remain Deno's
-responsibility; the addition command has no network boundary. Top-level
-code constructs the workflow definition; task callbacks run only through the
-prepared task artifact.
+Authoring and task execution share an executable entrypoint. It exports a
+project value and calls `runProject()` under `import.meta.main`, passing
+`project` and `entrypointUrl`. The URL identifies the entrypoint used as
+generated YAML provenance and as the task artifact compilation root. The
+invocation directory (`Deno.cwd()`) is the Deno project base for output paths
+and local source identity. Deno tasks establish that directory; direct
+invocations must use it explicitly. The project owns import resolution and its
+lockfile. External projects can map the package name to one JSR version; the
+YAML dependency uses a direct `jsr:` specifier in the package source. The runner
+consumes the object in-process; it does not load it again. Generation uses
+Deno's import resolution rather than parsing the project's Deno configuration.
+The `tsugiori` task selects generation or `actions add <uses>`. Action addition
+edits inline imports in exactly one Deno JSON/JSONC configuration in the
+invocation directory, preserving comments and unrelated settings. Dependency
+fetching and lockfile updates remain Deno's responsibility; the addition command
+has no network boundary. Top-level code constructs the workflow definition; task
+callbacks run only through the prepared task artifact.
 
 The public API supports push, PR, PR-target, dispatch and reusable-workflow
 triggers and the native fields listed in the
 [specification coverage](GITHUB_ACTIONS_SPEC.md). Local reusable references
-retain the `on.workflow_call` input/secret/output contract separately from
-the input reference union across configured events, and emit normal caller jobs with
+retain the `on.workflow_call` input/secret/output contract separately from the
+input reference union across configured events, and emit normal caller jobs with
 uses/with/secrets. Calls specify a native `uses` reference and a callee
-definition separately; no output path is converted to a GitHub reference.
-The project contains both callers and callees; lowering checks
-membership, contracts, nesting and output references. Workflow env stays within
-each workflow. Run defaults remain native job settings and per-step overrides
-remain explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The expression AST
-serializes literals, property references, operators, built-in calls, and
-opaque `rawNode<T>()` nodes. Field callbacks derive their available contexts
-from the provider scope catalog. The AST is built at each field; it is not a
-host-language evaluation of GitHub runtime values. `rawNode<T>()` and
+definition separately; no output path is converted to a GitHub reference. The
+project contains both callers and callees; lowering checks membership,
+contracts, nesting and output references. Workflow env stays within each
+workflow. Run defaults remain native job settings and per-step overrides remain
+explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The
+expression AST serializes literals, property references, operators, built-in
+calls, and opaque `rawNode<T>()` nodes. Field callbacks derive their available
+contexts from the provider scope catalog. The AST is built at each field; it is
+not a host-language evaluation of GitHub runtime values. `rawNode<T>()` and
 `.as<T>()` contain caller assertions, not runtime validation. Typed task JSON
 references give `fromJSON()` an inferred result type while preserving its
 ordinary GitHub expression rendering.
 
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,
-or task-step output declarations. Job outputs are authored after their steps
-and become the typed `needs` surface of subsequent jobs. A task is defined
-directly in `job.task({ inputs, outputs, env, run })`. Each typed input couples
-a contract to a GitHub expression source; the compiler creates its step `env`
+or task-step output declarations. Job outputs are authored after their steps and
+become the typed `needs` surface of subsequent jobs. A task is defined directly
+in `job.task({ inputs, outputs, env, run })`. Each typed input couples a
+contract to a GitHub expression source; the compiler creates its step `env`
 entry and rejects collisions with authored `env`. Task output writes validate
 and serialize native values before appending GitHub's multiline format to
 `GITHUB_OUTPUT`; the runner parses and validates input wire values before
@@ -94,9 +93,9 @@ are normal values. A required output must be set. Direct task output and job
 output passthrough references retain the same contract object; computed
 expressions do not carry a contract. `present(ref)` lowers to an empty-string
 check and carries a presence proof through `and`, job `when`, and task `if`.
-Other expression nodes do not correct wire values implicitly.
-Conditional or `continueOnError` task steps expose their outputs as optional
-to consumers, even when an output is required during an actual task run.
+Other expression nodes do not correct wire values implicitly. Conditional or
+`continueOnError` task steps expose their outputs as optional to consumers, even
+when an output is required during an actual task run.
 
 ## Composite action authoring and distribution
 
@@ -106,12 +105,12 @@ existing, execution-independent `ActionContract` and retain an authoring
 identity for project membership and local reference resolution. The common
 metadata does not contain future JavaScript/Docker execution fields.
 
-The immutable composite step builder shares workflow step construction and
-typed task I/O. It requires run shells and excludes step timeouts and direct
-secret names. Public inputs are strings. Public output descriptions are metadata;
-step output mappings supply their wire values. Action-only projects are valid.
-The compiler validates the native step sequence, metadata, declared mappings,
-local definition membership and composite nesting/cycles.
+The immutable composite step builder shares workflow step construction and typed
+task I/O. It requires run shells and excludes step timeouts and direct secret
+names. Public inputs are strings. Public output descriptions are metadata; step
+output mappings supply their wire values. Action-only projects are valid. The
+compiler validates the native step sequence, metadata, declared mappings, local
+definition membership and composite nesting/cycles.
 
 An Action directory is relative to the Deno project for emission. Object calls
 resolve from the project's checkout-relative `workingDirectory`; explicit
@@ -122,49 +121,51 @@ Action directory. No checkout or task cwd change is inserted.
 Task actions distribute the reachable local source graph and discovered project
 configuration beneath their own `.tsugiori/` directory. Local file topology is
 preserved, absolute local module references are relocated, and configuration
-includes import maps, workspace members and locks. The executable entrypoint
-and registry travel with the Action, so preparation does not load caller-side
+includes import maps, workspace members and locks. The executable entrypoint and
+registry travel with the Action, so preparation does not load caller-side
 authoring files. Remote dependencies remain pinned by the copied lockfiles;
 runtime data and computed imports beyond the module graph require explicit
 consumer-owned distribution.
 
 The composite emits separate pinned cache and Bash preparation steps, followed
-by each task invocation. Preparation runs inside the bundled project;
-tasks use normal composite working-directory semantics. The source identity is
-computed from the relocated local modules with the existing format, package
-identity and `cacheVersion`. Actions from one project carry its shared registry;
-identical payloads reuse the artifact key while scoped step IDs and absolute
-runtime paths remain independent. Restore validates the current payload before
-using the binary. The bridge matches the distributed workflow preparation
-script, with byte equality enforced by a conformance test.
+by each task invocation. Preparation runs inside the bundled project; tasks use
+normal composite working-directory semantics. The source identity is computed
+from the relocated local modules with the existing format, package identity and
+`cacheVersion`. Actions from one project carry its shared registry; identical
+payloads reuse the artifact key while scoped step IDs and absolute runtime paths
+remain independent. Restore validates the current payload before using the
+binary. The bridge matches the distributed workflow preparation script, with
+byte equality enforced by a conformance test.
 
 ## Generation and validation
 
 The compiler lowers workflow and composite authoring data to native GitHub
-Actions steps, validates it, and emits deterministic YAML and Action payloads. Generated `run` commands preserve their
-string values in YAML literal blocks; values that cannot be represented safely
-that way are rejected. Each workflow is identified solely by its project-relative
-output path. Generation does not restrict its directory; authors ensure GitHub
-workflow placement. Each generated file starts with a source comment.
+Actions steps, validates it, and emits deterministic YAML and Action payloads.
+Generated `run` commands preserve their string values in YAML literal blocks;
+values that cannot be represented safely that way are rejected. Each workflow is
+identified solely by its project-relative output path. Generation does not
+restrict its directory; authors ensure GitHub workflow placement. Each generated
+file starts with a source comment.
 
 `generate` writes the configured outputs. `generate --check` compares expected
 bytes to configured files and reports missing or changed outputs. It does not
-scan directories or modify files.
-`--output <path>` limits the check to one configured file. Normal generation does not
-delete extra files. Action checks include every configured payload file. The checked-in [CI entrypoint](../.github/workflows.ts) emits the
+scan directories or modify files. `--output <path>` limits the check to one
+configured file. Normal generation does not delete extra files. Action checks
+include every configured payload file. The checked-in
+[CI entrypoint](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `tsugiori generate --check`.
 
 ## Scenario interpretation
 
 The testing API lowers a workflow with the same compiler path used for YAML
 generation and interprets the validated GitHub Actions workflow AST. Its
-scenario builder preserves the workflow's job IDs, step IDs, task contracts,
-and matrix types for editor completion. A scenario provides referenced
-external contexts and fixtures for reached authored steps. Local calls recursively
+scenario builder preserves the workflow's job IDs, step IDs, task contracts, and
+matrix types for editor completion. A scenario provides referenced external
+contexts and fixtures for reached authored steps. Local calls recursively
 interpret callee workflows with separate inputs, secrets and env; external calls
 use explicit fixtures. The caller github context stays unchanged. Call results
-and workflow outputs retain their native boundaries. The interpreter
-builds `steps`, `needs`, and `matrix` contexts, evaluates supported expressions,
+and workflow outputs retain their native boundaries. The interpreter builds
+`steps`, `needs`, and `matrix` contexts, evaluates supported expressions,
 serializes typed task outputs to GitHub wire values, and checks independent
 expectations against the resulting state. Generated task preparation steps
 default to success and support an explicit outcome override.
@@ -172,9 +173,9 @@ default to success and support an explicit outcome override.
 The interpreter checks trigger filters, conditions, step order, matrix
 expansion, job dependencies, status and `continue-on-error`, and value
 propagation. It does not call authored step or task bodies. It does not model
-runner behavior, permissions, environment approvals, timeouts, concurrency,
-or actual parallel execution. Unknown expression forms and `hashFiles()` need
-a field-specific scenario value; unsupported forms never silently succeed.
+runner behavior, permissions, environment approvals, timeouts, concurrency, or
+actual parallel execution. Unknown expression forms and `hashFiles()` need a
+field-specific scenario value; unsupported forms never silently succeed.
 
 ## Task artifact lifecycle
 
@@ -183,11 +184,11 @@ step gets an entrypoint of the form `<workflow-path>/<job-id>/task-<ordinal>`,
 where the ordinal counts task steps within the job.
 
 Each task-backed job contains a pinned `actions/cache` step followed by a normal
-composite preparation Action distributed from `actions/task-prepare/`. The backend embeds a
-generate-time source key in YAML and combines it with GitHub's runner OS and
-architecture for cache delivery. Generation and fallback builds share the
-`deno info` local-source identity calculation. `generate --check` guards
-source-key changes as well as structure.
+composite preparation Action distributed from `actions/task-prepare/`. The
+backend embeds a generate-time source key in YAML and combines it with GitHub's
+runner OS and architecture for cache delivery. Generation and fallback builds
+share the `deno info` local-source identity calculation. `generate --check`
+guards source-key changes as well as structure.
 
 The compiled artifact owns hit validation and immutable runtime publication.
 Build-time metadata is embedded using a preload module, calculated before that
@@ -232,14 +233,14 @@ the runtime's absolute path via the prepare step's output.
 Automatic identity covers reachable local `file:` modules, including
 project-external imports. Paths are project-relative rather than
 machine-absolute. Source identity also includes artifact format, Tsugiori
-package identity, and `cacheVersion`; runtime identity hashes the source key
-and Deno target together. Both use SHA-256, encoded as uppercase Base36 padded
-to 50 digits, with `S` and `A` prefixes respectively. Module hashes and binary
-checksums retain hexadecimal encoding.
-Remote modules, lockfiles, and Deno settings and versions remain excluded;
-authors increase `cacheVersion` for those inputs. This is a reuse contract, not
-a complete reproducibility claim. Linux/macOS X64/ARM64 map to their
-corresponding Deno targets; Windows task artifacts remain unsupported.
+package identity, and `cacheVersion`; runtime identity hashes the source key and
+Deno target together. Both use SHA-256, encoded as uppercase Base36 padded to 50
+digits, with `S` and `A` prefixes respectively. Module hashes and binary
+checksums retain hexadecimal encoding. Remote modules, lockfiles, and Deno
+settings and versions remain excluded; authors increase `cacheVersion` for those
+inputs. This is a reuse contract, not a complete reproducibility claim.
+Linux/macOS X64/ARM64 map to their corresponding Deno targets; Windows task
+artifacts remain unsupported.
 
 GitHub's transport key is
 `tsugiori-task-<source-key>-<runner-os>-<runner-arch>`. The best-effort cache
@@ -255,8 +256,8 @@ boundary.
 
 Source commands, artifact restore, and task dispatch use a bounded local
 recorder, enabled unless `TSUGIORI_DIAGNOSTICS=0`. It retains up to 32 records
-under `<platform-cache>/tsugiori/diagnostics/`, preferring failures, and caps each
-run at 64 operations. A capped record is marked partial. Records contain
+under `<platform-cache>/tsugiori/diagnostics/`, preferring failures, and caps
+each run at 64 operations. A capped record is marked partial. Records contain
 command, runtime/platform, stable stage and error types, and cache identities;
 task values and raw exceptions are excluded. Recording failure reports
 degradation without changing the command result. `RUNNER_DEBUG=1` also displays
@@ -272,8 +273,8 @@ long as runner temporary storage.
 
 The scenario library emits workflow operations to an optional host-owned sink;
 consumer absence or failure does not alter results. It owns no provider,
-recording store, or exporter. Deterministic compiler/schema failures retain typed
-diagnostics and can be rerun safely from the same authoring input.
+recording store, or exporter. Deterministic compiler/schema failures retain
+typed diagnostics and can be rerun safely from the same authoring input.
 
 ## Type service
 
@@ -321,30 +322,31 @@ path validates the upload without publishing. Wrangler usage metrics are
 disabled by default.
 
 Requests retain at most 32 causal stage records per run and 128 runs per
-isolate, evicting successful runs first. Records contain operation names,
-parent IDs, durations, completion and error classes; no requested URL, metadata,
+isolate, evicting successful runs first. Records contain operation names, parent
+IDs, durations, completion and error classes; no requested URL, metadata,
 headers, input values or raw exceptions are stored. The host-owned diagnostic
-store exposes listing and deletion in process and has no public route or
-remote exporter. `DIAGNOSTICS=off` disables Worker recording. Isolate teardown
-loses these bounded diagnostic records. This is local diagnosis, not a durable
+store exposes listing and deletion in process and has no public route or remote
+exporter. `DIAGNOSTICS=off` disables Worker recording. Isolate teardown loses
+these bounded diagnostic records. This is local diagnosis, not a durable
 operational audit.
 
 ## Package release boundary
 
 `.github/workflows.ts` imports action metadata from the official type service
 through `/github/actions/v1/` URLs and `#actions/` aliases, retaining the
-existing action commit SHAs and a checked-in Deno lockfile. It owns CI
-and the release workflow; generated YAML stays visible and checked in. Regular releases delegate version selection, tag/Release
-ownership, artifact validation and rollback to the commit-pinned
-repository-template action. Root mise release tasks own source selection,
-version injection and JSR publication from the extracted archive. Development
-metadata is never written back by a release. Packaging verifies relevant package,
-Action, and toolchain files match HEAD and, on Actions, that HEAD matches the
-workflow SHA. It reads the immutable Git tree and stamps that SHA into the existing
-package identity module. Generated preparation references use this release commit;
-they never consult the consumer's Git HEAD. Tsugiori's own project explicitly
-selects a checkout-local Action to avoid self-referential generated commit keys.
-Task-backed generation without either release identity or a local override fails.
+existing action commit SHAs and a checked-in Deno lockfile. It owns CI and the
+release workflow; generated YAML stays visible and checked in. Regular releases
+delegate version selection, tag/Release ownership, artifact validation and
+rollback to the commit-pinned repository-template action. Root mise release
+tasks own source selection, version injection and JSR publication from the
+extracted archive. Development metadata is never written back by a release.
+Packaging verifies relevant package, Action, and toolchain files match HEAD and,
+on Actions, that HEAD matches the workflow SHA. It reads the immutable Git tree
+and stamps that SHA into the existing package identity module. Generated
+preparation references use this release commit; they never consult the
+consumer's Git HEAD. Tsugiori's own project explicitly selects a checkout-local
+Action to avoid self-referential generated commit keys. Task-backed generation
+without either release identity or a local override fails.
 
 `release:build` also builds the Worker into ignored local `dist/` storage before
 any publication. `release:publish` publishes or verifies the JSR version, then
@@ -372,8 +374,8 @@ repository defaults.
 JSR retries compare the complete registry file manifest (path, byte count and
 SHA-256) and exports against the source archive. The publication config excludes
 workspace and import-map settings; sources use explicit relative, `node:`,
-`npm:`, or `jsr:` imports. Adding publish-time transformations requires updating this
-comparison contract. Registry versions are never removed on failure.
+`npm:`, or `jsr:` imports. Adding publish-time transformations requires updating
+this comparison contract. Registry versions are never removed on failure.
 
 An Actions concurrency group serializes releases. The main branch condition
 allows automatic publication after repository checks; manual dispatch supports

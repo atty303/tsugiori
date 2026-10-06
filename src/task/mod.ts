@@ -1,3 +1,22 @@
+/**
+ * Contracts for native task inputs, output writers and wire serialization.
+ *
+ * Task run callbacks receive parsed values through {@link TaskContext}. They run
+ *  in a prepared task binary, not during workflow definition or a scenario.
+ *  {@link textValue} validates nonempty strings; {@link jsonValue} accepts a
+ *  consumer-owned parser preserving JSON shape. Missing wire values become null;
+ *  explicit empty text and top-level null writes are rejected. Required outputs
+ *  must be written when a task executes. Skipped/continue-on-error tasks expose
+ *  optional output references to later steps. See {@link OutputDefinitions},
+ *  {@link InputDefinitions}, {@link parseWireValue} and {@link serializeValue}.
+ *
+ * Direct output passthroughs retain their contract; computed expressions do not.
+ *  Use present() and fromJSON() from the authoring API for optional/JSON references.
+ *  Parsing a wire value does not execute a GitHub expression or validate remote
+ *  Action behavior.
+ *
+ * @module
+ */
 /** Messages emitted by the task during runner execution.
  * @example In a `defineWorkflow().job()` callback with `{ job }`.
  * ```ts
@@ -15,44 +34,23 @@
  */
 export type TaskLogger = Readonly<{
   /** Writes an informational task message.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example Given logger from a task run callback.
    * ```ts
-   * job.runsOn("ubuntu-latest").task({
-   *   name: "Report",
-   *   inputs: {},
-   *   outputs: {},
-   *   run: ({ logger }) => {
-   *     logger.info("Release status");
-   *   },
-   * });
+   * logger.info("Release status");
    * ```
    */
   info: (...values: readonly unknown[]) => void;
   /** Writes a task warning.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example Given logger from a task run callback.
    * ```ts
-   * job.runsOn("ubuntu-latest").task({
-   *   name: "Report",
-   *   inputs: {},
-   *   outputs: {},
-   *   run: ({ logger }) => {
-   *     logger.warn("Release status");
-   *   },
-   * });
+   * logger.warn("Release status");
    * ```
    */
   warn: (...values: readonly unknown[]) => void;
   /** Writes a task error message.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example Given logger from a task run callback.
    * ```ts
-   * job.runsOn("ubuntu-latest").task({
-   *   name: "Report",
-   *   inputs: {},
-   *   outputs: {},
-   *   run: ({ logger }) => {
-   *     logger.error("Release status");
-   *   },
-   * });
+   * logger.error("Release status");
    * ```
    */
   error: (...values: readonly unknown[]) => void;
@@ -100,6 +98,8 @@ export type ValueContract<T, Kind extends "text" | "json" = "text" | "json"> =
      * ```
      */
     parse: (value: unknown) => T;
+    /** Type-level native value marker for ContractValue inference.
+     */
     [valueType]: T;
   }>;
 /** The native TypeScript value inferred from a contract.
@@ -249,50 +249,9 @@ export type OutputValues<O extends OutputDefinitions> = {
 /** Native input values; unguarded optional sources also allow null.
  * @example
  * ```ts
- * const stages = jsonValue({
- *   parse(value: unknown): readonly string[] {
- *     if (
- *       !Array.isArray(value) || !value.every((item) => typeof item === "string")
- *     ) {
- *       throw new TypeError("Expected stage names");
- *     }
- *     return value;
- *   },
- * });
- * defineWorkflow(".github/workflows/ci.yml", {
- *   on: { push: {} },
- * }).job("prepare", ({ job }) =>
- *   job.runsOn("ubuntu-latest").task({
- *     id: "plan",
- *     name: "Plan",
- *     inputs: {},
- *     outputs: { stages: { contract: stages, required: false } },
- *     run: async ({ outputs }) => {
- *       await outputs.set("stages", ["dev", "prd"]);
- *     },
- *   }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })))
- *   .job(
- *     "deploy",
- *     ({ job, jobs }) =>
- *       job.needs(jobs.prepare).runsOn("ubuntu-latest")
- *         .when(({ needs }) => present(needs.prepare.outputs.stages))
- *         .strategy(({ needs }) => ({
- *           matrix: { stage: fromJSON(needs.prepare.outputs.stages) },
- *         }))
- *         .task({
- *           name: "Deploy",
- *           inputs: {
- *             stage: {
- *               contract: textValue(),
- *               from: ({ matrix }) => matrix.stage,
- *             },
- *           },
- *           outputs: {},
- *           run: ({ inputs, logger }) => {
- *             logger.info(inputs.stage);
- *           },
- *         }),
- *   );
+ * const definitions = { sha: { contract: textValue(), from: "abc" } };
+ * type Values = InputValues<typeof definitions>;
+ * const value: Values = { sha: "abc" };
  * ```
  */
 export type InputValues<
@@ -385,19 +344,14 @@ export type TaskContext<
    * ```
    */
   outputs: Readonly<{
-    /** Validates and writes a declared native output; await each write.
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
+    /** Validate, serialize and append a declared output to GITHUB_OUTPUT.
+     * Await every write before the task returns. Unknown output names, invalid
+     * contract values, top-level null and unavailable/failed output file writes
+     * reject the Promise. Missing required writes fail when the task completes.
+     * See {@link serializeValue} for wire encoding and {@link OutputDefinitions}.
+     * @example Given `outputs` from a task run callback declaring required text output `version`.
      * ```ts
-     * job.runsOn("ubuntu-latest").task({
-     *   id: "version",
-     *   name: "Read version",
-     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
-     *   outputs: { version: { contract: textValue(), required: true } },
-     *   run: async ({ inputs, outputs, logger }) => {
-     *     logger.info(inputs.sha);
-     *     await outputs.set("version", "1.0.0");
-     *   },
-     * });
+     * await outputs.set("version", "1.0.0");
      * ```
      */
     set: <K extends keyof O & string>(
@@ -443,7 +397,18 @@ export function textValue(): ValueContract<string, "text"> {
  * ```
  */
 export function jsonValue<T>(
-  schema: Readonly<{ parse(value: unknown): T }>,
+  schema: Readonly<{
+    /** Validate without transforming the JSON shape. Throw on invalid values.
+     * @example
+     * ```ts
+     * jsonValue({ parse(value: unknown): string[] {
+     *   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) throw new TypeError("Expected strings");
+     *   return value;
+     * } });
+     * ```
+     */
+    parse(value: unknown): T;
+  }>,
 ): ValueContract<T, "json"> {
   return Object.freeze({
     kind: "json" as const,
@@ -513,6 +478,16 @@ function sameJson(left: unknown, right: unknown): boolean {
     );
 }
 
+/** Parse a task wire value with its contract. Empty wire values represent absence
+ * and return null; nonempty JSON is decoded before parsing. Invalid JSON or a
+ * rejected contract throws; top-level null throws TypeError. The parser must
+ * preserve the original JSON shape. See {@link serializeValue}.
+ * @example
+ * ```ts
+ * parseWireValue(textValue(), "1.0.0");
+ * parseWireValue(textValue(), ""); // null: absent value
+ * ```
+ */
 export function parseWireValue<T>(
   contract: ValueContract<T>,
   wire: string,
@@ -525,6 +500,15 @@ export function parseWireValue<T>(
   return contract.parse(value);
 }
 
+/** Validate a native task output and serialize it for GitHub. Empty text,
+ * top-level null, invalid JSON shapes and parser rejection throw; absent outputs
+ * are represented by not writing, rather than serializing null. This returns
+ * a string and performs no file write; TaskContext.outputs.set() owns writes.
+ * @example
+ * ```ts
+ * serializeValue(textValue(), "1.0.0");
+ * ```
+ */
 export function serializeValue<T>(
   contract: ValueContract<T>,
   value: T,
