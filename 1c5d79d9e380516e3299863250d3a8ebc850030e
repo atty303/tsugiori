@@ -1,0 +1,114 @@
+Task: Prepare task-artifact cache hits without external Deno
+Anchor: 1c5d79d9e380516e3299863250d3a8ebc850030e
+Base: 1409bc092b8fac6e601d4ab69fab82aca3348e94
+Branch: main
+Commits: 1c5d79d9e380516e3299863250d3a8ebc850030e (perf, patch release approved)
+Guidance: user AGENTS.md; develop-repository; design-review; design-program-observability; review; investigate-problem
+Conditions: current checkout; macOS ARM64; mise Deno 2.9.5; no push, release, deploy or new dependencies; complete local thread inspected across four segments; this implementation cycle contains two human messages
+## Evidence
+- Real official Deno 2.4.0 accepted compile --preload but did not embed or execute the preload. Official Deno 2.6.0 embedded it, preserved import.meta.main, generated/check-verified the repository, built format-4 artifacts and restored them without external Deno. Minimum set to 2.6.0.
+- Generated-YAML E2E proved offline cache-hit preparation, materialization and task execution with Deno absent from PATH and an empty Deno dependency directory. Absent/old/suitable-Deno selection, real ZIP extraction with simulated HTTP transport, corrupt/missing source and artifacts, immutable concurrency/recovery, old-key save-path removal, failed acquisition cleanup and retained diagnostics were exercised.
+- Fresh independent reviewer found reuse of an unstartable checksum-correct runner-local binary, then reuse on a subsequent hit. Both were fixed and verified with the same unstartable binary in delivery/cache/runtime and a subsequent Deno-free prepare/task. Final delta review reported no actionable findings.
+- Final mise run check passed; mise run test passed 108 tests (47s), including type-service checks; reviewed diff file blocks matched commit exactly. GitHub-hosted cache restore/post-save and execution on other platforms were not observed.
+Authority: current user implementation request and AGENTS.md; source/tests/living docs; approved patch-release classification
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、task artifactの準備を現在の `resolve → cache → prepare` から `cache → prepare` に変更してください。cache hit時はcompiled artifactだけで検証・準備を完結させ、fallback時だけ外部Denoを使用してください。
+    
+    ## 目的
+    - cache hit時の外部Denoへの依存と、`deno run`による依存取得をなくす。
+    - artifactとcheckoutの整合性を維持する。
+    - Tsugiori project用Denoの管理を、repo app用Denoの管理と分離する。
+    
+    ## 成功条件
+    - 生成YAMLのartifact準備stepが `cache → prepare` の2段階になる。
+    - 正常なartifactを復元できた場合、PATH上にDenoがなく、依存取得できない環境でも検証・準備・task実行が成功する。
+    - sourceの変更・欠落、artifactの破損・起動失敗、cache miss・restore失敗でfallbackする。
+    - fallbackでは最低version以上の既存Denoを再利用し、利用可能なDenoがない場合だけdownloadする。
+    - アプリ用Denoと後続stepのPATHを変更しない。
+    - 生成時と実行時のsourceキーが異なってもbuild・実行でき、新しいartifactを古いキーでリモート保存しない。
+    - sourceキー変更によるYAML更新漏れを `generate --check` が検出する。
+    - `deno task`から呼ぶTsugioriの共通入口で最低Deno versionを検証し、不足時に必要versionを示して失敗する。
+    - 関連する検証・ドキュメント・生成YAMLが最終実装と整合する。
+    
+    ## 決定事項
+    - sourceキーはgenerate時に計算し、YAMLへ埋め込む。
+      - 理由: cache前のresolve stepを不要にする。
+      - 主な棄却案: runner上の独立stepでキーを計算する方式。cache hitでも外部Denoと依存解決が必要になるため。
+    
+    - 生成時のsourceキーと実行時のrunnerのOS・architectureを組み合わせてcacheを識別する。
+      - 理由: 生成マシンのplatformに依存せず、互換性のないartifactを分離する。
+      - 主な棄却案: platform共通キー。異なるplatformのartifactが同じcache枠を取り合うため。
+    
+    - 依存graph取得には引き続き `deno info` を使う。
+      - 理由: 既存の依存解決を維持し、graph取得の別実装を導入しない。
+      - 主な棄却案: deno_graphなどのJS／WASM実装。今回のhit経路には不要で、依存解決の互換性検証が増えるため。
+    
+    - artifactのfallback build時に、現在の依存graphから検証情報を計算し、artifactへ埋め込む。
+      - 理由: build時には外部Denoが利用可能で、その場で必要な情報を取得できる。
+      - 主な棄却案: generate時のmodule一覧・hashを専用ファイルやYAMLへ出力してbuildへ渡す方式。不要な受け渡しと生成物を増やすため。
+    
+    - cache hit時は、artifact内の依存module一覧・相対path・hashを使ってcheckoutを直接検証する。
+      - 理由: 外部Denoやgraph再取得なしでsourceとの適合性を確認する。
+      - 主な棄却案: hit時に現行resolveをそのまま実行する方式。`deno info`への依存が残るため。
+      - manifest、binary checksum、platform、期待layoutなどの既存検証も維持する。
+    
+    - キー不一致はcache missとして扱い、現在のsourceからbuild・実行する。
+      - 理由: 古い生成キーによる実行停止を避けながら、古いartifactの使用を防ぐ。
+      - 主な棄却案: 不一致で即失敗する方式、および新しいキーでリモート保存する追加機構。後者は次のgenerateによる更新に任せる。
+    
+    - Deno versionは固定せず、最低versionを定める。
+      - 理由: 必要な機能要件を満たしつつ、repo appのtoolchainを制約しない。
+      - 主な棄却案: local generateとCI buildのversion固定。
+    
+    - 最低versionの検証はgenerate専用ではなく、`deno task`から呼ぶTsugioriの共通入口へ置く。
+      - 理由: commandごとの検証漏れを防ぐ。
+      - 主な棄却案: generateだけで検証する方式。
+      - localでは不足時に失敗し、自動setupしない。compiled artifact経路では外部Denoを確認しない。
+    
+    - CI fallback時だけPATH上のDenoを確認する。最低versionを満たすものがなければ、最新stableの公式release ZIPを専用directoryへdownload・展開する。
+      - 理由: 必要な導入処理だけをprepare内に持ち、2 step構成を保つ。
+      - 主な棄却案: setup-deno action、公式installer script、runner tool cache探索。
+      - setup-denoは今回不要な機能と独立stepを増やす。公式installerには付随処理がある。確認したLinux・macOSのrunner定義にDenoが掲載されていないため、tool cache探索も行わない。
+      - Deno用cacheは追加しない。
+    
+    ## 制約
+    - 現行の到達可能なローカルmodule追跡範囲を維持する。project外のローカルimportも対象に含める。
+    - remote module、lockfile、Deno設定・versionなどの自動追跡対象外入力に対する `cacheVersion` の役割を維持する。
+    - 最低versionの定義は共通入口とCI fallbackで共有する。
+    - fallbackで選択したDenoは明示したpathで使い、`run`・`info`・`compile`などの子processも同じbinaryを使う。
+    - アプリ用のbinary・version設定・lockfile・後続stepのPATHを変更しない。
+    - task本体の実行失敗を、準備失敗としてfallback・再実行しない。
+    - cache hit経路には、外部Denoのversion確認も依存取得も入れない。
+    
+    ## 対象外
+    - 独自の依存graph取得実装。
+    - YAML以外の検証metadata生成物のcommit。
+    - キー不一致時に新しいキーでリモート保存する仕組み。
+    - Deno用の追加cacheやrunner tool cache探索。
+    - local環境のDeno自動install・更新。
+    - アプリ用Denoのsetup管理。
+    
+    ## 未検証の前提
+    - 必要な最低Deno versionの具体値は未確定。使用機能と検証結果から決める。現在のrepository toolchainの固定値を、そのまま最低versionとはみなさない。
+    - runnerのOS・architectureと実際のartifact targetの対応は実装前に確認する。
+    - compiled artifactへの検証情報の埋め込み方法と、外部Denoなしでの検証・runtime materializationを確認する。
+    - 最低version未満のDenoで共通入口まで到達できる範囲と、到達前に構文・APIで失敗する範囲を確認する。
+    - 生成時キーと実際のキーが異なる場合に、新しいartifactが古いcacheの保存対象へ入らないことを確認する。
+    
+    ## 実装時の指示
+    - 現行の主な関連箇所は `src/compiler/authoring.ts`、`src/runner/main.ts`、`src/task-runtime/prepare.ts`、`src/task-runtime/artifact.ts`。
+    - 必要なidentityの算出と、復元物の適合性検証を分ける。hit経路から現行 `resolveTaskArtifact` 全体を呼ばない。
+    - generateとfallback buildでsourceキーの計算定義を共有する。
+    - 埋め込む検証情報自体による循環的なhash計算を避ける。
+    - artifact formatを必要に応じて更新し、旧形式を正常hitとして誤認しない。
+    - cache miss、source不一致、破損、起動失敗、Deno導入失敗を識別できる観測結果を残す。
+    - 外部Deno・依存取得なしのhit経路と、Denoがない／最低version未満／利用可能な各fallback経路を検証する。
+    - README、ARCHITECTURE、関連テスト・snapshot・生成YAMLを最終動作へ更新する。
+    
+  - A: Applied the agreed cache-to-prepare design; read current source and required skills, checked clean main and fetched origin plus standard notes. Proposed perf/patch release and continued authorized implementation while awaiting the release classification.
+- U2: patch release対象で進める
+  - A: Implemented shared generate/build identity, embedded validation metadata, Deno-free compiled restore, explicit minimum-version Deno fallback, source-key mismatch isolation, persisted rejected checksums, bounded opt-out diagnostics, compiler/test-harness changes and living docs/YAML. Verified real minimum-version compatibility and focused/full tests; corrected a generated Bash regex and an invalid byte-equality test oracle that caused heap exhaustion. Fixed both fresh-review recovery findings and obtained a clean final delta review. Removed aborted test fixtures; created signed local commit 1c5d79d9e380516e3299863250d3a8ebc850030e after final 108-test pass and exact reviewed-file comparison. Preparing this classified note from complete local thread evidence; no remote write performed.
