@@ -1,0 +1,84 @@
+Task: Reorganize Tsugiori as one JSR package with provider-scoped entrypoints
+Anchor: 7ea191d3245de6809f4e8845d262ad71314c124b
+Base: 8f0adf8bf0ae4ddcbd1eb4125b3ca04cbc26e877
+Branch: main
+Commits: 7ea191d3245de6809f4e8845d262ad71314c124b feat: expose provider-scoped Tsugiori entrypoints
+Guidance: repository AGENTS.md; develop-repository; design-review; design-program-observability applicability; independent review; git-task-evidence
+Conditions: current checkout; no publish, release, push, PR, or external repository changes; user approved local feat/minor commit; Deno 2.9.5 via mise
+## Evidence
+- mise run check passed; mise run test passed 98/98; .github generate:check reported workflow current.
+- Local workspace resolved umbrella and selective subpaths; archive build passed deno publish --dry-run with generated 0.2.2 metadata and src files.
+- Public JSR 0.2.1 one-item alias resolved existing github-actions and task subpaths after setting minimum dependency age to 0; new exports were not tested on JSR.
+- Independent read-only review found one stale spec skill path; corrected it and verified the remaining path search and diff check.
+Authority: user implementation request and feat/minor commit approval; current source, tests, and repository AGENTS.md
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori を、一つの JSR package と provider 別サブパスを持つ自然な Deno project に整理してください。
+    
+    ## 目的
+    - 各利用リポジトリが使用する provider を選び、そのアンブレラから一度の import で設定・実行 API を使えるようにする。
+    - 将来 GitLab を追加しても、GitHub 利用者の import graph に GitLab 固有のコードが入らない公開境界にする。
+    - raw HTTPS import のために残っている配置と利用案内を整理する。
+    
+    ## 成功条件
+    - JSR の公開単位は `@atty303/tsugiori` 一つで、デフォルトのルート export はない。
+    - `/github-actions` から GitHub Actions の公開 API 全体、`runTsugiori`、`scenario` と関連する公開型を一度に import できる。
+    - 部分利用向けに `/github-actions/authoring`、`/github-actions/run`、`/github-actions/testing` と、provider 共通の `/task` を公開する。
+    - ソースは単一 package の `src/` 以下に置き、`packages/core/src` などの重複した階層をなくす。内部は責務別に整理し、公開サブパスとディレクトリを一対一に対応させない。
+    - README、リポジトリ自身の `.github/tsugiori.ts`、関連ドキュメントと検証用 fixture が新しい公開入口を使う。外部利用例は JSR を使い、利用者の `deno.json` では Tsugiori の version 指定を一項目にまとめる。
+    - 公開ソースで使う `@std/yaml` の正確な version は、明示的な `jsr:` import として一か所だけで宣言する。
+    - 公開アーカイブと JSR 公開物のファイル内容・exports の照合を維持する。
+    - リポジトリの check と test、および生成 workflow の鮮度確認が通る。
+    
+    ## 決定事項
+    - 一つの JSR package に provider 別サブパスを設ける。
+      - 理由: Deno は必要な import graph のファイルを取得するため、provider ごとに package を分けなくても取得範囲を分離できる。
+      - 主な棄却案: provider ごとに package と version を分ける案。独立した release 運用が必要になる。
+    - デフォルトのルート export をなくし、通常利用は provider 別アンブレラにする。
+      - 理由: 利用リポジトリは provider を一つ選ぶ。曖昧なルート入口を設けず、一度の import という使い勝手を provider の入口で実現する。
+      - 主な棄却案: ルートから両 provider を再 export する案。片方だけを使う場合も両方が import graph に入る。
+    - GitHub 用アンブレラに定義・実行・テスト API をまとめ、advanced な部分利用には provider 名を含むサブパスを用意する。
+      - 理由: 通常利用は簡単にしつつ、部分利用では必要な入口を選べる。
+      - 主な棄却案: 定義、実行、テストを常に別々に import させる案。一度の import という目的を満たさない。
+    - 内部は `src/` 以下で責務別に配置し、内部モジュール間では相対 import を使う。
+      - 理由: 実体は一つの Deno package であり、相対 import はその内部では自然。公開境界は `deno.json` の `exports` で定める。
+      - 主な棄却案: 各ディレクトリを独立 package にする案、および内部配置を公開サブパスに機械的に合わせる案。
+    - `@std/yaml` はソース内の一か所で明示的な `jsr:` import を維持する。
+      - 理由: Deno/JSR で有効な依存指定であり、現在の公開アーカイブと JSR 公開物の内容照合を維持できる。
+      - 主な棄却案: `deno.json` の import mapping に移す案。公開時の import 書き換えに合わせ、照合方式まで変更する必要がある。
+    - 旧ルート API、旧 `/run`・`/testing` 入口、旧 `packages/...` raw URL パスの互換ファイルは残さない。
+      - 理由: 今回は公開境界を変更し、raw HTTPS import の直接利用を主なサポート対象から外す。旧 commit SHA に固定した URL はその commit を引き続き参照できる。
+      - 主な棄却案: 旧パスに再 export ファイルを残す案。整理した構造を互換性のために維持することになる。
+    
+    ## 制約
+    - GitHub Actions backend、task artifact の実行方式、release 時の version 注入と公開物の照合保証を維持する。
+    - GitLab backend、provider 中立の pipeline model、新しい実行方式は追加しない。
+    - 既存の unrelated な作業ツリー変更を保持する。
+    - publish、release、push、PR 作成、および外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - GitLab の実装。
+    - provider ごとの JSR package 分割。
+    - raw HTTPS import の新しい commit に対する旧内部パス互換性。
+    - 既存の commit SHA に固定された外部利用者の移行。
+    
+    ## 未検証の前提
+    - ソース移動後も、リポジトリ内の `.github` Deno project からローカルの provider サブパスを解決できること。
+    - 新しい `exports` とソース配置から作った公開アーカイブが `deno publish --dry-run` を通り、既存の公開物照合方式を維持できること。
+    - README の一項目の JSR import mapping で、アンブレラと部分利用のサブパスを解決できること。
+    
+    ## 実装時の指示
+    - `deno.json` の exports、ソース内の相対 import、release script の対象パス、テストと fixture の参照を、ソース移動に合わせて更新する。
+    - `.github/deno.json` のローカル解決設定を見直し、公開済み JSR version ではなく現在の checkout のソースで CI 設定を検証する。
+    - README の外部利用例から raw GitHub URL の import mapping を除き、JSR の provider サブパスを使う例にする。
+    - 生成 workflow に差分が必要なら `.github/tsugiori.ts` から再生成し、差分を確認する。
+    - `mise run check`、`mise run test`、生成 workflow の check、公開アーカイブの dry-run を実施する。未公開の変更が JSR 上で動作したとは主張しない。
+    
+  - A: Inspected source, release boundary, and current checkout; moved package modules into src, added provider exports, updated docs, fixtures, release archive enumeration, and spec skill path; passed check, 98 tests, workflow freshness, local resolution, and JSR dry-run; independent review completed; requested commit impact approval.
+- U2:
+    ok
+    
+  - A: Accepted feat/minor impact, reviewed and staged the exact change, created the local commit, and prepared task evidence without publishing or pushing.
