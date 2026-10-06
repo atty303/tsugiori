@@ -39,18 +39,15 @@ function assertTypedIO(): void {
         .task({
           name: "Consume",
           outputs: {},
-          inputs: {
-            targets: {
-              contract,
-              from: ({ needs }) => {
-                // @ts-expect-error optional JSON reference has no inferred parsed type without a guard
-                const parsed: Expression<readonly string[]> = fromJSON(
-                  needs.detect.outputs.targets,
-                );
-                void parsed;
-                return needs.detect.outputs.targets;
-              },
-            },
+          inputs: ({ needs }) => {
+            // @ts-expect-error optional JSON reference has no inferred parsed type without a guard
+            const parsed: Expression<readonly string[]> = fromJSON(
+              needs.detect.outputs.targets,
+            );
+            void parsed;
+            return {
+              targets: { contract, from: needs.detect.outputs.targets },
+            };
           },
           run: ({ inputs }) => {
             // @ts-expect-error an optional source is nullable without a presence proof
@@ -71,12 +68,12 @@ function assertTypedIO(): void {
         .task({
           name: "Consume",
           outputs: {},
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             const targets: readonly string[] = inputs.targets;
             void targets;
@@ -92,12 +89,12 @@ function assertTypedIO(): void {
           name: "Consume",
           outputs: {},
           if: ({ needs }) => present(needs.detect.outputs.targets).and(true),
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             const targets: readonly string[] = inputs.targets;
             void targets;
@@ -114,12 +111,12 @@ function assertTypedIO(): void {
         .task({
           name: "Consume",
           outputs: {},
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             // @ts-expect-error the second when replaces the first proof
             const targets: readonly string[] = inputs.targets;
@@ -136,12 +133,12 @@ function assertTypedIO(): void {
           name: "Consume",
           outputs: {},
           if: ({ needs }) => present(needs.detect.outputs.targets).or(true),
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             // @ts-expect-error OR does not prove presence
             const targets: readonly string[] = inputs.targets;
@@ -158,12 +155,12 @@ function assertTypedIO(): void {
           name: "Consume",
           outputs: {},
           if: rawNode<boolean>("needs.detect.outputs.targets != ''"),
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             // @ts-expect-error raw expressions do not prove presence
             const targets: readonly string[] = inputs.targets;
@@ -180,12 +177,12 @@ function assertTypedIO(): void {
           name: "Consume",
           outputs: {},
           if: ({ needs }) => present(needs.detect.outputs.targets).not(),
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           run: ({ inputs }) => {
             // @ts-expect-error negation does not prove presence
             const targets: readonly string[] = inputs.targets;
@@ -214,9 +211,9 @@ function assertTypedIO(): void {
         .task({
           name: "Consume",
           outputs: {},
-          inputs: {
-            item: { contract, from: ({ needs }) => needs.produce.outputs.item },
-          },
+          inputs: ({ needs }) => ({
+            item: { contract, from: needs.produce.outputs.item },
+          }),
           run: ({ inputs }) => {
             // @ts-expect-error a skipped producer can omit a required output
             const item: readonly string[] = inputs.item;
@@ -246,16 +243,16 @@ function assertTypedIO(): void {
         .run({
           name: "Noop",
           run: "true",
-          env: {
-            ITEM: ({ needs }) => {
+          env: ({ needs }) => ({
+            ITEM: (() => {
               // @ts-expect-error fromJSON does not infer a JSON value from a text contract
               const value: Expression<readonly string[]> = fromJSON(
                 needs.produce.outputs.item,
               );
               void value;
               return needs.produce.outputs.item;
-            },
-          },
+            })(),
+          }),
         }),
   );
 }

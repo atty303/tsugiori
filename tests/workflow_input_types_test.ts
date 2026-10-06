@@ -89,12 +89,12 @@ function assertInputTypes(): void {
       }).strategy({ matrix: { os: ["linux"] } }).run({
         name: "Run",
         run: "true",
-        env: {
-          COUNT: ({ inputs }) => {
+        env: ({ inputs }) => ({
+          COUNT: (() => {
             const value: Expression<number | ""> = inputs.callOnly;
             return value;
-          },
-        },
+          })(),
+        }),
       }).outputs(({ inputs }) => ({ value: inputs.shared })));
   finished.job(
     "dependent",
@@ -142,13 +142,13 @@ function assertInputTypes(): void {
       job.reusable().call(
         "./.github/workflows/finished.yml",
         finished,
-        ({ inputs }) => ({
-          with: {
+        {
+          with: ({ inputs }) => ({
             shared: rawNode<boolean>("true"),
             callOnly: inputs.callOnly.as<number>(),
-          },
+          }),
           secrets: "inherit",
-        }),
+        },
       ),
   );
   defineWorkflow("x", {

@@ -69,7 +69,7 @@ const release = defineWorkflow("workflows/release.yml", {
     .uses(releaseAction, {
       name: "Release",
       with: { versioning: "semver" },
-      env: { FNOX_AGE_KEY: ({ secrets }) => secrets.FNOX_AGE_KEY },
+      env: ({ secrets }) => ({ FNOX_AGE_KEY: secrets.FNOX_AGE_KEY }),
     }));
 
 const project = defineProject({

@@ -50,12 +50,12 @@ const wired = defineWorkflow(".github/workflows/wired.yml", {
         .task({
           id: "read",
           name: "Read number",
-          inputs: {
+          inputs: ({ needs }) => ({
             count: {
               contract: countValue,
-              from: ({ needs }) => needs.produce.outputs.count,
+              from: needs.produce.outputs.count,
             },
-          },
+          }),
           outputs: {},
           run: taskMustNotRun,
         })
@@ -68,12 +68,12 @@ const wired = defineWorkflow(".github/workflows/wired.yml", {
           id: "after",
           name: "After action",
           if: () => always(),
-          inputs: {
+          inputs: ({ steps }) => ({
             token: {
               contract: textValue(),
-              from: ({ steps }) => steps.action.outputs.token,
+              from: steps.action.outputs.token,
             },
-          },
+          }),
           outputs: {},
           run: taskMustNotRun,
         }),
@@ -203,9 +203,9 @@ const matrix = defineWorkflow(".github/workflows/matrix.yml", {
     .task({
       id: "execute",
       name: "Execute",
-      inputs: {
-        stage: { contract: textValue(), from: ({ matrix }) => matrix.stage },
-      },
+      inputs: ({ matrix }) => ({
+        stage: { contract: textValue(), from: matrix.stage },
+      }),
       outputs: {},
       run: taskMustNotRun,
     }));
@@ -466,11 +466,11 @@ Deno.test("common input references follow each trigger and call defaults", async
         id: "read",
         name: "Read",
         run: "true",
-        env: {
-          shared: ({ inputs }) => inputs.shared,
-          dispatchOnly: ({ inputs }) => inputs.dispatchOnly,
-          count: ({ inputs }) => inputs.count,
-        },
+        env: ({ inputs }) => ({
+          shared: inputs.shared,
+          dispatchOnly: inputs.dispatchOnly,
+          count: inputs.count,
+        }),
       }),
   );
   for (

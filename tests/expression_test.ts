@@ -63,17 +63,17 @@ Deno.test("typed expressions compose across job and step fields", async () => {
                 >(),
               },
             }))
-            .concurrency({
-              group: ({ matrix }) => format("deploy-{0}", matrix.stage),
+            .concurrency(({ matrix }) => ({
+              group: format("deploy-{0}", matrix.stage),
               cancelInProgress: false,
-            })
+            }))
             .uses(action, {
               id: "run",
               name: "Run",
-              env: {
-                STAGE: ({ matrix }) => matrix.stage,
-                TOKEN: ({ secrets }) => secrets.token,
-              },
+              env: ({ matrix, secrets }) => ({
+                STAGE: matrix.stage,
+                TOKEN: secrets.token,
+              }),
               with: ({ matrix }) => ({ value: matrix.stage }),
             })
             .run({

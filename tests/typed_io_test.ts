@@ -71,12 +71,12 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
         .task({
           name: "Deploy",
           outputs: {},
-          inputs: {
+          inputs: ({ needs }) => ({
             targets: {
               contract: names,
-              from: ({ needs }) => needs.detect.outputs.targets,
+              from: needs.detect.outputs.targets,
             },
-          },
+          }),
           env: { REGION: "ap-northeast-1" },
           run: ({ inputs }) => {
             assertEquals(inputs.targets, ["dev"]);
@@ -123,12 +123,12 @@ Deno.test("typed input requires the source contract object and rejects env colli
           job.needs(jobs.source).runsOn("ubuntu-latest").task({
             name: "Bad",
             outputs: {},
-            inputs: {
+            inputs: ({ needs }) => ({
               result: {
                 contract: other,
-                from: ({ needs }) => needs.source.outputs.result,
+                from: needs.source.outputs.result,
               },
-            },
+            }),
             run: () => {},
           }),
       ),
@@ -143,12 +143,12 @@ Deno.test("typed input requires the source contract object and rejects env colli
           job.needs(jobs.source).runsOn("ubuntu-latest").task({
             name: "Collision",
             outputs: {},
-            inputs: {
+            inputs: ({ needs }) => ({
               result: {
                 contract: names,
-                from: ({ needs }) => needs.source.outputs.result,
+                from: needs.source.outputs.result,
               },
-            },
+            }),
             env: { TSUGIORI_INPUT_RESULT: "other" },
             run: () => {},
           }),
@@ -164,16 +164,16 @@ Deno.test("typed input requires the source contract object and rejects env colli
           job.needs(jobs.source).runsOn("ubuntu-latest").task({
             name: "Collision",
             outputs: {},
-            inputs: {
+            inputs: ({ needs }) => ({
               foo: {
                 contract: names,
-                from: ({ needs }) => needs.source.outputs.result,
+                from: needs.source.outputs.result,
               },
               FOO: {
                 contract: names,
-                from: ({ needs }) => needs.source.outputs.result,
+                from: needs.source.outputs.result,
               },
-            },
+            }),
             run: () => {},
           }),
       ),
@@ -207,12 +207,12 @@ Deno.test("typed contracts follow bracket-rendered job and step references", () 
         ({ job, jobs }) =>
           job.needs(jobs["source-job"]).runsOn("ubuntu-latest").task({
             name: "Consume",
-            inputs: {
+            inputs: ({ needs }) => ({
               result: {
                 contract: other,
-                from: ({ needs }) => needs["source-job"].outputs["result-list"],
+                from: needs["source-job"].outputs["result-list"],
               },
-            },
+            }),
             outputs: {},
             run: () => {},
           }),
@@ -243,12 +243,12 @@ Deno.test("computed job outputs do not retain task contracts", () => {
         .task({
           name: "Consume",
           outputs: {},
-          inputs: {
+          inputs: ({ needs }) => ({
             result: {
               contract: other,
-              from: ({ needs }) => needs.source.outputs.result,
+              from: needs.source.outputs.result,
             },
-          },
+          }),
           run: () => {},
         }),
   );
@@ -267,7 +267,7 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value))throw new TypeError();return value;}});
 const first=defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
-const project=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:({needs})=>needs.source.outputs.targets}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+const project=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:({ needs }) => ({targets:{contract,from:needs.source.outputs.targets}}),outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
       JSON.stringify(resultPath)
     },JSON.stringify(inputs.targets));}}))]});
 Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;

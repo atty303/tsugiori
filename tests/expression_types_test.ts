@@ -121,10 +121,10 @@ function assertContracts(): void {
             { stage: string }
           >(),
         }))
-        .concurrency({
-          group: ({ matrix }) => matrix.stage,
+        .concurrency(({ matrix }) => ({
+          group: matrix.stage,
           cancelInProgress: false,
-        })
+        }))
         .run({ name: "Noop", run: "true" }),
   );
   const second = first.job(
@@ -151,10 +151,10 @@ function assertContracts(): void {
             >(),
           },
         }))
-        .concurrency({
-          group: ({ matrix }) => matrix.stage,
+        .concurrency(({ matrix }) => ({
+          group: matrix.stage,
           cancelInProgress: false,
-        })
+        }))
         .uses(deploy, {
           id: "deploy",
           name: "Deploy",

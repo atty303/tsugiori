@@ -67,11 +67,17 @@ workflow. Run defaults remain native job settings and per-step overrides remain
 explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The
 expression AST serializes literals, property references, operators, built-in
 calls, and opaque `rawNode<T>()` nodes. Field callbacks derive their available
-contexts from the provider scope catalog. The AST is built at each field; it is
-not a host-language evaluation of GitHub runtime values. `rawNode<T>()` and
-`.as<T>()` contain caller assertions, not runtime validation. Typed task JSON
-references give `fromJSON()` an inferred result type while preserving its
-ordinary GitHub expression rendering.
+contexts from the provider scope catalog. Settings sharing that scope accept a
+static object or one authoring callback returning the complete object. Step/job
+env, job run defaults and concurrency, and task input bindings use this form;
+individual values do not accept callbacks. Reusable caller inputs and secrets
+have separate map callbacks because only the secrets scope exposes secrets.
+Caller arguments remain an object, preserving these field boundaries. All these
+callbacks run during authoring and retain typed references and task presence
+proofs. The AST is built at each field; it is not a host-language evaluation of
+GitHub runtime values. `rawNode<T>()` and `.as<T>()` contain caller assertions,
+not runtime validation. Typed task JSON references give `fromJSON()` an inferred
+result type while preserving its ordinary GitHub expression rendering.
 
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,

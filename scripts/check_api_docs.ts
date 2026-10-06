@@ -138,7 +138,7 @@ declare const logger: TaskLogger;
 const workflow = defineWorkflow(".github/workflows/doc.yml", { on: { push: {} } })
   .job("build", ({ job }) => job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] } })
-    .task({ id: "build", name: "Build", inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+    .task({ id: "build", name: "Build", inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
       outputs: { version: { contract: textValue(), required: true } }, run: async ({ outputs }) => { await outputs.set("version", "1.0.0"); } })
     .outputs(({ steps }) => ({ version: steps.build.outputs.version })))
   .job("deploy", ({ job, jobs }) => job.needs(jobs.build).runsOn("ubuntu-latest").run({ id: "deploy", name: "Deploy", run: "true" }));

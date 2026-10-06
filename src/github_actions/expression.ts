@@ -519,7 +519,7 @@ export const join = (
  * job.runsOn("ubuntu-latest").run({
  *   name: "Inspect event",
  *   run: 'printf "%s\\n" "$EVENT"',
- *   env: { EVENT: ({ github }) => toJSON(github.event) },
+ *   env: ({ github }) => ({ EVENT: toJSON(github.event) }),
  * });
  * ```
  */
@@ -646,7 +646,7 @@ export const failure = (): Expression<boolean> => call("failure");
  * job.runsOn("ubuntu-latest").run({
  *   name: "Cache key",
  *   run: "true",
- *   env: { KEY: ({ hashFiles }) => hashFiles("deno.lock", "!vendor/*.ts") },
+ *   env: ({ hashFiles }) => ({ KEY: hashFiles("deno.lock", "!vendor/*.ts") }),
  * });
  * ```
  */
@@ -662,7 +662,7 @@ export const hashFiles = (
  * job.runsOn("ubuntu-latest").run({
  *   name: "Inspect event",
  *   run: 'printf "%s\\n" "$EVENT"',
- *   env: { EVENT: ({ github }) => toJSON(github.event) },
+ *   env: ({ github }) => ({ EVENT: toJSON(github.event) }),
  * });
  * ```
  */
@@ -674,7 +674,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.action) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.action) }),
    * });
    * ```
    */
@@ -686,7 +686,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.action_path) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.action_path) }),
    * });
    * ```
    */
@@ -698,7 +698,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.action_ref) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.action_ref) }),
    * });
    * ```
    */
@@ -710,7 +710,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.action_repository) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.action_repository) }),
    * });
    * ```
    */
@@ -722,7 +722,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.action_status) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.action_status) }),
    * });
    * ```
    */
@@ -734,7 +734,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.actor) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.actor) }),
    * });
    * ```
    */
@@ -746,7 +746,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.actor_id) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.actor_id) }),
    * });
    * ```
    */
@@ -758,7 +758,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.api_url) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.api_url) }),
    * });
    * ```
    */
@@ -770,7 +770,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.base_ref) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.base_ref) }),
    * });
    * ```
    */
@@ -782,7 +782,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.env) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.env) }),
    * });
    * ```
    */
@@ -793,7 +793,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.env) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.env) }),
    * });
    * ```
    */
@@ -805,7 +805,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.event) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.event) }),
    * });
    * ```
    */
@@ -817,7 +817,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.event_name) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.event_name) }),
    * });
    * ```
    */
@@ -829,7 +829,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.event_path) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.event_path) }),
    * });
    * ```
    */
@@ -841,7 +841,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.graphql_url) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.graphql_url) }),
    * });
    * ```
    */
@@ -853,7 +853,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.head_ref) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.head_ref) }),
    * });
    * ```
    */
@@ -865,7 +865,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.job) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.job) }),
    * });
    * ```
    */
@@ -876,7 +876,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.job) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.job) }),
    * });
    * ```
    */
@@ -888,7 +888,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.path) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.path) }),
    * });
    * ```
    */
@@ -900,7 +900,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.ref) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.ref) }),
    * });
    * ```
    */
@@ -912,7 +912,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.ref_name) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.ref_name) }),
    * });
    * ```
    */
@@ -924,7 +924,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.ref_protected) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.ref_protected) }),
    * });
    * ```
    */
@@ -936,7 +936,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.ref_type) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.ref_type) }),
    * });
    * ```
    */
@@ -948,7 +948,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.repository) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.repository) }),
    * });
    * ```
    */
@@ -960,7 +960,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.repository_id) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.repository_id) }),
    * });
    * ```
    */
@@ -972,7 +972,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.repository_owner) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.repository_owner) }),
    * });
    * ```
    */
@@ -984,7 +984,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.repository_owner_id) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.repository_owner_id) }),
    * });
    * ```
    */
@@ -996,7 +996,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.repositoryUrl) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.repositoryUrl) }),
    * });
    * ```
    */
@@ -1008,7 +1008,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.retention_days) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.retention_days) }),
    * });
    * ```
    */
@@ -1020,7 +1020,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.run_attempt) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.run_attempt) }),
    * });
    * ```
    */
@@ -1032,7 +1032,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.run_id) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.run_id) }),
    * });
    * ```
    */
@@ -1044,7 +1044,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.run_number) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.run_number) }),
    * });
    * ```
    */
@@ -1056,7 +1056,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.secret_source) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.secret_source) }),
    * });
    * ```
    */
@@ -1068,7 +1068,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.server_url) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.server_url) }),
    * });
    * ```
    */
@@ -1080,7 +1080,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.sha) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.sha) }),
    * });
    * ```
    */
@@ -1092,7 +1092,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.token) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.token) }),
    * });
    * ```
    */
@@ -1104,7 +1104,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.triggering_actor) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.triggering_actor) }),
    * });
    * ```
    */
@@ -1116,7 +1116,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.workflow) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.workflow) }),
    * });
    * ```
    */
@@ -1128,7 +1128,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.workflow_ref) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.workflow_ref) }),
    * });
    * ```
    */
@@ -1140,7 +1140,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.workflow_sha) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.workflow_sha) }),
    * });
    * ```
    */
@@ -1152,7 +1152,7 @@ export type GitHubContext = Readonly<{
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ github }) => toJSON(github.workspace) },
+   *   env: ({ github }) => ({ VALUE: toJSON(github.workspace) }),
    * });
    * ```
    */
@@ -1179,9 +1179,9 @@ export type StepContext<
    * }).run({
    *   name: "Consume",
    *   run: "true",
-   *   env: {
-   *     VALUE: ({ steps }) => steps.build.outputs.version,
-   *   },
+   *   env: ({ steps }) => ({
+   *     VALUE: steps.build.outputs.version,
+   *   }),
    * });
    * ```
    */
@@ -1207,9 +1207,9 @@ export type StepContext<
    * }).run({
    *   name: "Consume",
    *   run: "true",
-   *   env: {
-   *     VALUE: ({ steps }) => steps.build.outcome,
-   *   },
+   *   env: ({ steps }) => ({
+   *     VALUE: steps.build.outcome,
+   *   }),
    * });
    * ```
    */
@@ -1226,9 +1226,9 @@ export type StepContext<
    * }).run({
    *   name: "Consume",
    *   run: "true",
-   *   env: {
-   *     VALUE: ({ steps }) => steps.build.conclusion,
-   *   },
+   *   env: ({ steps }) => ({
+   *     VALUE: steps.build.conclusion,
+   *   }),
    * });
    * ```
    */
@@ -1259,9 +1259,9 @@ export type JobContext<
    *         .run({
    *           name: "Deploy",
    *           run: "deploy",
-   *           env: {
-   *             VERSION: ({ needs }) => needs.build.outputs.version,
-   *           },
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.outputs.version,
+   *           }),
    *         }),
    *   );
    * ```
@@ -1294,9 +1294,9 @@ export type JobContext<
    *         .run({
    *           name: "Deploy",
    *           run: "deploy",
-   *           env: {
-   *             VERSION: ({ needs }) => needs.build.result,
-   *           },
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.result,
+   *           }),
    *         }),
    *   );
    * ```
@@ -1319,7 +1319,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Inspect event",
    *   run: 'printf "%s\\n" "$EVENT"',
-   *   env: { EVENT: ({ github }) => toJSON(github.event) },
+   *   env: ({ github }) => ({ EVENT: toJSON(github.event) }),
    * });
    * ```
    */
@@ -1344,9 +1344,9 @@ export type ScopeValues<
    *         .run({
    *           name: "Deploy",
    *           run: "deploy",
-   *           env: {
-   *             VERSION: ({ needs }) => needs.build.outputs.version,
-   *           },
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.outputs.version,
+   *           }),
    *         }),
    *   );
    * ```
@@ -1398,7 +1398,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ strategy }) => toJSON(strategy) },
+   *   env: ({ strategy }) => ({ VALUE: toJSON(strategy) }),
    * });
    * ```
    */
@@ -1411,7 +1411,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ strategy }) => toJSON(strategy.fail_fast) },
+       *   env: ({ strategy }) => ({ VALUE: toJSON(strategy.fail_fast) }),
        * });
        * ```
        */
@@ -1423,7 +1423,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ strategy }) => toJSON(strategy.job_index) },
+       *   env: ({ strategy }) => ({ VALUE: toJSON(strategy.job_index) }),
        * });
        * ```
        */
@@ -1435,7 +1435,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ strategy }) => toJSON(strategy.job_total) },
+       *   env: ({ strategy }) => ({ VALUE: toJSON(strategy.job_total) }),
        * });
        * ```
        */
@@ -1447,7 +1447,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ strategy }) => toJSON(strategy.max_parallel) },
+       *   env: ({ strategy }) => ({ VALUE: toJSON(strategy.max_parallel) }),
        * });
        * ```
        */
@@ -1465,7 +1465,7 @@ export type ScopeValues<
    *   job.runsOn("ubuntu-latest").run({
    *     name: "Use context",
    *     run: "true",
-   *     env: { VALUE: ({ vars }) => toJSON(vars.REGION) },
+   *     env: ({ vars }) => ({ VALUE: toJSON(vars.REGION) }),
    *   }));
    * ```
    */
@@ -1481,7 +1481,7 @@ export type ScopeValues<
    *   job.runsOn("ubuntu-latest").run({
    *     name: "Use context",
    *     run: "true",
-   *     env: { VALUE: ({ secrets }) => toJSON(secrets.DEPLOY_TOKEN) },
+   *     env: ({ secrets }) => ({ VALUE: toJSON(secrets.DEPLOY_TOKEN) }),
    *   }));
    * ```
    */
@@ -1500,7 +1500,7 @@ export type ScopeValues<
    *   job.runsOn("ubuntu-latest").run({
    *     name: "Use context",
    *     run: "true",
-   *     env: { VALUE: ({ inputs }) => toJSON(inputs.stage) },
+   *     env: ({ inputs }) => ({ VALUE: toJSON(inputs.stage) }),
    *   }));
    * ```
    */
@@ -1512,7 +1512,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ env }) => toJSON(env.CI) },
+   *   env: ({ env }) => ({ VALUE: toJSON(env.CI) }),
    * });
    * ```
    */
@@ -1523,7 +1523,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ env }) => toJSON(env.CI) },
+   *   env: ({ env }) => ({ VALUE: toJSON(env.CI) }),
    * });
    * ```
    */
@@ -1535,7 +1535,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ job }) => toJSON(job) },
+   *   env: ({ job }) => ({ VALUE: toJSON(job) }),
    * });
    * ```
    */
@@ -1546,7 +1546,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ job }) => toJSON(job) },
+   *   env: ({ job }) => ({ VALUE: toJSON(job) }),
    * });
    * ```
    */
@@ -1559,7 +1559,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ job }) => toJSON(job.status) },
+       *   env: ({ job }) => ({ VALUE: toJSON(job.status) }),
        * });
        * ```
        */
@@ -1571,7 +1571,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ job }) => toJSON(job.container) },
+       *   env: ({ job }) => ({ VALUE: toJSON(job.container) }),
        * });
        * ```
        */
@@ -1583,7 +1583,7 @@ export type ScopeValues<
          * job.runsOn("ubuntu-latest").run({
          *   name: "Use context",
          *   run: "true",
-         *   env: { VALUE: ({ job }) => toJSON(job.container.id) },
+         *   env: ({ job }) => ({ VALUE: toJSON(job.container.id) }),
          * });
          * ```
          */
@@ -1595,7 +1595,7 @@ export type ScopeValues<
          * job.runsOn("ubuntu-latest").run({
          *   name: "Use context",
          *   run: "true",
-         *   env: { VALUE: ({ job }) => toJSON(job.container.network) },
+         *   env: ({ job }) => ({ VALUE: toJSON(job.container.network) }),
          * });
          * ```
          */
@@ -1610,7 +1610,7 @@ export type ScopeValues<
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
    *   run: "true",
-   *   env: { VALUE: ({ runner }) => toJSON(runner) },
+   *   env: ({ runner }) => ({ VALUE: toJSON(runner) }),
    * });
    * ```
    */
@@ -1623,7 +1623,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.name) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.name) }),
        * });
        * ```
        */
@@ -1635,7 +1635,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.os) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.os) }),
        * });
        * ```
        */
@@ -1647,7 +1647,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.arch) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.arch) }),
        * });
        * ```
        */
@@ -1659,7 +1659,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.temp) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.temp) }),
        * });
        * ```
        */
@@ -1671,7 +1671,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.tool_cache) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.tool_cache) }),
        * });
        * ```
        */
@@ -1683,7 +1683,7 @@ export type ScopeValues<
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
        *   run: "true",
-       *   env: { VALUE: ({ runner }) => toJSON(runner.debug) },
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.debug) }),
        * });
        * ```
        */

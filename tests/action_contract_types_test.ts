@@ -89,13 +89,13 @@ function checkTypes() {
       return state.run({
         name: "Consume",
         run: "true",
-        env: {
-          URL: ({ steps }) => {
+        env: ({ steps }) => ({
+          URL: (() => {
             // @ts-expect-error callback also exposes only declared output names
             steps.publish.outputs.missing;
             return steps.publish.outputs.url;
-          },
-        },
+          })(),
+        }),
       });
     },
   );

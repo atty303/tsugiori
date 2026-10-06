@@ -284,7 +284,7 @@ const flow = defineWorkflow("ci.yml", { on: {
       for (
         const [index, source] of [
           "flow.inputs./*completion*/",
-          'flow.job("run", ({job}) => job.runsOn("ubuntu-latest").run({name: "Run", run: "true", env: { VALUE: ({inputs}) => inputs./*completion*/ }}));',
+          'flow.job("run", ({job}) => job.runsOn("ubuntu-latest").run({name: "Run", run: "true", env: ({ inputs }) => ({ VALUE: inputs./*completion*/ })}));',
         ].entries()
       ) {
         const labels = await sourceCompletionLabels(
@@ -377,7 +377,7 @@ const publish = contract;`;
             "Published URL.",
           ],
           [
-            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }).run({ name: "Consume", run: "true", env: { URL: ({ steps }) => steps.publish.outputs.url/*completion*/ } }));`,
+            `${actionSource}\ndefineWorkflow("ci.yml", { on: { push: {} } }).job("publish", ({ job }) => job.runsOn("ubuntu-latest").uses(publish, { id: "publish", name: "Publish", with: { destination: "web" } }).run({ name: "Consume", run: "true", env: ({ steps }) => ({ URL: steps.publish.outputs.url/*completion*/ }) }));`,
             "Published URL.",
           ],
         ].entries()

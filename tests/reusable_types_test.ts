@@ -47,10 +47,14 @@ function assertReusableTypes(): void {
       }).call(
         "./.github/workflows/callee.yml",
         callee,
-        ({ matrix }) => ({
-          with: { flag: true, label: matrix.target, count: matrix.count },
+        {
+          with: ({ matrix }) => ({
+            flag: true,
+            label: matrix.target,
+            count: matrix.count,
+          }),
           secrets: "inherit",
-        }),
+        },
       ),
   );
   caller.job("invalid", ({ job }) => {
@@ -101,7 +105,7 @@ function assertReusableTypes(): void {
       name: "Use",
       run: "echo use",
       // @ts-expect-error output name inferred from workflow outputs
-      env: { BAD: ({ needs }) => needs.call.outputs.missing },
+      env: ({ needs }) => ({ BAD: needs.call.outputs.missing }),
     });
   });
   caller.job("invalid", ({ job }) => {

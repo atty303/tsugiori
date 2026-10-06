@@ -41,7 +41,7 @@ const platform = defineWorkflow(".github/workflows/platform.yml", {
     })
     .runsOn(({ matrix }) => matrix.runner)
     .name(({ matrix }) => matrix.target)
-    .env({ MODULE: ({ inputs }) => inputs.module })
+    .env(({ inputs }) => ({ MODULE: inputs.module }))
     .defaultsRun({ shell: "bash", workingDirectory: "./modules" })
     .run({
       id: "check",
@@ -69,10 +69,10 @@ const ci = defineWorkflow(".github/workflows/ci.yml", {
       job.reusable().call(
         "./.github/workflows/platform.yml",
         platform,
-        ({ inputs, secrets }) => ({
-          with: { module: inputs.module },
-          secrets: { token: secrets.token },
-        }),
+        {
+          with: ({ inputs }) => ({ module: inputs.module }),
+          secrets: ({ secrets }) => ({ token: secrets.token }),
+        },
       ),
   )
   .workflowOutputs(({ jobs }) => ({ result: jobs.platform.outputs.result }));
@@ -99,7 +99,7 @@ const main = defineWorkflow(".github/workflows/main.yml", {
         id: "notify",
         name: "Notify",
         run: "echo notify",
-        env: { RESULT: ({ needs }) => needs.ci.outputs.result },
+        env: ({ needs }) => ({ RESULT: needs.ci.outputs.result }),
       }),
   );
 const config = defineProject({ workflows: [main, ci, platform] });

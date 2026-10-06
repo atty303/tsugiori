@@ -22,7 +22,7 @@ const action = draft.steps(({ step }) =>
       shell: "bash",
       run: "echo ok",
       outputs: ["value"],
-      env: { WHO: ({ inputs }) => inputs.who },
+      env: ({ inputs }) => ({ WHO: inputs.who }),
     })
     .task({
       id: "two",
@@ -74,12 +74,12 @@ function checkComposite() {
       name: "Inputs",
       shell: "bash",
       run: "echo ok",
-      env: {
+      env: ({ inputs, secrets }) => ({
         // @ts-expect-error undeclared input
-        VALUE: ({ inputs }) => inputs.unknown,
+        VALUE: inputs.unknown,
         // @ts-expect-error composite actions cannot directly access secrets
-        SECRET: ({ secrets }) => secrets.TOKEN,
-      },
+        SECRET: secrets.TOKEN,
+      }),
     });
     return first;
   });

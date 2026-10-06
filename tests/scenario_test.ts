@@ -57,16 +57,16 @@ const deployed = detected.job(
       .task({
         id: "run-deploy",
         name: "Deploy",
-        inputs: {
+        inputs: ({ needs, matrix }) => ({
           commits: {
             contract: strings,
-            from: ({ needs }) => needs.detect.outputs.commits,
+            from: needs.detect.outputs.commits,
           },
           stage: {
             contract: stageValue,
-            from: ({ matrix }) => toJSON(matrix.stage),
+            from: toJSON(matrix.stage),
           },
-        },
+        }),
         outputs: {},
         run: () => {
           throw new Error("Deploy must not run.");
@@ -81,12 +81,12 @@ const sample = deployed.job(
       .task({
         id: "notify",
         name: "Notify",
-        inputs: {
+        inputs: ({ needs }) => ({
           deployResult: {
             contract: textValue(),
-            from: ({ needs }) => needs.deploy.result,
+            from: needs.deploy.result,
           },
-        },
+        }),
         outputs: {},
         run: () => {
           throw new Error("Notify must not run.");

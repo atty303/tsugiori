@@ -23,7 +23,7 @@
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -117,7 +117,7 @@ export type ContractValue<C> = C extends ValueContract<infer T> ? T : never;
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -136,7 +136,7 @@ export type OutputDefinitions = Readonly<
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
        *   outputs: { version: { contract: textValue(), required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
@@ -152,7 +152,7 @@ export type OutputDefinitions = Readonly<
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
        *   outputs: { version: { contract: textValue(), required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
@@ -171,7 +171,7 @@ export type OutputDefinitions = Readonly<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -190,7 +190,7 @@ export type InputDefinitions = Readonly<
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
        *   outputs: { version: { contract: textValue(), required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
@@ -206,7 +206,7 @@ export type InputDefinitions = Readonly<
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
        *   outputs: { version: { contract: textValue(), required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
@@ -234,7 +234,7 @@ type Missing<S, Proof extends string> = SourceValue<S> extends
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -268,7 +268,7 @@ export type InputValues<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -302,7 +302,7 @@ export type TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
    *   outputs: { version: { contract: textValue(), required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
@@ -318,7 +318,7 @@ export type TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
    *   outputs: { version: { contract: textValue(), required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
@@ -334,7 +334,7 @@ export type TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
    *   outputs: { version: { contract: textValue(), required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);

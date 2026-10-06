@@ -22,7 +22,7 @@ function assertScenarioTypes(): void {
       .task({
         id: "produce",
         name: "Produce",
-        inputs: { value: { contract: numberValue, from: () => toJSON(1) } },
+        inputs: () => ({ value: { contract: numberValue, from: toJSON(1) } }),
         outputs: { value: { contract: numberValue, required: true } },
         run: () => {},
       }));

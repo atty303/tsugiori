@@ -15,6 +15,12 @@
  * input map or configuration as required by the field. GitHub evaluates emitted
  * expressions during workflow execution. Host if statements and template strings
  * cannot inspect those values; use expression operators, format() or field callbacks.
+ * Settings sharing a field scope accept either a static object or one callback
+ * returning the complete object: step/job env, job defaultsRun/concurrency, and
+ * task inputs. Values inside those objects are literals or expression references,
+ * never callbacks. Each callback executes once when its builder method is called.
+ * Reusable call args are objects with separate with and secrets map callbacks:
+ * with excludes secrets, while secrets includes them. Do not combine their scopes.
  * Task run callbacks execute separately on the prepared runtime with native values.
  *
  * See {@link ExecutionJobState}, {@link NonEmptyStepState.outputs},
@@ -971,15 +977,15 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   job.runsOn("ubuntu-latest").run({
        *     name: "Deploy",
        *     run: "deploy",
-       *     env: { TOKEN: ({ secrets }) => secrets.token },
+       *     env: ({ secrets }) => ({ TOKEN: secrets.token }),
        *   }));
        * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
-       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, ({ secrets }) => ({
-       *     secrets: { token: secrets.DEPLOY_TOKEN },
-       *   })));
+       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, {
+       *     secrets: ({ secrets }) => ({ token: secrets.DEPLOY_TOKEN }),
+       *   }));
        * defineProject({ workflows: [deploy, caller] });
        * ```
        */
@@ -997,15 +1003,15 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *   job.runsOn("ubuntu-latest").run({
        *     name: "Deploy",
        *     run: "deploy",
-       *     env: { TOKEN: ({ secrets }) => secrets.token },
+       *     env: ({ secrets }) => ({ TOKEN: secrets.token }),
        *   }));
        * const caller = defineWorkflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
-       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, ({ secrets }) => ({
-       *     secrets: { token: secrets.DEPLOY_TOKEN },
-       *   })));
+       *   job.reusable().call("./.github/workflows/deploy.yml", deploy, {
+       *     secrets: ({ secrets }) => ({ token: secrets.DEPLOY_TOKEN }),
+       *   }));
        * defineProject({ workflows: [deploy, caller] });
        * ```
        */
@@ -1679,9 +1685,9 @@ export type JobReference<
      *         .run({
      *           name: "Deploy",
      *           run: "deploy",
-     *           env: {
-     *             VERSION: ({ needs }) => needs.build.outputs.version,
-     *           },
+     *           env: ({ needs }) => ({
+     *             VERSION: needs.build.outputs.version,
+     *           }),
      *         }),
      *   );
      * ```
@@ -1904,6 +1910,16 @@ type StepField<
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
 > = Field<S, Needs, OutputMap<Steps>, Matrix, Vars, Secrets, InputValues>;
+type TaskInputDefinitions = Readonly<
+  Record<
+    string,
+    Readonly<{
+      contract: ValueContract<unknown>;
+      from: ExpressionInput;
+    }>
+  >
+>;
+type AuthoringValue<Value, Context> = Value | ((context: Context) => Value);
 type StepEnv<
   Needs extends Record<string, readonly string[]>,
   Steps extends StepReferences,
@@ -1911,22 +1927,16 @@ type StepEnv<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> = Readonly<
-  Record<
-    string,
-    | string
-    | Expression<string>
-    | ((
-      context: Scope<
-        "jobs.<job_id>.steps.env",
-        Needs,
-        OutputMap<Steps>,
-        Matrix,
-        Vars,
-        Secrets,
-        InputValues
-      >,
-    ) => Expression<unknown>)
+> = AuthoringValue<
+  Readonly<Record<string, string | Expression<unknown>>>,
+  Scope<
+    "jobs.<job_id>.steps.env",
+    Needs,
+    OutputMap<Steps>,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues
   >
 >;
 type JobEnv<
@@ -1935,22 +1945,16 @@ type JobEnv<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> = Readonly<
-  Record<
-    string,
-    | string
-    | Expression<string>
-    | ((
-      context: Scope<
-        "jobs.<job_id>.env",
-        Needs,
-        Record<never, never>,
-        Matrix,
-        Vars,
-        Secrets,
-        InputValues
-      >,
-    ) => Expression<unknown>)
+> = AuthoringValue<
+  Readonly<Record<string, string | Expression<unknown>>>,
+  Scope<
+    "jobs.<job_id>.env",
+    Needs,
+    Record<never, never>,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues
   >
 >;
 type StepCommon<
@@ -2036,14 +2040,14 @@ type StepCommon<
       Secrets,
       InputValues
     >;
-  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+  /** Environment variables supplied as a static map or one authoring callback returning the complete map in the step env scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
    *   run: "deno test",
-   *   env: { SHA: ({ github }) => github.sha },
+   *   env: ({ github }) => ({ SHA: github.sha }),
    * });
    * ```
    */
@@ -2303,7 +2307,7 @@ export type RunStepDefinition<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+ *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
  *   outputs: { version: { contract: textValue(), required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
@@ -2314,7 +2318,7 @@ export type RunStepDefinition<
  */
 export type TaskStepDefinition<
   Id extends string | undefined = undefined,
-  Inputs extends InputDefinitions = Record<never, never>,
+  Inputs extends TaskInputDefinitions = Record<never, never>,
   Outputs extends OutputDefinitions = Record<never, never>,
   Needs extends Record<string, readonly string[]> = Record<never, never>,
   Steps extends StepReferences = Record<never, never>,
@@ -2346,7 +2350,7 @@ export type TaskStepDefinition<
      * job.runsOn("ubuntu-latest").task({
      *   id: "version",
      *   name: "Read version",
-     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
      *   outputs: { version: { contract: textValue(), required: true } },
      *   run: async ({ inputs, outputs, logger }) => {
      *     logger.info(inputs.sha);
@@ -2370,13 +2374,13 @@ export type TaskStepDefinition<
      * ```
      */
     if?: Condition;
-    /** Pairs each input contract with its runtime expression source.
+    /** Pairs each input contract with its runtime expression source. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
      * @example In a `defineWorkflow().job()` callback with `{ job }`.
      * ```ts
      * job.runsOn("ubuntu-latest").task({
      *   id: "version",
      *   name: "Read version",
-     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
      *   outputs: { version: { contract: textValue(), required: true } },
      *   run: async ({ inputs, outputs, logger }) => {
      *     logger.info(inputs.sha);
@@ -2385,67 +2389,26 @@ export type TaskStepDefinition<
      * });
      * ```
      */
-    inputs:
-      & Inputs
-      & Readonly<
-        Record<
-          string,
-          Readonly<{
-            /** Use the same contract object as the producing task for direct passthrough.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
-             * ```ts
-             * job.runsOn("ubuntu-latest").task({
-             *   id: "version",
-             *   name: "Read version",
-             *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
-             *   outputs: { version: { contract: textValue(), required: true } },
-             *   run: async ({ inputs, outputs, logger }) => {
-             *     logger.info(inputs.sha);
-             *     await outputs.set("version", "1.0.0");
-             *   },
-             * });
-             * ```
-             */
-            contract: ValueContract<unknown>;
-            /** Use a callback to read contexts available at this step.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
-             * ```ts
-             * job.runsOn("ubuntu-latest").task({
-             *   id: "version",
-             *   name: "Read version",
-             *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
-             *   outputs: { version: { contract: textValue(), required: true } },
-             *   run: async ({ inputs, outputs, logger }) => {
-             *     logger.info(inputs.sha);
-             *     await outputs.set("version", "1.0.0");
-             *   },
-             * });
-             * ```
-             */
-            from:
-              | ExpressionInput
-              | ((
-                context: Scope<
-                  "jobs.<job_id>.steps.env",
-                  Needs,
-                  OutputMap<Steps>,
-                  Matrix,
-                  Vars,
-                  Secrets,
-                  InputValues,
-                  Proof | ConditionProof<Condition>
-                >,
-              ) => ExpressionInput);
-          }>
-        >
-      >;
+    inputs: AuthoringValue<
+      Inputs,
+      Scope<
+        "jobs.<job_id>.steps.env",
+        Needs,
+        OutputMap<Steps>,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof | ConditionProof<Condition>
+      >
+    >;
     /** Declares native output contracts and whether each write is required.
      * @example In a `defineWorkflow().job()` callback with `{ job }`.
      * ```ts
      * job.runsOn("ubuntu-latest").task({
      *   id: "version",
      *   name: "Read version",
-     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
      *   outputs: { version: { contract: textValue(), required: true } },
      *   run: async ({ inputs, outputs, logger }) => {
      *     logger.info(inputs.sha);
@@ -2461,7 +2424,7 @@ export type TaskStepDefinition<
      * job.runsOn("ubuntu-latest").task({
      *   id: "version",
      *   name: "Read version",
-     *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+     *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
      *   outputs: { version: { contract: textValue(), required: true } },
      *   run: async ({ inputs, outputs, logger }) => {
      *     logger.info(inputs.sha);
@@ -2679,11 +2642,11 @@ export interface ExecutionJobState<
     InputValues,
     Proof
   >;
-  /** Job env overrides workflow env; values within one map cannot depend on one another.
+  /** Job env overrides workflow env; values within one map cannot depend on one another. Accepts a static map or one authoring callback returning the complete map.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenv
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest").env({ SHA: ({ github }) => github.sha });
+   * job.runsOn("ubuntu-latest").env(({ github }) => ({ SHA: github.sha }));
    * ```
    */
   env(
@@ -2698,62 +2661,53 @@ export interface ExecutionJobState<
     InputValues,
     Proof
   >;
-  /** Run defaults apply to run steps; explicit step shell/directory wins.
+  /** Run defaults apply to run steps; explicit step shell/directory wins. A static object or authoring callback returns shell and workingDirectory together in the defaults scope.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest").defaultsRun({
+   * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
    *   shell: "bash",
-   *   workingDirectory: "src",
-   * });
+   *   workingDirectory: github.workspace,
+   * }));
    * ```
    */
   defaultsRun(
-    value: Readonly<
-      {
-        /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest").defaultsRun({
-         *   shell: "bash",
-         *   workingDirectory: "src",
-         * });
-         * ```
-         */
-        shell?:
-          | string
-          | Field<
-            "jobs.<job_id>.defaults.run",
-            Needs,
-            Record<never, never>,
-            Matrix,
-            Vars,
-            Secrets,
-            InputValues
-          >;
-        /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest").defaultsRun({
-         *   shell: "bash",
-         *   workingDirectory: "src",
-         * });
-         * ```
-         */
-        workingDirectory?:
-          | string
-          | Field<
-            "jobs.<job_id>.defaults.run",
-            Needs,
-            Record<never, never>,
-            Matrix,
-            Vars,
-            Secrets,
-            InputValues
-          >;
-      }
+    value: AuthoringValue<
+      Readonly<
+        {
+          /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
+           *   shell: "bash",
+           *   workingDirectory: github.workspace,
+           * }));
+           * ```
+           */
+          shell?: string | ExpressionInput;
+          /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
+           *   shell: "bash",
+           *   workingDirectory: github.workspace,
+           * }));
+           * ```
+           */
+          workingDirectory?: string | ExpressionInput;
+        }
+      >,
+      Scope<
+        "jobs.<job_id>.defaults.run",
+        Needs,
+        Record<never, never>,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues
+      >
     >,
   ): ExecutionJobState<
     WorkflowPath,
@@ -3076,65 +3030,68 @@ export interface ExecutionJobState<
     Proof
   >;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
-   * The queue max setting requires cancellation disabled; scenarios do not schedule.
+   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest").concurrency({
-   *   group: ({ github }) => format("ci-{0}", github.ref),
+   * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
+   *   group: format("ci-{0}", github.ref),
    *   cancelInProgress: false,
    *   queue: "max",
-   * });
+   * }));
    * ```
    */
   concurrency(
-    definition: Readonly<
-      {
-        /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest").concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        group: Field<
-          "jobs.<job_id>.concurrency",
-          Needs,
-          Record<never, never>,
-          Matrix,
-          Vars,
-          Secrets,
-          InputValues
-        >;
-        /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest").concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        cancelInProgress: boolean;
-        /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest").concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        queue?: "max";
-      }
+    definition: AuthoringValue<
+      Readonly<
+        {
+          /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          group: ExpressionInput;
+          /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          cancelInProgress: boolean;
+          /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          queue?: "max";
+        }
+      >,
+      Scope<
+        "jobs.<job_id>.concurrency",
+        Needs,
+        Record<never, never>,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues
+      >
     >,
   ): ExecutionJobState<
     WorkflowPath,
@@ -3367,7 +3324,7 @@ export interface ExecutionJobState<
    *   name: "Build",
    *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
    *   outputs: ["version"],
-   *   env: { SHA: ({ github }) => github.sha },
+   *   env: ({ github }) => ({ SHA: github.sha }),
    * });
    * ```
    */
@@ -3404,7 +3361,7 @@ export interface ExecutionJobState<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
    *   outputs: { version: { contract: textValue(), required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
@@ -3415,7 +3372,7 @@ export interface ExecutionJobState<
    */
   task<
     const Id extends string | undefined,
-    const I extends InputDefinitions,
+    const I extends TaskInputDefinitions,
     const O extends OutputDefinitions,
     const C extends
       | StepField<
@@ -3445,9 +3402,6 @@ export interface ExecutionJobState<
         C
       >
       & Readonly<{
-        /** Named input values or contracts for this representation. See the owning type for authoring references versus native fixture values.
-         */
-        inputs: I;
         /** Named outputs or output contracts for this representation. See the owning type and its output mapping method; declaration alone does not write a value.
          */
         outputs: O;
@@ -3721,7 +3675,7 @@ export interface CompositeStepState<
     Proof
   >;
 
-  /** Append a compiled Deno task. Input source callbacks build GitHub expressions during authoring; run executes later with parsed native inputs and an output writer. Composite tasks support workingDirectory and omit timeoutMinutes. See {@link TaskStepDefinition} and {@link defineCompositeAction}.
+  /** Append a compiled Deno task. The inputs map callback builds GitHub expressions during authoring; run executes later with parsed native inputs and an output writer. Composite tasks support workingDirectory and omit timeoutMinutes. See {@link TaskStepDefinition} and {@link defineCompositeAction}.
    * @example Given a composite state `built` after an earlier step.
    * ```ts
    * built.task({ name: "Report", inputs: {}, outputs: {}, run: ({ logger }) => logger.info("done") });
@@ -3729,7 +3683,7 @@ export interface CompositeStepState<
    */
   task<
     const Id extends string | undefined,
-    const I extends InputDefinitions,
+    const I extends TaskInputDefinitions,
     const O extends OutputDefinitions,
     const C extends
       | StepField<
@@ -3766,9 +3720,6 @@ export interface CompositeStepState<
           /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
            */
           workingDirectory?: string;
-          /** Named input values or contracts for this representation. See the owning type for authoring references versus native fixture values.
-           */
-          inputs: I;
 
           /** Map declared public Action outputs to values from earlier steps. The callback runs during authoring and returns a complete name-to-expression map; GitHub resolves those expressions when the Action executes. Keys must exactly match ActionMetadata.outputs or steps() throws TypeError. Call after the producing steps and return this finalized state; no more steps can be appended. See {@link ActionMetadata} outputs, {@link RunStepDefinition} output names and {@link CompositeActionDraft.steps}.
            * @example Given a composite state `built` whose `build` run step declares `version`, and metadata declaring public output `version`.
@@ -3883,7 +3834,7 @@ type CompositeInputs<M extends ActionMetadata> = {
  * ```ts
  * job.runsOn("ubuntu-latest").uses(versionAction, { id: "version" })
  *   .run({ name: "Report", run: 'echo "$VERSION"',
- *     env: { VERSION: ({ steps }) => steps.version.outputs.version },
+ *     env: ({ steps }) => ({ VERSION: steps.version.outputs.version }),
  *   });
  * ```
  */
@@ -4320,7 +4271,7 @@ export interface NonEmptyStepState<
    *   name: "Build",
    *   run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
    *   outputs: ["version"],
-   *   env: { SHA: ({ github }) => github.sha },
+   *   env: ({ github }) => ({ SHA: github.sha }),
    * });
    * ```
    */
@@ -4367,12 +4318,12 @@ export interface NonEmptyStepState<
    *   })
    *   .task({
    *     name: "Consume version",
-   *     inputs: {
+   *     inputs: ({ steps }) => ({
    *       version: {
    *         contract: version,
-   *         from: ({ steps }) => steps.make.outputs.version,
+   *         from: steps.make.outputs.version,
    *       },
-   *     },
+   *     }),
    *     outputs: {},
    *     run: ({ inputs, logger }) => {
    *       logger.info(inputs.version);
@@ -4382,7 +4333,7 @@ export interface NonEmptyStepState<
    */
   task<
     const Id extends string | undefined,
-    const I extends InputDefinitions,
+    const I extends TaskInputDefinitions,
     const O extends OutputDefinitions,
     const C extends
       | StepField<
@@ -4413,9 +4364,6 @@ export interface NonEmptyStepState<
       >
       & Readonly<
         {
-          /** Named input values or contracts for this representation. See the owning type for authoring references versus native fixture values.
-           */
-          inputs: I;
           /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
            * This list declares output names for typed references; it does not write values or execute the script.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
@@ -4461,7 +4409,7 @@ export interface NonEmptyStepState<
            * job.runsOn("ubuntu-latest").task({
            *   id: "version",
            *   name: "Read version",
-           *   inputs: { sha: { contract: textValue(), from: ({ github }) => github.sha } },
+           *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
            *   outputs: { version: { contract: textValue(), required: true } },
            *   run: async ({ inputs, outputs, logger }) => {
            *     logger.info(inputs.sha);
@@ -4762,68 +4710,72 @@ export type ReusableJobState<
     value: WorkflowPermissions,
   ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
-   * The queue max setting requires cancellation disabled; scenarios do not schedule.
+   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
-   * job.reusable().concurrency({
-   *   group: ({ github }) => format("ci-{0}", github.ref),
+   * job.reusable().concurrency(({ github }) => ({
+   *   group: format("ci-{0}", github.ref),
    *   cancelInProgress: false,
    *   queue: "max",
-   * });
+   * }));
    * ```
    */
   concurrency(
-    value: Readonly<
-      {
-        /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.reusable().concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        group: Field<
-          "jobs.<job_id>.concurrency",
-          N,
-          Record<never, never>,
-          M,
-          V,
-          S,
-          InputValues
-        >;
-        /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.reusable().concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        cancelInProgress: boolean;
-        /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.reusable().concurrency({
-         *   group: ({ github }) => format("ci-{0}", github.ref),
-         *   cancelInProgress: false,
-         *   queue: "max",
-         * });
-         * ```
-         */
-        queue?: "max";
-      }
+    value: AuthoringValue<
+      Readonly<
+        {
+          /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          group: ExpressionInput;
+          /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          cancelInProgress: boolean;
+          /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * ```ts
+           * job.reusable().concurrency(({ github }) => ({
+           *   group: format("ci-{0}", github.ref),
+           *   cancelInProgress: false,
+           *   queue: "max",
+           * }));
+           * ```
+           */
+          queue?: "max";
+        }
+      >,
+      Scope<
+        "jobs.<job_id>.concurrency",
+        N,
+        Record<never, never>,
+        M,
+        V,
+        S,
+        InputValues
+      >
     >,
   ): ReusableJobState<P, J, N, M, V, S, InputValues>;
   /** Runs a reusable workflow as this job. The caller passes declared inputs through with and secrets through a map or inherit; the callee returns workflow outputs through needs.<caller_job>.outputs. Caller workflow env is not forwarded.
+   * Pass an args object with static maps or separate with and secrets authoring callbacks. with excludes secrets; secrets includes them. Each callback runs once during call(), before contract validation in generation; GitHub resolves emitted expressions. Input and secret names, types and requiredness follow the callee contract.
    * Tsugiori requires the callee in the same project and validates its explicit contract; inherit cannot prove GitHub secret availability.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
    * @example
@@ -4853,7 +4805,14 @@ export type ReusableJobState<
    * defineProject({ workflows: [reusable, caller] });
    * ```
    */
-  call<const C extends WorkflowCall, O extends string>(
+  call<
+    const C extends WorkflowCall,
+    O extends string,
+    const W extends CallValues<NoInfer<C>> = CallValues<NoInfer<C>>,
+    const T extends SecretValues<NoInfer<C>> | "inherit" =
+      | SecretValues<NoInfer<C>>
+      | "inherit",
+  >(
     /** A reusable workflow runs as a separate workflow with its own jobs and steps.
      * Tsugiori retains the local workflow definition for typed validation and scenario interpretation.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
@@ -4888,19 +4847,27 @@ export type ReusableJobState<
     uses: string,
     callee: ReusableWorkflow<C, O>,
     args:
-      | WorkflowCallArguments<C>
-      | ((
-        context:
-          & Scope<
-            "jobs.<job_id>.with.<with_id>",
-            N,
-            Record<never, never>,
-            M,
-            V,
-            S,
-            InputValues
+      & {
+        readonly [K in keyof WorkflowCallArguments<C>]: K extends "with"
+          ? AuthoringValue<
+            W & Readonly<Record<Exclude<keyof W, keyof CallInputs<C>>, never>>,
+            Scope<
+              "jobs.<job_id>.with.<with_id>",
+              N,
+              Record<never, never>,
+              M,
+              V,
+              S,
+              InputValues
+            >
           >
-          & Pick<
+          : AuthoringValue<
+            T extends "inherit" ? T
+              :
+                & T
+                & Readonly<
+                  Record<Exclude<keyof T, keyof CallSecrets<C>>, never>
+                >,
             Scope<
               "jobs.<job_id>.secrets.<secrets_id>",
               N,
@@ -4909,13 +4876,60 @@ export type ReusableJobState<
               V,
               S,
               InputValues
-            >,
-            "secrets"
-          >,
-      ) => WorkflowCallArguments<C>),
+            >
+          >;
+      }
+      & Readonly<{
+        /** Complete declared input map or a callback in the with scope, which excludes secrets.
+         * @example In a job callback with `{ job }`, with a locally declared version contract.
+         * ```ts
+         * const versionWorkflow = defineWorkflow(".github/workflows/version.yml", {
+         *   on: { workflow_call: { inputs: { version: { type: "string", required: true } } } },
+         * }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));
+         * job.reusable().call("./.github/workflows/version.yml", versionWorkflow, {
+         *   with: ({ github }) => ({ version: github.sha }),
+         * });
+         * ```
+         */
+        with?: AuthoringValue<
+          W,
+          Scope<
+            "jobs.<job_id>.with.<with_id>",
+            N,
+            Record<never, never>,
+            M,
+            V,
+            S,
+            InputValues
+          >
+        >;
+        /** Complete declared secret map, its authoring callback, or inherit. Only this field exposes secrets.
+         * @example In a job callback with `{ job }`, with a locally declared version contract.
+         * ```ts
+         * const versionWorkflow = defineWorkflow(".github/workflows/version.yml", {
+         *   on: { workflow_call: { inputs: { version: { type: "string", required: true } } } },
+         * }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));
+         * job.reusable().call("./.github/workflows/version.yml", versionWorkflow, {
+         *   with: { version: "1.0.0" }, secrets: "inherit",
+         * });
+         * ```
+         */
+        secrets?: AuthoringValue<
+          T,
+          Scope<
+            "jobs.<job_id>.secrets.<secrets_id>",
+            N,
+            Record<never, never>,
+            M,
+            V,
+            S,
+            InputValues
+          >
+        >;
+      }>,
   ): FinalizedJobState<P, J, readonly O[], Record<never, never>, M>;
   /** Runs a reusable workflow referenced by owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; external references select a SHA, tag or branch and cannot use expressions.
-   * Tsugiori input/output contracts are caller assertions; scenarios require a call fixture.
+   * Pass a static args object; with and secrets each accept a whole-map authoring callback in their own scope. with excludes secrets. Callbacks run once during rawCall(); GitHub resolves their expressions. Tsugiori input/output contracts are caller assertions; scenarios require a call fixture.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
    * ```ts
@@ -4937,40 +4951,41 @@ export type ReusableJobState<
      * ```
      */
     uses: string,
-    args?:
-      | Readonly<
-        {
-          /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
-           *   with: { version: "1.0.0" },
-           *   secrets: "inherit",
-           * });
-           * ```
-           */
-          with?: RawCallInputs;
-          /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
-           * Using inherit cannot statically prove secret availability or GitHub authorization.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
-           *   with: { version: "1.0.0" },
-           *   secrets: "inherit",
-           * });
-           * ```
-           */
-          secrets?:
-            | "inherit"
-            | Readonly<Record<string, string | Expression<string>>>;
-        }
-      >
-      | ((
-        context:
-          & Scope<
-            "jobs.<job_id>.with.<with_id>",
+    args?: Readonly<{
+      /** Complete input map. The authoring callback excludes secrets.
+       * @example In a job callback with `{ job }`.
+       * ```ts
+       * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+       *   with: ({ github }) => ({ revision: github.sha }),
+       * });
+       * ```
+       */
+      with?: AuthoringValue<
+        RawCallInputs,
+        Scope<
+          "jobs.<job_id>.with.<with_id>",
+          N,
+          Record<never, never>,
+          M,
+          V,
+          S,
+          InputValues
+        >
+      >;
+      /** Complete secret map or inherit. The authoring callback includes secrets; inherit forwards only to the direct callee.
+       * @example In a job callback with `{ job }`.
+       * ```ts
+       * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
+       *   secrets: ({ secrets }) => ({ token: secrets.DEPLOY_TOKEN }),
+       * });
+       * ```
+       */
+      secrets?:
+        | "inherit"
+        | AuthoringValue<
+          Readonly<Record<string, string | Expression<string>>>,
+          Scope<
+            "jobs.<job_id>.secrets.<secrets_id>",
             N,
             Record<never, never>,
             M,
@@ -4978,47 +4993,8 @@ export type ReusableJobState<
             S,
             InputValues
           >
-          & Pick<
-            Scope<
-              "jobs.<job_id>.secrets.<secrets_id>",
-              N,
-              Record<never, never>,
-              M,
-              V,
-              S,
-              InputValues
-            >,
-            "secrets"
-          >,
-      ) => Readonly<
-        {
-          /** Named input values passed to the action or reusable workflow. Reusable workflow names must match its workflow_call declaration and values must match the declared types.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
-           *   with: { version: "1.0.0" },
-           *   secrets: "inherit",
-           * });
-           * ```
-           */
-          with?: RawCallInputs;
-          /** Secrets exposed to the called workflow. A map passes named values; inherit forwards the caller secrets within the same organization or enterprise. Forwarding applies only to the direct callee; nested calls must forward again.
-           * Using inherit cannot statically prove secret availability or GitHub authorization.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
-           *   with: { version: "1.0.0" },
-           *   secrets: "inherit",
-           * });
-           * ```
-           */
-          secrets?:
-            | "inherit"
-            | Readonly<Record<string, string | Expression<string>>>;
-        }
-      >),
+        >;
+    }>,
   ): FinalizedJobState<P, J, readonly string[], Record<never, never>, M>;
 };
 /** Choose regular runner execution or a native reusable caller job.
@@ -5208,9 +5184,9 @@ export interface JobStartState<
    *         .run({
    *           name: "Deploy",
    *           run: "deploy",
-   *           env: {
-   *             VERSION: ({ needs }) => needs.build.outputs.version,
-   *           },
+   *           env: ({ needs }) => ({
+   *             VERSION: needs.build.outputs.version,
+   *           }),
    *         }),
    *   );
    * ```
@@ -5250,9 +5226,9 @@ export interface JobStartState<
  *         .run({
  *           name: "Deploy",
  *           run: "deploy",
- *           env: {
- *             VERSION: ({ needs }) => needs.build.outputs.version,
- *           },
+ *           env: ({ needs }) => ({
+ *             VERSION: needs.build.outputs.version,
+ *           }),
  *         }),
  *   );
  * ```
@@ -5286,9 +5262,9 @@ export type AvailableJobState<
  *         .run({
  *           name: "Deploy",
  *           run: "deploy",
- *           env: {
- *             VERSION: ({ needs }) => needs.build.outputs.version,
- *           },
+ *           env: ({ needs }) => ({
+ *             VERSION: needs.build.outputs.version,
+ *           }),
  *         }),
  *   );
  * ```
@@ -5341,9 +5317,9 @@ export type JobDefinitionScope<
      *         .run({
      *           name: "Deploy",
      *           run: "deploy",
-     *           env: {
-     *             VERSION: ({ needs }) => needs.build.outputs.version,
-     *           },
+     *           env: ({ needs }) => ({
+     *             VERSION: needs.build.outputs.version,
+     *           }),
      *         }),
      *   );
      * ```
@@ -5483,9 +5459,9 @@ export interface EmptyWorkflowState<
  *         .run({
  *           name: "Deploy",
  *           run: "deploy",
- *           env: {
- *             VERSION: ({ needs }) => needs.build.outputs.version,
- *           },
+ *           env: ({ needs }) => ({
+ *             VERSION: needs.build.outputs.version,
+ *           }),
  *         }),
  *   );
  * ```
@@ -5985,6 +5961,15 @@ function createWorkflowFacade(
     | NonEmptyWorkflowState<string, JobReferences>;
 }
 
+function resolveAuthoringValue<Value>(
+  key: import("./expression_scope.ts").GitHubExpressionScopeKey,
+  value: unknown,
+  contracts?: ReadonlyMap<string, ReferenceBinding>,
+): Value {
+  return (typeof value === "function"
+    ? value(scope(key, contracts))
+    : value) as Value;
+}
 function evaluateField(
   key: import("./expression_scope.ts").GitHubExpressionScopeKey,
   value: unknown,
@@ -6012,24 +5997,29 @@ function evaluateCondition(
     proofPaths: expressionProofs(result),
   };
 }
+function renderAuthoringScalar(value: unknown): string {
+  if (typeof value === "function") {
+    throw new TypeError(
+      "Value callbacks are unsupported; return the complete map from an authoring callback.",
+    );
+  }
+  return typeof value === "string"
+    ? value
+    : emitExpression(value as ExpressionInput);
+}
 function evaluateEnv(
-  value: Readonly<Record<string, unknown>> | undefined,
+  value: unknown,
   key: import("./expression_scope.ts").GitHubExpressionScopeKey =
     "jobs.<job_id>.steps.env",
 ): EnvironmentVariables | undefined {
   if (value === undefined) return undefined;
   return Object.freeze(
     Object.fromEntries(
-      Object.entries(value).map((
+      Object.entries(
+        resolveAuthoringValue<Readonly<Record<string, unknown>>>(key, value),
+      ).map((
         [name, entry],
-      ) => [
-        name,
-        typeof entry === "function"
-          ? evaluateField(key, entry)
-          : entry instanceof Expression
-          ? emitExpression(entry)
-          : entry,
-      ]),
+      ) => [name, renderAuthoringScalar(entry)]),
     ),
   ) as EnvironmentVariables;
 }
@@ -6095,22 +6085,30 @@ function createReusableJobFacade(
     callee?: AuthoringWorkflow,
     names: readonly string[] = [],
   ): FinalizedJobState<string, string, readonly string[]> => {
-    const value = typeof args === "function"
-      ? args({
-        ...scope("jobs.<job_id>.with.<with_id>"),
-        ...scope("jobs.<job_id>.secrets.<secrets_id>"),
-      })
-      : args ?? {};
-    validateCallExpressionInputs(value.with);
+    if (typeof args === "function") {
+      throw new TypeError(
+        "Reusable call arguments must be an object; use separate with and secrets callbacks.",
+      );
+    }
+    const value = args as { with?: unknown; secrets?: unknown } | undefined;
+    const withValues = resolveAuthoringValue<RawCallInputs | undefined>(
+      "jobs.<job_id>.with.<with_id>",
+      value?.with,
+    );
+    const secretValues = resolveAuthoringValue(
+      "jobs.<job_id>.secrets.<secrets_id>",
+      value?.secrets,
+    );
+    validateCallExpressionInputs(withValues);
     const job: AuthoringJob = Object.freeze({
       id: draft.id,
       needs: draft.needs,
       ...draft.options,
       uses,
-      with: value.with && copyCallInputs(value.with),
-      callSecrets: value.secrets === "inherit"
+      with: withValues && copyCallInputs(withValues),
+      callSecrets: secretValues === "inherit"
         ? "inherit"
-        : evaluateEnv(value.secrets),
+        : evaluateEnv(secretValues, "jobs.<job_id>.secrets.<secrets_id>"),
       callee,
       steps: Object.freeze([]),
     });
@@ -6132,13 +6130,8 @@ function createReusableJobFacade(
       update("name", evaluateScalar("jobs.<job_id>.name", v)),
     permissions: (v: WorkflowPermissions) =>
       update("permissions", copyPermissions(v)),
-    concurrency: (
-      v: { group: unknown; cancelInProgress: boolean; queue?: "max" },
-    ) =>
-      update("concurrency", {
-        ...v,
-        group: evaluateField("jobs.<job_id>.concurrency", v.group),
-      }),
+    concurrency: (value: unknown) =>
+      update("concurrency", renderConcurrency(value)),
     call: (uses: string, callee: ReusableWorkflow, args: unknown) => {
       const workflow = callee[workflowDefinition];
       if (!workflow.on.workflow_call) {
@@ -6153,6 +6146,17 @@ function createReusableJobFacade(
     },
     rawCall: (uses: string, args: unknown) => invoke(uses, args),
   }) as ReusableJobState<string, string>;
+}
+function renderConcurrency(
+  value: unknown,
+): NonNullable<JobOptions["concurrency"]> {
+  const definition = resolveAuthoringValue<
+    { group: unknown; cancelInProgress: boolean; queue?: "max" }
+  >("jobs.<job_id>.concurrency", value);
+  return Object.freeze({
+    ...definition,
+    group: renderAuthoringScalar(definition.group),
+  });
 }
 function renderStrategy(value: unknown): NonNullable<JobOptions["strategy"]> {
   const definition = typeof value === "function"
@@ -6215,16 +6219,21 @@ function createExecutionJobFacade(
         ...draft,
         options: { ...draft.options, env: evaluateEnv(v, "jobs.<job_id>.env") },
       }),
-    defaultsRun: (v: { shell?: unknown; workingDirectory?: unknown }) =>
+    defaultsRun: (v: unknown) =>
       createExecutionJobFacade({
         ...draft,
         options: {
           ...draft.options,
           defaults: Object.freeze(
             Object.fromEntries(
-              Object.entries(v).map((
+              Object.entries(
+                resolveAuthoringValue<Readonly<Record<string, unknown>>>(
+                  "jobs.<job_id>.defaults.run",
+                  v,
+                ),
+              ).map((
                 [k, x],
-              ) => [k, evaluateScalar("jobs.<job_id>.defaults.run", x)]),
+              ) => [k, renderAuthoringScalar(x)]),
             ),
           ),
         },
@@ -6242,19 +6251,10 @@ function createExecutionJobFacade(
         ...draft,
         options: { ...draft.options, strategy: renderStrategy(value) },
       }),
-    concurrency: (
-      value: { group: unknown; cancelInProgress: boolean; queue?: "max" },
-    ) =>
+    concurrency: (value: unknown) =>
       createExecutionJobFacade(Object.freeze({
         ...draft,
-        options: {
-          ...draft.options,
-          concurrency: {
-            group: evaluateField("jobs.<job_id>.concurrency", value.group),
-            cancelInProgress: value.cancelInProgress,
-            ...(value.queue === undefined ? {} : { queue: value.queue }),
-          },
-        },
+        options: { ...draft.options, concurrency: renderConcurrency(value) },
       })),
     permissions: (value: WorkflowPermissions) =>
       createExecutionJobFacade(
@@ -6384,7 +6384,7 @@ function createExecutionJobFacade(
     task: (
       definition: TaskStepDefinition<
         string | undefined,
-        InputDefinitions,
+        TaskInputDefinitions,
         OutputDefinitions
       >,
     ) =>
@@ -6494,7 +6494,7 @@ function appendStep(
 function stepFields(
   definition: {
     if?: unknown;
-    env?: Readonly<Record<string, unknown>>;
+    env?: unknown;
     continueOnError?: boolean;
     timeoutMinutes?: unknown;
   },
@@ -6562,7 +6562,7 @@ function runStep(
 function taskStep(
   definition: TaskStepDefinition<
     string | undefined,
-    InputDefinitions,
+    TaskInputDefinitions,
     OutputDefinitions
   >,
   contracts: ReadonlyMap<string, ReferenceBinding>,
@@ -6585,7 +6585,15 @@ function taskStep(
     string,
     { contract: ValueContract<unknown>; from: string; optional: boolean }
   > = {};
-  for (const [name, input] of Object.entries(definition.inputs ?? {})) {
+  for (
+    const [name, input] of Object.entries(
+      resolveAuthoringValue<InputDefinitions>(
+        "jobs.<job_id>.steps.env",
+        definition.inputs,
+        contracts,
+      ) ?? {},
+    )
+  ) {
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
       throw new TypeError(
         `Task input ${JSON.stringify(name)} is not a valid environment name.`,
@@ -6602,11 +6610,12 @@ function taskStep(
         `Task input environment variable ${envName} conflicts with env.`,
       );
     }
-    const source = typeof input.from === "function"
-      ? (input.from as (context: unknown) => unknown)(
-        scope("jobs.<job_id>.steps.env", contracts),
-      )
-      : input.from;
+    const source = input.from;
+    if (typeof source === "function") {
+      throw new TypeError(
+        "Task input sources must be expressions; use an inputs map callback.",
+      );
+    }
     const binding = referenceBinding(source);
     const sourceContract = binding?.contract;
     if (sourceContract !== undefined && sourceContract !== input.contract) {
