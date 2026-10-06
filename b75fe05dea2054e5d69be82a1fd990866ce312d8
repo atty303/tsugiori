@@ -1,0 +1,25 @@
+Task: Fix release archive fixture identity in CI and push
+Anchor: b75fe05dea2054e5d69be82a1fd990866ce312d8
+Base: a0aa71e315e8f0dd77d54817c40e108180474061
+Branch: main
+Commits: b75fe05dea2054e5d69be82a1fd990866ce312d8 fix: isolate release archive fixture from workflow identity
+Guidance: User repair/push request and patch approval; AGENTS.md, investigate-problem, develop-repository, design-review, review and Git task evidence
+Conditions: Existing main checkout; mise-managed toolchain; owned temporary fixture Git repositories cleaned; no dependency or production code changes; main/notes push authorized; no manual publish/release/deploy
+## Evidence
+Before: CI37420267144 and release37420267259 at a0aa71e both rejected fixture packaging with Release source commit differs from the workflow commit,110passed1failed. Local CI-env reproduction failed the same test at package_test.ts:191.
+After: Local CI-env focused regression and full111test suite succeeded; hosted CI37420863980 and release37420864031 target b75fe05.
+Authority: Latest human repair/push request and patch approval, repository AGENTS.md/current source
+## Transcript
+- U1:
+    CIがこけた
+    
+  - A: Used investigate-problem to inspect hosted CI 37420267144 and release 37420267259 at a0aa71e; both failed110passed1failed at release archive fixture. releaseSource compared synthetic fixture HEAD with inherited workflow GITHUB_SHA. Reproduced exactly with GITHUB_ACTIONS=true and workflow SHA. Artifact preparation and runtime E2E passed. Reported test environment isolation cause without editing.
+- U2:
+    修正してpush
+    
+  - A: User authorized fix and push. Applied develop-repository and existing design-review/observability guidance; clean main at a0aa71e, fetched origin and notes, notes-only merge already up to date. Proposed no release for test-only change and continued authorized implementation. Captured original GITHUB_ACTIONS/GITHUB_SHA; configured fixture SHA, added unrelated-SHA rejection, restored environment in finally. Production releaseSource unchanged.
+- U3:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_xXOIg3sBPncL6zwg4blzcujE\",0]","question":"今回はテストのCI環境分離だけを直すので、release対象なし（test）を提案します。よいですか？ develop-repository skillの「このtaskで作るcommit全体のrelease要否を提案・送信して承認を求める」に基づく確認です。","answer":"patch release対象にする"}]
+    </send_user_message_question_reply>
+  - A: User chose patch release. Focused regression and full mise run test under failing CI environment passed (111 tests,43s), static check and generate --check passed. Fresh independent read-only review found no defects. Created signed local commit b75fe05dea2054e5d69be82a1fd990866ce312d8 and pushed main non-force after fresh code/notes fetch. Hosted workflow results: CI37420863980 success and release37420864031 success were observed on GitHub at the target commit. Main remote matches the pushed commit; notes saving/push is the remaining pre-handoff operation. Full root history was re-enumerated across 5 segments and all3human messages matched. Temporary fixtures were removed by test cleanup. No manual release/publish/deploy commands were executed.
