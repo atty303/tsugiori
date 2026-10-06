@@ -1,0 +1,128 @@
+Task: Unified consumer task with local Action import mapping addition
+Anchor: be5e7443f162f878392272c05f63824eaced3c32
+Base: c6285182485c7f26b397455ce5eb003da91dd296
+Branch: main
+Commits: be5e7443f162f878392272c05f63824eaced3c32 (runner command, JSONC editor, task migration, docs and tests)
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; investigate-problem; review; Git task evidence
+Conditions: Clean current checkout on main; existing three local commits retained; Deno 2.9.5 via mise; jsonc-parser dependency explicitly approved; feat minor approved against v0.4.0; local changes only; complete thread retrieval 8 pages 79 turns, current cycle two human messages
+## Evidence
+- Standard check passed; full test suite 105 passed; targeted tests passed after rejecting internal --expect-layout for actions add; workflow generate --check passed.
+- Generated YAML differs only in two check task command lines. Existing official Action mappings remain unchanged.
+- jsonc-parser 3.3.1 resolved from npm and package archive passed deno publish --dry-run without altering the explicit dependency source; nothing published.
+- Cached-only entrypoint with no network permission verified configuration-only edits, unchanged lockfile and unchanged source. Workspace fixture selected the member configuration. Local HTTP install recorded redirect and resolved module checksum.
+- A separate clean-cache interactive deno install with no flags or entrypoint fetched the mapping after its normal import permission prompt, and a frozen import returned the pinned SHA contract. These are local fixtures, not official v1 service observations.
+- Fresh independent review identified an internal repeated-option acceptance defect. Corrected options and multipleOptions validation; targeted regression passed; reviewer delta approval has no findings.
+Authority: Explicit user implementation request and minor release approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori consumer project の Deno task を `tsugiori` 一つに統一し、既存の `runProject()` に `actions add <uses>` サブコマンドを追加してください。
+    
+    ## 目的
+    - workflow 生成、鮮度確認、Action 参照の追加を、一つの task から実行できるようにする。
+    - Action の `uses` と同じ文字列一つで、公式 type-service の import mapping を追加できるようにする。
+    - 依存取得と lockfile 更新は Deno の標準機能に任せる。
+    
+    ## 成功条件
+    - consumer の標準 task は次の形になる。
+      ```json
+      {
+        "tasks": {
+          "tsugiori": "deno run --frozen=true -A ./workflows.ts"
+        }
+      }
+      ```
+    - `deno task tsugiori generate` と `deno task tsugiori generate --check` が動く。
+    - 既存の `generate`／`generate:check` task を削除し、文書、CI、関連 fixture の呼び出しを更新する。
+    - `deno task tsugiori actions add actions/checkout@v4` により、task の project directory の設定に次の mapping が追加される。
+      ```json
+      {
+        "imports": {
+          "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v4"
+        }
+      }
+      ```
+    - `owner/repo[/path]@ref` を受け付け、alias は `#actions/owner/repo[/path]` とする。URL の ref と各 path component を適切に encode する。
+    - 同一 mapping が既にある場合は成功扱いで変更しない。同じ alias に異なる URL がある場合は、設定を変更せずエラーにする。
+    - `deno.json` と `deno.jsonc` に対応し、既存コメントと無関係な設定を保持する。
+    - `actions add` はネットワーク取得、lockfile 更新、設定ソースへの import 追加を行わない。
+    - README の標準手順は次の順になる。
+      1. `deno task tsugiori actions add actions/checkout@v4`
+      2. `deno install`
+      3. `workflows.ts` に Action の import を書く。
+      4. `deno task tsugiori generate`
+      5. 鮮度確認には `deno task tsugiori generate --check` を使う。
+    - 標準例に `exports` や install 用のローカル alias を追加しない。
+    - リポジトリの check、test、生成 workflow の鮮度確認が通る。
+    
+    ## 決定事項
+    - task 名を `tsugiori` に統一し、操作はサブコマンドで選ぶ。
+      - 理由: 同じ起動入口を複数の task に重複定義しないため。
+      - 主な棄却案: `generate`／`generate:check` を互換 task として残す案。呼び方と定義が二重になる。
+    - 起動入口は `workflows.ts` と既存の `runProject()` を維持する。
+      - 理由: 現在の設定・実行契約を保ち、専用 CLI 入口を増やさないため。
+      - 主な棄却案: 設定を読み込まず起動する新しい CLI 入口。今回は導入しない。
+    - task の `--frozen=true` を維持する。
+      - 理由: 通常の生成で依存の固定を暗黙に変更しないため。
+      - 主な棄却案: frozen 指定を外し、生成起動時に lockfile 更新を許す案。
+    - `actions add` は mapping の編集だけを行う。
+      - 理由: 依存取得と lockfile 管理を Deno に任せ、追加処理を小さくするため。
+      - 主な棄却案: Action の取得と lockfile 更新まで行う案。外部通信と更新処理が増える。
+    - alias の競合はエラーにする。
+      - 理由: 参照の置換と既存 lock の解除を扱わず、追加処理を単純にするため。
+      - 主な棄却案: 異なる ref へ自動更新する案。
+    - 設定編集に Microsoft の `jsonc-parser` を利用する。新しい依存の追加は承認済み。
+      - 理由: JSONC のコメントを保持する編集 API を使い、独自の編集処理を持たないため。
+      - 主な棄却案: mapping を表示するだけにして手編集を要求する案。自動追加の目的を満たさない。
+    - 文書の依存取得コマンドは `deno install` とする。
+      - 理由: `imports` の具体的な HTTPS mapping は、引数なしでも取得対象になるため。
+      - 主な棄却案: `--entrypoint ./workflows.ts`、`-A`、ホスト一覧を標準例に付ける案。標準の対話的な手順では指定しない。
+    - consumer の標準設定は `imports` と `tasks` で構成する。
+      - 理由: 現在の利用に必要な宣言に絞るため。
+      - 主な棄却案: `exports` や install のためだけの `#workflows` mapping を追加する案。
+    
+    ## 制約
+    - 変更は `/Users/a13400/src/atty303/tsugiori` 内に限定する。
+    - 現在の checkout で作業し、既存の unrelated な変更と並行作業を保持する。
+    - 既存の `defineProject()`、`runProject()`、provider 別の公開入口を維持する。
+    - workflow graph、task entrypoint、task artifact の生成・実行契約を変更しない。
+    - `actions add` の位置引数は `uses` と同じ文字列一つにする。
+    - `#actions/...` はコマンドが生成する規約とし、利用者が手で指定した別 alias を禁止・検証しない。
+    - 公式 service の新 URL が未公開の場合、自身の Action import mapping を未公開 URL に切り替えない。
+    - publish、release、deploy、push、PR 作成、外部リポジトリの変更は行わない。
+    
+    ## 対象外
+    - 設定から独立した新しい CLI 入口。
+    - Action 参照の更新・削除コマンド。
+    - Action metadata の取得や lockfile の編集。
+    - 設定ソースへの import 文の自動追加。
+    - 公式 type-service の公開。
+    - `exports` や install 用 alias の標準化。
+    
+    ## 未検証の前提
+    - 実装開始時の checkout における `runProject()`、引数解析、project directory と Deno 設定の扱い。
+    - `jsonc-parser` の適切な version と、Deno／JSR の公開経路からの利用可否。
+    - Deno workspace 内で、追加対象の設定ファイルと生成側の project directory が一致すること。
+    - repository-managed Deno において、引数なしの `deno install` が追加した HTTPS mapping を取得し、lockfile に記録すること。
+    
+    ## 実装時の指示
+    - 既存差分を確認し、並行する type-service 変更との境界を確定してから編集する。
+    - 設定更新対象は task の project directory にある Deno 設定とする。曖昧な設定、外部 `importMap`、不正な JSONC などを黙って別形式へ変換しない。
+    - `jsonc-parser` で構文エラーを確認し、`imports` の対象 entry だけを編集する。不正入力や競合で部分的な変更を残さない。
+    - ref に slash や Unicode がある場合、subpath がある場合、引数不足・過剰、不正な uses を検証する。
+    - JSON／JSONC、コメント保持、imports 未定義、同一 mapping、競合、無関係な設定保持を検証する。キーの順序も維持する。
+    - `actions add` の実行によって lockfile が変更されず、新規 module の取得も発生しないことを検証する。
+    - 起動時には設定と既存 import が読み込まれるため、Action の import を書く前に追加コマンドを実行する順序を文書化する。
+    - ローカル HTTP fixture を使い、追加済み mapping を `deno install` で取得して lockfile に固定できることを検証する。公式 service の未公開 URL が動作したとは主張しない。
+    - 自身の `.github/deno.json`、README、CI 設定ソース、関連ドキュメントと fixture の task 呼び出しを揃える。
+    - 生成 YAML の変更が必要なら `.github/workflows.ts` から再生成し、コマンド呼び出し以外の不要な graph 差分がないことを確認する。
+    - `mise run check`、`mise run test`、生成 workflow の check を実施する。
+    
+  - A: Read current source and guidance; fetched code and standard notes; established clean main baseline and v0.4.0. Proposed feat minor release via asynchronous approval. Added mapping-only JSONC editor, encoded locator/ref handling, conflict and ambiguity validation, atomic replacement, and existing host-owned diagnostic operations. Unified consumer and own CI tasks; updated documentation and fixture calls; retained current official service mappings. Inspected and fetched approved jsonc-parser dependency; initial entrypoint type check passed.
+- U2:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_j82PExZxCX6u15Kt84rudr24\",0]","question":"develop-repository の規則による commit 影響の確認です。基準 release は v0.4.0、今回のサブコマンド追加を feat（最大 minor release）として記録してよいですか？ 実装と検証は回答を待たず進めます。","answer":"はい、minor release を承認"}]
+    </send_user_message_question_reply>
+  - A: Accepted minor approval. Diagnosed fixture failures as missing existing startup dependency locks and noninteractive Deno import permissions, corrected setup without weakening the product's frozen/no-fetch contract. Standard check and 105 tests passed; focused invalid-argument checks passed after review correction. Generated workflows from current config and verified command-only diff and freshness. Verified local HTTP lock redirects/checksums and interactive argument-free installation; validated JSR archive dry-run. Completed fresh independent review and delta review, committed local changes as be5e7443f162f878392272c05f63824eaced3c32, and prepared this standard note. No release, deployment, push, external repository writes, or official new-route success claim.
