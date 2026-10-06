@@ -1,0 +1,144 @@
+Task: Deno project workflow identity and repository-independent task cache
+Anchor: bca656d762086d8fd9b1862ca6ba84d2bb35e07f
+Base: 9055309511638b0f3b319e5d0388c318c698b721
+Branch: main
+Commits: bca656d762086d8fd9b1862ca6ba84d2bb35e07f (workflow API, compiler/runtime, consumers, docs and verification)
+Guidance: AGENTS.md; dig; develop-repository; design-program-observability; design-review; review; Git task evidence
+Conditions: Current checkout; Deno 2.9.5 via mise; initially clean; minor feat approved; local commit only; full-session retrieval completed
+Authority: User dig decisions, explicit implementation request and minor feat approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) defineWorkerにidが必要なのはなんで？ yamlではworkflow idの概念はfilenameにしかないよね？
+    
+  - A: Invoked dig and design-review; inspected authoring/runtime/compiler/tests and official GitHub syntax. Workflow ID is Tsugiori-only. Asked whether output path should be sole identity.
+- U2:
+    A
+    
+  - A: Accepted sole path identity; asked whether path should be first argument or option.
+- U3:
+    B
+    
+  - A: Accepted first-argument API; asked whether to retain compatibility.
+- U4:
+    A
+    
+  - A: Accepted complete migration without compatibility; checked common understanding.
+- U5:
+    B. outputがgit rootからの相対パスになっているのは今となっては不自然じゃないか？ deno projectが.githubにあるならそこからの相対パスであるべきで、git rootを検出する余分な仕組みがないか？
+    
+  - A: Investigated project-relative output and explicit root usages; raised remaining uses/artifact placement choices.
+- U6:
+    出力先が `.github/workflows` 内か検証する。 ← これ余分な検証
+    reusable workflowの `uses: ./.github/workflows/…` を組み立てる ← 明示的に指定すればよくない？
+    `.tsugiori` の配置とtask artifactの準備に使う ← これrepo内に配置せず cache directory にすればよくない？
+    repo root廃止できるはず
+    
+  - A: Accepted root removal, explicit reusable reference and external cache direction; asked whether typed callee contracts should remain.
+- U7:
+    A
+    
+  - A: Accepted explicit uses plus typed callee; asked graph tracking scope.
+- U8:
+    A
+    
+  - A: Accepted all local graph files including project-external imports; asked preparation working-directory ownership.
+- U9:
+    A
+    
+  - A: Accepted defineProject preparation workingDirectory; asked extra generated-file checking policy.
+- U10:
+    B
+    
+  - A: Accepted configured-output-only checks; requested final common-understanding confirmation.
+- U11:
+    A
+    
+  - A: Produced implementation request matching agreed path identity, explicit uses, external cache, graph tracking and native working-directory constraints. No implementation yet.
+- U12:
+    ```markdown
+    # 実装依頼
+    
+    ## 依頼
+    Tsugioriのworkflow識別とパス処理をDeno project基準へ変更し、repository rootへの依存を廃止してください。対象は `/Users/a13400/src/atty303/tsugiori` です。
+    
+    ## 目的
+    - workflow IDと出力パスの二重管理をなくす。
+    - Deno projectを基準にworkflowを定義・生成できるようにする。
+    - GitHub Actions側の配置を明示し、repositoryの位置を推定する仕組みを不要にする。
+    - task artifactをrepo外のcache directoryで管理する。
+    
+    ## 成功条件
+    - `.github` がDeno projectの場合、`defineWorkflow("workflows/ci.yml", { on: … })` で生成できる。
+    - 独立したworkflow `id`、optionsの `output`、`runProject` のrepository `root` 指定が不要になる。
+    - workflowの照合、task実行先の識別、診断、scenarioが出力パスを識別元として動作する。
+    - 出力先を `.github/workflows` 内に限定する検証がなくなる。
+    - reusable workflowに明示した `uses` が出力され、callee定義によるinputs・secrets・outputsの型検査が維持される。
+    - artifact準備・復元・実行がrepo内の `.tsugiori` を作らずに動作する。
+    - project外へimportしたローカルファイルの変更もcache keyに反映される。
+    - `generate --check` は指定された出力ファイルの存在・内容のみを確認する。
+    - リポジトリ内の利用箇所、テスト、公開APIコメント、README、ARCHITECTURE等が新仕様に整合し、必要な検証が通る。
+    
+    ## 決定事項
+    - `defineWorkflow(path, options)` の第一引数をDeno project相対の出力パスとし、workflowの唯一の識別元にする。
+      - 理由: GitHub Actionsに独立したworkflow IDフィールドはなく、出力パスとの二重管理を避ける。
+      - 主な棄却案: 独立したIDの維持、options内への出力パス配置。
+    - 旧APIとの互換対応は設けず、全面移行する。
+      - 理由: 旧IDと出力パスの関係を扱う処理を残さない。
+      - 主な棄却案: 非推奨の旧形式を併存させる移行期間。
+    - repository rootの指定・検出・推定を廃止し、出力先の `.github/workflows` 制約も外す。
+      - 理由: 出力はDeno project相対で解決でき、配置の責任は利用者が持つ。
+      - 主な棄却案: 明示的なroot指定の維持、Deno projectを `.github` に固定する方法。
+    - reusable workflowは、明示的な `uses` とcallee定義を併せて指定する。
+      - 理由: パスの自動生成を廃止しながら型付きI/Oを維持する。
+      - 主な棄却案: 出力パスからの自動生成、callee定義による型検査の廃止。
+    - artifactをrepo外のcache directoryへ配置し、準備stepから後続stepへ実行パスを渡す。`actions/cache` による配送を維持する。
+      - 理由: repositoryの位置をartifact配置のために必要としない。
+      - 主な棄却案: repo内の `.tsugiori` 配置の維持。
+    - cache keyは依存グラフ内の全ローカルファイルを追跡し、パスをDeno project相対で表す。
+      - 理由: project外へのimportも実際のコンパイル入力である。
+      - 主な棄却案: project内だけを追跡し、外側の変更を手動管理する方法。
+    - グラフ外の変更には引き続き `cacheVersion` を使う。
+      - 理由: 自動追跡できない入力によるartifact更新を明示できる。
+      - 主な棄却案: なし。
+    - GitHub Actions上のartifact準備stepの `working-directory` を `defineProject` で一度指定する。
+      - 理由: Deno projectの実行場所を一箇所で明示する。
+      - 主な棄却案: workflowごとの指定。
+    - `generate --check` の余分な生成ファイルの走査を廃止する。
+      - 理由: 指定した出力だけを検証し、残存ファイルの管理は利用者が担う。
+      - 主な棄却案: 出力先directoryを走査して所有コメント付きファイルを検出する方法。
+    
+    ## 制約
+    - 出力パス変更に伴う内部task識別の変更は許容する。
+    - reusable workflowの `uses` とcallee定義の対応は利用者の責任とする。
+    - 準備step用の `working-directory` をtask本体や通常のrun stepへ暗黙に適用しない。
+    - GitHub Actionsのjob ID・step IDの扱いは維持する。
+    - project相対の識別・cache keyへマシン固有の絶対パスを持ち込まない。
+    - GitHub Actionsが必要とするパスは明示入力で扱い、repository root推定を別名で再導入しない。
+    
+    ## 対象外
+    - deploy、release、push、PR作成。
+    - 古い生成workflowの自動削除。
+    - 新しいprovider backend。
+    - 通常のjob・stepの実行場所の意味変更。
+    
+    ## 未検証の前提
+    - 現在のproject directoryは `Deno.cwd()` で得ている。Deno task経由の実行と直接実行における基準の整合を確認する。
+    - artifact内の配置情報、復元処理、生成コマンドに固定の `.tsugiori` パスがある。関連する全経路を確認する。
+    - repository外のローカル依存を含めた場合の依存グラフ取得と、配置に依存しないcache key計算を検証する。
+    - root基準の所有コメント、診断、`--output`、scenario、reusable workflow照合に残る依存を確認する。
+    
+    ## 実装時の指示
+    - reusable callの具体的な引数形式とcache directoryの解決方法は、合意した契約内で単純な方式を選ぶ。
+    - cache内の実行binaryはartifact keyごとに扱い、異なるprojectや並行処理で単一の実行ファイルを上書きしない。
+    - ローカルの絶対cacheパスを生成YAMLへ埋め込まず、実行環境で解決してstep出力として渡す。
+    - 現在の `.github/workflows.ts` を新APIへ移行し、生成YAMLを更新する。
+    - project外importの変更によるcache更新、cache復元後の実行、明示的なreusable `uses` と型検査、指定出力だけを対象とするcheckを検証する。
+    - ローカル検証とGitHub-hosted runner上の検証を区別して報告する。
+    ```
+    
+  - A: Applied develop-repository, design-program-observability and design-review. Initially clean main at Base; fetched code, notes fetch rejected non-fast-forward and neither notes history overwritten. Existing diagnostics retained. Implemented sole path identity and workflowPath references/scenarios, explicit job.call(uses,callee,args), project-relative generation/check with no directory scan/restriction, external platform cache with runner-resolved runtime-path outputs, project preparation workingDirectory, all local graph source tracking and manifest format 3. Migrated consumers/docs/generated YAML. mise run check succeeded; mise run test 100 passed. Independent reviewer found publication race and README scenario signature; fixed immutable publication and example. Delta reviewer found corrupt runtime recovery regression; fixed recovery to separate key-specific paths. E2E covers cache restore/execution, concurrent publishers/readers and unchanged inode, checksum corruption and binary missing, external imports and portable relocation; 4 passed. Last delta review no actionable findings. generate:check passed. Pre-existing ignored .tsugiori storage preserved; new runtime tests use disposable cache roots.
+- U13:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_Cl4Li9lfschma6J5OMm7fqTK\",0]","question":"develop-repository skillの規則により、commitのrelease影響を確認します。今回の公開API変更は0.x系列のfeat（minor）としてlocal commitにまとめる提案です。release実行・pushは対象外のままです。","answer":"minor対象のfeat commitで進める"}]
+    </send_user_message_question_reply>
+  - A: Approved minor-target feat local commit. Final reviewed snapshot SHA256 d33f346dd9ae4869b7f1f927511ee42b21a5e363b770a13ebb0560295b46f5a9 matched precommit diff. Committed bca656d762086d8fd9b1862ca6ba84d2bb35e07f on main. Complete session JSONL retrieved and compared: 13 human messages from dig request through this approval, excluding injected guidance/app context. No push, release, deploy or PR; GitHub-hosted execution remains unverified.
