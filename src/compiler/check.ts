@@ -36,7 +36,14 @@ export async function checkGeneratedFiles(
         path: displayPath(projectDirectory, output),
         reason: "missing",
       });
-    } else if (!sameBytes(actual, new TextEncoder().encode(file.content))) {
+    } else if (
+      !sameBytes(
+        actual,
+        typeof file.content === "string"
+          ? new TextEncoder().encode(file.content)
+          : file.content,
+      )
+    ) {
       stale.push({
         path: displayPath(projectDirectory, output),
         reason: "changed",

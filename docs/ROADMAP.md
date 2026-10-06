@@ -30,6 +30,16 @@ behavior is documented in the [README](../README.md) and
 - Revisit standalone task registration only if a provider-specific handwritten
   workflow integration needs it.
 
+### Action authoring
+
+- Verify generated task composites on GitHub runners, including nested calls,
+  repeated invocation and cache post-action behavior. Local relocation and
+  runtime tests do not establish hosted runner behavior.
+- Consider JavaScript or Docker authoring only when concrete consumers need it;
+  retain execution-independent metadata contracts and kind-specific execution.
+- Evaluate explicit runtime-resource distribution when module-graph-only
+  packaging is insufficient for an Action.
+
 ### Type service resources
 
 - Evaluate external reusable workflow contracts under `/github/workflows/`

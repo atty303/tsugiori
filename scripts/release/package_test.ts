@@ -226,9 +226,11 @@ Deno.test("release archive binds generation to its committed Action and rejects 
         "source",
       );
       assertEquals(
-        generated[0].content.includes(
-          `uses: atty303/tsugiori/actions/task-prepare@${sha}`,
-        ),
+        (typeof generated[0].content === "string"
+          ? generated[0].content
+          : new TextDecoder().decode(generated[0].content)).includes(
+            `uses: atty303/tsugiori/actions/task-prepare@${sha}`,
+          ),
         true,
       );
     });

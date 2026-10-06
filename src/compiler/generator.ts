@@ -1,3 +1,6 @@
+import { actionPayload } from "./action_payload.ts";
+import { emitCompositeAction } from "./github_actions/action.ts";
+import { TASK_PREPARE_SCRIPT } from "../task-runtime/bootstrap.ts";
 import type { ProjectConfig } from "../github_actions/mod.ts";
 import { taskPrepareAction } from "../package_identity.ts";
 import { AuthoringValidationError, lowerProject } from "./authoring.ts";
@@ -5,7 +8,7 @@ import { emitWorkflow } from "./github_actions/emitter.ts";
 
 export type GeneratedFile = Readonly<{
   path: string;
-  content: string;
+  content: string | Uint8Array;
 }>;
 
 export function generatedWorkflowHeader(entrypointArgument: string): string {
@@ -21,16 +24,49 @@ export async function generateFiles(
 ): Promise<readonly GeneratedFile[]> {
   const lowered = await lowerProject(project, entrypointArgument, sourceKey);
   if (
-    lowered.tasks.length > 0 &&
+    project.workflows.some((workflow) =>
+      workflow.jobs.some((job) =>
+        job.steps.some((step) => step.type === "task")
+      )
+    ) &&
     taskPrepareAction(project.localTaskPrepareAction) === undefined
   ) {
     throw new AuthoringValidationError([
       "Task preparation requires a released Tsugiori package with a source commit SHA, or an explicit localTaskPrepareAction checkout path for development.",
     ]);
   }
-  return lowered.workflows.map((workflow) => ({
+  const files: GeneratedFile[] = lowered.workflows.map((workflow) => ({
     path: workflow.path,
     content: generatedWorkflowHeader(entrypointArgument) +
       emitWorkflow(workflow.workflow),
   }));
+  const hasActionTasks = lowered.actions.some(({ action }) =>
+    action.runs.steps.some((step) => step.type === "task")
+  );
+  const payload = hasActionTasks
+    ? await actionPayload(Deno.cwd(), entrypointArgument, project.cacheVersion)
+    : undefined;
+  for (const action of lowered.actions) {
+    const needsPayload = action.action.runs.steps.some((step) =>
+      step.type === "task"
+    );
+    files.push({
+      path: `${action.action.path}/action.yml`,
+      content: generatedWorkflowHeader(entrypointArgument) +
+        emitCompositeAction(action, needsPayload ? payload : undefined),
+    });
+    if (needsPayload && payload) {
+      files.push(
+        ...payload.files.map((file) => ({
+          ...file,
+          path: `${action.action.path}/.tsugiori/${file.path}`,
+        })),
+      );
+      files.push({
+        path: `${action.action.path}/.tsugiori/prepare.sh`,
+        content: TASK_PREPARE_SCRIPT,
+      });
+    }
+  }
+  return files;
 }

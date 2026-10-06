@@ -57,6 +57,7 @@ Deno.test("generation requires release identity for tasks, accepts explicit loca
     "./workflows.ts",
     "source",
   );
+  assert(typeof file.content === "string");
   assert(file.content.includes("uses: ./actions/task-prepare"));
   assert(file.content.includes("project-directory: project"));
   assert(!file.content.includes("deno_binary"));

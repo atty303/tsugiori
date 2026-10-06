@@ -178,7 +178,9 @@ function formatWorkflowYaml(yaml: string, jobs: readonly Job[]): string {
   return lines.join("\n");
 }
 
-function literalRunBlock(value: string): { header: string; lines: string[] } {
+function literalRunBlock(
+  value: string,
+): { header: string; lines: string[] } {
   const chomp = value.endsWith("\n\n") ? "+" : value.endsWith("\n") ? "" : "-";
   const lines = value.split("\n");
   if (value.endsWith("\n")) lines.pop();
@@ -277,7 +279,7 @@ function emitRunnerSelection(selection: RunnerSelection): unknown {
   return emitted;
 }
 
-function emitStep(step: Step): Record<string, unknown> {
+export function emitStep(step: Step): Record<string, unknown> {
   const emitted: Record<string, unknown> = {};
   if (step.name !== undefined) {
     emitted.name = step.name;

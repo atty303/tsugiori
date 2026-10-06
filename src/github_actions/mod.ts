@@ -1118,6 +1118,7 @@ export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
  */
 export type AuthoringUsesStep = Readonly<{
   type: "uses";
+  calleeAction?: AuthoringCompositeAction;
   /** A unique job identifier used by needs and output/result references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    */
@@ -1204,6 +1205,7 @@ export type AuthoringRunStep = Readonly<{
  */
 export type AuthoringTaskStep = Readonly<{
   type: "task";
+  workingDirectory?: string;
   /** A unique job identifier used by needs and output/result references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    */
@@ -1335,6 +1337,7 @@ export type ProjectConfig = Readonly<{
   localTaskPrepareAction?: string;
   workingDirectory: string;
   workflows: readonly AuthoringWorkflow[];
+  actions?: readonly AuthoringCompositeAction[];
 }>;
 
 /** Workflow settings define triggers, names, environment variables and the default token permissions. Reusable workflows exchange inputs, secrets and outputs; workflow environment variables do not cross the call boundary.
@@ -2077,6 +2080,7 @@ export type TaskStepDefinition<
 > =
   & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if">
   & Readonly<{
+    workingDirectory?: string;
     /** Unique step ID for typed output references.
      * @example In a `defineWorkflow().job()` callback with `{ job }`.
      * ```ts
@@ -2248,6 +2252,9 @@ export type TaskStepDefinition<
     ) => void | Promise<void>;
   }>;
 const jobDefinition = Symbol("tsugiori.job-definition");
+export const compositeActionDefinition = Symbol(
+  "tsugiori.composite-action-definition",
+);
 const workflowDefinition = Symbol("tsugiori.workflow-definition");
 export interface TestableWorkflow {
   readonly [workflowDefinition]: AuthoringWorkflow;
@@ -3192,6 +3199,386 @@ export interface ExecutionJobState<
  * }).outputs(({ steps }) => ({ version: steps.build.outputs.version }));
  * ```
  */
+export interface CompositeStepState<
+  WorkflowPath extends string,
+  JobId extends string,
+  Steps extends StepReferences,
+  Needs extends Record<string, readonly string[]> = Record<never, never>,
+  Matrix extends object = Record<never, never>,
+  Vars extends string = string,
+  Secrets extends string = string,
+  InputValues extends object = Readonly<Record<string, string>>,
+  Outputs extends readonly string[] = readonly [],
+  Proof extends string = never,
+> extends FinalizedJobState<WorkflowPath, JobId, Outputs, Steps, Matrix> {
+  readonly steps: Steps;
+
+  outputs<
+    const Names extends Readonly<
+      Record<
+        string,
+        Field<
+          "jobs.<job_id>.outputs.<output_id>",
+          Needs,
+          OutputMap<Steps>,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >
+      >
+    >,
+  >(
+    define: (
+      context: Scope<
+        "jobs.<job_id>.outputs.<output_id>",
+        Needs,
+        OutputMap<Steps>,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof
+      >,
+    ) => Names,
+  ): FinalizedJobState<
+    WorkflowPath,
+    JobId,
+    JobOutputNames<Names>,
+    Steps,
+    Matrix
+  >;
+
+  uses<
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+  >(
+    action: C,
+    ...options: RequiredContractKeys<NoInfer<C>> extends never ? [
+        options?:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Steps,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>
+          & Readonly<{ timeoutMinutes?: never }>,
+      ]
+      : [
+        options:
+          & ObjectUsesStepOptions<
+            NoInfer<C>,
+            Id,
+            Needs,
+            Steps,
+            Matrix,
+            Vars,
+            Secrets,
+            InputValues
+          >
+          & Readonly<{ with?: R }>
+          & CheckedActionValues<C, NoInfer<R>>
+          & Readonly<{ timeoutMinutes?: never }>,
+      ]
+  ): CompositeStepState<
+    WorkflowPath,
+    JobId,
+    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
+  uses<
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+    const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+  >(
+    action: C,
+    options:
+      & Omit<
+        ObjectUsesStepOptions<
+          NoInfer<C>,
+          Id,
+          Needs,
+          Steps,
+          Matrix,
+          Vars,
+          Secrets,
+          InputValues
+        >,
+        "with"
+      >
+      & Readonly<
+        {
+          with: (
+            context: Scope<
+              "jobs.<job_id>.steps.with",
+              Needs,
+              OutputMap<Steps>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => R;
+        }
+      >
+      & CheckedActionValues<C, NoInfer<R>>
+      & Readonly<{ timeoutMinutes?: never }>,
+  ): CompositeStepState<
+    WorkflowPath,
+    JobId,
+    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
+
+  run<
+    const D extends RunStepDefinition<
+      string | undefined,
+      readonly string[],
+      Needs,
+      Steps,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >,
+  >(
+    definition:
+      & AvailableStepDefinition<D, Steps>
+      & Readonly<{ shell: string; timeoutMinutes?: never }>,
+  ): CompositeStepState<
+    WorkflowPath,
+    JobId,
+    AddStepReference<D, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
+
+  task<
+    const Id extends string | undefined,
+    const I extends InputDefinitions,
+    const O extends OutputDefinitions,
+    const C extends
+      | StepField<
+        "jobs.<job_id>.steps.if",
+        Needs,
+        Steps,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues
+      >
+      | undefined,
+    const F extends boolean | undefined = undefined,
+  >(
+    definition:
+      & TaskStepDefinition<
+        Id,
+        I,
+        O,
+        Needs,
+        Steps,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof,
+        C
+      >
+      & Readonly<
+        {
+          timeoutMinutes?: never;
+          workingDirectory?: string;
+          inputs: I;
+
+          outputs: O;
+
+          if?: C;
+
+          continueOnError?: F;
+
+          id?: Exclude<Id, keyof Steps>;
+        }
+      >,
+  ): CompositeStepState<
+    WorkflowPath,
+    JobId,
+    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
+}
+
+export type ActionMetadata = Readonly<{
+  name: string;
+  description: string;
+  author?: string;
+  branding?: ActionContract["branding"];
+  inputs?: Readonly<
+    Record<string, Omit<ActionContractInput, "default"> & { default?: string }>
+  >;
+  outputs?: Readonly<Record<string, Readonly<{ description: string }>>>;
+}>;
+
+export type AuthoringCompositeAction = Readonly<{
+  path: string;
+  metadata: ActionMetadata;
+  runs: Readonly<{ using: "composite"; steps: readonly AuthoringStep[] }>;
+  outputValues: Readonly<Record<string, string>>;
+}>;
+
+type CompositeInputs<M extends ActionMetadata> = {
+  readonly [K in keyof M["inputs"]]: string;
+};
+export type CompositeActionState<M extends ActionMetadata> =
+  & M
+  & Readonly<{
+    uses: string;
+    [compositeActionDefinition]: AuthoringCompositeAction;
+  }>;
+export interface CompositeActionDraft<
+  P extends string,
+  M extends ActionMetadata,
+> {
+  readonly inputs: import("./expression.ts").Ref<CompositeInputs<M>, "inputs">;
+  steps<Result extends FinalizedJobState<P, "composite", readonly string[]>>(
+    define: (
+      context: Readonly<
+        {
+          step: Pick<
+            CompositeStepState<
+              P,
+              "composite",
+              Record<never, never>,
+              Record<never, never>,
+              Record<never, never>,
+              string,
+              never,
+              CompositeInputs<M>
+            >,
+            "run" | "uses" | "task"
+          >;
+        }
+      >,
+    ) => Result,
+  ): CompositeActionState<M>;
+}
+
+/** The directory is project-relative for generation; local calls are resolved
+ * from the project workingDirectory within the Actions checkout.
+ * Composite local uses retains GitHub's caller-workspace resolution; it is not
+ * relative to github.action_path. No checkout is injected.
+ */
+export function defineCompositeAction<
+  const P extends string,
+  const M extends ActionMetadata,
+>(
+  path: P,
+  metadata: M,
+): CompositeActionDraft<P, M> {
+  if (
+    !/^(?:\.\/)?[A-Za-z0-9._/-]+$/.test(path) ||
+    path.split("/").includes("..") || path.startsWith("/") ||
+    path.includes("//")
+  ) {
+    throw new TypeError(
+      "Action path must be a project-relative directory without parent traversal.",
+    );
+  }
+  metadata = copyNative(metadata);
+  const normalized = path.replace(/^\.\//, "").replace(/\/$/, "");
+  const owner = Symbol(normalized);
+  type Inputs = { readonly [K in keyof M["inputs"]]: string };
+  type Start = CompositeStepState<
+    P,
+    "composite",
+    Record<never, never>,
+    Record<never, never>,
+    Record<never, never>,
+    string,
+    never,
+    Inputs
+  >;
+  return Object.freeze({
+    inputs: scope("jobs.<job_id>.steps.env")
+      .inputs as import("./expression.ts").Ref<Inputs, "inputs">,
+    steps<Result extends FinalizedJobState<P, "composite", readonly string[]>>(
+      define: (
+        context: Readonly<{ step: Pick<Start, "run" | "uses" | "task"> }>,
+      ) => Result,
+    ): CompositeActionState<M> {
+      const step = createExecutionJobFacade({
+        workflowPath: path,
+        id: "composite",
+        owner,
+        runsOn: "composite",
+        needs: [],
+        steps: [],
+        references: {},
+        contracts: new Map(),
+        proofPaths: new Set(),
+        composite: true,
+      });
+      const result = define({ step: step as unknown as Start });
+      const definition = result[jobDefinition];
+      if (!definition || definition.owner !== owner) {
+        throw new TypeError("Composite steps must belong to this Action.");
+      }
+      const values = definition.job.outputs ?? {};
+      if (
+        Object.keys(values).sort().join("\0") !==
+          Object.keys(metadata.outputs ?? {}).sort().join("\0")
+      ) {
+        throw new TypeError(
+          "Composite output mappings must match declared metadata outputs.",
+        );
+      }
+      const action: AuthoringCompositeAction = Object.freeze({
+        path: normalized,
+        metadata: copyNative(metadata),
+        runs: Object.freeze({
+          using: "composite",
+          steps: definition.job.steps,
+        }),
+        outputValues: values,
+      });
+      return Object.freeze({
+        ...copyNative(metadata),
+        uses: `./${normalized}`,
+        [compositeActionDefinition]: action,
+      }) as CompositeActionState<M>;
+    },
+  });
+}
+
 export interface NonEmptyStepState<
   WorkflowPath extends string,
   JobId extends string,
@@ -4707,6 +5094,7 @@ type JobDraft = Readonly<{
   references: StepReferences;
   contracts: ReadonlyMap<string, ReferenceBinding>;
   proofPaths: ReadonlySet<string>;
+  composite?: boolean;
   outputContracts?: Readonly<Record<string, ReferenceBinding>>;
 }>;
 
@@ -4841,9 +5229,9 @@ export function defineWorkflow<
  * ```
  */
 export function defineProject<
-  const Workflows extends NonEmptyReadonlyArray<
-    Readonly<{ [workflowDefinition]: AuthoringWorkflow }>
-  >,
+  const Workflows extends readonly Readonly<
+    { [workflowDefinition]: AuthoringWorkflow }
+  >[] = readonly [],
 >(
   input: Readonly<{
     /** Increase when inputs outside the tracked source graph change the task binary.
@@ -4879,7 +5267,10 @@ export function defineProject<
      * defineProject({ workflows: [ci] });
      * ```
      */
-    workflows: Workflows;
+    workflows?: Workflows;
+    actions?: readonly Readonly<
+      { [compositeActionDefinition]: AuthoringCompositeAction }
+    >[];
   }>,
 ): ProjectConfig {
   const cacheVersion = input.cacheVersion ?? 1;
@@ -4906,7 +5297,10 @@ export function defineProject<
     cacheVersion,
     workingDirectory: input.workingDirectory ?? ".",
     workflows: Object.freeze(
-      input.workflows.map((value) => value[workflowDefinition]),
+      (input.workflows ?? []).map((value) => value[workflowDefinition]),
+    ),
+    actions: Object.freeze(
+      (input.actions ?? []).map((value) => value[compositeActionDefinition]),
     ),
   });
 }
@@ -5407,6 +5801,12 @@ function createExecutionJobFacade(
           uses,
           inputs,
           uses === contract?.uses ? contract.originalRef : undefined,
+          options.uses === undefined && contract &&
+            compositeActionDefinition in contract
+            ? (contract as unknown as {
+              [compositeActionDefinition]: AuthoringCompositeAction;
+            })[compositeActionDefinition]
+            : undefined,
         ),
         outputs,
       );
@@ -5414,6 +5814,9 @@ function createExecutionJobFacade(
     run: (
       definition: RunStepDefinition<string | undefined, readonly string[]>,
     ) => {
+      if (draft.composite && !definition.shell?.trim()) {
+        throw new TypeError("Composite run steps require shell.");
+      }
       if (definition.outputs !== undefined) {
         validateActionOutputs(definition.outputs);
       }
@@ -5569,9 +5972,11 @@ function usesStep(
   uses: string,
   inputs: ActionInputs | undefined,
   originalRef?: string,
+  calleeAction?: AuthoringCompositeAction,
 ): AuthoringUsesStep {
   return Object.freeze({
     type: "uses",
+    ...(calleeAction === undefined ? {} : { calleeAction }),
     ...(definition.id === undefined ? {} : { id: definition.id }),
     ...(definition.name === undefined ? {} : { name: definition.name }),
     uses,
@@ -5682,6 +6087,9 @@ function taskStep(
   }
   return Object.freeze({
     type: "task",
+    ...(definition.workingDirectory === undefined
+      ? {}
+      : { workingDirectory: definition.workingDirectory }),
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     inputs,

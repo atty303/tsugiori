@@ -115,7 +115,11 @@ export async function runProject(
         options.entrypointUrl,
       );
       recorder.operation({ name: "project.source", status: "success" });
-      const hasTasks = source.project.workflows.some((workflow) =>
+      const hasTasks = (source.project.actions ?? []).some((action) =>
+        action.runs.steps.some((step) =>
+          step.type === "task"
+        )
+      ) || source.project.workflows.some((workflow) =>
         workflow.jobs.some((job) =>
           job.steps.some((step) => step.type === "task")
         )
@@ -160,7 +164,7 @@ export async function runProject(
           },
         });
         await recorder.finish("success");
-        console.log("Generated workflow files are up to date.");
+        console.log("Generated files are up to date.");
         return 0;
       }
       await writeGeneratedFiles(source.projectDirectory, files);
@@ -170,7 +174,7 @@ export async function runProject(
         attributes: { fileCount: files.length },
       });
       await recorder.finish("success");
-      console.log(`Generated ${files.length} workflow file(s).`);
+      console.log(`Generated ${files.length} file(s).`);
       return 0;
     }
 
@@ -279,6 +283,16 @@ async function dispatchTask(
           if (`${workflow.path}/${job.id}/task-${ordinal}` === entrypoint) {
             task = step;
           }
+        }
+      }
+    }
+    for (const action of project.actions ?? []) {
+      let ordinal = 0;
+      for (const step of action.runs.steps) {
+        if (step.type !== "task") continue;
+        ordinal += 1;
+        if (`${action.path}/composite/task-${ordinal}` === entrypoint) {
+          task = step;
         }
       }
     }

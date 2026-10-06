@@ -1,9 +1,10 @@
 import type {
+  AuthoringCompositeAction,
   AuthoringWorkflow,
   ProjectConfig,
 } from "../github_actions/mod.ts";
 import type { AuthoringTaskStep } from "../github_actions/mod.ts";
-import { isAbsolute } from "node:path";
+import { isAbsolute, posix } from "node:path";
 import type { Job, Step, Workflow } from "./github_actions/ast.ts";
 import {
   type Diagnostic,
@@ -29,8 +30,17 @@ export type LoweredWorkflow = Readonly<{
   workflow: ValidatedWorkflow;
 }>;
 
+export type LoweredCompositeAction = Readonly<
+  {
+    action: AuthoringCompositeAction;
+    steps: readonly Step[];
+    preparation?: Readonly<{ prepareStepId: string; cacheStepId: string }>;
+  }
+>;
+
 export type LoweredProject = Readonly<{
   workflows: readonly LoweredWorkflow[];
+  actions: readonly LoweredCompositeAction[];
   tasks: readonly RegisteredTask[];
 }>;
 
@@ -49,9 +59,44 @@ export function lowerProject(
   project: ProjectConfig,
   entrypointArgument: string,
   sourceKey = "unresolved",
+  internalActionLowering = false,
 ): LoweredProject {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
+  const actionSet = new Set(project.actions ?? []);
+  const inspectSteps = (
+    steps: readonly import("../github_actions/mod.ts").AuthoringStep[],
+    ancestors: readonly AuthoringCompositeAction[],
+  ) => {
+    for (const step of steps) {
+      if (step.type !== "uses" || !step.calleeAction) continue;
+      const target = step.calleeAction;
+      if (!actionSet.has(target)) {
+        diagnostics.push(
+          `Called Action ${target.path} must be included in the same project.`,
+        );
+      }
+      if (ancestors.includes(target)) {
+        diagnostics.push(`Composite Action cycle at ${target.path}.`);
+        continue;
+      }
+      if (ancestors.length >= 10) {
+        diagnostics.push(
+          `Composite Action nesting exceeds ten levels at ${target.path}.`,
+        );
+        continue;
+      }
+      inspectSteps(target.runs.steps, [...ancestors, target]);
+    }
+  };
+  if (!internalActionLowering) {
+    for (const workflow of project.workflows) {
+      for (const job of workflow.jobs) inspectSteps(job.steps, []);
+    }
+    for (const action of project.actions ?? []) {
+      inspectSteps(action.runs.steps, [action]);
+    }
+  }
   const tasks: RegisteredTask[] = [];
   const outputs = new Set<string>();
   const loweredWorkflows: LoweredWorkflow[] = [];
@@ -60,8 +105,8 @@ export function lowerProject(
   if (project.kind !== "github-actions.project") {
     diagnostics.push("Default export must be created by defineProject().");
   }
-  if (project.workflows.length === 0) {
-    diagnostics.push("Project must contain at least one workflow.");
+  if (project.workflows.length === 0 && (project.actions ?? []).length === 0) {
+    diagnostics.push("Project must contain at least one workflow or Action.");
   }
 
   for (const workflow of project.workflows) {
@@ -118,7 +163,12 @@ export function lowerProject(
             type: "uses",
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
-            uses: step.uses,
+            uses: step.calleeAction
+              ? localActionReference(
+                project.workingDirectory,
+                step.calleeAction.path,
+              )
+              : step.uses,
             ...(step.originalRef === undefined
               ? {}
               : { originalRef: step.originalRef }),
@@ -188,6 +238,9 @@ export function lowerProject(
           ...(step.timeoutMinutes === undefined
             ? {}
             : { timeoutMinutes: step.timeoutMinutes }),
+          ...(step.workingDirectory === undefined
+            ? {}
+            : { workingDirectory: step.workingDirectory }),
           run: `"\${{ steps.${prepareStepId}.outputs.runtime-path }}" ${
             quotePosix(entrypoint)
           }`,
@@ -249,12 +302,89 @@ export function lowerProject(
     }
   }
 
+  const actions: LoweredCompositeAction[] = [];
+  for (const action of project.actions ?? []) {
+    if (!action.metadata.name.trim() || !action.metadata.description.trim()) {
+      diagnostics.push(`Action ${action.path} requires name and description.`);
+    }
+    const output = `${action.path}/action.yml`;
+    if (outputs.has(output)) {
+      diagnostics.push(`Action output ${output} is duplicated.`);
+    }
+    outputs.add(output);
+    for (
+      const [name, definition] of Object.entries(action.metadata.inputs ?? {})
+    ) {
+      if (
+        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
+        typeof definition.description !== "string"
+      ) diagnostics.push(`Invalid Action input ${name}.`);
+    }
+    for (
+      const [name, definition] of Object.entries(action.metadata.outputs ?? {})
+    ) {
+      if (
+        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
+        typeof definition.description !== "string" ||
+        typeof action.outputValues[name] !== "string"
+      ) diagnostics.push(`Invalid Action output ${name}.`);
+    }
+    for (const step of action.runs.steps) {
+      if (step.type === "run" && !step.shell?.trim()) {
+        diagnostics.push(`Composite ${action.path} run steps require shell.`);
+      }
+      if (step.timeoutMinutes !== undefined) {
+        diagnostics.push(
+          `Composite ${action.path} does not support step timeout-minutes.`,
+        );
+      }
+    }
+    // Reuse the native step lowering and task registry. Action preparation is
+    // replaced by an ordinary run step in the Action emitter, never executed here.
+    const lowered = lowerProject(
+      {
+        ...project,
+        actions: [],
+        workflows: [{
+          path: action.path,
+          name: action.metadata.name,
+          on: { push: {} },
+          jobs: [{
+            id: "composite",
+            needs: [],
+            runsOn: "ubuntu-latest",
+            steps: action.runs.steps,
+          }],
+        }],
+      },
+      entrypointArgument,
+      sourceKey,
+      true,
+    );
+    tasks.push(...lowered.tasks);
+    const ids = new Set(
+      action.runs.steps.flatMap((step) =>
+        step.id === undefined ? [] : [step.id]
+      ),
+    );
+    const prepareStepId = allocateStepId(PREPARE_STEP_ID, ids);
+    const cacheStepId = allocateStepId(CACHE_STEP_ID, ids);
+    actions.push({
+      action,
+      steps: lowered.workflows[0].workflow.jobs[0].steps,
+      ...(lowered.tasks.length === 0
+        ? {}
+        : { preparation: { prepareStepId, cacheStepId } }),
+    });
+  }
+
   if (diagnostics.length > 0) {
     throw new AuthoringValidationError(diagnostics);
   }
 
   return Object.freeze({
     workflows: Object.freeze(loweredWorkflows),
+    actions: Object.freeze(actions),
     tasks: Object.freeze(tasks),
   });
 }
@@ -417,4 +547,17 @@ function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
     }
   };
   for (const workflow of project.workflows) visit(workflow, []);
+}
+
+function localActionReference(directory: string, path: string): string {
+  const location = posix.normalize(posix.join(directory, path));
+  if (
+    posix.isAbsolute(location) || location === ".." ||
+    location.startsWith("../")
+  ) {
+    throw new AuthoringValidationError([
+      "Action references must remain inside the Actions checkout.",
+    ]);
+  }
+  return `./${location}`;
 }

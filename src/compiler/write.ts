@@ -9,7 +9,12 @@ export async function writeGeneratedFiles(
   for (const { file, output } of destinations) {
     await Deno.mkdir(dirname(output), { recursive: true });
     const temporary = `${output}.tmp-${crypto.randomUUID()}`;
-    await Deno.writeTextFile(temporary, file.content);
+    await Deno.writeFile(
+      temporary,
+      typeof file.content === "string"
+        ? new TextEncoder().encode(file.content)
+        : file.content,
+    );
     await Deno.rename(temporary, output);
   }
 }

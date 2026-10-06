@@ -6,8 +6,8 @@
 
 # Tsugiori
 
-Tsugiori authors GitHub Actions workflows in TypeScript and emits ordinary
-`.github/workflows/*.yml` files. It can also compile inline Deno task functions
+Tsugiori authors GitHub Actions workflows and composite actions in TypeScript
+and emits ordinary workflow YAML and `action.yml` files. It can also compile inline Deno task functions
 into one task artifact and invoke each task from a separate, visible Actions
 step. GitHub Actions still runs the jobs and steps.
 
@@ -187,6 +187,92 @@ Set `TSUGIORI_DIAGNOSTICS=0` to disable recording; `RUNNER_DEBUG=1` also display
 command records. Records omit task inputs, outputs, environment values, and
 raw exception messages; no remote diagnostic export is configured. Delete these
 directories to clear diagnostics.
+
+## Author a composite action
+
+`defineCompositeAction(directory, metadata).steps(...)` generates a standard
+`action.yml` in the project-relative directory. Include completed definitions
+in `defineProject({ actions: [...] })`; a project can contain actions, workflows,
+or both. Common metadata remains separate from the composite execution part.
+JavaScript and Docker action authoring are not implemented.
+
+```ts
+import {
+  defineCompositeAction, defineProject, defineWorkflow, runProject, textValue,
+} from "@atty303/tsugiori/github-actions";
+
+const greeting = defineCompositeAction("actions/greet", {
+  name: "Greet",
+  description: "Generate a greeting",
+  inputs: { who: { description: "Recipient", required: true } },
+  outputs: { message: { description: "Greeting" } },
+});
+const greet = greeting.steps(({ step }) =>
+  step.task({
+    id: "greet", name: "Greet",
+    inputs: { who: { contract: textValue(), from: greeting.inputs.who } },
+    outputs: { message: { contract: textValue(), required: true } },
+    run: async ({ inputs, outputs }) => {
+      await outputs.set("message", `Hello ${inputs.who}`);
+    },
+  }).outputs(({ steps }) => ({ message: steps.greet.outputs.message })));
+
+const ci = defineWorkflow(".github/workflows/greet.yml", {
+  on: { push: {} },
+}).job("greet", ({ job }) =>
+  job.runsOn("ubuntu-latest").uses(greet, {
+    id: "greeting", with: { who: "world" },
+  }));
+const project = defineProject({ actions: [greet], workflows: [ci] });
+export default project;
+if (import.meta.main) {
+  Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+}
+```
+
+The step builder supports `run`, `uses` and `task`, step conditions, env, and
+`continueOnError`. Every authored `run` needs an explicit `shell`. Composite
+steps do not support `timeoutMinutes`. Declare public output descriptions in
+metadata and supply matching `.outputs(...)` mappings after the steps. Public
+Action inputs and outputs are strings; task contracts validate internal text or
+JSON values. Use `inputs` or explicit `env` mappings: composite actions do not
+receive automatic `INPUT_*` variables. Secrets must be passed by callers.
+
+`.uses(greet, options)` shares declared input names, requiredness and output
+names. Include its definition in the project. Generation resolves its local
+reference from the project's checkout-relative `workingDirectory` (default
+`.`). If the Deno project is `.github`, set `workingDirectory: ".github"`;
+`actions/greet` then generates there and is called as
+`./.github/actions/greet`. This setting does not change task execution cwd.
+An explicit `uses` override selects a different standard reference while keeping
+the contract's types.
+
+Within a composite, a local `./` reference still points into the caller's
+checkout, as GitHub specifies; it is not relative to the downloaded Action.
+No checkout is injected. Use an external contract or explicit remote `uses`
+reference when publishing a composite that invokes another repository action.
+Handwritten callers use the generated directory with ordinary `uses`.
+Publish the YAML with its repository to import a SHA-pinned contract through
+the existing [type service](#action-metadata-contracts); no contract file is
+generated locally.
+
+Actions containing tasks also generate `.tsugiori/` beside `action.yml`.
+Commit this directory with the YAML. It contains the reachable local module
+graph, discovered Deno configuration, workspace configuration, import maps,
+lockfiles and the preparation bridge. The executable authoring entrypoint is
+included; callers need no Tsugiori configuration. Remote dependencies remain
+Deno-managed downloads on a cache miss, not vendored files. Dynamically computed
+imports and runtime data files outside Deno's module graph are not automatically
+packaged; make such resources part of the Action distribution explicitly.
+
+Preparation runs in the bundled project directory and reuses the task cache
+lifecycle. Every task runs through a distinct normal Bash step, in the caller's
+normal working directory unless its `workingDirectory` explicitly overrides
+it. Task functions still support Linux/macOS X64/ARM64. Actions with only
+`run`/`uses` steps have no task platform restriction or task payload.
+`generate --check` compares both YAML and bundled payload bytes; it does not
+remove obsolete or unconfigured files. Increment `cacheVersion` for changes to
+settings or remote dependencies outside the tracked local module graph.
 
 ## Test workflow logic
 

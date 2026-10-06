@@ -98,10 +98,50 @@ Other expression nodes do not correct wire values implicitly.
 Conditional or `continueOnError` task steps expose their outputs as optional
 to consumers, even when an output is required during an actual task run.
 
+## Composite action authoring and distribution
+
+Composite definitions contain common Action metadata and a separate
+`runs.using: composite` step sequence. Their completed objects implement the
+existing, execution-independent `ActionContract` and retain an authoring
+identity for project membership and local reference resolution. The common
+metadata does not contain future JavaScript/Docker execution fields.
+
+The immutable composite step builder shares workflow step construction and
+typed task I/O. It requires run shells and excludes step timeouts and direct
+secret names. Public inputs are strings. Public output descriptions are metadata;
+step output mappings supply their wire values. Action-only projects are valid.
+The compiler validates the native step sequence, metadata, declared mappings,
+local definition membership and composite nesting/cycles.
+
+An Action directory is relative to the Deno project for emission. Object calls
+resolve from the project's checkout-relative `workingDirectory`; explicit
+reference overrides retain ordinary GitHub semantics. Local composite `uses`
+references resolve in the caller workspace, never implicitly in the downloaded
+Action directory. No checkout or task cwd change is inserted.
+
+Task actions distribute the reachable local source graph and discovered project
+configuration beneath their own `.tsugiori/` directory. Local file topology is
+preserved, absolute local module references are relocated, and configuration
+includes import maps, workspace members and locks. The executable entrypoint
+and registry travel with the Action, so preparation does not load caller-side
+authoring files. Remote dependencies remain pinned by the copied lockfiles;
+runtime data and computed imports beyond the module graph require explicit
+consumer-owned distribution.
+
+The composite emits separate pinned cache and Bash preparation steps, followed
+by each task invocation. Preparation runs inside the bundled project;
+tasks use normal composite working-directory semantics. The source identity is
+computed from the relocated local modules with the existing format, package
+identity and `cacheVersion`. Actions from one project carry its shared registry;
+identical payloads reuse the artifact key while scoped step IDs and absolute
+runtime paths remain independent. Restore validates the current payload before
+using the binary. The bridge matches the distributed workflow preparation
+script, with byte equality enforced by a conformance test.
+
 ## Generation and validation
 
-The compiler lowers authoring data to a GitHub Actions workflow AST, validates
-it, and emits deterministic YAML. Generated `run` commands preserve their
+The compiler lowers workflow and composite authoring data to native GitHub
+Actions steps, validates it, and emits deterministic YAML and Action payloads. Generated `run` commands preserve their
 string values in YAML literal blocks; values that cannot be represented safely
 that way are rejected. Each workflow is identified solely by its project-relative
 output path. Generation does not restrict its directory; authors ensure GitHub
@@ -110,8 +150,8 @@ workflow placement. Each generated file starts with a source comment.
 `generate` writes the configured outputs. `generate --check` compares expected
 bytes to configured files and reports missing or changed outputs. It does not
 scan directories or modify files.
-`--output <path>` limits the check to one workflow. Normal generation does not
-delete extra files. The checked-in [CI entrypoint](../.github/workflows.ts) emits the
+`--output <path>` limits the check to one configured file. Normal generation does not
+delete extra files. Action checks include every configured payload file. The checked-in [CI entrypoint](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `tsugiori generate --check`.
 
 ## Scenario interpretation
