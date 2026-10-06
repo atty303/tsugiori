@@ -1,0 +1,124 @@
+Task: Preserve GitHub string values, unify Composite metadata paths and automatically collect internal Actions
+Anchor: e7d67ee1d15e2e88563f03c49b00e7a0619465b3
+Base: 404a73fb841db7a3ee5d666be692d00c86b8f4dc
+Branch: main
+Commits: e7d67ee1d15e2e88563f03c49b00e7a0619465b3 implements the approved three changes (feat, minor impact on 0.x)
+Guidance: user instructions and AGENTS.md; dig; investigate-problem; develop-repository with atty303 profile; design-review; design-program-observability; review; Git task evidence
+Conditions: durable local repository change; Deno 2.9.5 managed by mise; current checkout only; no new dependencies; Git metadata writes required sandbox escalation; no external writes authorized; typed task wire and public outputs expression API preserved
+Authority: explicit implementation request and local feat/minor commit approval; user-provided AGENTS.md; repository AGENTS.md and named skills
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) envやwithで空文字リテラルを渡すのはgithub仕様で正当なのに拒否していないか？
+  - A: Applied dig and investigate-problem; inspected current validation and official runner schema, then began public-DSL reproductions.
+- U2:
+    ```typescript
+    ❯ deno task tsugiori generate
+    Task tsugiori deno run --frozen=true -A ./workflows.ts 'generate'
+    step.env.invalid at jobs.0.steps.4.env: Map must have nonempty keys and nonempty string values.
+    step.env.invalid at jobs.0.steps.5.env: Map must have nonempty keys and nonempty string values.
+    ```
+  - A: Reproduced empty/whitespace env rejection while with empty values survive YAML. Identified value isBlank(trim) in validateExpressionMap. Asked Q1 about outputs scope.
+- U3: B
+  - A: Confirmed job outputs schema has no nonempty value constraint; literal empty already lowers to a nonempty GitHub expression. Asked Q2 about scope.
+- U4: B. なおtyped taskのoutputを参照するときの整合性で空文字を拒否している可能性がある
+  - A: Verified typed wire empty maps to null, textValue rejects empty writes but accepts whitespace, contract identity/presence tracking is separate; direct optional output references pass. Asked Q3.
+- U5: A. trimも勝手にやったら記述どおりにならないのでは？
+  - A: Separated GitHub field strings from typed task contracts; clarified trim was a rejection predicate, not mutation, and proposed exact value preservation in Q4.
+- U6: B. ついでにdefineWorkflowはファイル、defineCompositeActionがディレクトリを受け取るのが整合性が取れていないと感じる
+  - A: Inspected Composite directory API, uses derivation and payload placement; verified GitHub supports both metadata extensions. Asked Q5 about file-only migration.
+- U7: A
+  - A: Accepted file-only Composite API with explicit directory migration errors. Asked Q6 about metadata at project root.
+- U8: A
+  - A: Accepted root metadata support and parent-directory uses/payload rule. Asked Q7 for common understanding.
+- U9: B. defineProjectでworkflowから参照しているinternal composite actionもactionsに含めないとエラーになった。workflowから参照が辿れるものは明示しないでいけるのでは？ 参照していないactionを生成したいとき明示するのはわかる
+  - A: Located retained calleeAction references and explicit membership rejection. Proposed transitive collection from workflows and explicit roots; asked Q8 about identity dedup and placement conflicts.
+- U10: A
+  - A: Accepted identity dedup including repeated explicit roots; reject distinct definitions sharing an Action directory including yml/yaml. Asked Q9 for final agreement.
+- U11: A
+  - A: Produced the self-contained implementation request with agreed contracts, scope, non-goals and regression criteria; no repository edits during design discussion.
+- U12:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、次の変更を実装してください。
+    
+    1. GitHubフィールドの文字列値に対する過剰な非空制約を解消する。
+    2. defineCompositeAction() の出力先指定を、defineWorkflow() と同じファイル指定へ統一する。
+    3. workflowやCompositeから参照される内部Composite Actionを自動収集する。
+    
+    ## 目的
+    - GitHubで正当な空文字・空白文字列を記述どおり生成できる。
+    - 定義APIのパス引数が、生成する主YAMLファイルを表す。
+    - 参照から生成対象を導出し、内部Actionの重複登録を不要にする。
+    
+    ## 成功条件
+    - workflow・job・stepのenv、および内部job outputsで、空文字・空白文字列・前後の空白を許可し、そのまま保持する。
+    - withでも同じ値保持を確認する。
+    - 生成YAMLを再解析し、文字列値が欠落・null化・trimされていないことを確認する。
+    - typed taskのoutput参照、contract一致、presence guard、optional入力の欠落判定が維持される。
+    - defineCompositeAction("actions/greet/action.yml", metadata) と action.yaml 形式が利用できる。
+    - 直下のaction.yml／action.yamlも利用でき、usesとpayload配置先が親ディレクトリから正しく導出される。
+    - 旧ディレクトリ指定は、ファイル指定への移行が分かるエラーになる。
+    - workflowsと明示actionsから、内部Composite参照を再帰的に収集して生成できる。
+    - 同じ定義の複数参照・明示指定との重複・actions内の重複は、一度の生成にまとめる。
+    - 異なる定義の同一配置先、および同じディレクトリのaction.yml／action.yamlは衝突として拒否する。
+    - 循環と既存のネスト上限の検証を維持する。重複排除で深い参照経路の検証を省略しない。
+    - リポジトリ内の利用例、テスト、公開JSDocと関連文書を更新し、必要な検証が通る。
+    
+    ## 決定事項
+    - GitHubフィールドの文字列値から非空判定を除き、正規化せず保持する。
+      - 理由: GitHubのenvとAction inputsは空文字を許容し、空白も値の一部である。
+      - 主な棄却案: 空文字だけ許可して空白を拒否する案、trimして出力する案。いずれも記述どおりの値を保持できない。
+    - typed taskの値契約は変更しない。
+      - 理由: wireの空文字は欠落を表す。textValue()の空文字拒否は、この契約に必要である。
+      - 主な棄却案: typed taskでも空文字を通常値として扱う案。wire形式と互換性の変更になる。
+    - defineCompositeAction()はmetadataファイルパスだけを受け取る。
+      - 理由: defineWorkflow()と引数の意味を統一でき、action.yml／action.yamlを明示できる。
+      - 主な棄却案: ディレクトリ指定との併用、自動判別、現状維持。意味の不統一と複雑さが残る。
+    - 直下のmetadataファイルも許可する。
+      - 理由: 単独Action用リポジトリを扱え、親から配置先を導出する規則が一貫する。
+      - 主な棄却案: サブディレクトリ限定。不要な制限になる。
+    - workflowsと明示actionsを生成の起点にし、内部Composite参照の推移的な閉包を生成対象にする。
+      - 理由: 参照先の定義は既に保持されており、登録の二重管理は不要である。参照外のActionはactionsで追加できる。
+      - 主な棄却案: 全Actionの明示登録を要求する案。参照情報と生成対象を重複管理する。
+    - 同じ定義オブジェクトは一度だけ生成する。
+      - 理由: 共有参照と明示指定の重複を自然に扱える。
+      - 主な棄却案: actions内の同一定義の重複だけエラーにする案。追加生成対象という意味と一貫しない。
+    - 異なる定義が同じActionディレクトリを使う場合は衝突として拒否する。
+      - 理由: usesとtask payloadの配置先を共有し、metadata拡張子が異なっても独立したActionとして扱えない。
+      - 主な棄却案: ファイル名が異なれば許可する案。Actionの選択とpayload配置が曖昧になる。
+    
+    ## 制約
+    - 空文字の許可をキーの検証緩和へ広げない。文字列型の検証も維持する。
+    - typed taskの空文字＝欠落、textValue()、contract一致、presence guardの意味を維持する。
+    - .outputs()の公開式APIは維持する。literal("")は既に通過している。
+    - Compositeの旧ディレクトリ指定との互換性は維持しない。
+    - パスの安全性、project workingDirectoryとの関係、checkout相対のusesを維持する。
+    - 外部へのpush、PR作成、release、deployは行わない。
+    
+    ## 対象外
+    - typed taskのwire形式や欠落表現の変更。
+    - 文字列usesからの定義探索、ファイルシステム走査、外部Actionの取得・生成。
+    - reusable workflowの自動収集。
+    - GitHub仕様snapshotの全面更新。
+    - 生成対象から外れた既存ファイルの自動削除。
+    
+    ## 未検証の前提
+    - なし。
+    
+    ## 実装時の指示
+    - 報告された症状は、generateで次のエラーになること:
+      step.env.invalid at jobs.0.steps.4.env: Map must have nonempty keys and nonempty string values.
+    - 調査時点のsrc/compiler/github_actions/validation.tsのvalidateExpressionMap()は、キーと値の両方へisBlank()を適用し、envとjob.outputsで共有されている。isBlank()はtrim().lengthで判定するが、値を書き換えてはいない。
+    - 公開DSLではenvの""と"  "が拒否され、withの""は通過してYAMLへ保持されることを再現済み。
+    - job outputsのliteral("")は"${{ '' }}"に変換されて通過する。内部ASTの空文字値も許容するよう修正し、公開APIを広げる必要はない。
+    - optionalなtyped task outputのenv・job outputsへの直接参照は既に通過する。mapの非空判定は実行時の欠落を防ぐ仕組みではない。
+    - src/task/mod.tsのparseWireValue()は空wireをnullへ変換する。serializeValue(textValue(), "")は拒否し、空白文字列は許可する。この挙動を保持する。
+    - 調査時点ではdefineCompositeAction()がdirectoryを保持し、authoring.tsとgenerator.tsが"/action.yml"を付加している。ファイルパスを主情報とし、Actionディレクトリを一貫して導出する。
+    - lowerProject()はcalleeActionを辿れるが、project.actionsへの所属を要求している。所属必須の検証を自動収集へ置き換え、生成・task登録・scenarioの整合性を確認する。
+    - 参照順やSetの偶然に依存しない、再現可能な生成順を保つ。
+    - 回帰テストは公開DSLからの生成を中心に、内部ASTの値検証、ネストした共有Action、Actionのみのproject、明示・自動収集の重複、配置先衝突、task payload、workingDirectoryを確認する。
+    - GitHub公式runnerのworkflow-v1.0.jsonではenvとstep-withの値はstring、job-outputsの値はstring-runner-contextであり、値の非空制約はない:
+      https://github.com/actions/runner/blob/main/src/Sdk/DTPipelines/workflow-v1.0.json
+  - A: Applied develop-repository, design-review and design-program-observability. Fetched origin and standard notes; continued on main. Removed only string-value nonempty checks; introduced deterministic Composite collection shared by lowering, CLI task detection and dispatch; switched paths to metadata files and derived uses/payload parents. Updated docs, examples, LSP snapshots and generated CI source keys. Focused YAML round-trip, collision, cycle/depth, scenario and root payload prepare/restore/dispatch E2E passed. Corrected test-only type/API/diagnostic expectations exposed during validation. mise run test passed 128 tests, standard check and Worker upload dry-run; 186 published TypeScript examples passed. Sandbox prevented optional Wrangler log writing without failing validation. Fresh read-only reviewer found no actionable issues and verified snapshot consistency. No hosted Actions execution. Requested feat/minor local commit approval per development skill; kept changes uncommitted pending approval. Removed owned temporary review/log files.
+- U13: ok
+  - A: Interpreted ok as approval of the proposed feat/minor local commit. Rechecked exact diff and clean validation correspondence; committed 18 files as e7d67ee. Complete session history retrieved and all 13 human messages compared with the current context; injected skill/AGENTS/environment content excluded. Preparing the normalized standard Git note; no push, release or deploy.
