@@ -1,0 +1,1616 @@
+Task: Shorten inferred authoring DSL LSP type displays and adopt repository DSL type criteria
+Anchor: 3bd2a50018d880f6be91786d657168ae22014705
+Base: 7d036073a25df1036ac78f674e6d6557c7c85307
+Branch: main (existing checkout; no worktree or branch switch)
+Commits: ea0a3429fbe49bcc0cf7051bed9ff9f3a0e70a55 fix(github-actions): shorten inferred authoring state displays; 3bd2a50018d880f6be91786d657168ae22014705 docs: require compact inferred DSL type displays
+Guidance: User design decisions and implementation request; repository AGENTS.md; dig, develop-repository, design-review, design-program-observability, maintain-agent-guidance, investigate-problem and review skills
+Conditions: Managed Deno 2.9.5; authoring syntax/runtime/YAML contracts preserved; approved public type renaming and generic reconfiguration; local signed commits and patch release impact authorized after original commit exclusion; no push, PR, deploy, global guidance or memory updates
+## Evidence
+mise run check passed. mise run test passed: 122 tests, zero failures; public JSDoc and 186 published TypeScript examples checked. Worker upload validation was dry-run only. Wrangler log/cache writes encountered sandbox warnings; upload dry-run and the complete standard test command succeeded.
+Fresh read-only independent review of fixed diff sha256 4bf0382cf427fc51ddc18dad2e2b2deb03bd59aac2a366ff569d5289a3958bcc reported no actionable findings. Reviewed files were committed without additional source changes.
+The two commits are SSH-signed through the configured 1Password signer. The first attempt failed; the human requested retry and both commits then succeeded. Initial code fetch succeeded. Remote notes snapshot b2cd2328754838ecf47a5f9331c7482bd185bb68 was verified as an ancestor of local notes ebc9e550be30498e03f95661632a1e19ed932230, so no replacement or merge was necessary. A later notes fetch failed on SSH agent communication; remote writes were not attempted.
+Baseline and after displays below were obtained using identical valid fixture code, Deno LSP hover/signatureHelp, and zero severity-1 diagnostics. Source snippets are represented by the named fixtures in tests/language_server_completion_test.ts. LSP may truncate complex method/signature owner displays; shortening does not rely on that. Core inferred states and the simple step signature explicitly reject ellipses.
+LSP workflow-draft: 135 -> 39 characters
+Before:
+    const draft: EmptyWorkflowState<"ci.yml", string, string, Record<never, never>, never, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    const draft: WorkflowStart<"ci.yml", E>
+LSP workflow: 2078 -> 369 characters
+Before:
+    const flow: NonEmptyWorkflowState<"ci.yml", Readonly<Readonly<Record<never, never> & Record<"build", Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>>> & Record<"test", Readonly<{
+        id: "test";
+        workflowPath: "ci.yml";
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"test", Readonly<{
+                id: "test";
+                outputs: Readonly<{}>;
+                outputNames: readonly [];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<never, string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>>>, string, string, Record<never, never>, never, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    const flow: Workflow<"ci.yml", {
+        readonly test: JR<"ci.yml", "test", readonly [], TJ<{
+            readonly test: NS<"test", readonly []>;
+        }, E>>;
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }, E>
+LSP workflow-method: 5552 -> 1056 characters
+Before:
+    (method) NonEmptyWorkflowState<"ci.yml", Readonly<Record<never, never> & Record<"build", Readonly<{ id: "build"; workflowPath: "ci.yml"; outputNames: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; contracts?: Readonly<...> | undefined; [testJobShape]?: Readonly<...> | undefined; }>>>, ... 4 more ..., WorkflowInputValues<...>>.job<JobId, Result>(id: AvailableJobId<JobId, Readonly<Record<never, never> & Record<"build", Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>>>>, define: (scope: Readonly<{
+        job: JobStartState<"ci.yml", JobId, Readonly<Record<never, never> & Record<"build", Readonly<{
+            id: "build";
+            workflowPath: "ci.yml";
+            outputNames: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testJobShape]?: Readonly<{
+                steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                    id: "build";
+                    outputs: Readonly<{
+                        version: "${{ steps.build.outputs.version }}";
+                    }>;
+                    outputNames: readonly ["version"];
+                    contracts?: Readonly<Record<string, Readonly<{
+                        contract: ValueContract<unknown>;
+                        required: boolean;
+                    }>>> | undefined;
+                    [testStepShape]?: Readonly<{
+                        inputs: Record<string, unknown>;
+                        outputs: Record<"version", string>;
+                    }> | undefined;
+                }>>>;
+                matrix: Record<never, never>;
+            }> | undefined;
+        }>>>, string, string, WorkflowInputValues<{
+            readonly push: {};
+        }>>;
+        jobs: Readonly<Record<never, never> & Record<"build", Readonly<{
+            id: "build";
+            workflowPath: "ci.yml";
+            outputNames: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testJobShape]?: Readonly<{
+                steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                    id: "build";
+                    outputs: Readonly<{
+                        version: "${{ steps.build.outputs.version }}";
+                    }>;
+                    outputNames: readonly ["version"];
+                    contracts?: Readonly<Record<string, Readonly<{
+                        contract: ValueContract<unknown>;
+                        required: boolean;
+                    }>>> | undefined;
+                    [testStepShape]?: Readonly<{
+                        inputs: Record<string, unknown>;
+                        outputs: Record<"version", string>;
+                    }> | undefined;
+                }>>>;
+                matrix: Record<never, never>;
+            }> | undefined;
+        }>>>;
+    }>) => Result): NonEmptyWorkflowState<"ci.yml", Readonly<Readonly<Record<never, never> & Record<"build", Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>>> & Record<JobId, Readonly<{
+        id: JobId;
+        workflowPath: "ci.yml";
+        outputNames: Result[unique symbol]["outputNames"];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: NonNullable<Result[unique symbol]> | undefined;
+    }>>>, string, string, Record<never, never>, never, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    (method) WorkflowBase<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, ... 4 more ..., E>.job<JobId, Result>(id: AvailableJobId<JobId, {
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }>, define: (scope: JobScope<"ci.yml", JobId, {
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }, E>) => Result): Workflow<"ci.yml", AddJobReference<"ci.yml", JobId, {
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }, Result>, E>
+LSP job-callback: 1182 -> 259 characters
+Before:
+    (parameter) job: JobStartState<"ci.yml", "test", Readonly<Record<never, never> & Record<"build", Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>>>, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    (parameter) job: Job<"ci.yml", "test", {
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }, E>
+LSP job-needs: 1157 -> 164 characters
+Before:
+    const dependent: DependentJobState<"ci.yml", "test", NeedsMap<readonly [Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    const dependent: DepJob<"ci.yml", "test", {
+        readonly build: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+    }, E>
+LSP execution: 1220 -> 285 characters
+Before:
+    const execution: ExecutionJobState<"ci.yml", "test", NeedsMap<readonly [Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    }, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>, never>
+After:
+    const execution: Exec<"ci.yml", "test", {
+        readonly needs: {
+            readonly build: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+        };
+        readonly matrix: {
+            readonly os: "ubuntu-latest" | "macos-latest";
+        };
+    }>
+LSP steps: 2037 -> 378 characters
+Before:
+    const state: NonEmptyStepState<"ci.yml", "test", Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{
+        id: "test";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>> & Record<"report", Readonly<{
+        id: "report";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>>, NeedsMap<readonly [Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    }, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>, readonly [], never>
+After:
+    const state: Step<"ci.yml", "test", {
+        readonly test: NS<"test", readonly []>;
+        readonly report: NS<"report", readonly []>;
+    }, {
+        readonly needs: {
+            readonly build: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+        };
+        readonly matrix: {
+            readonly os: "ubuntu-latest" | "macos-latest";
+        };
+    }>
+LSP step-method: 3281 -> 783 characters
+Before:
+    (method) NonEmptyStepState<"ci.yml", "test", Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{ id: "test"; outputs: Readonly<{}>; outputNames: readonly []; contracts?: Readonly<Record<string, Readonly<{ contract: ValueContract<unknown>; required: boolean; }>>> | undefined; [testStepShape]?: Readonly<...> | undefined; }>>> & Record<...>>, ... 6 more ..., never>.run<D>(definition: AvailableStepDefinition<D, Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{
+        id: "test";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>> & Record<"report", Readonly<{
+        id: "report";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>>>): NonEmptyStepState<"ci.yml", "test", AddStepReference<D, Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{
+        id: "test";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>> & Record<"report", Readonly<{
+        id: "report";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>>>, NeedsMap<readonly [Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    }, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>, readonly [], never>
+After:
+    (method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 5 more ..., never>.run<D>(definition: AvailableStepDefinition<D, {
+        readonly test: NS<"test", readonly []>;
+        readonly report: NS<"report", readonly []>;
+    }>): Step<"ci.yml", "test", AddStepReference<D, {
+        readonly test: NS<"test", readonly []>;
+        readonly report: NS<"report", readonly []>;
+    }>, {
+        readonly needs: {
+            readonly build: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+        };
+        readonly matrix: {
+            readonly os: "ubuntu-latest" | "macos-latest";
+        };
+    }>
+LSP expression-callback: 2033 -> 356 characters
+Before:
+    (parameter) context: Scope<"jobs.<job_id>.steps.env", NeedsMap<readonly [Readonly<{
+        id: "build";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                id: "build";
+                outputs: Readonly<{
+                    version: "${{ steps.build.outputs.version }}";
+                }>;
+                outputNames: readonly ["version"];
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: Record<string, unknown>;
+                    outputs: Record<"version", string>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, OutputMap<Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{
+        id: "test";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>> & Record<"report", Readonly<{
+        id: "report";
+        outputs: Readonly<{}>;
+        outputNames: readonly [];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<never, string>;
+        }> | undefined;
+    }>>>>, {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    }, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    (parameter) context: Scope<"jobs.<job_id>.steps.env", {
+        readonly build: JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>;
+    }, OutputMap<{
+        readonly test: NS<"test", readonly []>;
+        readonly report: NS<"report", readonly []>;
+    }>, {
+        readonly os: "ubuntu-latest" | "macos-latest";
+    }, string, string, E>
+LSP typed-task: 1543 -> 279 characters
+Before:
+    const state: NonEmptyStepState<"ci.yml", "task", Readonly<Record<never, never> & Record<"emit", Readonly<{
+        id: "emit";
+        outputs: Readonly<{
+            greeting: "${{ steps.emit.outputs.greeting }}";
+        }>;
+        outputNames: TypedNames<SkippableOutputs<{
+            readonly greeting: {
+                readonly contract: Readonly<{
+                    kind: "text";
+                    parse: (value: unknown) => string;
+                    [valueType]: string;
+                }>;
+                readonly required: true;
+            };
+        }>>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: InputValues<{
+                readonly who: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly from: Expression<"world", never>;
+                };
+            }, never>;
+            outputs: OutputValues<SkippableOutputs<{
+                readonly greeting: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+        }> | undefined;
+    }>>>, Record<never, never>, Record<never, never>, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>, readonly [], never>
+After:
+    const state: Step<"ci.yml", "task", {
+        readonly emit: TR<"emit", {
+            readonly who: string;
+        }, SkippableOutputs<{
+            readonly greeting: {
+                readonly contract: ValueContract<string, "text">;
+                readonly required: true;
+            };
+        }>>;
+    }, E>
+LSP task-callback: 972 -> 308 characters
+Before:
+    (parameter) context: Readonly<{
+        cwd: string;
+        logger: Readonly<{
+            info: (...values: readonly unknown[]) => void;
+            warn: (...values: readonly unknown[]) => void;
+            error: (...values: readonly unknown[]) => void;
+        }>;
+        inputs: InputValues<{
+            readonly who: {
+                readonly contract: Readonly<{
+                    kind: "text";
+                    parse: (value: unknown) => string;
+                    [valueType]: string;
+                }>;
+                readonly from: Expression<"world", never>;
+            };
+        }, never>;
+        outputs: Readonly<{
+            set: <K extends "greeting">(name: K, value: OutputValues<{
+                readonly greeting: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>[K]) => Promise<void>;
+        }>;
+    }>
+After:
+    (parameter) context: TaskContext<{
+        readonly who: {
+            readonly contract: ValueContract<string, "text">;
+            readonly from: Expression<"world", never>;
+        };
+    }, {
+        readonly greeting: {
+            readonly contract: ValueContract<string, "text">;
+            readonly required: true;
+        };
+    }, never>
+LSP composite-draft: 393 -> 387 characters
+Before:
+    const actionDraft: CompositeActionDraft<"actions/greet", {
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>
+After:
+    const actionDraft: CompositeDraft<"actions/greet", {
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>
+LSP composite-start: 552 -> 181 characters
+Before:
+    (parameter) step: Pick<CompositeStepState<"actions/greet", "composite", Record<never, never>, Record<never, never>, Record<never, never>, string, never, CompositeInputs<{
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>, readonly [], never>, "uses" | "run" | "task">
+After:
+    (parameter) step: Pick<CStep<"actions/greet", "composite", E, {
+        readonly secrets: never;
+        readonly inputs: {
+            readonly who: string;
+        };
+    }>, "uses" | "run" | "task">
+LSP composite-steps: 2296 -> 427 characters
+Before:
+    const state: CompositeStepState<"actions/greet", "composite", Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+        id: "one";
+        outputs: Readonly<{
+            value: "${{ steps.one.outputs.value }}";
+        }>;
+        outputNames: readonly ["value"];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<"value", string>;
+        }> | undefined;
+    }>>> & Record<"two", Readonly<{
+        id: "two";
+        outputs: Readonly<{
+            value: "${{ steps.two.outputs.value }}";
+        }>;
+        outputNames: TypedNames<SkippableOutputs<{
+            readonly value: {
+                readonly contract: Readonly<{
+                    kind: "text";
+                    parse: (value: unknown) => string;
+                    [valueType]: string;
+                }>;
+                readonly required: true;
+            };
+        }>>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: InputValues<{
+                readonly who: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly from: Ref<string, "inputs.who">;
+                };
+            }, never>;
+            outputs: OutputValues<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+        }> | undefined;
+    }>>>, Record<never, never>, Record<never, never>, string, never, CompositeInputs<{
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>, readonly [], never>
+After:
+    const state: CStep<"actions/greet", "composite", {
+        readonly one: NS<"one", readonly ["value"]>;
+        readonly two: TR<"two", {
+            readonly who: string;
+        }, SkippableOutputs<{
+            readonly value: {
+                readonly contract: ValueContract<string, "text">;
+                readonly required: true;
+            };
+        }>>;
+    }, {
+        readonly secrets: never;
+        readonly inputs: {
+            readonly who: string;
+        };
+    }>
+LSP composite-method: 13839 -> 1371 characters
+Before:
+    (method) CompositeStepState<"actions/greet", "composite", Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{ id: "one"; outputs: Readonly<{ value: "${{ steps.one.outputs.value }}"; }>; outputNames: readonly [...]; contracts?: Readonly<...> | undefined; [testStepShape]?: Readonly<...> | undefined; }>>> & Record<...>>, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: Omit<Readonly<{
+        id?: string;
+        name: string;
+        if?: StepField<"jobs.<job_id>.steps.if", Record<never, never>, Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+            id: "one";
+            outputs: Readonly<{
+                value: "${{ steps.one.outputs.value }}";
+            }>;
+            outputNames: readonly ["value"];
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: Record<string, unknown>;
+                outputs: Record<"value", string>;
+            }> | undefined;
+        }>>> & Record<"two", Readonly<{
+            id: "two";
+            outputs: Readonly<{
+                value: "${{ steps.two.outputs.value }}";
+            }>;
+            outputNames: TypedNames<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: InputValues<{
+                    readonly who: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly from: Ref<string, "inputs.who">;
+                    };
+                }, never>;
+                outputs: OutputValues<SkippableOutputs<{
+                    readonly value: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly required: true;
+                    };
+                }>>;
+            }> | undefined;
+        }>>>, Record<never, never>, string, never, CompositeInputs<{
+            readonly name: "Greet";
+            readonly description: "Greeting";
+            readonly inputs: {
+                readonly who: {
+                    readonly description: "Recipient";
+                    readonly required: true;
+                };
+            };
+            readonly outputs: {
+                readonly greeting: {
+                    readonly description: "Greeting";
+                };
+            };
+        }>> | undefined;
+        continueOnError?: boolean;
+        timeoutMinutes?: number | StepField<"jobs.<job_id>.steps.timeout-minutes", Record<never, never>, Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+            id: "one";
+            outputs: Readonly<{
+                value: "${{ steps.one.outputs.value }}";
+            }>;
+            outputNames: readonly ["value"];
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: Record<string, unknown>;
+                outputs: Record<"value", string>;
+            }> | undefined;
+        }>>> & Record<"two", Readonly<{
+            id: "two";
+            outputs: Readonly<{
+                value: "${{ steps.two.outputs.value }}";
+            }>;
+            outputNames: TypedNames<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: InputValues<{
+                    readonly who: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly from: Ref<string, "inputs.who">;
+                    };
+                }, never>;
+                outputs: OutputValues<SkippableOutputs<{
+                    readonly value: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly required: true;
+                    };
+                }>>;
+            }> | undefined;
+        }>>>, Record<never, never>, string, never, CompositeInputs<{
+            readonly name: "Greet";
+            readonly description: "Greeting";
+            readonly inputs: {
+                readonly who: {
+                    readonly description: "Recipient";
+                    readonly required: true;
+                };
+            };
+            readonly outputs: {
+                readonly greeting: {
+                    readonly description: "Greeting";
+                };
+            };
+        }>> | undefined;
+        env?: StepEnv<Record<never, never>, Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+            id: "one";
+            outputs: Readonly<{
+                value: "${{ steps.one.outputs.value }}";
+            }>;
+            outputNames: readonly ["value"];
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: Record<string, unknown>;
+                outputs: Record<"value", string>;
+            }> | undefined;
+        }>>> & Record<"two", Readonly<{
+            id: "two";
+            outputs: Readonly<{
+                value: "${{ steps.two.outputs.value }}";
+            }>;
+            outputNames: TypedNames<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: InputValues<{
+                    readonly who: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly from: Ref<string, "inputs.who">;
+                    };
+                }, never>;
+                outputs: OutputValues<SkippableOutputs<{
+                    readonly value: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly required: true;
+                    };
+                }>>;
+            }> | undefined;
+        }>>>, Record<never, never>, string, never, CompositeInputs<{
+            readonly name: "Greet";
+            readonly description: "Greeting";
+            readonly inputs: {
+                readonly who: {
+                    readonly description: "Recipient";
+                    readonly required: true;
+                };
+            };
+            readonly outputs: {
+                readonly greeting: {
+                    readonly description: "Greeting";
+                };
+            };
+        }>> | undefined;
+    }>, "if"> & Readonly<{
+        workingDirectory?: string;
+        id?: Id | undefined;
+        if?: C | undefined;
+        inputs: AuthoringValue<I, Scope<"jobs.<job_id>.steps.env", Record<never, never>, OutputMap<Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+            id: "one";
+            outputs: Readonly<{
+                value: "${{ steps.one.outputs.value }}";
+            }>;
+            outputNames: readonly ["value"];
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: Record<string, unknown>;
+                outputs: Record<"value", string>;
+            }> | undefined;
+        }>>> & Record<"two", Readonly<{
+            id: "two";
+            outputs: Readonly<{
+                value: "${{ steps.two.outputs.value }}";
+            }>;
+            outputNames: TypedNames<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testStepShape]?: Readonly<{
+                inputs: InputValues<{
+                    readonly who: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly from: Ref<string, "inputs.who">;
+                    };
+                }, never>;
+                outputs: OutputValues<SkippableOutputs<{
+                    readonly value: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly required: true;
+                    };
+                }>>;
+            }> | undefined;
+        }>>>>, Record<never, never>, string, never, CompositeInputs<{
+            readonly name: "Greet";
+            readonly description: "Greeting";
+            readonly inputs: {
+                readonly who: {
+                    readonly description: "Recipient";
+                    readonly required: true;
+                };
+            };
+            readonly outputs: {
+                readonly greeting: {
+                    readonly description: "Greeting";
+                };
+            };
+        }>, ConditionProof<C>>>;
+        outputs: O;
+        run: (context: Readonly<{
+            cwd: string;
+            logger: Readonly<{
+                info: (...values: readonly unknown[]) => void;
+                warn: (...values: readonly unknown[]) => void;
+                error: (...values: readonly unknown[]) => void;
+            }>;
+            inputs: InputValues<I, ConditionProof<C>>;
+            outputs: Readonly<{
+                set: <K>(name: K, value: OutputValues<O>[K]) => Promise<void>;
+            }>;
+        }>) => void | Promise<void>;
+    }> & Readonly<{
+        timeoutMinutes?: never;
+        workingDirectory?: string;
+        outputs: O;
+        if?: C | undefined;
+        continueOnError?: F | undefined;
+        id?: Exclude<Id, "one" | "two"> | undefined;
+    }>): CompositeStepState<"actions/greet", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{
+        id: "one";
+        outputs: Readonly<{
+            value: "${{ steps.one.outputs.value }}";
+        }>;
+        outputNames: readonly ["value"];
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: Record<string, unknown>;
+            outputs: Record<"value", string>;
+        }> | undefined;
+    }>>> & Record<"two", Readonly<{
+        id: "two";
+        outputs: Readonly<{
+            value: "${{ steps.two.outputs.value }}";
+        }>;
+        outputNames: TypedNames<SkippableOutputs<{
+            readonly value: {
+                readonly contract: Readonly<{
+                    kind: "text";
+                    parse: (value: unknown) => string;
+                    [valueType]: string;
+                }>;
+                readonly required: true;
+            };
+        }>>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: InputValues<{
+                readonly who: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly from: Ref<string, "inputs.who">;
+                };
+            }, never>;
+            outputs: OutputValues<SkippableOutputs<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly required: true;
+                };
+            }>>;
+        }> | undefined;
+    }>>>>, Record<never, never>, Record<never, never>, string, never, CompositeInputs<{
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>, readonly [], never>
+After:
+    (method) CStepBase<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: TaskStepDefinition<Id, I, O, E, {
+        readonly one: NS<"one", readonly ["value"]>;
+        readonly two: TR<"two", {
+            readonly who: string;
+        }, SkippableOutputs<{
+            readonly value: {
+                readonly contract: ValueContract<string, "text">;
+                readonly required: true;
+            };
+        }>>;
+    }, E, string, never, {
+        readonly who: string;
+    }, never, C> & Readonly<{
+        timeoutMinutes?: never;
+        workingDirectory?: string;
+        outputs: O;
+        if?: C | undefined;
+        continueOnError?: F | undefined;
+        id?: Exclude<Id, "one" | "two"> | undefined;
+    }>): CStep<"actions/greet", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, {
+        readonly one: NS<"one", readonly ["value"]>;
+        readonly two: TR<"two", {
+            readonly who: string;
+        }, SkippableOutputs<{
+            readonly value: {
+                readonly contract: ValueContract<string, "text">;
+                readonly required: true;
+            };
+        }>>;
+    }>, {
+        readonly secrets: never;
+        readonly inputs: {
+            readonly who: string;
+        };
+    }>
+LSP composite: 371 -> 360 characters
+Before:
+    const action: CompositeActionState<{
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>
+After:
+    const action: Composite<{
+        readonly name: "Greet";
+        readonly description: "Greeting";
+        readonly inputs: {
+            readonly who: {
+                readonly description: "Recipient";
+                readonly required: true;
+            };
+        };
+        readonly outputs: {
+            readonly greeting: {
+                readonly description: "Greeting";
+            };
+        };
+    }>
+LSP job-scope: 2522 -> 269 characters
+Before:
+    (parameter) context: Readonly<{
+        job: JobStartState<"ci.yml", "scope", Readonly<Record<never, never> & Record<"build", Readonly<{
+            id: "build";
+            workflowPath: "ci.yml";
+            outputNames: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testJobShape]?: Readonly<{
+                steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                    id: "build";
+                    outputs: Readonly<{
+                        version: "${{ steps.build.outputs.version }}";
+                    }>;
+                    outputNames: readonly ["version"];
+                    contracts?: Readonly<Record<string, Readonly<{
+                        contract: ValueContract<unknown>;
+                        required: boolean;
+                    }>>> | undefined;
+                    [testStepShape]?: Readonly<{
+                        inputs: Record<string, unknown>;
+                        outputs: Record<"version", string>;
+                    }> | undefined;
+                }>>>;
+                matrix: Record<never, never>;
+            }> | undefined;
+        }>>>, string, string, WorkflowInputValues<{
+            readonly push: {};
+        }>>;
+        jobs: Readonly<Record<never, never> & Record<"build", Readonly<{
+            id: "build";
+            workflowPath: "ci.yml";
+            outputNames: JobOutputNames<{
+                readonly version: Ref<string, "steps.build.outputs.version">;
+            }>;
+            contracts?: Readonly<Record<string, Readonly<{
+                contract: ValueContract<unknown>;
+                required: boolean;
+            }>>> | undefined;
+            [testJobShape]?: Readonly<{
+                steps: Readonly<Record<never, never> & Record<"build", Readonly<{
+                    id: "build";
+                    outputs: Readonly<{
+                        version: "${{ steps.build.outputs.version }}";
+                    }>;
+                    outputNames: readonly ["version"];
+                    contracts?: Readonly<Record<string, Readonly<{
+                        contract: ValueContract<unknown>;
+                        required: boolean;
+                    }>>> | undefined;
+                    [testStepShape]?: Readonly<{
+                        inputs: Record<string, unknown>;
+                        outputs: Record<"version", string>;
+                    }> | undefined;
+                }>>>;
+                matrix: Record<never, never>;
+            }> | undefined;
+        }>>>;
+    }>
+After:
+    (parameter) context: JobScope<"ci.yml", "scope", {
+        readonly build: JR<"ci.yml", "build", JobOutputNames<{
+            readonly version: Ref<string, "steps.build.outputs.version">;
+        }>, TJ<{
+            readonly build: NS<"build", readonly ["version"]>;
+        }, E>>;
+    }, E>
+LSP reusable-job: 159 -> 44 characters
+Before:
+    const caller: ReusableJobState<"ci.yml", "caller", Record<never, never>, Record<never, never>, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>>
+After:
+    const caller: CallJob<"ci.yml", "caller", E>
+LSP presence-proof: 3014 -> 390 characters
+Before:
+    const state: NonEmptyStepState<"ci.yml", "read", Readonly<Record<never, never> & Record<"read", Readonly<{
+        id: "read";
+        outputs: Readonly<{}>;
+        outputNames: TypedNames<SkippableOutputs<{}>>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testStepShape]?: Readonly<{
+            inputs: InputValues<{
+                readonly value: {
+                    readonly contract: Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>;
+                    readonly from: TypedReference<string, Readonly<{
+                        kind: "text";
+                        parse: (value: unknown) => string;
+                        [valueType]: string;
+                    }>, "needs.source.outputs.value", true>;
+                };
+            }, never>;
+            outputs: OutputValues<SkippableOutputs<{}>>;
+        }> | undefined;
+    }>>>, NeedsMap<readonly [Readonly<{
+        id: "source";
+        workflowPath: "ci.yml";
+        outputNames: JobOutputNames<{
+            readonly value: TypedReference<string, Readonly<{
+                kind: "text";
+                parse: (value: unknown) => string;
+                [valueType]: string;
+            }>, "steps.emit.outputs.value", false>;
+        }>;
+        contracts?: Readonly<Record<string, Readonly<{
+            contract: ValueContract<unknown>;
+            required: boolean;
+        }>>> | undefined;
+        [testJobShape]?: Readonly<{
+            steps: Readonly<Record<never, never> & Record<"emit", Readonly<{
+                id: "emit";
+                outputs: Readonly<{
+                    value: "${{ steps.emit.outputs.value }}";
+                }>;
+                outputNames: TypedNames<SkippableOutputs<{
+                    readonly value: {
+                        readonly contract: Readonly<{
+                            kind: "text";
+                            parse: (value: unknown) => string;
+                            [valueType]: string;
+                        }>;
+                        readonly required: false;
+                    };
+                }>>;
+                contracts?: Readonly<Record<string, Readonly<{
+                    contract: ValueContract<unknown>;
+                    required: boolean;
+                }>>> | undefined;
+                [testStepShape]?: Readonly<{
+                    inputs: InputValues<{}, never>;
+                    outputs: OutputValues<SkippableOutputs<{
+                        readonly value: {
+                            readonly contract: Readonly<{
+                                kind: "text";
+                                parse: (value: unknown) => string;
+                                [valueType]: string;
+                            }>;
+                            readonly required: false;
+                        };
+                    }>>;
+                }> | undefined;
+            }>>>;
+            matrix: Record<never, never>;
+        }> | undefined;
+    }>]>, Record<never, never>, string, string, WorkflowInputValues<{
+        readonly push: {};
+    }>, readonly [], "needs.source.outputs.value">
+After:
+    const state: Step<"ci.yml", "read", {
+        readonly read: TR<"read", {
+            readonly value: string;
+        }, SkippableOutputs<{}>>;
+    }, {
+        readonly needs: {
+            readonly source: JobOutputNames<{
+                readonly value: TypedReference<string, ValueContract<string, "text">, "steps.emit.outputs.value", false>;
+            }>;
+        };
+        readonly proof: "needs.source.outputs.value";
+    }>
+LSP simple-step-signature: 432 -> 156 characters
+Before:
+    run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): NonEmptyStepState<"ci.yml", "simple", Readonly<Record<never, never> & Record<"one", Readonly<{ id: "one"; outputs: Readonly<{}>; outputNames: readonly []; contracts?: Readonly<Record<string, Readonly<{ contract: ValueContract<unknown>; required: boolean; }>>> | undefined; [testStepShape]?: Readonly<...> | undefined; }>>>, ... 6 more ..., never>
+After:
+    run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, E>
+LSP workflow-signature: 835 -> 497 characters
+Before:
+    job(id: "next", define: (scope: Readonly<{ job: JobStartState<"ci.yml", "next", Readonly<Record<never, never> & Record<"build", Readonly<{ id: "build"; workflowPath: "ci.yml"; outputNames: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; contracts?: Readonly<...> | undefined; [testJobShape]?: Readonly<...> | undefined; }>>>, string, string, WorkflowInputValues<...>>; jobs: Readonly<...>; }>) => NonEmptyStepState<...>): NonEmptyWorkflowState<"ci.yml", Readonly<Readonly<Record<never, never> & Record<"build", Readonly<{ id: "build"; workflowPath: "ci.yml"; outputNames: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; contracts?: Readonly<...> | undefined; [testJobShape]?: Readonly<...> | undefined; }>>> & Record<...>>, ... 4 more ..., WorkflowInputValues<...>>
+After:
+    job(id: "next", define: (scope: JobScope<"ci.yml", "next", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, E>) => Step<...>): Workflow<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly ["version"]>; }, E>>; readonly next: JR<...>; }, E>
+LSP step-signature: 437 -> 330 characters
+Before:
+    run(definition: { readonly name: "Next"; readonly run: "true"; }): NonEmptyStepState<"ci.yml", "test", Readonly<Readonly<Record<never, never> & Record<"test", Readonly<{ id: "test"; outputs: Readonly<{}>; outputNames: readonly []; contracts?: Readonly<Record<string, Readonly<{ contract: ValueContract<unknown>; required: boolean; }>>> | undefined; [testStepShape]?: Readonly<...> | undefined; }>>> & Record<...>>, ... 6 more ..., never>
+After:
+    run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; }>
+LSP composite-signature: 493 -> 412 characters
+Before:
+    run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CompositeStepState<"actions/greet", "composite", Readonly<Readonly<Record<never, never> & Record<"one", Readonly<{ id: "one"; outputs: Readonly<{ value: "${{ steps.one.outputs.value }}"; }>; outputNames: readonly [...]; contracts?: Readonly<...> | undefined; [testStepShape]?: Readonly<...> | undefined; }>>> & Record<...>>, ... 6 more ..., never>
+After:
+    run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CStep<"actions/greet", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>
+Authority: Human-approved scope and latest commit/retry instructions; repository AGENTS.md; applicable skills and current source/tests. Memory was used only as a source index, then checked against live source.
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) typed stateで適切に公開aliasを追加することでlspの型情報を短くできないか？ 今はめちゃくちゃ長い
+  - A: Read dig and live typestate/source/LSP tests; investigated why reference aliases expand, and asked whether shortening should work with inference.
+- U2:
+    A
+  - A: Adopted inferred-display goal; evaluated alias preservation and whether interface conversion was allowed.
+- U3:
+    B
+  - A: Compared toy Deno LSP models: an alias alone retained the expanded structure, while readonly reference interfaces preserved names; clarified further compaction scope.
+- U4:
+    実際の改善された表示をみせて
+  - A: Used a temporary source copy to compare valid real step/workflow hovers; reference interfaces reduced expansion, but intersections and context arguments remained. Removed temporary prototype resources.
+- U5:
+    B
+  - A: Explored flattened reference maps and grouped nondefault context in a temporary copy; short step hovers passed module checking, while workflow factory typing remained unfinished; clarified full authoring scope.
+- U6:
+    A. 利用者は型名を読まない。なぜなら読んでも振る舞いが難しくて理解できないから。だからわかりやすい名前ではなく、tsugiori内部で意味が通り短い名前を優先する
+  - A: Adopted full workflow/job/step/composite scope and short internally meaningful type names instead of expecting consumers to decode behavior.
+- U7:
+    既存公開型も例えばdefineの返り値など主要な型以外は新しい基準で短縮していい
+  - A: Accepted permission to rename existing public helper/intermediate types; kept documentation and inferred contracts as constraints.
+- U8:
+    A
+  - A: Confirmed existing public type names need not all remain compatible aliases; clarified that principal define return types may also change appropriately.
+- U9:
+    B. define*の型も極端に短縮しないだけで適切に変更してよい
+  - A: Accepted appropriate principal-type renaming without extreme abbreviations; retained aggressively short intermediate/helper naming within internal meaning.
+- U10:
+    B. 今後DSLを実装する場合はLSPの型表示を短くする判断基準をAGENTSに追加する
+  - A: Read maintain-agent-guidance; proposed repo-scoped future DSL type design criteria without authorizing future compatibility breaks.
+- U11:
+    A
+  - A: Delivered the agreed implementation-request prompt after the final design selection; no tracked implementation edits were made during dig.
+- U12:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、authoring DSLのtypestate全体のLSP型表示を短縮してください。今後のDSL実装にも適用する判断基準を、リポジトリのAGENTS.mdに追加してください。
+    
+    ## 目的
+    - 利用者が型注釈を書かなくても、hoverやsignatureに巨大な構造型・型引数・参照の入れ子が表示される状況を改善する。
+    - 推論と補完を維持し、利用者が型名を解読しなくてもDSLを使える状態にする。
+    
+    ## 成功条件
+    - workflow・job・step・compositeの各authoring段階で、代表的なDSLの実際のDeno LSP表示が短縮されている。
+    - 変数に束縛した中間state、チェーンの戻り値、method signature、callbackの型表示を変更前後で比較できる。
+    - 複数job・step、needs、matrix、typed taskのinputs/outputs、compositeを含め、情報の蓄積による不要な構造展開や入れ子が抑制されている。
+    - 型注釈や利用者側の追加操作を必要としない。
+    - 推論精度、補完候補、状態ごとの操作制限、readonly、scenarioの型情報、実行時の振る舞いを維持する。
+    - 必要な型・LSPテストと公開ドキュメントを更新し、repositoryの標準検証を通す。
+    - AGENTS.mdに下記の判断基準を追加する。
+    
+    ## 決定事項
+    - authoringのtypestate全体を対象にする。
+      - 理由: チェーンの段階によって表示の扱いが変わることを避ける。
+      - 主な棄却案: 完成workflowとstep追加後だけの改善。中間stateの問題が残るため。
+    - aliasの適用、必要なinterface化、型引数の集約、参照情報の平坦化を許容する。
+      - 理由: 単純な公開aliasの追加だけでは不足し、型引数と蓄積構造にも対処する必要がある。
+      - 主な棄却案: alias追加だけに限定すること、参照型のinterface化だけで完了すること。
+    - 型名は、利用者への説明力より、Tsugiori内部で意味が通る短さを優先する。
+      - 理由: 利用者が型名を読んで複雑な振る舞いを理解することは期待しない。
+      - 主な棄却案: 利用者が型名から振る舞いを理解できるよう、長い説明的名称を維持すること。
+    - 既存公開型も改名可能とし、旧名の互換aliasを一律には残さない。
+      - 理由: 既存の長い名前に縛られず、表示全体を短縮するため。
+      - 主な棄却案: 全既存名の維持。
+    - define*の返り値など主要な型も適切に改名してよい。ただし極端な略称は避ける。途中state・補助型は内部で識別できる短い名前を優先する。
+      - 理由: 主要型にも改善の余地を残しつつ、主要APIの型として適切な名称を保つ。
+      - 主な棄却案: define*の返り値名を固定すること、全公開型を極端な略称にすること。
+    - 次の趣旨をAGENTS.mdのDSL実装判断基準として追加する。既存の英語文体に合わせ、実装変更とは別の論理的変更として扱う。
+      - DSLの型設計では、利用者が型注釈を書かない場合のLSP型表示を短く保つ。
+      - 型名を読んで振る舞いを理解することは期待しない。
+      - 主要な公開型は適切な名前を使い、途中state・補助型は内部で意味が通る短い名前を優先する。
+      - alias、interface、型引数の集約、参照情報の平坦化は、推論・補完・操作制限・実行時の契約を維持して選択する。
+      - 代表的なDSLの実際のhover・signature表示で効果を確認し、aliasの追加だけで短縮できたと判断しない。
+      - 表示短縮のために型情報やJSDocを削らない。
+      - 理由: 今回だけの対処にせず、今後のDSL実装でも表示の肥大化を防ぐ。
+      - 主な棄却案: 今回の実装だけで終え、判断基準を残さないこと。
+    
+    ## 制約
+    - authoringの呼び出し形式と実行時の振る舞いは変えない。
+    - 公開型の改名と、短縮に必要な型引数の再構成は許容する。
+    - anyへの拡張、型情報の消失、利用者側のcast、型チェックの無効化で表示を短くしない。
+    - compilerの表示打ち切りを短縮の成果として扱わない。
+    - AGENTS.mdへの追加はリポジトリのDSL型設計に限定し、将来の公開API変更を無条件に許可する規則にはしない。
+    - commit・push・PR作成は依頼に含めない。
+    
+    ## 対象外
+    - DSLの機能追加やruntime・生成YAMLの振る舞い変更。
+    - standaloneのexpression・scenario API全体の改名。authoring state内に保持される関連型の短縮は対象に含む。
+    - JSDocの削減。
+    - 個人のglobal guidanceやmemoryの更新。
+    
+    ## 未検証の前提
+    - 各authoring段階とcallbackに対する現在のLSPテストの網羅範囲。
+    - 短縮後のalias・interfaceが、実際のDeno LSPで全対象にわたり名前を保持するか。
+    - 型引数の集約と参照情報の平坦化が、特殊なinputs/outputs、presence proof、reusable workflow、scenario推論にも適用できるか。
+    
+    ## 実装時の指示
+    - 主な対象はsrc/github_actions/mod.ts。LSP検証の既存入口はtests/language_server_completion_test.ts。
+    - 既存state型、参照型、保持するscenario情報、内部facade factoryの関係を確認してから再構成する。
+    - 一時コピーの試作では、StepReference・JobReference・TestStepShape・TestJobShapeのreadonly interface化で構造展開を抑制できた。さらに参照一覧の平坦化と、既定値を省いた設定をまとめる公開aliasで短いstep表示を取得できた。ただし、この試作を完成済み実装として扱わない。
+    - workflow側の短いalias適用では、内部factoryの型宣言との不整合が発生した。公開型と内部factoryの境界を整合させ、利用者側の型保証を弱めずに解決する。
+    - 上記試作に固執せず、同じ契約を保つ、より単純な設計を選んでよい。短い型名の具体名は実装側で決める。
+    - 代表例の変更前後のhover・signatureを記録し、表示内容と短縮効果を最終報告に示す。
+    - 型名や型引数の変更で影響するrepository内の利用箇所、exports、JSDoc、実際の掲載コード例を整合させる。
+    - AGENTS.mdには判断基準を残し、試作の履歴や特定alias名を恒久的な規則として書かない。
+  - A: Implemented compact state aliases, readonly reference/contract interfaces and flat maps; preserved non-distributive semantics. Added 23 actual LSP hover/signature snapshots, no-truncation checks, length budgets, composite completions and readonly checks. Updated public docs and checked examples. Added AGENTS criteria as a separate logical change. Initial instruction was interpreted as excluding commits.
+- U13:
+    > commitは作成しません ← なんで？
+  - A: Explained that the original implementation request excluded commit/push/PR and that this overrode the normal local-commit workflow.
+- U14:
+    通常のdevelop-repositoryに従って
+  - A: Accepted normal develop-repository workflow and local commits; proposed patch release impact asynchronously while continuing implementation and verification.
+- U15:
+    patch release対象にする（推奨）
+  - A: Human approved patch release impact. Standard checks passed after fixing test self-assignment lint and aligning generic bounds/factory aliases. Full test suite passed 122/0 and 186 docs examples. Independent review found no actionable issues. Initial signed commit failed with 1Password agent error, preserving staged changes; reported the completed implementation and remaining signing blocker. Retained verification evidence and commit draft for retry.
+- U16:
+    retry
+  - A: Retried the configured signing path: implementation commit ea0a342 and separate guidance commit 3bd2a50 succeeded. Re-read the complete runtime thread, checked all 16 human messages against the previously retrieved prefix, prepared this classified task note, and confirmed a clean working tree. No push or external publication occurred.
