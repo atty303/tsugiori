@@ -1,0 +1,12 @@
+Task: Repair stale generated CI task artifact identity after authoring type changes
+Anchor: 3d9c5ab3890bfdff09fed0b11d1e668dd0f0c6df
+Base: 3bd2a50018d880f6be91786d657168ae22014705
+Branch: main
+Commits: 3d9c5ab3890bfdff09fed0b11d1e668dd0f0c6df (regenerate four source-key values in CI YAML)
+Guidance: repository AGENTS.md; investigate-problem; develop-repository; atty303 engineering policy; git-task-evidence
+Conditions: Existing checkout, Deno 2.9.5 via mise; previous patch release approval and main/notes push authorization persist for correction of the prior task; no new dependencies or runtime changes; full runtime thread pagination retrieved and cycle messages compared.
+Authority: Human implementation and main/notes push requests, repository AGENTS.md and applicable skills; generated YAML is owned by .github/workflows.ts.
+## Transcript
+- U1:
+    CIこけた
+  - A: Inspected failed CI run 37466919698 and release run 37466919723 at base SHA. Both failed generate --check with changed: workflows/ci.yml before tests or release. Reproduced the same failure locally from .github. Read-only generation comparison identified only four stale source-key values: local module hashes changed with authoring types, but committed CI YAML retained the old identity. Regenerated with the existing Deno task. The same generate --check now passes, mise run check .github/workflows/ci.yml passes, and git diff --check passes. Workflow structure and runtime commands are unchanged. Created signed commit 3d9c5ab. No extra unit tests or fresh review required for this deterministic regeneration. Remote CI after the correction has not yet been observed at this checkpoint.
