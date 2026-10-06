@@ -1,0 +1,21 @@
+Task: Update README installation instructions to use configured import permissions
+Anchor: 7d036073a25df1036ac78f674e6d6557c7c85307
+Base: b2a9d57a067b74076982f2af76b7dc0e6a995573
+Branch: main
+Commits: 7d036073a25df1036ac78f674e6d6557c7c85307 docs: configure import permissions in the installation guide
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability applicability; Git task evidence
+Conditions: Current checkout; README only; docs/no-release approved; latest Deno implicitly assumed; no new push authorization; complete session history retrieved and compared
+## Evidence
+README check and 186 published documentation examples passed. Isolated Deno 2.9.7 install with -P and --no-prompt successfully retrieved JSR package and typed Action metadata. All published Tsugiori releases were younger than the default 24-hour dependency age, so only disposable verification used --minimum-dependency-age=0; README retains normal age filtering. Temporary directories removed. No program path changed; observability additions and fresh independent review inapplicable to documentation of existing behavior.
+
+Authority: Current user instructions; repository AGENTS.md; develop-repository; design-review; Git task evidence
+## Transcript
+- U1:
+    READMEの手順をこれに置き換えたほうがいいのでは
+  - A: Fetched code and notes, confirmed clean main, proposed docs/no-release classification, and updated only README to include permissions.default and deno install -P. Explained explicit permission loading and both allowed hosts.
+- U2:
+    docs commit・release なし（推奨）
+  - A: Accepted docs/no-release authorization and continued focused README validation.
+- U3:
+    Denoのversionは明記しなくていい。暗黙に最新を仮定する
+  - A: Kept Deno version implicit. Verified README check and 186 documentation examples; isolated dependency age filtering and validated both import hosts with a disposable verification-only age override. Reviewed diff and created signed docs commit. Compared these three messages with complete session history. Initial note schema checks rejected separator blank lines; corrected formatting without writing any prior note.
