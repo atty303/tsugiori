@@ -1,0 +1,22 @@
+Task: Migrate own Action imports to the deployed official versioned service
+Anchor: 1420fdf59cbb4f1f42d4fa087f9003d8c2ccc596
+Base: be5e7443f162f878392272c05f63824eaced3c32
+Branch: main
+Commits: 1420fdf59cbb4f1f42d4fa087f9003d8c2ccc596 (own CI configuration, lockfile and living docs)
+Guidance: AGENTS.md; develop-repository; design-review; review; Git task evidence
+Conditions: Clean current main checkout; fetched code and standard notes, baseline release v0.5.0; user reports official service deployment; release-none ci/docs approved; Deno 2.9.5 via mise; no push/deploy/release; complete thread retrieval 9 pages 82 human messages, current cycle two messages
+## Evidence
+- Official checkout v1 SHA module returned HTTP 200 without redirect. All three Action modules fetched from official v1 URLs in a fresh DENO_DIR under frozen=true, and workflow generate --check passed.
+- Deno install is additive; moved lock aside, regenerated with Deno install and cached the configuration entrypoint to include its existing source dependencies. Compared specifiers, jsr and npm fields with the prior lock and found them unchanged. New remote checksums equal the prior resolved g1 checksums; obsolete redirect and g1 records absent.
+- Standard check passed; full suite 105 passed; generated YAML remains byte-identical. Fresh read-only independent review reported no findings and matched the exact staged snapshot.
+Authority: User follow-up request and release-none approval; applicable AGENTS.md and skills
+## Transcript
+- U1:
+    serviceをdeployした。積み残しの対応をして
+    
+  - A: Used develop-repository and inspected clean checkout, existing mappings, current roadmap and release workflow. Fetched code/notes and v0.5.0. Identified the deferred own configuration and lock migration as the scope. Observed the new deployed checkout SHA URL returning 200 without redirects. Proposed release-none ci/docs asynchronously; retained each existing Action SHA.
+- U2:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_H2mXi9ASQQSVMfraeJjgXWTT\",0]","question":"develop-repository の規則による commit 影響の確認です。今回は自身の CI import・lockfile の移行と文書更新なので、release なし（ci/docs）として記録してよいですか？ 実装・検証は進めます。","answer":"はい、release なし"}]
+    </send_user_message_question_reply>
+  - A: Accepted release-none approval. Migrated three own mappings to versioned official routes and #actions aliases, updated workflows.ts imports and cacheVersion from 2 to 3. Regenerated lock with Deno commands and verified existing dependency versions/checksums unchanged; removed obsolete g1 redirects. Updated architecture and removed the completed roadmap followup. Regenerated workflow YAML with no differences. Standard check, 105 tests, freshness and fresh-cache frozen official fetch passed; fresh independent review had no findings. Committed locally as 1420fdf59cbb4f1f42d4fa087f9003d8c2ccc596. No deployment, release, push or external repository changes; hosted Actions execution and effective cloud permissions/rate limits were not verified.
