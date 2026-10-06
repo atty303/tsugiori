@@ -125,7 +125,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl:
       assertStringIncludes(yaml, "uses: ./.github/actions/task-prepare");
       assert(!yaml.includes("deno_binary"));
       assert(!yaml.includes("expected-layout"));
-      const sourceKey = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
+      const sourceKey = yaml.match(/tsugiori-task-(S[0-9A-Z]{50})/)?.[1];
       assert(sourceKey !== undefined);
       const prepare = async (extra: Record<string, string> = {}) => {
         await Deno.writeTextFile(output, "");
@@ -915,7 +915,7 @@ async function resolveSourceArtifactKey(
   );
   assertEquals(result.code, 0, result.stderr);
   const yaml = await Deno.readTextFile(resolve(fixture, "workflows/ci.yml"));
-  const key = yaml.match(/tsugiori-task-(sha256-[0-9a-f]+)/)?.[1];
+  const key = yaml.match(/tsugiori-task-(S[0-9A-Z]{50})/)?.[1];
   assert(key !== undefined);
   return key;
 }

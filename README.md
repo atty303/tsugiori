@@ -135,7 +135,9 @@ this release's composite preparation Action, pinned to its source commit SHA.
 Generation uses `deno info` to compute a source key and embeds it in
 YAML; the cache key also includes the runner's OS and architecture. Regenerate
 and commit YAML after tracked source changes. `generate --check` detects stale
-source keys even when the workflow structure is unchanged.
+source keys even when the workflow structure is unchanged. Source and artifact
+keys encode SHA-256 as 50 uppercase Base36 digits, prefixed with `S` and `A`
+respectively.
 
 A restored compiled artifact verifies its embedded local-module paths and hashes
 against the checkout, plus its manifest, binary checksum, and platform. A valid

@@ -48,7 +48,7 @@ export async function sourceArtifactKey(
     modules: input.modules,
     tsugioriPackage: input.tsugioriPackage,
   });
-  return `sha256-${await sha256Bytes(new TextEncoder().encode(canonical))}`;
+  return `S${await base36Sha256(canonical)}`;
 }
 
 function toHex(bytes: Uint8Array): string {
@@ -75,9 +75,12 @@ export function embeddedArtifact(): EmbeddedArtifact | undefined {
     : undefined;
 }
 
-export function artifactKey(sourceKey: string, target: string): string {
+export async function artifactKey(
+  sourceKey: string,
+  target: string,
+): Promise<string> {
   if (
-    !/^sha256-[a-f0-9]{64}$/.test(sourceKey) ||
+    !/^S[0-9A-Z]{50}$/.test(sourceKey) ||
     !/^(x86_64|aarch64)-(apple-darwin|unknown-linux-gnu)$/.test(target)
   ) {
     throw new TaskRuntimeError(
@@ -85,5 +88,10 @@ export function artifactKey(sourceKey: string, target: string): string {
       "Invalid task artifact source key or target.",
     );
   }
-  return `${sourceKey}-${target}`;
+  return `A${await base36Sha256(JSON.stringify({ sourceKey, target }))}`;
+}
+
+async function base36Sha256(input: string): Promise<string> {
+  const hex = await sha256Bytes(new TextEncoder().encode(input));
+  return BigInt(`0x${hex}`).toString(36).toUpperCase().padStart(50, "0");
 }

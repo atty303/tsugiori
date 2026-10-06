@@ -63,7 +63,7 @@ export async function planTaskArtifact(
     entrypointPath: options.entrypointPath,
     cacheVersion: options.project.cacheVersion,
   });
-  const key = artifactKey(source.sourceKey, target);
+  const key = await artifactKey(source.sourceKey, target);
   options.recorder.operation({
     name: "artifact.key",
     durationMs: performance.now() - graphStarted,
@@ -126,7 +126,7 @@ export async function prepareTaskArtifact(
   }
   if (rejectedChecksum !== undefined && rejectedChecksum !== "unknown") {
     await rejectArtifact(
-      artifactKey(
+      await artifactKey(
         options.expectedSourceKey,
         options.target ?? Deno.build.target,
       ),
@@ -485,7 +485,7 @@ export async function restoreTaskArtifact(
       "Incompatible task artifact metadata.",
     );
   }
-  const key = artifactKey(metadata.sourceKey, metadata.target);
+  const key = await artifactKey(metadata.sourceKey, metadata.target);
   const manifest = await validateArtifact(
     options.directory,
     key,

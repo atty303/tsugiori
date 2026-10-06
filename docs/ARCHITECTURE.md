@@ -192,7 +192,10 @@ the runtime's absolute path via the prepare step's output.
 Automatic identity covers reachable local `file:` modules, including
 project-external imports. Paths are project-relative rather than
 machine-absolute. Source identity also includes artifact format, Tsugiori
-package identity, and `cacheVersion`; runtime identity adds the Deno target.
+package identity, and `cacheVersion`; runtime identity hashes the source key
+and Deno target together. Both use SHA-256, encoded as uppercase Base36 padded
+to 50 digits, with `S` and `A` prefixes respectively. Module hashes and binary
+checksums retain hexadecimal encoding.
 Remote modules, lockfiles, and Deno settings and versions remain excluded;
 authors increase `cacheVersion` for those inputs. This is a reuse contract, not
 a complete reproducibility claim. Linux/macOS X64/ARM64 map to their
