@@ -1,0 +1,117 @@
+Task: Bootstrap separate Tsugiori workflow projects through JSR init
+Anchor: c5cded76a178c2ef57bac95ce951397a1ad582d8
+Base: 85ad678938fa565df2edab2a892f78abde457b07
+Branch: codex/tsugiori-init
+Commits: c5cded76a178c2ef57bac95ce951397a1ad582d8 implements approved feat minor initialization and Deno 2.9.7 update
+Guidance: Current repository AGENTS.md; develop-repository and atty303 profile; design-program-observability; design-review; investigate-problem; review; git-task-evidence
+Conditions: macOS separate worktree; inherited snapshot-task edits discarded only here with human authorization; Deno 2.9.7 mise toolchain; original main checkout retained; local commit only
+## Evidence
+- mise run check and mise run test succeeded; full suite 133 passed, 0 failed; 186 published TypeScript examples across six exports typechecked.
+- Archived-package /init initialization, install -P, generation, generate --check and greeting task dispatch succeeded with local export resolution; JSR publication dry-run succeeded. Live JSR execution awaits publication; hosted Actions execution was not performed.
+- Fresh independent read-only review found no actionable findings and verified the fixed 14-file candidate hashes. Separate concurrent task overlaps in deno.json and generated CI source keys; no integration was performed.
+Authority: Human implementation request; explicit feat minor approval; explicit Deno 2.9.7 update; explicit discard authorization for inherited edits in separate worktree; repository guidance; no remote writes or publication authorized
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の現在のcheckoutで、workflow専用DenoプロジェクトをbootstrapするJSRの`/init`入口を実装し、READMEのGetting startedを更新してください。
+    
+    ## 目的
+    - アプリ側のDenoプロジェクトとは独立したworkflowプロジェクトを、Denoだけで初期化できるようにする。
+    - 初見の利用者がREADMEだけで導入操作と生成されるソースを理解できるようにする。
+    
+    ## 成功条件
+    - `deno run … jsr:@atty303/tsugiori@<version>/init`で、実行ディレクトリに`deno.json`と`workflows.ts`を作成できる。必要な権限を含む実行コマンドをREADMEに掲載する。
+    - `deno.json`、`deno.jsonc`、`deno.lock`、`workflows.ts`のいずれかが存在する場合、既存内容を変更せず、新規ファイルも作らず、理由を示して非成功終了する。
+    - 生成するパッケージ参照は、init自身のパッケージバージョンを下限とする`jsr:@atty303/tsugiori@^<version>`になる。
+    - `workflows.ts`は`workflow_dispatch`のみで起動するサンプルworkflowを定義し、メッセージを出力するDeno taskを一つ持つ。
+    - サンプルのYAML出力先は`workflows/tsugiori.yml`である。
+    - 初期化後、案内された依存取得と生成コマンドでYAMLを生成でき、`generate --check`が成功する。
+    - init自体は依存取得、lockfile作成、YAML生成を実行しない。
+    - READMEの掲載全文が生成テンプレートと一致し、掲載された実際のTypeScriptコードが型チェックされる。
+    - 適切な検証とリポジトリ標準のチェックが通る。
+    
+    ## 決定事項
+    - 初期化対象は常にworkflow専用Denoプロジェクトとする。
+      - 理由: アプリ側と同じプロジェクトへ統合する用途は想定していない。
+      - 主な棄却案: アプリ側の設定へのマージ。用途外であり、設定統合の責任を増やすため。
+    - 実行ディレクトリを初期化する。
+      - 理由: 現在の生成コマンドもDenoプロジェクトのディレクトリを基準に動く。
+      - 主な棄却案: リポジトリルートから`.github`を自動選択する方式、作成先の必須引数。
+    - JSRパッケージに独立した`/init`入口を追加する。
+      - 理由: `workflows.ts`が存在する前に、Denoだけで実行できる入口が必要。
+      - 主な棄却案: 汎用`/cli init`入口、インストール必須の`tsugiori init`。
+    - 作成するファイルは`deno.json`と`workflows.ts`に固定する。
+      - 理由: 初回導入に役割を絞り、配置変更は初期化後の編集で対応する。
+      - 主な棄却案: ファイル名や出力先を変更する引数。
+    - 指定した四つの既存ファイルのいずれかがあれば、書き込み前に停止する。
+      - 理由: 既存設定や依存状態を引き継ぐ判断をせず、新規作成に限定する。
+      - 主な棄却案: マージ、同一内容の許容、不足ファイルだけの追加、既存lockfileの許容。
+    - 依存バージョンはinit自身のバージョンから`^`範囲を生成する。
+      - 理由: 対応するAPIを下限として、範囲内の更新を許容する。
+      - 主な棄却案: 完全固定、patchだけの範囲、上限なし、別バージョンの必須指定。
+    - サンプルは手動実行で、メッセージを出すDeno taskを一つ持つ。
+      - 理由: アプリの言語やテストコマンドを仮定せず、Tsugioriのtask記述を示す。
+      - 主な棄却案: shell stepだけの例、`deno test`、push・pull_requestでの自動実行。
+    - サンプルの出力先は`workflows/tsugiori.yml`とする。
+      - 理由: アプリのCIではなく、Tsugioriのサンプルであることを示す。
+      - 主な棄却案: `workflows/ci.yml`。
+    - initはファイル作成だけを行い、後続操作を案内する。
+      - 理由: 初期化をネットワークや生成コマンドの失敗から独立させる。
+      - 主な棄却案: 依存取得やYAML生成まで自動実行する方式。
+    - READMEのGetting startedはinit中心に置き換え、生成される二つのファイルの全文も掲載する。
+      - 理由: 操作を簡単にしつつ、docsだけで内容を理解できるようにする。
+      - 主な棄却案: 全文を外す方式、手動作成手順を別の導入経路として並存させる方式。
+    
+    ## 制約
+    - アプリ側のDeno設定を探索・変更・統合しない。
+    - 初期化先は実行ディレクトリであり、Gitルートから自動判定しない。
+    - 既存ファイルを上書きしない。書き込み失敗時も、今回の処理が作成したファイルだけをcleanup対象とする。
+    - パッケージバージョンは既存のpackage identityを利用し、別の固定値を導入しない。
+    - deploy、release、push、PR作成は行わない。
+    
+    ## 対象外
+    - 既存workflowの移行、設定マージ、強制上書き、再実行による補完。
+    - アプリ固有のCIやテストコマンドの検出。
+    - 汎用CLIへの再編、CLIのインストール機構。
+    - init内での依存取得、lockfile作成、YAML生成、Git操作。
+    - 配置変更用オプションや複数テンプレートの提供。
+    
+    ## 未検証の前提
+    - 新しい`/init`exportが現在のrelease packaging・JSR公開検証に含まれること。必要な対応範囲を実装前に確認する。
+    - READMEに示す権限付きのJSR直接実行コマンドが、新しい入口と現在のDenoで動くこと。
+    - 調査時のcheckoutには複数の未commit変更があった。実装開始時に状態を再確認し、既存変更を保持する。
+    
+    ## 実装時の指示
+    - 現在のREADMEに沿って、パッケージimport、`permissions.default`、`tsugiori` taskを含むDeno設定を生成する。
+    - `workflows.ts`はprojectをexportし、`import.meta.main`で`runProject()`を呼ぶ現在の方式に従う。
+    - 完了時に`deno install -P`と`deno task tsugiori generate`を案内する。
+    - READMEでは`.github`の作成・移動、init実行、依存取得、YAML生成、必要ファイルのcommit、`generate --check`まで案内する。
+    - READMEのバージョン表記は説明用の表記と実際の生成値の関係を明示し、掲載例とテンプレートの一致を検証する。
+    - ファイル作成、既存ファイルによる停止、後続生成、READMEとの一致を検証する。掲載TypeScriptの型チェックには、掲載された実際のコードを使う。
+  - A: Read development, observability, design-review and repository guidance; fetched code and standard notes. Found inherited deno.json edits. Proposed feat minor release impact; implemented executable init, caret version templates, exclusive creation, ownership-aware cleanup, existing bounded diagnostics, README and archive integration tests. Diagnosed test-path canonicalization and Deno-owned cache distinction; Deno 2.9.5 rejected deno install -P.
+- U2:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_msxXh0WljyMsRqizyWOfStxD\",0]","question":"この変更のcommitを、release対象のfeat（minor更新）として確定してよいですか？ develop-repositoryスキルの「commit全体のrelease要否を提案・送信して承認を求める」に従う確認です。公開操作は行いません。","answer":"feat（minor更新）でよい"}]
+    </send_user_message_question_reply>
+  - A: Accepted feat minor commit impact and continued authorized implementation/verification without publication. Requested a command decision after observing install -P failure.
+- U3:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_vZKNlsozohbubOK2BQiZGx1p\",0]","question":"後続の依存取得コマンドを、Deno 2.9.5で使える「deno install」に変更してよいですか？ 実行した「deno install -P」はローカルインストールでは許可されず、--globalを要求して失敗しました。生成設定のpermissions.defaultは維持し、-Pはdeno run/check等で使う設定として説明します。","answer":"2.9.7に更新"}]
+    </send_user_message_question_reply>
+  - A: Updated mise and both preparation Deno pins to 2.9.7 and regenerated all existing lock platforms. Verified install -P succeeds. Initialization/release tests passed. Asked whether inherited config edits could be committed.
+- U4:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_khogptzYUfCwgqh3WV5UNEt3\",0]","question":"開始前からあったdeno.jsonの変更（@std/testing追加、test:update引数変更、workspace整形）を今回のcommitに含めてよいですか？ この設定もCIのsource-keyに含まれるため、既存変更を含めると設定・lockfile・生成YAMLを一致させて確定できます。","answer":"別worktreeに既存変更が引き継がれたのか？"}]
+    </send_user_message_question_reply>
+  - A: Compared other checkout and found related snapshot-test edits, without claiming their copying mechanism. Excluded inherited edits, saved a temporary recovery snapshot and verified the task-only configuration. mise run check passed; full verification and a fresh read-only reviewer started.
+- U5:
+    現在の作業ディレクトリとブランチは？
+  - A: Reported current worktree /Users/a13400/.codex/worktrees/d5aa/tsugiori and branch codex/tsugiori-init. Complete local rollout history was retrieved and compared for this implementation cycle; parent design history was also inspected.
+- U6:
+    codex://threads/01a111ac-b28d-71c2-8995-60831537309d 既存変更はこっちで進めていたものだ。そちらの作業ディレクトリ・ブランチと分けれていればこちらのworktreeの変更は保持しなくていい
+  - A: Confirmed the linked chat owns /Users/a13400/src/atty303/tsugiori on main. Did not change it. Accepted discard authorization for inherited edits in this separate worktree. Full mise run test passed 133 tests; public docs checker validated 186 examples. Fresh reviewer found no actionable issues and candidate hashes stayed unchanged. Committed c5cded7 as feat minor.
+- U7:
+    変更は競合していないのか？
+  - A: Compared overlapping files without merging: deno.json can merge text automatically; generated .github/workflows/ci.yml has a source-key conflict and must be regenerated after integration. Combined-branch tests remain unverified. Committed source archive and /init export passed deno publish --dry-run; no publication/deploy/push occurred.
