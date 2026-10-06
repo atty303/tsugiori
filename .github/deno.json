@@ -3,7 +3,7 @@
     "@atty303/tsugiori": "workspace:*"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
-    "generate:check": "deno run --frozen=true -A ./tsugiori.ts generate --check"
+    "generate": "deno run --frozen=true -A ./pipelines.ts generate",
+    "generate:check": "deno run --frozen=true -A ./pipelines.ts generate --check"
   }
 }

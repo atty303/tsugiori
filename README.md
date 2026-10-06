@@ -29,7 +29,7 @@ change: major).
 
 ## Use the repository workflow
 
-The checked-in [.github/tsugiori.ts](.github/tsugiori.ts) is the source for
+The checked-in [.github/pipelines.ts](.github/pipelines.ts) is the source for
 [.github/workflows/ci.yml](.github/workflows/ci.yml). Its Deno project is
 [.github/deno.json](.github/deno.json), which imports this repository's
 provider entrypoint through the local workspace package. From `.github`, generate and
@@ -107,8 +107,8 @@ and advanced subpath imports resolve through this single mapping:
     "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
   },
   "tasks": {
-    "generate": "deno run --frozen=true -A ./tsugiori.ts generate",
-    "generate:check": "deno run --frozen=true -A ./tsugiori.ts generate --check"
+    "generate": "deno run --frozen=true -A ./pipelines.ts generate",
+    "generate:check": "deno run --frozen=true -A ./pipelines.ts generate --check"
   }
 }
 ```

@@ -99,7 +99,7 @@ that way are rejected. The config owns output paths under
 bytes to existing files and reports missing or changed outputs, plus extra
 `.yml` files with the same ownership comment. It does not modify files.
 `--output <path>` limits the check to one workflow. Normal generation does not
-delete extra files. The checked-in [CI config](../.github/tsugiori.ts) emits the
+delete extra files. The checked-in [CI config](../.github/pipelines.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `generate:check`.
 
 ## Scenario interpretation
@@ -230,7 +230,7 @@ operational audit.
 
 ## Package release boundary
 
-`.github/tsugiori.ts` owns CI and the release workflow; generated YAML stays
+`.github/pipelines.ts` owns CI and the release workflow; generated YAML stays
 visible and checked in. Regular releases delegate version selection, tag/Release
 ownership, artifact validation and rollback to the commit-pinned
 repository-template action. Root mise release tasks own source selection,
