@@ -1,4 +1,4 @@
-import { assert, assertEquals, assertRejects } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { GitHubClient } from "../src/github/client.ts";
 import { createService } from "../src/service.ts";
 import { Diagnostics, Recording } from "../src/diagnostics.ts";
@@ -351,4 +351,46 @@ Deno.test("SHA responses skip resolution and isolate annotations in cache identi
     302,
   );
   assert(urls.at(-1)!.includes("/commits/abcdef0"));
+});
+
+Deno.test("metadata generation uses YAML core scalar and merge semantics", async () => {
+  const source = generateV1(
+    `name: Core
+description: Core metadata
+runs: { using: composite, steps: [] }
+inputs:
+  decimal: { description: Decimal, default: 012 }
+  octal: { description: Octal, default: 0o12 }
+  date: { description: Date, default: 2001-12-15 }
+  text: { description: Text, default: yes }
+  boolean: { description: Boolean, default: false }
+`,
+    "a/b@v1",
+    "source",
+  );
+  const module = await import(
+    `data:application/typescript,${encodeURIComponent(source)}`
+  );
+  assertEquals(
+    Object.fromEntries(
+      Object.entries(module.default.inputs).map(([key, value]) => [
+        key,
+        (value as { default: unknown }).default,
+      ]),
+    ),
+    { decimal: 12, octal: 10, date: "2001-12-15", text: "yes", boolean: false },
+  );
+  assertThrows(
+    () =>
+      generateV1(
+        `base: &base { name: Merged, description: Metadata }
+<<: *base
+runs: { using: composite, steps: [] }
+`,
+        "a/b@v1",
+        "source",
+      ),
+    Error,
+    "metadata_invalid",
+  );
 });

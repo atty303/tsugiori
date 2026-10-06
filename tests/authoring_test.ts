@@ -1,3 +1,4 @@
+import { parse } from "../src/deps.ts";
 import {
   assert,
   assertEquals,
@@ -117,7 +118,7 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
   assertEquals(yaml.match(/continue-on-error: true/g)?.length, 4);
-  assertStringIncludes(yaml, "if: \"${{ steps.source.outputs.sha != '' }}\"");
+  assertStringIncludes(yaml, "if: ${{ steps.source.outputs.sha != '' }}");
 });
 
 Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
@@ -203,20 +204,24 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
 
   assertStringIncludes(
     yaml,
-    'key: "tsugiori-task-unresolved-${{ runner.os }}-${{ runner.arch }}"',
+    "key: tsugiori-task-unresolved-${{ runner.os }}-${{ runner.arch }}",
   );
   assertEquals(yaml.match(/uses: actions\/cache@/g)?.length, 1);
   assert(!yaml.includes("actions/cache/restore@"));
   assert(!yaml.includes("actions/cache/save@"));
   assert(!yaml.includes("github.run_id"));
   assert(!yaml.includes("github.run_attempt"));
-  assertStringIncludes(
-    yaml,
-    "run: |-\n          \"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
+  assertEquals(
+    (parse(yaml) as { jobs: { test: { steps: { run?: string }[] } } }).jobs.test
+      .steps
+      .filter((step) => step.run?.includes("task-1"))[0].run,
+    "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
   );
-  assertStringIncludes(
-    yaml,
-    "run: |-\n          \"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-2'",
+  assertEquals(
+    (parse(yaml) as { jobs: { test: { steps: { run?: string }[] } } }).jobs.test
+      .steps
+      .filter((step) => step.run?.includes("task-2"))[0].run,
+    "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-2'",
   );
   assertEquals(yaml.match(/name: Prepare task artifact/g)?.length, 1);
   assertEquals(yaml.match(/name: Cache task artifact/g)?.length, 1);
@@ -509,10 +514,12 @@ Deno.test("direct project preserves task step ID and environment", async () => {
     );
     const yaml = emitWorkflow(lowered.workflows[0].workflow);
     assertStringIncludes(yaml, "id: plan");
-    assertStringIncludes(yaml, 'TOKEN: "${{ secrets.TOKEN }}"');
-    assertStringIncludes(
-      yaml,
-      "run: |-\n          \"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
+    assertStringIncludes(yaml, "TOKEN: ${{ secrets.TOKEN }}");
+    assertEquals(
+      (parse(yaml) as {
+        jobs: { test: { steps: { id?: string; run?: string }[] } };
+      }).jobs.test.steps.find((step) => step.id === "plan")?.run,
+      "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
     );
   } finally {
     await Deno.remove(root, { recursive: true });

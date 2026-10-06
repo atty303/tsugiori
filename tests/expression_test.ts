@@ -107,9 +107,9 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     yaml,
     "case((steps.run.outputs.result == 'ok'), steps.run.outputs.result, 'other')",
   );
-  assertStringIncludes(yaml, 'value: "${{ matrix.stage }}"');
-  assertStringIncludes(yaml, 'STAGE: "${{ matrix.stage }}"');
-  assertStringIncludes(yaml, 'TOKEN: "${{ secrets.token }}"');
+  assertStringIncludes(yaml, "value: ${{ matrix.stage }}");
+  assertStringIncludes(yaml, "STAGE: ${{ matrix.stage }}");
+  assertStringIncludes(yaml, "TOKEN: ${{ secrets.token }}");
   const parsed = parse(yaml) as { jobs: { deploy: { if: string } } };
   assertEquals(
     parsed.jobs.deploy.if,
@@ -204,10 +204,6 @@ Deno.test("a complete matrix can come from one typed expression", async () => {
   });
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(
-    yaml,
-    'matrix: "${{ fromJSON(\'[{\\"stage\\":\\"dev\\"}]\') }}"',
-  );
   const parsed = parse(yaml) as {
     jobs: { test: { strategy: { matrix: string } } };
   };

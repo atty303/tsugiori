@@ -95,7 +95,7 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
   assertStringIncludes(yaml, "needs.detect.outputs.targets != ''");
   assertStringIncludes(
     yaml,
-    'TSUGIORI_INPUT_TARGETS: "${{ needs.detect.outputs.targets }}"',
+    "TSUGIORI_INPUT_TARGETS: ${{ needs.detect.outputs.targets }}",
   );
   assertStringIncludes(yaml, "REGION: ap-northeast-1");
   assertEquals(lowered.tasks.length, 2);

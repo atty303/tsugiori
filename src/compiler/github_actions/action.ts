@@ -47,7 +47,6 @@ export function emitCompositeAction(
     }
     const emitted = emitStep(step);
     if (step.type === "run") {
-      emitted.run = step.run;
       // Task invocation uses Bash; authored run steps require their own shell.
       emitted.shell = step.shell ?? "bash";
     }
@@ -64,11 +63,10 @@ export function emitCompositeAction(
     runs: { using: "composite", steps: rendered },
   };
   const yaml = stringify(object, {
-    lineWidth: -1,
+    lineWidth: 0,
     schema: "core",
-    sortKeys: false,
-    useAnchors: false,
-    compatMode: false,
+    sortMapEntries: false,
+    aliasDuplicateObjects: false,
   });
   // Round-trip commands through the same YAML implementation as workflows.
   const decoded = parse(yaml) as typeof object;

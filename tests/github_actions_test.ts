@@ -1,9 +1,4 @@
-import {
-  assert,
-  assertEquals,
-  assertStringIncludes,
-  assertThrows,
-} from "@std/assert";
+import { assert, assertEquals, assertStringIncludes } from "@std/assert";
 import { parse } from "../src/deps.ts";
 import {
   emitWorkflow,
@@ -70,14 +65,16 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
   });
 });
 
-Deno.test("run blocks and separators preserve command values", () => {
+Deno.test("natural run scalars and separators preserve command values", () => {
   const commands = [
+    "echo hello",
     "echo 'key: value'",
     "printf x\t| cat",
     "echo first\necho second",
     "echo trailing\n",
     "echo keep\n\n",
     " echo leading space",
+    "echo\rvalue",
   ];
   const result = validateWorkflow({
     name: "Readable",
@@ -89,7 +86,10 @@ Deno.test("run blocks and separators preserve command values", () => {
         needs: [],
         steps: [
           { type: "uses", uses: "actions/checkout@v6" },
-          ...commands.slice(0, 5).map((run) => ({ type: "run" as const, run })),
+          ...commands.slice(0, -1).map((run) => ({
+            type: "run" as const,
+            run,
+          })),
           { type: "uses", uses: "actions/cache@v4" },
         ],
       },
@@ -97,7 +97,7 @@ Deno.test("run blocks and separators preserve command values", () => {
         id: "true",
         runsOn: { type: "labels", labels: ["ubuntu-latest"] },
         needs: [],
-        steps: [{ type: "run", run: commands[5] }],
+        steps: [{ type: "run", run: commands.at(-1)! }],
       },
     ],
   });
@@ -115,12 +115,17 @@ Deno.test("run blocks and separators preserve command values", () => {
     ),
     commands,
   );
-  assertEquals(
-    [...yaml.matchAll(/^(?: {6}- | {8})run: \|[1-9]?[+-]?$/gm)].length,
-    commands.length,
+  assertStringIncludes(
+    yaml,
+    "uses: actions/checkout@v6\n\n      - run: echo hello",
   );
-  assertStringIncludes(yaml, "uses: actions/checkout@v6\n\n      - run: |-");
-  assertStringIncludes(yaml, "echo keep\n\n      - uses: actions/cache@v4");
+  assertStringIncludes(
+    yaml,
+    "run: |-\n          echo first\n          echo second",
+  );
+  assertStringIncludes(yaml, "run: |\n          echo trailing");
+  assertStringIncludes(yaml, "run: |+\n          echo keep");
+  assertStringIncludes(yaml, 'run: "echo\\rvalue"');
   assertStringIncludes(yaml, '\n\n  "true":\n');
 });
 
@@ -172,25 +177,6 @@ Deno.test("rejects invalid job permissions", () => {
       path: ["jobs", 0, "permissions", "discussions"],
     },
   ]);
-});
-
-Deno.test("rejects run commands that require YAML escapes", () => {
-  const result = validateWorkflow({
-    name: "Unsupported",
-    on: { push: {} },
-    jobs: [{
-      id: "test",
-      runsOn: { type: "labels", labels: ["ubuntu-latest"] },
-      needs: [],
-      steps: [{ type: "run", run: "echo\rvalue" }],
-    }],
-  });
-  assert(result.ok);
-  assertThrows(
-    () => emitWorkflow(result.value),
-    Error,
-    'Run command in job "test" step 1 cannot be emitted as a YAML literal block.',
-  );
 });
 
 Deno.test("matrix run axis does not affect run step formatting", () => {

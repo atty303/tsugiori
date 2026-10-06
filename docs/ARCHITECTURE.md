@@ -160,11 +160,12 @@ byte equality enforced by a conformance test.
 
 The compiler lowers workflow and composite authoring data to native GitHub
 Actions steps, validates it, and emits deterministic YAML and Action payloads.
-Generated `run` commands preserve their string values in YAML literal blocks;
-values that cannot be represented safely that way are rejected. Each workflow is
-identified solely by its project-relative output path. Generation does not
-restrict its directory; authors ensure GitHub workflow placement. Each generated
-file starts with a source comment.
+The YAML serializer selects plain, quoted, or block scalars while preserving
+string values, including command whitespace and trailing newlines. Workflow
+spacing and Action reference comments are attached to YAML document nodes. Each
+workflow is identified solely by its project-relative output path. Generation
+does not restrict its directory; authors ensure GitHub workflow placement. Each
+generated file starts with a source comment.
 
 `generate` writes the configured outputs. `generate --check` compares expected
 bytes to configured files and reports missing or changed outputs. It does not
@@ -317,7 +318,9 @@ holds five-minute ref redirects and year-long modules; neither is durable
 storage. Cache failure permits normal upstream retrieval, while an upstream
 failure after redirect expiry returns an error. The generator's version owns its
 emitted bytes and parser dependency; changing either output requires a new
-version and retaining the old generator. Unknown versions fail explicitly.
+version and retaining the old generator. Metadata parsing uses the YAML 1.2 core
+schema: dates remain strings, and merge keys are not expanded. Unknown versions
+fail explicitly.
 
 The service authenticates public GitHub API requests with a dedicated OAuth
 App's client ID and client secret and accepts no user credentials. Missing

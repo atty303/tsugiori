@@ -1,1 +1,8 @@
-export { parse, stringify } from "jsr:@std/yaml@1.3.0";
+export {
+  Document,
+  isMap,
+  isScalar,
+  isSeq,
+  parse,
+  stringify,
+} from "jsr:@eemeli/yaml@2.9.1";

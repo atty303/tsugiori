@@ -1,4 +1,4 @@
-import { parse, stringify } from "../../deps.ts";
+import { Document, isMap, isScalar, isSeq } from "../../deps.ts";
 import type {
   ActionInputs,
   Job,
@@ -7,8 +7,6 @@ import type {
   WorkflowPermissions,
 } from "./ast.ts";
 import type { ValidatedWorkflow } from "./validation.ts";
-
-const RUN_PLACEHOLDER = "tsugiori-run-placeholder";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
@@ -60,7 +58,7 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       .map((job) => [job.id, emitJob(job)]),
   );
 
-  const yaml = stringify(
+  const document = new Document(
     {
       name: workflow.name,
       ...(workflow.runName === undefined
@@ -77,116 +75,51 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       jobs,
     },
     {
-      compatMode: false,
-      lineWidth: -1,
-      quoteStyle: '"',
       schema: "core",
-      sortKeys: false,
-      useAnchors: false,
+      sortMapEntries: false,
+      aliasDuplicateObjects: false,
     },
   );
-  return formatWorkflowYaml(yaml, orderedJobs);
+  const jobNodes = document.get("jobs", true);
+  if (!isMap(jobNodes)) throw new Error("Workflow jobs must be a YAML map.");
+  for (const [index, job] of orderedJobs.entries()) {
+    const key = jobNodes.items[index].key;
+    if (!isScalar(key)) {
+      throw new Error("Workflow job ID must be a YAML scalar.");
+    }
+    if (index > 0) key.spaceBefore = true;
+    if (job.uses !== undefined) continue;
+    const steps = document.getIn(["jobs", job.id, "steps"], true);
+    if (!isSeq(steps)) {
+      throw new Error("Workflow steps must be a YAML sequence.");
+    }
+    for (const [stepIndex, step] of job.steps.entries()) {
+      const node = steps.items[stepIndex];
+      if (!isMap(node)) throw new Error("Workflow step must be a YAML map.");
+      if (stepIndex > 0) node.spaceBefore = true;
+      if (step.type === "uses" && step.originalRef !== undefined) {
+        const uses = node.get("uses", true);
+        if (!isScalar(uses)) {
+          throw new Error("Action reference must be a YAML scalar.");
+        }
+        uses.comment = ` ${actionRefComment(step.originalRef)}`;
+      }
+    }
+  }
+  return document.toString({ lineWidth: 0 });
 }
 
-function formatWorkflowYaml(yaml: string, jobs: readonly Job[]): string {
-  const runs = jobs.flatMap((job) =>
-    job.steps.flatMap((step, index) =>
-      step.type === "run" ? [{ value: step.run, job: job.id, step: index }] : []
+function actionRefComment(ref: string): string {
+  // Contract annotations remain on one physical line, including YAML line breaks.
+  return [...ref].some((char) =>
+      char.charCodeAt(0) < 32 ||
+      [127, 133, 8232, 8233].includes(char.charCodeAt(0))
     )
-  );
-  const lines: string[] = [];
-  let inJobs = false;
-  let seenJob = false;
-  let seenStep = false;
-  let inSteps = false;
-  let runIndex = 0;
-  const actions = jobs.flatMap((job) =>
-    job.steps.filter((step) => step.type === "uses")
-  );
-  let actionIndex = 0;
-
-  for (const line of yaml.split("\n")) {
-    if (line === "jobs:") {
-      inJobs = true;
-    } else if (inJobs && /^ {2}\S.*:$/.test(line)) {
-      if (seenJob && lines.at(-1) !== "") lines.push("");
-      seenJob = true;
-      seenStep = false;
-      inSteps = false;
-    } else if (line === "    steps:") {
-      inSteps = true;
-    } else if (inSteps && /^ {6}-(?: |$)/.test(line)) {
-      if (seenStep && lines.at(-1) !== "") lines.push("");
-      seenStep = true;
-    }
-
-    if (inSteps && /^(?: {6}- | {8})run: /.test(line)) {
-      const run = runs[runIndex++];
-      if (run === undefined) {
-        throw new Error("YAML output contains an unexpected run command.");
-      }
-      if (!line.endsWith(`run: ${RUN_PLACEHOLDER}`)) {
-        throw new Error("YAML output contains an unexpected run value.");
-      }
-      const block = literalRunBlock(run.value);
-      try {
-        const parsed = parse([
-          `run: ${block.header}`,
-          ...block.lines.map((value) => value === "" ? "" : `  ${value}`),
-          "",
-        ].join("\n")) as { run: unknown };
-        if (parsed.run !== run.value) throw new Error("Run value changed.");
-      } catch {
-        throw new Error(
-          `Run command in job ${JSON.stringify(run.job)} step ${
-            run.step + 1
-          } cannot be emitted as a YAML literal block.`,
-        );
-      }
-      lines.push(`${line.slice(0, line.indexOf("run: "))}run: ${block.header}`);
-      lines.push(
-        ...block.lines.map((value) => value === "" ? "" : `          ${value}`),
-      );
-      continue;
-    }
-    if (inSteps && /^(?: {6}- | {8})uses: /.test(line)) {
-      const ref = actions[actionIndex++]?.originalRef;
-      // JSON escaping keeps arbitrary contract annotations on one physical line.
-      const comment = ref === undefined
-        ? ""
-        : ` # ${
-          [...ref].some((char) =>
-              char.charCodeAt(0) < 32 ||
-              [127, 133, 8232, 8233].includes(char.charCodeAt(0))
-            )
-            ? JSON.stringify(ref).replace(
-              /[\u0085\u2028\u2029]/g,
-              (char) =>
-                `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
-            )
-            : ref
-        }`;
-      lines.push(line + comment);
-    } else {
-      lines.push(line);
-    }
-  }
-
-  if (runIndex !== runs.length) {
-    throw new Error("YAML output is missing a run command.");
-  }
-  return lines.join("\n");
-}
-
-function literalRunBlock(
-  value: string,
-): { header: string; lines: string[] } {
-  const chomp = value.endsWith("\n\n") ? "+" : value.endsWith("\n") ? "" : "-";
-  const lines = value.split("\n");
-  if (value.endsWith("\n")) lines.pop();
-  const firstContent = lines.find((line) => line.length > 0) ?? "";
-  const indent = /^[ \t]/.test(firstContent) ? "2" : "";
-  return { header: `|${indent}${chomp}`, lines };
+    ? JSON.stringify(ref).replace(
+      /[\u0085\u2028\u2029]/g,
+      (char) => `\\u${char.charCodeAt(0).toString(16).padStart(4, "0")}`,
+    )
+    : ref;
 }
 
 function jobsByDependencyLayer(jobs: readonly Job[]): Job[] {
@@ -303,7 +236,7 @@ export function emitStep(step: Step): Record<string, unknown> {
       emitted.with = emitActionInputs(step.with);
     }
   } else {
-    emitted.run = RUN_PLACEHOLDER;
+    emitted.run = step.run;
     if (step.shell !== undefined) emitted.shell = step.shell;
     if (step.workingDirectory !== undefined) {
       emitted["working-directory"] = step.workingDirectory;
