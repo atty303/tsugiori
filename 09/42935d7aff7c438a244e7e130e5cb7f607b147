@@ -1,0 +1,84 @@
+Task: Allow independently omitted empty task inputs and outputs
+Anchor: 0942935d7aff7c438a244e7e130e5cb7f607b147
+Base: 586e4aa7eec32a1e46a9cd252fee5d241fb8100a
+Branch: main
+Commits: 0942935d7aff7c438a244e7e130e5cb7f607b147 fixes empty-contract authoring and verifies compatibility
+Guidance: AGENTS.md; dig; develop-repository; design-review; design-program-observability; investigate-problem; review; git-task-evidence
+Conditions: Current checkout; durable public library API; no new dependencies; user selected patch bump; no push/PR/release; local verification caches and Git metadata required sandbox escalation
+Authority: User implementation request, patch-bump choice and retry instruction; repository AGENTS.md; current source and applicable skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) taskのinputs/outputsがないときも{}が必須になっているのはなぜ？
+  - A: Inspected definitions and runtime normalization using dig; asked for independent omission.
+- U2:
+    A
+  - A: Agreed each map may be omitted; asked about retaining runtime context.
+- U3:
+    どっちがいいと思う？
+  - A: Recommended preserving the runtime context shape and requested selection.
+- U4:
+    A
+  - A: Agreed to preserve context and asked for common understanding.
+- U5:
+    A
+  - A: Produced a complete implementation request.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の `task()` で、`inputs` と `outputs` をそれぞれ独立に省略可能にしてください。
+    
+    ## 目的
+    - 入力・出力がないtaskで、不要な `inputs: {}`・`outputs: {}` を書かずに済むようにする。
+    
+    ## 成功条件
+    - 両方省略、inputsだけ省略、outputsだけ省略のいずれも利用できる。
+    - 既存の明示的な `{}` と、入力・出力を宣言するコードが引き続き動く。
+    - 省略した入力・出力は空契約として扱われ、未宣言の入力参照・出力書き込みが型で拒否される。
+    - 宣言がある場合の型推論、補完、出力参照、presence proofを維持する。
+    - `run` のcontextは現在の形を維持する。
+    - 省略してもauthoring処理で例外が起きず、生成・実行の意味が明示的な空契約と一致する。
+    - 公開JSDocと利用例を更新し、必要な型・動作検証と標準チェックが通る。
+    
+    ## 決定事項
+    - `inputs` と `outputs` はそれぞれ独立に省略可能とする。
+      - 理由: 入力だけ・出力だけのtaskでも不要な空宣言を減らせる。
+      - 主な棄却案: 両方が空の場合だけ省略可能にする案。片方の空宣言が残るため。
+    - 省略は明示的な `{}` と同じ意味にし、内部では空契約へ正規化する。
+      - 理由: 既存コードとの互換性を維持し、利用者が覚える規則を減らすため。
+      - 主な棄却案: 省略と `{}` に異なる意味を持たせる案。必要な用途がないため。
+    - `run` のcontextには常に `inputs` と `outputs` を残す。
+      - 理由: 定義側の省略だけで目的を達成でき、実行時の契約を変える必要がないため。
+      - 主な棄却案: 省略されたプロパティをcontextから除く案。contextの形に不要な分岐が生じるため。
+    - 入力なしでは空の `inputs`、出力なしでは宣言された出力名がないwriterを提供する。
+      - 理由: contextを維持しつつ、未宣言名へのアクセスを型で拒否できるため。
+      - 主な棄却案: なし。
+    
+    ## 制約
+    - 既存のtask定義と実行時契約との互換性を維持する。
+    - 型の省略対応によって、任意の入力・出力名を受け入れるようにしない。
+    - 現在のcheckoutで作業する。push、PR作成、releaseは行わない。
+    
+    ## 対象外
+    - taskの実行方式やartifact配布方式の変更。
+    - 入力・出力の値契約やrequiredの意味の変更。
+    - `run` のcontextからのプロパティ削除。
+    
+    ## 未検証の前提
+    - jobとcompositeを含む各 `task()` の公開署名・共通処理で、必要な変更箇所を実装前に確認する。
+    - 省略時の型引数が空契約として推論される具体的な型設計は、実際の型検証とLSP表示で確認する。
+    
+    ## 実装時の指示
+    - `src/github_actions/mod.ts` の `TaskStepDefinition` は現在 `inputs`・`outputs` が必須で、`task()` の署名にも必須の `outputs: O` がある。関連する公開署名を確認して整合させる。
+    - `taskStep()` は一部で省略値を `{}` に正規化しているが、呼び出し元に `Object.entries(definition.outputs)` がある。型だけ変更せず、省略時の処理も修正する。
+    - 利用者の定義では省略を認め、内部のmaterializedなtask表現では空契約を保持する。
+    - 両方省略・片方だけ省略・既存の明示指定に加え、未宣言名の拒否と宣言ありの場合の型推論を検証する。
+  - A: Read applicable skills and repository guidance, fetched code/notes and established clean main at 586e4aa; proposed release impact.
+- U7:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_mSn4972B5Iw2zhx9a3PVmSRV\",0]","question":"この変更をlocal commitにする場合、後方互換なAPI追加として feat（次回releaseはminor）を提案します。このrelease影響でよいですか？ 実装・検証は回答待ちでも進め、pushやreleaseは行いません。","answer":"patch bump"}]
+    </send_user_message_question_reply>
+  - A: Accepted patch bump. Implemented optional maps, declaration-only inference and nonempty contract guards; fixed independent-review phantom-contract and undefined findings and the init-template mismatch. Final diff SHA256 01532e810ee32c05d16e0df7636f1d0fdaec875e783ed0a91f6fffc3abfbbd94 passed independent review and standard check/test: 150 tests, 186 published TypeScript examples, LSP and generated YAML checks. Signed commit failed in 1Password; preserved staged changes and requested a retry choice.
+- U8:
+    retry
+  - A: Verified unchanged reviewed staged diff and retried signed commit successfully as 0942935d7aff7c438a244e7e130e5cb7f607b147. Retrieved complete thread with eight human messages and no older page, checked absent note, and normalized this record. First temporary-note write failed from Python source encoding, leaving no note; corrected the local writer. No push, PR or release.
