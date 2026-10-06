@@ -1,3 +1,4 @@
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   always,
@@ -19,7 +20,6 @@ import {
 } from "@atty303/tsugiori/github-actions";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
-import { parse } from "../src/deps.ts";
 import { emitExpression } from "../src/github_actions/expression.ts";
 
 Deno.test("typed expressions compose across job and step fields", async () => {
@@ -41,10 +41,6 @@ Deno.test("typed expressions compose across job and step fields", async () => {
         name: "Source",
         run: "echo 'matrix=[\"dev\"]' >> $GITHUB_OUTPUT",
       });
-      assertEquals(
-        source.steps.source.outputs.matrix,
-        "${{ steps.source.outputs.matrix }}",
-      );
       return source.outputs(({ steps }) => ({
         matrix: steps.source.outputs.matrix,
       }));
@@ -96,26 +92,50 @@ Deno.test("typed expressions compose across job and step fields", async () => {
   });
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(yaml, "contains(needs.prepare.outputs.matrix, 'dev')");
-  assertStringIncludes(yaml, "fromJSON(needs.prepare.outputs.matrix)");
-  assertStringIncludes(yaml, "format('deploy-{0}', matrix.stage)");
-  assertStringIncludes(
+  assertInlineSnapshot(
     yaml,
-    "(steps.run.outputs.result == 'ok') && custom()",
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: \${{ steps.source.outputs.matrix }}
+    steps:
+      - name: Source
+        id: source
+        run: echo 'matrix=["dev"]' >> \$GITHUB_OUTPUT
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+    if: \${{ contains(needs.prepare.outputs.matrix, 'dev') }}
+    outputs:
+      result: \${{ case((steps.run.outputs.result == 'ok'), steps.run.outputs.result, 'other') }}
+    strategy:
+      matrix:
+        stage: \${{ fromJSON(needs.prepare.outputs.matrix) }}
+    concurrency:
+      group: \${{ format('deploy-{0}', matrix.stage) }}
+      cancel-in-progress: false
+    steps:
+      - name: Run
+        id: run
+        env:
+          STAGE: \${{ matrix.stage }}
+          TOKEN: \${{ secrets.token }}
+        uses: example/action@sha
+        with:
+          value: \${{ matrix.stage }}
+
+      - name: Check
+        if: \${{ ((steps.run.outputs.result == 'ok') && custom()) }}
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
   );
-  assertStringIncludes(
-    yaml,
-    "case((steps.run.outputs.result == 'ok'), steps.run.outputs.result, 'other')",
-  );
-  assertStringIncludes(yaml, "value: ${{ matrix.stage }}");
-  assertStringIncludes(yaml, "STAGE: ${{ matrix.stage }}");
-  assertStringIncludes(yaml, "TOKEN: ${{ secrets.token }}");
-  const parsed = parse(yaml) as { jobs: { deploy: { if: string } } };
-  assertEquals(
-    parsed.jobs.deploy.if,
-    "${{ contains(needs.prepare.outputs.matrix, 'dev') }}",
-  );
-  assertEquals(lowered.workflows[0].workflow.jobs[1].needs, ["prepare"]);
 });
 
 Deno.test("expression nodes cannot be interpolated as host strings", () => {
@@ -137,7 +157,23 @@ Deno.test("a step ID colliding with an expression method is addressable", async 
   });
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(yaml, "steps.eq.outputs.result");
+  assertInlineSnapshot(
+    yaml,
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      result: \${{ steps.eq.outputs.result }}
+    steps:
+      - name: Produce
+        id: eq
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
+  );
 });
 
 Deno.test("operators and built-ins retain GitHub expression syntax", () => {
@@ -204,11 +240,36 @@ Deno.test("a complete matrix can come from one typed expression", async () => {
   });
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  const parsed = parse(yaml) as {
-    jobs: { test: { strategy: { matrix: string } } };
-  };
-  assertEquals(
-    parsed.jobs.test.strategy.matrix,
-    '${{ fromJSON(\'[{"stage":"dev"}]\') }}',
+  assertInlineSnapshot(
+    yaml,
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: \${{ fromJSON('[{"stage":"dev"}]') }}
+    steps:
+      - name: Test
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
   );
+});
+
+Deno.test("declared run outputs expose GitHub references during authoring", () => {
+  defineWorkflow("ci.yml", { on: { push: {} } }).job("prepare", ({ job }) => {
+    const source = job.runsOn("ubuntu-latest").run({
+      id: "source",
+      name: "Source",
+      run: "true",
+      outputs: ["matrix"],
+    });
+    assertEquals(
+      source.steps.source.outputs.matrix,
+      "${{ steps.source.outputs.matrix }}",
+    );
+    return source;
+  });
 });

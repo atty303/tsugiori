@@ -1,6 +1,5 @@
-import { parse } from "../src/deps.ts";
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import {
-  assert,
   assertEquals,
   assertRejects,
   assertStringIncludes,
@@ -51,20 +50,43 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  for (
-    const field of [
-      "branches:",
-      "master",
-      "timeout-minutes: 60",
-      "id-token: write",
-      "environment: dev",
-      "cancel-in-progress: false",
-      "queue: max",
-      "working-directory: deploy/signage-plugin-webview-cz",
-      "AWS_REGION: ap-northeast-1",
-    ]
-  ) assertStringIncludes(yaml, field);
-  assertStringIncludes(yaml, "${{ steps.deploy.outputs.result }}");
+  assertInlineSnapshot(
+    yaml,
+    `name: .github/workflows/deploy.yml
+on:
+  push:
+    branches:
+      - master
+permissions:
+  contents: read
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-24.04
+    if: \${{ needs.detect.outputs.selected == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    timeout-minutes: 60
+    environment: dev
+    outputs:
+      result: \${{ steps.deploy.outputs.result }}
+    concurrency:
+      group: \${{ 'signage-plugin-webview-cz-dev' }}
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - name: Deploy
+        id: deploy
+        env:
+          AWS_REGION: ap-northeast-1
+        run: ./scripts/deploy.sh
+        working-directory: deploy/signage-plugin-webview-cz
+`,
+    { serializer: (yaml) => yaml },
+  );
+});
+
+Deno.test("blank raw expressions are rejected", () => {
   assertThrows(() => rawExpression("  "), TypeError);
 });
 
@@ -92,33 +114,54 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
       }));
 
   const lowered = await lowerProject(
-    defineProject({ workflows: [ci] }),
+    defineProject({
+      workflows: [ci],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
     "./tsugiori.ts",
+    "fixture-source",
   );
-  const steps = lowered.workflows[0].workflow.jobs[0].steps;
-  assertEquals(
-    steps.filter((step) =>
-      step.name?.startsWith("Optional") ||
-      step.name === "Conditional task"
-    )
-      .map((step) => ({
-        name: step.name,
-        if: step.if,
-        continueOnError: step.continueOnError,
-      })),
-    [
-      { name: "Optional action", if: undefined, continueOnError: true },
-      { name: "Optional command", if: undefined, continueOnError: true },
-      {
-        name: "Conditional task",
-        if: rawExpression("steps.source.outputs.sha != ''"),
-        continueOnError: true,
-      },
-    ],
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  workflow_dispatch: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Optional action
+        continue-on-error: true
+        uses: actions/checkout@v4
+
+      - name: Optional command
+        continue-on-error: true
+        run: "false"
+
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Conditional task
+        if: \${{ steps.source.outputs.sha != '' }}
+        continue-on-error: true
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
+`,
+    { serializer: (yaml) => yaml },
   );
-  const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertEquals(yaml.match(/continue-on-error: true/g)?.length, 4);
-  assertStringIncludes(yaml, "if: ${{ steps.source.outputs.sha != '' }}");
 });
 
 Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
@@ -146,10 +189,26 @@ Deno.test("workflow dispatch string inputs are emitted from authoring options", 
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(yaml, "workflow_dispatch:\n    inputs:\n      commit:");
-  assertStringIncludes(
+  assertInlineSnapshot(
     yaml,
-    "default: 4edf1f703629073845d31eb54fe659f46c1b704b",
+    `name: .github/workflows/deploy.yml
+on:
+  push: {}
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Commit SHA to deploy
+        required: true
+        type: string
+        default: 4edf1f703629073845d31eb54fe659f46c1b704b
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Deploy
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
   );
 });
 
@@ -178,10 +237,76 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
   const lowered = await lowerProject(
+    defineProject({
+      workflows: [ci],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
+    "./tsugiori.ts",
+    "fixture-source",
+  );
+
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: "false"
+
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Test
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
+
+      - name: Inspect
+        run: echo inspected
+
+      - name: Report
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-2'"
+`,
+    { serializer: (yaml) => yaml },
+  );
+});
+
+Deno.test("task registry retains invocation entrypoints", async () => {
+  const ci = defineWorkflow(".github/workflows/ci.yml", {
+    on: { push: {} },
+  }).job("test", ({ job }) =>
+    job
+      .runsOn("ubuntu-latest")
+      .task({ name: "Test", inputs: {}, outputs: {}, run: () => {} })
+      .run({ name: "Inspect", run: "echo inspected" })
+      .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
+
+  const lowered = await lowerProject(
     defineProject({ workflows: [ci] }),
     "./tsugiori.ts",
   );
 
+  assertEquals(lowered.workflows.length, 1);
   assertEquals(
     lowered.tasks.map((task) => task.entrypoint),
     [
@@ -189,42 +314,6 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       ".github/workflows/ci.yml/test/task-2",
     ],
   );
-  assertEquals(lowered.workflows.length, 1);
-  const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assert(!yaml.includes("name: Resolve task artifact"));
-  assertStringIncludes(yaml, "name: Cache task artifact");
-  assertStringIncludes(yaml, "name: Prepare task artifact");
-  assertStringIncludes(yaml, "permissions:\n  contents: read");
-  assertStringIncludes(yaml, 'persist-credentials: "false"');
-  assert(!yaml.includes("expected-layout"));
-  assertStringIncludes(
-    yaml,
-    "uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
-  );
-
-  assertStringIncludes(
-    yaml,
-    "key: tsugiori-task-unresolved-${{ runner.os }}-${{ runner.arch }}",
-  );
-  assertEquals(yaml.match(/uses: actions\/cache@/g)?.length, 1);
-  assert(!yaml.includes("actions/cache/restore@"));
-  assert(!yaml.includes("actions/cache/save@"));
-  assert(!yaml.includes("github.run_id"));
-  assert(!yaml.includes("github.run_attempt"));
-  assertEquals(
-    (parse(yaml) as { jobs: { test: { steps: { run?: string }[] } } }).jobs.test
-      .steps
-      .filter((step) => step.run?.includes("task-1"))[0].run,
-    "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
-  );
-  assertEquals(
-    (parse(yaml) as { jobs: { test: { steps: { run?: string }[] } } }).jobs.test
-      .steps
-      .filter((step) => step.run?.includes("task-2"))[0].run,
-    "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-2'",
-  );
-  assertEquals(yaml.match(/name: Prepare task artifact/g)?.length, 1);
-  assertEquals(yaml.match(/name: Cache task artifact/g)?.length, 1);
 });
 
 Deno.test("duplicate workflow outputs fail before generation", () => {
@@ -287,20 +376,48 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
       .task({ name: "Task", inputs: {}, outputs: {}, run: () => {} }));
 
   const lowered = await lowerProject(
-    defineProject({ workflows: [ci] }),
+    defineProject({
+      workflows: [ci],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
     "./tsugiori.ts",
+    "fixture-source",
   );
-  const steps = lowered.workflows[0].workflow.jobs[0].steps;
-  assertEquals(steps.map((step) => step.id).filter(Boolean), [
-    "tsugiori-task-cache",
-    "tsugiori-task-cache-2",
-    "tsugiori-task-prepare",
-  ]);
-  const prepareStep = steps.find((step) =>
-    step.name === "Prepare task artifact"
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Authored
+        id: tsugiori-task-cache
+        run: "true"
+
+      - name: Cache task artifact
+        id: tsugiori-task-cache-2
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Task
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
+`,
+    { serializer: (yaml) => yaml },
   );
-  assert(prepareStep?.type === "uses");
-  assertEquals(prepareStep.with?.["source-key"], "unresolved");
 });
 
 Deno.test("workflow states are immutable and dependencies use prior job references", async () => {
@@ -326,13 +443,44 @@ Deno.test("workflow states are immutable and dependencies use prior job referenc
     "./tsugiori.ts",
   );
 
-  assertEquals(first.workflows[0].workflow.jobs.map((job) => job.id), ["test"]);
-  assertEquals(second.workflows[0].workflow.jobs.map((job) => job.id), [
-    "test",
-    "build",
-  ]);
-  assertEquals(second.workflows[0].workflow.jobs[1].needs, ["test"]);
-  assertEquals(second.workflows[0].workflow.jobs[0].steps[0].id, "verify");
+  assertInlineSnapshot(
+    emitWorkflow(first.workflows[0].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify
+        id: verify
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
+  );
+  assertInlineSnapshot(
+    emitWorkflow(second.workflows[0].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify
+        id: verify
+        run: "true"
+
+  build:
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    steps:
+      - name: Build
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
+  );
 });
 
 Deno.test("authoring rejects runtime-invalid provider-native values", () => {
@@ -479,9 +627,34 @@ Deno.test("direct project preserves deployment workflow fields", async () => {
       source.entrypointArgument,
     );
     const yaml = emitWorkflow(lowered.workflows[0].workflow);
-    assertStringIncludes(yaml, "branches:\n      - master");
-    assertStringIncludes(yaml, "cancel-in-progress: false");
-    assertStringIncludes(yaml, "working-directory: scripts");
+    assertInlineSnapshot(
+      yaml,
+      `name: Deploy
+on:
+  push:
+    branches:
+      - master
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    if: \${{ github.ref == 'refs/heads/master' }}
+    timeout-minutes: 30
+    environment: dev
+    outputs:
+      result: \${{ steps.deploy.outputs.result }}
+    concurrency:
+      group: app-dev
+      cancel-in-progress: false
+    steps:
+      - name: Deploy
+        id: deploy
+        env:
+          AWS_REGION: ap-northeast-1
+        run: ./deploy.sh
+        working-directory: scripts
+`,
+      { serializer: (yaml) => yaml },
+    );
   } finally {
     await Deno.remove(root, { recursive: true });
   }
@@ -494,7 +667,7 @@ Deno.test("direct project preserves task step ID and environment", async () => {
     await Deno.writeTextFile(
       `${root}/tsugiori.ts`,
       `export default {
-  kind: "github-actions.project", cacheVersion: 1, workingDirectory: ".",
+  kind: "github-actions.project", cacheVersion: 1, workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare",
   workflows: [{ name: "CI", path: ".github/workflows/ci.yml",
     on: { push: {  } }, jobs: [{ id: "test", runsOn: "ubuntu-latest", needs: [],
       steps: [{ type: "task", id: "plan", name: "Plan", inputs: {}, outputs: {}, run: () => {},
@@ -511,15 +684,42 @@ Deno.test("direct project preserves task step ID and environment", async () => {
     const lowered = await lowerProject(
       source.project,
       source.entrypointArgument,
+      "fixture-source",
     );
     const yaml = emitWorkflow(lowered.workflows[0].workflow);
-    assertStringIncludes(yaml, "id: plan");
-    assertStringIncludes(yaml, "TOKEN: ${{ secrets.TOKEN }}");
-    assertEquals(
-      (parse(yaml) as {
-        jobs: { test: { steps: { id?: string; run?: string }[] } };
-      }).jobs.test.steps.find((step) => step.id === "plan")?.run,
-      "\"${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\" '.github/workflows/ci.yml/test/task-1'",
+    assertInlineSnapshot(
+      yaml,
+      `name: CI
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Plan
+        id: plan
+        env:
+          TOKEN: \${{ secrets.TOKEN }}
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
+`,
+      { serializer: (yaml) => yaml },
     );
   } finally {
     await Deno.remove(root, { recursive: true });
@@ -642,15 +842,47 @@ Deno.test("workflowOutputs replaces direct native outputs without mutating earli
     defineProject({ workflows: [replacement] }),
     "config.ts",
   );
-  assertEquals(first.workflows[0].workflow.on.workflow_call?.outputs, {
-    original: {
-      description: "Original",
-      value: "${{ jobs.run.outputs.value }}",
-    },
-  });
-  assertEquals(second.workflows[0].workflow.on.workflow_call?.outputs, {
-    replacement: { value: "${{ jobs.run.outputs.value }}" },
-  });
+  assertInlineSnapshot(
+    emitWorkflow(first.workflows[0].workflow),
+    `name: .github/workflows/outputs.yml
+on:
+  workflow_call:
+    outputs:
+      original:
+        description: Original
+        value: \${{ jobs.run.outputs.value }}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      value: \${{ steps.out.outputs.value }}
+    steps:
+      - name: Out
+        id: out
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
+  );
+  assertInlineSnapshot(
+    emitWorkflow(second.workflows[0].workflow),
+    `name: .github/workflows/outputs.yml
+on:
+  workflow_call:
+    outputs:
+      replacement:
+        value: \${{ jobs.run.outputs.value }}
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    outputs:
+      value: \${{ steps.out.outputs.value }}
+    steps:
+      - name: Out
+        id: out
+        run: "true"
+`,
+    { serializer: (yaml) => yaml },
+  );
 });
 
 Deno.test("GitHub string maps preserve empty and whitespace values through public authoring", async () => {

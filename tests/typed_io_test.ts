@@ -1,3 +1,4 @@
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
   defineProject,
@@ -87,18 +88,80 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
   );
 
   const lowered = await lowerProject(
-    defineProject({ workflows: [complete] }),
+    defineProject({
+      workflows: [complete],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
     "./tsugiori.ts",
+    "fixture-source",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertStringIncludes(yaml, "fromJSON(needs.detect.outputs.targets)");
-  assertStringIncludes(yaml, "needs.detect.outputs.targets != ''");
-  assertStringIncludes(
+  assertInlineSnapshot(
     yaml,
-    "TSUGIORI_INPUT_TARGETS: ${{ needs.detect.outputs.targets }}",
+    `name: .github/workflows/deploy.yml
+on:
+  push: {}
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      targets: \${{ steps.find.outputs.targets }}
+    steps:
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Find
+        id: find
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/deploy.yml/detect/task-1'"
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs:
+      - detect
+    if: \${{ (needs.detect.outputs.targets != '') }}
+    strategy:
+      matrix:
+        target: \${{ fromJSON(needs.detect.outputs.targets) }}
+    steps:
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./tsugiori.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Deploy
+        env:
+          REGION: ap-northeast-1
+          TSUGIORI_INPUT_TARGETS: \${{ needs.detect.outputs.targets }}
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/deploy.yml/deploy/task-1'"
+`,
+    { serializer: (yaml) => yaml },
   );
-  assertStringIncludes(yaml, "REGION: ap-northeast-1");
-  assertEquals(lowered.tasks.length, 2);
 });
 
 Deno.test("typed input requires the source contract object and rejects env collision", () => {

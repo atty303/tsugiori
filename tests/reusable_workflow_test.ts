@@ -1,9 +1,5 @@
-import {
-  assertEquals,
-  assertRejects,
-  assertStringIncludes,
-  assertThrows,
-} from "@std/assert";
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
+import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   defineProject,
   defineWorkflow,
@@ -13,7 +9,6 @@ import {
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { scenario } from "../src/testing/mod.ts";
-import { parse } from "../src/deps.ts";
 
 const platform = defineWorkflow(".github/workflows/platform.yml", {
   on: {
@@ -104,6 +99,129 @@ const main = defineWorkflow(".github/workflows/main.yml", {
   );
 const config = defineProject({ workflows: [main, ci, platform] });
 
+Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
+  const lowered = await lowerProject(config, ".github/tsugiori.ts");
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/main.yml
+env:
+  CALLER_ONLY: value
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "*"
+permissions:
+  actions: read
+  pull-requests: write
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      module: app
+    secrets: inherit
+
+  notify:
+    runs-on:
+      - self-hosted
+      - linux
+    needs:
+      - ci
+    if: \${{ always() }}
+    steps:
+      - name: Notify
+        id: notify
+        env:
+          RESULT: \${{ needs.ci.outputs.result }}
+        run: echo notify
+`,
+    { serializer: (yaml) => yaml },
+  );
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[1].workflow),
+    `name: .github/workflows/ci.yml
+on:
+  workflow_call:
+    inputs:
+      module:
+        type: string
+        required: true
+    secrets:
+      token:
+        required: true
+    outputs:
+      result:
+        value: \${{ jobs.platform.outputs.result }}
+jobs:
+  platform:
+    uses: ./.github/workflows/platform.yml
+    with:
+      module: \${{ inputs.module }}
+    secrets:
+      token: \${{ secrets.token }}
+`,
+    { serializer: (yaml) => yaml },
+  );
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[2].workflow),
+    `name: .github/workflows/platform.yml
+env:
+  ISOLATED: callee
+on:
+  workflow_call:
+    inputs:
+      enabled:
+        type: boolean
+        default: true
+      module:
+        type: string
+        required: true
+    secrets:
+      token:
+        required: true
+    outputs:
+      result:
+        value: \${{ jobs.build.outputs.result }}
+jobs:
+  build:
+    runs-on: \${{ matrix.runner }}
+    name: \${{ matrix.target }}
+    env:
+      MODULE: \${{ inputs.module }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./modules
+    outputs:
+      result: \${{ steps.check.outputs.result }}
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            target: linux
+            arch: x86_64
+          - runner: macos-latest
+            target: macos
+            arch: aarch64
+          - runner: windows-2022
+            target: windows
+            arch: x86_64
+          - runner: ubuntu-latest
+            target: android
+            arch: aarch64
+    steps:
+      - name: Check
+        id: check
+        timeout-minutes: \${{ fromJSON(env.TIMEOUT) }}
+        run: echo check
+        shell: pwsh
+        working-directory: .
+`,
+    { serializer: (yaml) => yaml },
+  );
+});
+
 Deno.test("typed reusable call emits the explicit native reference independently of the callee path", async () => {
   const caller = defineWorkflow("generated/caller.yaml", { on: { push: {} } })
     .job("call", ({ job }) =>
@@ -116,40 +234,20 @@ Deno.test("typed reusable call emits the explicit native reference independently
     defineProject({ workflows: [platform, caller] }),
     "./config.ts",
   );
-  assertStringIncludes(
+  assertInlineSnapshot(
     emitWorkflow(lowered.workflows[1].workflow),
-    "uses: ./.github/workflows/deployed-platform.yaml",
+    `name: generated/caller.yaml
+on:
+  push: {}
+jobs:
+  call:
+    uses: ./.github/workflows/deployed-platform.yaml
+    with:
+      module: app
+    secrets: inherit
+`,
+    { serializer: (yaml) => yaml },
   );
-});
-
-Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
-  const lowered = await lowerProject(config, ".github/tsugiori.ts");
-  const caller = parse(emitWorkflow(lowered.workflows[0].workflow)) as {
-    jobs: Record<string, Record<string, unknown>>;
-  };
-  assertEquals(caller.jobs.ci.uses, "./.github/workflows/ci.yml");
-  assertEquals(caller.jobs.ci.secrets, "inherit");
-  assertEquals("steps" in caller.jobs.ci, false);
-  assertEquals("runs-on" in caller.jobs.ci, false);
-  const callee = parse(emitWorkflow(lowered.workflows[2].workflow)) as {
-    on: Record<string, unknown>;
-    jobs: Record<string, Record<string, unknown>>;
-  };
-  assertEquals(callee.jobs.build["runs-on"], "${{ matrix.runner }}");
-  assertEquals(callee.jobs.build.defaults, {
-    run: { shell: "bash", "working-directory": "./modules" },
-  });
-  const steps = callee.jobs.build.steps as Record<string, unknown>[];
-  assertEquals(steps[0].shell, "pwsh");
-  assertEquals(steps[0]["timeout-minutes"], "${{ fromJSON(env.TIMEOUT) }}");
-  assertEquals(callee.on.workflow_call, {
-    inputs: {
-      module: { type: "string", required: true },
-      enabled: { type: "boolean", default: true },
-    },
-    secrets: { token: { required: true } },
-    outputs: { result: { value: "${{ jobs.build.outputs.result }}" } },
-  });
 });
 
 for (const fail of [false, true]) {
@@ -301,7 +399,7 @@ Deno.test("host scenario observation preserves results and never exposes fixture
   });
 });
 
-Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", async () => {
+Deno.test("dispatch choice and run name render into native YAML", async () => {
   const dispatch = defineWorkflow(".github/workflows/release.yml", {
     on: {
       workflow_dispatch: {
@@ -336,23 +434,70 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
     defineProject({ workflows: [dispatch] }),
     "config.ts",
   );
-  const yaml = parse(emitWorkflow(lowered.workflows[0].workflow)) as Record<
-    string,
-    unknown
-  >;
-  assertEquals(yaml["run-name"], "Release ${{ inputs.into_env }}");
-  assertEquals(yaml.on, {
-    workflow_dispatch: {
-      inputs: {
-        into_env: {
-          type: "choice",
-          required: true,
-          options: ["stg", "prd"],
-          default: "stg",
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/release.yml
+run-name: Release \${{ inputs.into_env }}
+env:
+  TIMEOUT: "10"
+on:
+  workflow_dispatch:
+    inputs:
+      into_env:
+        type: choice
+        required: true
+        options:
+          - stg
+          - prd
+        default: stg
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: write
+    steps:
+      - name: Release
+        id: release
+        timeout-minutes: 10
+        run: echo release
+        shell: bash
+`,
+    { serializer: (yaml) => yaml },
+  );
+});
+
+Deno.test("dispatch scenarios expose workflow env to steps", async () => {
+  const dispatch = defineWorkflow(".github/workflows/release.yml", {
+    on: {
+      workflow_dispatch: {
+        inputs: {
+          into_env: {
+            type: "choice",
+            required: true,
+            options: ["stg", "prd"],
+            default: "stg",
+          },
         },
       },
     },
-  });
+    runName: "Release ${{ inputs.into_env }}",
+
+    env: { TIMEOUT: "10" },
+  }).job(
+    "release",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").permissions({
+        actions: "write",
+        "pull-requests": "write",
+      }).run({
+        id: "release",
+        name: "Release",
+        run: "echo release",
+        shell: "bash",
+        timeoutMinutes: 10,
+      }),
+  );
   await scenario(dispatch, (t) => {
     t.github({ event_name: "workflow_dispatch" });
     t.job("release", (j) =>
@@ -361,6 +506,9 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
         return {};
       }));
   });
+});
+
+Deno.test("PR-target scenarios filter activity types", async () => {
   const pr = defineWorkflow(".github/workflows/pr.yml", {
     on: { pull_request_target: { types: ["opened"] } },
   }).job(
@@ -383,6 +531,9 @@ Deno.test("Glaze dispatch choice, PR-target activity and ordered tag filters", a
     });
     t.job("job", (j) => j.step("run").fixture({}));
   });
+});
+
+Deno.test("push scenarios honor ordered tag filters", async () => {
   const tags = defineWorkflow(".github/workflows/tags.yml", {
     on: { push: { tags: ["v*", "!v*-alpha"] } },
   }).job(
@@ -429,20 +580,57 @@ Deno.test("native defaults emit only specified values and tasks retain step time
         ),
     );
   const lowered = await lowerProject(
-    defineProject({ workflows: [p] }),
+    defineProject({
+      workflows: [p],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
     "config.ts",
+    "fixture-source",
   );
-  const w = parse(emitWorkflow(lowered.workflows[0].workflow)) as {
-    jobs: Record<
-      string,
-      { defaults: unknown; steps: Record<string, unknown>[] }
-    >;
-  };
-  assertEquals(w.jobs.shell.defaults, { run: { shell: "bash" } });
-  assertEquals(w.jobs.directory.defaults, {
-    run: { "working-directory": "." },
-  });
-  assertEquals(w.jobs.directory.steps.at(-1)?.["timeout-minutes"], 1);
+  assertInlineSnapshot(
+    emitWorkflow(lowered.workflows[0].workflow),
+    `name: .github/workflows/defaults.yml
+on:
+  push: {}
+jobs:
+  shell:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Run
+        run: "true"
+
+  directory:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - name: Cache task artifact
+        id: tsugiori-task-cache
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
+      - name: Prepare task artifact
+        id: tsugiori-task-prepare
+        uses: ./actions/task-prepare
+        with:
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          entrypoint: ./config.ts
+          project-directory: .
+          source-key: fixture-source
+
+      - name: Task
+        timeout-minutes: 1
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/defaults.yml/directory/task-1'"
+`,
+    { serializer: (yaml) => yaml },
+  );
 });
 Deno.test("caller matrix instance expectations are checked independently", async () => {
   const callee = defineWorkflow(".github/workflows/callee.yml", {

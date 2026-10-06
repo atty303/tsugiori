@@ -1,3 +1,4 @@
+import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   type ActionContract,
@@ -130,7 +131,6 @@ Deno.test("action ref annotations survive lowering without changing YAML values"
   const { emitWorkflow } = await import(
     "../src/compiler/github_actions/emitter.ts"
   );
-  const { parse } = await import("../src/deps.ts");
   const pinned = {
     name: "Action",
     description: "Action",
@@ -152,16 +152,24 @@ Deno.test("action ref annotations survive lowering without changing YAML values"
     "./workflows.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
-  assertEquals(yaml.includes(`uses: ${pinned.uses} # v4`), true);
-  assertEquals(yaml.includes("uses: a/b@v5 #"), false);
-  assertEquals(yaml.includes("\\u2028"), true);
-  const parsed = parse(yaml) as {
-    jobs: { test: { steps: { uses?: string }[] } };
-  };
-  assertEquals(parsed.jobs.test.steps.map((step) => step.uses), [
-    pinned.uses,
-    "a/b@v5",
-    undefined,
-    pinned.uses,
-  ]);
+  assertInlineSnapshot(
+    yaml,
+    `name: ci.yml
+on:
+  push: {}
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: a/b@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v4
+
+      - uses: a/b@v5
+
+      - name: Hello
+        run: echo hello
+
+      - uses: a/b@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # "ref\\nuses: malicious\\u2028tail"
+`,
+    { serializer: (yaml) => yaml },
+  );
 });
