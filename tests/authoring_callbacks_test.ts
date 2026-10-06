@@ -474,7 +474,7 @@ runs:
         TSUGIORI_ARTIFACT_CACHE: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
         TSUGIORI_RUNNER_OS: \${{ runner.os }}
         TSUGIORI_RUNNER_ARCH: \${{ runner.arch }}
-        TSUGIORI_INSTALL_DENO_VERSION: 2.9.5
+        TSUGIORI_INSTALL_DENO_VERSION: 2.9.7
         TSUGIORI_ACTION_PATH: \${{ github.action_path }}
       run: bash "\$TSUGIORI_ACTION_PATH/.tsugiori/prepare.sh"
     - name: Composite task

@@ -44,25 +44,53 @@ preparation, and artifact caching; GitHub Actions runs each job and step.
 
 ## Getting started
 
-Install Deno and map a released package version in your workflow project's
-`deno.json`. Run the commands from that project directory.
+Install Deno and create a separate workflow project inside `.github`,
+independent of your application's Deno configuration. From your repository root:
+
+```sh
+mkdir -p .github
+```
+
+```sh
+cd .github
+```
+
+```sh
+deno run --no-config --no-lock -A jsr:@atty303/tsugiori@<released-version>/init
+```
+
+Replace `<released-version>` with a released version that provides `/init`.
+`--no-config --no-lock` prevents bootstrap from loading application settings or
+creating a lockfile. `-A` permits file creation and local diagnostic recording.
+The command creates only `deno.json` and `workflows.ts` in the current
+directory; it does not install dependencies or generate YAML. If `deno.json`,
+`deno.jsonc`, `deno.lock` or `workflows.ts` already exists, it stops without
+writing files.
+
+The generated `deno.json` is shown in full below. In the actual file,
+`<released-version>` is replaced with the init package's own version; the `^`
+range permits compatible updates, and `deno.lock` records the resolved version.
 
 ```json
 {
   "imports": {
-    "@atty303/tsugiori": "jsr:@atty303/tsugiori@<released-version>"
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@^<released-version>"
   },
   "permissions": {
     "default": {
-      "import": ["jsr.io:443", "tsugiori.atty303.workers.dev:443"]
+      "import": [
+        "jsr.io:443",
+        "tsugiori.atty303.workers.dev:443"
+      ]
     }
   },
-  "tasks": { "tsugiori": "deno run --frozen=true -A ./workflows.ts" }
+  "tasks": {
+    "tsugiori": "deno run --frozen=true -A ./workflows.ts"
+  }
 }
 ```
 
-Replace `<released-version>` with the version you want to use. Save this
-`workflows.ts` beside the configuration:
+The generated `workflows.ts` is:
 
 ```ts
 import {
@@ -71,27 +99,29 @@ import {
   runProject,
 } from "@atty303/tsugiori/github-actions";
 
-const ci = defineWorkflow("workflows/ci.yml", {
-  on: { push: {}, pull_request: {} },
+const sample = defineWorkflow("workflows/tsugiori.yml", {
+  name: "Tsugiori sample",
+  on: { workflow_dispatch: {} },
   permissions: { contents: "read" },
-}).job("test", ({ job }) =>
-  job.runsOn("ubuntu-24.04").task({
-    name: "Test",
-    inputs: {},
-    outputs: {},
-    run: async () => {
-      const result = await new Deno.Command("deno", {
-        args: ["test", "-A"],
-        stdout: "inherit",
-        stderr: "inherit",
-      }).output();
-      if (!result.success) throw new Error(`Tests failed: ${result.code}`);
-    },
-  }));
+}).job("hello", ({ job }) =>
+  job.runsOn("ubuntu-24.04")
+    .uses("actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1", {
+      name: "Checkout",
+      with: { "persist-credentials": "false" },
+    })
+    .task({
+      name: "Say hello",
+      inputs: {},
+      outputs: {},
+      run: () => {
+        console.log("Hello from Tsugiori!");
+      },
+    }));
 
 const project = defineProject({
   cacheVersion: 1,
-  workflows: [ci],
+  workingDirectory: ".github",
+  workflows: [sample],
 });
 export default project;
 
@@ -103,6 +133,14 @@ if (import.meta.main) {
 }
 ```
 
+The sample checks out the repository and runs one Deno task that prints a
+message. It generates `workflows/tsugiori.yml` and runs only through GitHub's
+manual workflow dispatch. Commit it to the default branch to make it available
+in the Actions UI. Replace the sample with your own workflow and tasks.
+`workingDirectory: ".github"` selects the workflow project's checkout-relative
+location for task preparation; edit it if you place the project elsewhere.
+Continue running the following commands from the workflow project directory.
+
 Install dependencies with the configured permission set and commit the Deno
 lockfile. `-P` explicitly loads `permissions.default`; configuring it alone does
 not grant access. The import list replaces Deno's default hosts, so it includes
@@ -112,13 +150,15 @@ both JSR and the Tsugiori type service used by typed Action imports.
 deno install -P
 ```
 
-Generate and commit the workflow YAML:
+Generate the workflow YAML:
 
 ```sh
 deno task tsugiori generate
 ```
 
-Check committed outputs for drift:
+Commit `.github/deno.json`, `.github/deno.lock`, `.github/workflows.ts` and
+`.github/workflows/tsugiori.yml` from the repository root. Check committed
+outputs for drift from `.github`:
 
 ```sh
 deno task tsugiori generate --check
@@ -142,6 +182,8 @@ definitions cannot share an Action directory.
 The [JSR API reference](https://jsr.io/@atty303/tsugiori/doc) contains detailed
 usage, contracts, examples and supported limits:
 
+- [Initialization](https://jsr.io/@atty303/tsugiori/doc/init): bootstrap,
+  conflict handling, next steps and local diagnostics.
 - [Authoring](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring):
   workflow/job/step order, typed expressions, reusable workflows and composite
   output declaration, mapping and references.

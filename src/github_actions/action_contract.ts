@@ -118,7 +118,7 @@
  * unavailable. Errors never return widened contracts or expired ref resolutions.
  * The unversioned and `/_resolved/g1/` routes are not supported by this contract.
  *
- * Commit your Deno lockfile. Deno 2.9.5 records both the redirect and the resolved
+ * Commit your Deno lockfile. Deno 2.9.7 records both the redirect and the resolved
  * module checksum; a cold fetch with `--frozen=true` uses that fixed URL. To
  * refresh a mutable ref deliberately, remove **that entry URL's mapping** from
  * `redirects` in the lockfile, then rerun your entrypoint with `--reload` and

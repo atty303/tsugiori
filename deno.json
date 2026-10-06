@@ -4,6 +4,7 @@
   "license": "MIT",
   "workspace": [".github"],
   "exports": {
+    "./init": "./src/init.ts",
     "./github-actions": "./src/github_actions.ts",
     "./github-actions/authoring": "./src/github_actions/mod.ts",
     "./github-actions/run": "./src/runner/main.ts",

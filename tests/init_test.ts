@@ -1,0 +1,200 @@
+import { assert, assertEquals } from "@std/assert";
+import { configuration, workflows } from "../src/init/templates.ts";
+import { TSUGIORI_PACKAGE_VERSION } from "../src/package_identity.ts";
+import type { DiagnosticRun } from "../src/task-runtime/diagnostics.ts";
+
+const entrypoint = new URL("../src/init.ts", import.meta.url).pathname;
+const decoder = new TextDecoder();
+
+async function invoke(directory: string, options: {
+  args?: string[];
+  permissions?: string[];
+  env?: Record<string, string>;
+} = {}) {
+  return await new Deno.Command(Deno.execPath(), {
+    cwd: directory,
+    args: [
+      "run",
+      "--no-config",
+      "--no-lock",
+      "-A",
+      ...options.permissions ?? [],
+      entrypoint,
+      ...options.args ?? [],
+    ],
+    env: {
+      XDG_CACHE_HOME: `${directory}/cache`,
+      TSUGIORI_DIAGNOSTICS: "1",
+      RUNNER_DEBUG: "0",
+      ...options.env,
+    },
+    stdout: "piped",
+    stderr: "piped",
+  }).output();
+}
+
+async function names(directory: string) {
+  return (await Array.fromAsync(Deno.readDir(directory))).map((entry) =>
+    entry.name
+  ).sort();
+}
+
+async function record(directory: string): Promise<DiagnosticRun> {
+  const store = `${directory}/cache/tsugiori/diagnostics`;
+  const [name] = await names(store);
+  return JSON.parse(await Deno.readTextFile(`${store}/${name}`));
+}
+
+Deno.test("init creates only its two project files, with the documented templates and follow-up commands", async () => {
+  const directory = await Deno.makeTempDir();
+  try {
+    const result = await invoke(directory);
+    assertEquals(result.code, 0, decoder.decode(result.stderr));
+    assertEquals(await names(directory), [
+      "cache",
+      "deno.json",
+      "workflows.ts",
+    ]);
+    assertEquals(
+      await Deno.readTextFile(`${directory}/deno.json`),
+      configuration,
+    );
+    assertEquals(
+      await Deno.readTextFile(`${directory}/workflows.ts`),
+      workflows,
+    );
+    assert(
+      decoder.decode(result.stdout).includes(
+        "deno install -P\ndeno task tsugiori generate",
+      ),
+    );
+    const saved = await record(directory);
+    assertEquals(saved.command, "init");
+    assertEquals(saved.status, "success");
+    assertEquals(saved.completeness, "complete");
+    assertEquals(saved.operations.map((operation) => operation.name), [
+      "init.preflight",
+      "init.config.write",
+      "init.workflow.write",
+    ]);
+    const readme = await Deno.readTextFile(
+      new URL("../README.md", import.meta.url),
+    );
+    const started =
+      readme.split("## Getting started\n")[1].split("## API documentation")[0];
+    const json = /```json\n([\s\S]*?)```/.exec(started)![1];
+    const ts = /```ts\n([\s\S]*?)```/.exec(started)![1];
+    assertEquals(
+      json.replaceAll("<released-version>", TSUGIORI_PACKAGE_VERSION),
+      configuration,
+    );
+    assertEquals(ts, workflows);
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("init refuses existing files, directories and dangling symlinks without changing project data", async () => {
+  for (const name of ["deno.json", "deno.jsonc", "deno.lock", "workflows.ts"]) {
+    for (const kind of ["file", "directory", "symlink"]) {
+      const directory = await Deno.makeTempDir();
+      try {
+        const path = `${directory}/${name}`;
+        if (kind === "file") {
+          await Deno.writeTextFile(path, "existing private content");
+        } else if (kind === "directory") await Deno.mkdir(path);
+        else await Deno.symlink("missing", path);
+        const result = await invoke(directory);
+        assertEquals(result.code, 1);
+        assert(
+          decoder.decode(result.stderr).includes(`${name} already exists`),
+        );
+        assertEquals(await names(directory), ["cache", name].sort());
+        if (kind === "file") {
+          assertEquals(
+            await Deno.readTextFile(path),
+            "existing private content",
+          );
+        }
+        if (kind === "symlink") {
+          assertEquals(await Deno.readLink(path), "missing");
+        }
+        const saved = await record(directory);
+        assertEquals(saved.status, "error");
+        assertEquals(saved.operations[0].errorType, "init_conflict");
+        assert(!JSON.stringify(saved).includes("existing private content"));
+      } finally {
+        await Deno.remove(directory, { recursive: true });
+      }
+    }
+  }
+});
+
+Deno.test("init rolls back its first file if the second write is denied", async () => {
+  const directory = await Deno.makeTempDir();
+  try {
+    const result = await invoke(directory, {
+      permissions: [
+        `--deny-write=${await Deno.realPath(directory)}/workflows.ts`,
+      ],
+    });
+    assertEquals(result.code, 1);
+    assertEquals(await names(directory), ["cache"]);
+    const saved = await record(directory);
+    assertEquals(saved.status, "error");
+    assertEquals(saved.operations.map(({ name, status }) => [name, status]), [
+      ["init.preflight", "success"],
+      ["init.config.write", "success"],
+      ["init.workflow.write", "error"],
+      ["init.cleanup", "success"],
+    ]);
+    assertEquals(saved.operations[2].errorType, "permission_denied");
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});
+
+Deno.test("init rejects arguments and preserves results with recording disabled or unavailable", async () => {
+  const directory = await Deno.makeTempDir();
+  try {
+    const invalid = await invoke(directory, { args: ["--force"] });
+    assertEquals(invalid.code, 1);
+    assertEquals(await names(directory), ["cache"]);
+    assertEquals(
+      (await record(directory)).operations[0].errorType,
+      "usage_invalid",
+    );
+    await Deno.remove(`${directory}/cache`, { recursive: true });
+    const disabled = await invoke(directory, {
+      env: { TSUGIORI_DIAGNOSTICS: "0" },
+    });
+    assertEquals(disabled.code, 0);
+    assertEquals(await names(directory), [
+      "cache",
+      "deno.json",
+      "workflows.ts",
+    ]);
+    assertEquals(await names(`${directory}/cache`), ["deno"]);
+    await Deno.remove(`${directory}/deno.json`);
+    await Deno.remove(`${directory}/workflows.ts`);
+    await Deno.writeTextFile(`${directory}/cache/tsugiori`, "unavailable");
+    const unavailable = await invoke(directory);
+    assertEquals(unavailable.code, 0);
+    assertEquals(unavailable.stdout, disabled.stdout);
+    assert(
+      decoder.decode(unavailable.stderr).includes(
+        "diagnostic recording unavailable",
+      ),
+    );
+    assertEquals(
+      await Deno.readTextFile(`${directory}/deno.json`),
+      configuration,
+    );
+    assertEquals(
+      await Deno.readTextFile(`${directory}/workflows.ts`),
+      workflows,
+    );
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
+});

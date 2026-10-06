@@ -19,7 +19,13 @@ model and no second delivery backend.
 
 ## Package and authoring
 
-The root `deno.json` defines one Deno package with no default root export.
+The root `deno.json` defines one Deno package with no default root export. The
+executable `init` export bootstraps a separate workflow project in the
+invocation directory. It writes only Deno configuration and the authoring
+entrypoint, refuses existing configuration, lockfile or entrypoint files, and
+leaves installation and generation to explicit follow-up commands. Its
+dependency range is derived from the package version. Bootstrap uses the
+existing bounded local command diagnostics and exports no library API.
 `github-actions` is the provider umbrella for authoring, running, and scenario
 testing. `github-actions/authoring`, `github-actions/run`, and
 `github-actions/testing` support selective imports; `task` exposes common task
