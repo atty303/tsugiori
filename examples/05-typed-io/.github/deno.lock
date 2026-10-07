@@ -1,7 +1,7 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@atty303/tsugiori@0.10.4": "0.10.4",
+    "jsr:@atty303/tsugiori@~0.10.4": "0.10.4",
     "jsr:@david/console-static-text@~0.3.5": "0.3.5",
     "jsr:@david/dax@0.50.1": "0.50.1",
     "jsr:@david/path@~0.3.4": "0.3.4",
@@ -97,7 +97,7 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@atty303/tsugiori@0.10.4",
+      "jsr:@atty303/tsugiori@~0.10.4",
       "jsr:@david/dax@0.50.1",
       "jsr:@zod/zod@4.6.5"
     ]

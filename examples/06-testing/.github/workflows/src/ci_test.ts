@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { scenario } from "@atty303/tsugiori/github-actions";
-import { sample } from "./workflows.ts";
+import { ci } from "./ci.ts";
 
 Deno.test("scenario reaches the consumer when files are present", async () => {
-  await scenario(sample, (test) => {
+  await scenario(ci, (test) => {
     test.github({ event_name: "workflow_dispatch", event: {} });
     test.job("inspect", (job) => {
       job.step("checkout").fixture({});
@@ -18,7 +18,7 @@ Deno.test("scenario reaches the consumer when files are present", async () => {
 });
 
 Deno.test("scenario skips the consumer when no files are present", async () => {
-  const result = await scenario(sample, (test) => {
+  const result = await scenario(ci, (test) => {
     test.github({ event_name: "workflow_dispatch", event: {} });
     test.job("inspect", (job) => {
       job.step("checkout").fixture({});

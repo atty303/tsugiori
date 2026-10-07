@@ -1,6 +1,6 @@
 {
   "imports": {
-    "@atty303/tsugiori": "jsr:@atty303/tsugiori@0.10.4",
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@^0.10.4",
     "@david/dax": "jsr:@david/dax@0.50.1",
     "@zod/zod": "jsr:@zod/zod@4.6.5",
     "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v7"
