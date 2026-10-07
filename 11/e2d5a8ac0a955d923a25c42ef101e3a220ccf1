@@ -1,0 +1,13 @@
+Task: End Getting started at committing generated files
+Anchor: 11e2d5a8ac0a955d923a25c42ef101e3a220ccf1
+Base: 8f4c69e845fc554f549ffd5c4c975aa7c0928f2f
+Branch: main
+Commits: 11e2d5a8ac0a955d923a25c42ef101e3a220ccf1 - README prose only
+Guidance: repository AGENTS.md; develop-repository; Git task evidence
+Conditions: current checkout; mise-managed tools; approved no-release documentation scope; no external publication
+Authority: User scope correction; repository AGENTS.md and develop-repository
+## Transcript
+- U1:
+    説明はcommitまででいい。workflowはサンプルだから実行を目的としていないし、actions実行はtsugioriではなくgithubの説明になってる。
+    
+  - A: Retrieved code and standard notes from origin; notes already up to date. Reframed the introduction as an authoring/generation sample, removed default-branch and GitHub Actions UI execution instructions, and removed follow-up walkthrough prose so Getting started ends with commit. Preserved full JSON/TypeScript/YAML and API navigation. Four existing init tests passed including template and generated YAML equality; final diff check passed. Created local docs commit 11e2d5a under existing approved no-release scope. Read complete runtime JSONL and compared the sole human message in this cycle before normalized note creation. No push or runtime change.
