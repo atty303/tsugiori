@@ -1,0 +1,147 @@
+Task: Preserve authored GitHub Actions YAML ordering
+Anchor: d1502a7ae05239ca047fd055f8ad2177259378d8
+Base: 429c0262a37668bb57c5991139c1bad46a65420a
+Branch: main
+Commits: d1502a7ae05239ca047fd055f8ad2177259378d8 fix: preserve authored GitHub Actions YAML order
+Guidance: Repository AGENTS.md; dig; develop-repository; design-review; program observability applicability; investigate-problem; independent review; Git task evidence
+Conditions: Existing clean main checkout; repository mise toolchain; baseline v0.10.3; user-approved patch classification; no push/release/deploy; Git writes require sandbox escalation; deterministic synchronous compiler path uses existing typed diagnostics
+Authority: User implementation request and individual design decisions; patch approval; applicable repository and skill guidance
+## Transcript
+- U1: compositeのinput keyは順序保持だがそれ以外のmapは順序保持になっているか？
+  - A: Inspected composite native metadata copying and shared step emission; identified definition-order metadata and emitter-sorted env/with.
+- U2: いや、例えばworkflow_dispatchのinputsは？
+  - A: Confirmed dispatch input names were explicitly sorted by emitDefinitions while input property order was retained.
+- U3: 明確にsortしないと定義順になるのか？
+  - A: Confirmed JavaScript ordinary string keys use enumeration order and integer-index keys enumerate numerically; YAML sorting is disabled.
+- U4: 逆に明確にsortしているemitはどこだ？
+  - A: Enumerated emitter map, needs, runner-label sorts and dependency-layer placement; distinguished internal identity and diagnostic sorts.
+- U5: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) 必須でないsortは外したい
+  - A: Applied dig; inspected source and official GitHub documentation and began one-at-a-time decisions on nonessential output sorting.
+- U6: A
+  - A: Confirmed scope limited to YAML output ordering; internal identity and validation sorts remain.
+- U7: B. 具体的に外す対象を1つずつ確認して
+  - A: Asked separate decisions for each removal as requested.
+- U8: A
+  - A: Confirmed removal of on event sorting.
+- U9: A
+  - A: Confirmed removal of workflow/job/step env sorting.
+- U10: A
+  - A: Confirmed removal of workflow/job permissions sorting.
+- U11: A
+  - A: Confirmed removal of reusable caller with sorting.
+- U12: A
+  - A: Confirmed removal of reusable caller secrets sorting, preserving inherit.
+- U13: A
+  - A: Confirmed removal of job outputs sorting.
+- U14: A
+  - A: Confirmed removal of strategy.matrix top-level sorting.
+- U15: A
+  - A: Confirmed removal of shared workflow/composite Action step with sorting.
+- U16: A
+  - A: Confirmed removal of dispatch input name sorting.
+- U17: A
+  - A: Confirmed removal of workflow_call input name sorting.
+- U18: A
+  - A: Confirmed removal of workflow_call secret name sorting.
+- U19: A
+  - A: Confirmed removal of workflow_call output name sorting.
+- U20: A
+  - A: Confirmed removal of needs sorting; separately discussed runner label order and self-hosted positioning.
+- U21: self-hosted先頭はgithub制約なのか？
+  - A: Official GitHub documentation requires self-hosted first; live server rejection was not observed.
+- U22: B. ただしvalidation errorにする
+  - A: Confirmed no runner reorder and validation error for misplaced self-hosted; requested casing decision.
+- U23: githubの仕様に従う
+  - A: Official label comparison is case-insensitive; retained spelling and agreed matching behavior. Discussed jobs placement.
+- U24: これはneedsの依存順に配置しなくてgithubに問題はないのか？
+  - A: Confirmed needs determines execution dependencies independent of YAML job placement; asked removal of dependency-layer reorder.
+- U25: A
+  - A: Confirmed jobs definition order and presented complete scope confirmation.
+- U26: A
+  - A: Produced agreed implementation request with exclusions, constraints and unverified prerequisites.
+- U27: # 実装依頼
+    
+    ## 依頼
+    TsugioriのGitHub Actions YAML emitterから、以下のソート・並べ替えを削除し、定義順・指定順を保持してください。
+    
+    - `on`直下のイベント名
+    - Workflow・job・stepの`env`キー
+    - Workflow・jobの`permissions`キー
+    - reusable workflowを呼ぶjobの`with`・`secrets`キー
+    - jobの`outputs`キー
+    - `strategy.matrix`直下のキー
+    - Actionを呼ぶstepの`with`キー
+    - `workflow_dispatch.inputs`の入力名
+    - `workflow_call.inputs`・`secrets`・`outputs`の名前
+    - jobの`needs`配列
+    - runner label配列
+    - jobsの依存レイヤー順への配置
+    
+    runner labelの`self-hosted`を先頭へ移す処理も削除してください。代わりに、`self-hosted`が含まれる場合は大文字・小文字を区別せず判定し、先頭でなければvalidation errorにしてください。`self-hosted`を含まない指定に追加を要求しないでください。
+    
+    ## 目的
+    - 作者が意図した並びを生成YAMLに保持する。
+    - 表示順の正規化処理を減らす。
+    - GitHubの制約に違反する指定は、自動修正せずvalidationで知らせる。
+    
+    ## 成功条件
+    - 上記のmapと配列が、それぞれオブジェクトのキー列挙順・配列の指定順で出力される。
+    - jobsが元の定義順で出力され、`needs`による依存関係は保持される。
+    - WorkflowとComposite Actionで共有するstepの`env`・`with`にも変更が適用される。
+    - `self-hosted`が先頭なら表記と配列順を保持して出力され、先頭以外ならvalidation errorになる。大文字・小文字を変えた表記でも同じ判定になる。
+    - `self-hosted`を含まないrunner指定は、この先頭位置の検証で拒否されない。
+    - 既存の空値除去、式の変換、値・型・構造の保持が維持される。
+    - 既存テスト・snapshot・生成済みYAMLが新しい出力方針と整合し、標準検証が通る。
+    - 各sort削除の影響と、runner validationを検証するfocused testが整備される。
+    
+    ## 決定事項
+    - 指定したYAML出力対象では定義順・指定順を保持する。
+      - 理由: 作者が選んだ並びを保持でき、同じ入力からの再現可能な生成に文字列順ソートは不要なため。
+      - 主な棄却案: 出力を文字列順に正規化する案は、作者の並びを失うため棄却。
+    - runner labelは並べ替えず、`self-hosted`の先頭位置をvalidationで検証する。
+      - 理由: GitHubの文書上の制約を守りながら、無効な指定を黙って修正しないため。labelの比較はGitHub仕様に従い大文字・小文字を区別しない。
+      - 主な棄却案: `self-hosted`を自動的に先頭へ移す案、完全一致だけを検証する案は棄却。
+    - jobsの依存レイヤー順への並べ替えを削除する。
+      - 理由: GitHubの実行順は`needs`で決まり、YAML内の配置順を依存順にする必要はないため。
+      - 主な棄却案: 読みやすさのために依存レイヤー順へ並べ替える案は、定義順を保持する方針に合わないため棄却。
+    - 内部のidentity・検証用sortとDSLのjob参照制約は維持する。
+      - 理由: 今回の対象はYAML出力順であり、artifact identityや集合比較、authoringの型契約を変更しないため。
+      - 主な棄却案: repository内のsortを一括削除する案は対象外。
+    - step直下の固定キー順とstep間の空行を維持する。
+      - 理由: これらは既に合意した出力方針であり、今回変更する任意キーのmapや配列の順序とは別のため。
+      - 主な棄却案: step直下までDSLのプロパティ順に変更する案は対象外。
+    
+    ## 制約
+    - runner先頭位置の新しいvalidation以外は、公開DSL・実行契約・依存関係を変更しない。
+    - JavaScriptのキー列挙順に従う。整数インデックス形式のキーまで挿入順にする独自機構は導入しない。
+    - `strategy.matrix`内部の配列・オブジェクトや、各input定義内部の既存の順序保持を維持する。
+    - run stepの末尾は`working-directory → shell → run`を維持する。
+    - WorkflowとComposite Actionのstep間の空行、commandの末尾改行、生成元ヘッダー、Action参照コメントを維持する。
+    - Push、PR作成、release実行、deployはこの依頼に含めない。commitのrelease区分は未決定。
+    
+    ## 対象外
+    - source hash、artifact manifest、集合比較、診断、出力ファイル収集など内部処理のsort削除。
+    - DSLで未定義jobを参照できるようにする変更。
+    - Composite Action metadataの既存の定義順保持処理の変更。
+    - emitterが固定しているschemaプロパティの並びの変更。
+    - 新しい出力順設定や依存ライブラリの追加。
+    
+    ## 未検証の前提
+    - 現在のcheckoutと関連source・tests・documentationを実装前に再確認する。
+    - `self-hosted`の先頭位置検証を適用するrunner指定形式は、repositoryの固定GitHub仕様snapshotと公式仕様から確認する。labelの大文字・小文字を区別しないことと、label配列で`self-hosted`を先頭にする記載は調査済み。
+    - sort削除によるsnapshot・生成済みYAML・既存のcanonicalization testへの具体的な影響は実装時に確認する。
+    
+    ## 実装時の指示
+    - 主な対象は`src/compiler/github_actions/emitter.ts`と`src/compiler/github_actions/validation.ts`。必要に応じてauthoring側のvalidation経路と公開JSDocも整合させる。
+    - `sortRecord()`、`emitPermissions()`、`emitActionInputs()`、`emitDefinitions()`は、ソート以外に担う変換や空値除去を保持しつつ、不要になったhelperを削除・簡略化する。
+    - `jobsByDependencyLayer()`を削除し、Workflowのjobs配列順をそのまま出力とYAML nodeの空行・コメント設定に使う。
+    - `sortRunnerLabels()`を削除し、runner labelの指定順と表記を保持する。既存のcase-insensitiveな重複検証は維持する。
+    - 既存の「意味的に順序がない入力を同一出力に正規化する」テストは、対象ごとの順序保持を検証する内容へ更新する。
+    - 順序保持の検証には、文字列順と異なる並びを使う。
+    - GitHub仕様の参照:
+      - runnerの選択と`self-hosted`先頭記載: https://docs.github.com/en/actions/how-tos/write-workflows/choose-where-workflows-run/choose-the-runner-for-a-job
+      - labelのcase-insensitive仕様: https://docs.github.com/en/actions/how-tos/manage-runners/self-hosted-runners/apply-labels
+      - `needs`による依存関係: https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
+  - A: Read repository state and guidance; fetched code and notes; confirmed clean main at 429c026 and baseline v0.10.3. Rechecked frozen and current official runner documentation. Proposed patch release classification while proceeding with implementation.
+- U28: patch release
+  - A: Removed specified emitter sorts and layer reorder; added case-insensitive runner position diagnostic in shared validation, retained duplicate checks and native transformations. Updated public JSDoc, architecture, README generated example, snapshots and generated CI YAML. Added focused workflow/composite/public authoring tests. Corrected test fixtures to supported permission keys and matrix include shape and matched existing diagnostic path formatting. Focused suite passed 53 tests; mise run check and mise run test passed, 159 tests total. Fresh read-only independent review reported no findings on exact SHA256 772b725656429389bf1932ad3fc9a37a42189f1570315c63b0221fdfbb7d46c5. Committed d1502a7 locally with approved patch classification. Full runtime thread retrieved and all 28 cycle human messages compared, excluding injected guidance/skill/environment and normalizing the asynchronous answer. No push, release, PR or deploy executed.
