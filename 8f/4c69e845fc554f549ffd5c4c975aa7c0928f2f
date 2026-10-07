@@ -1,0 +1,17 @@
+Task: Group consecutive README shell commands
+Anchor: 8f4c69e845fc554f549ffd5c4c975aa7c0928f2f
+Base: ee051d695f062473330bf10387721bdfe5a0893b
+Branch: main
+Commits: 8f4c69e845fc554f549ffd5c4c975aa7c0928f2f - remove redundant code fences only
+Guidance: repository AGENTS.md; develop-repository; Git task evidence
+Conditions: macOS; current checkout; mise-managed tools; existing approved no-release documentation scope; no push or runtime change
+Authority: User readability correction; approved no-release documentation scope; repository AGENTS.md and develop-repository
+## Transcript
+- U1:
+    連続したコマンド例のブロックは分かれてるのはなんで？
+    
+  - A: Explained that independent commands had been incorrectly interpreted as requiring separate fences; commands can remain separate lines in a shared block. No edits.
+- U2:
+    読みにくいから直して
+    
+  - A: Fetched origin and standard notes; no conflict. Removed nine redundant fence/separator lines in README, grouping initialization and dependency/generation sequences without changing commands or order. Four existing init tests passed, including README JSON/TypeScript equality and complete generated YAML comparison; diff check passed. Created local docs commit 8f4c69e under existing approved no-release documentation scope. Retrieved complete runtime JSONL and compared both human messages before normalized note creation.
