@@ -1,4 +1,4 @@
-import { parse, stringify } from "../../deps.ts";
+import { Document, isMap, isSeq, parse } from "../../deps.ts";
 import type { LoweredCompositeAction } from "../authoring.ts";
 import type { ActionPayload } from "../action_payload.ts";
 import { emitStep } from "./emitter.ts";
@@ -60,12 +60,20 @@ export function emitCompositeAction(
     ...(action.metadata.outputs === undefined ? {} : { outputs }),
     runs: { using: "composite", steps: rendered },
   };
-  const yaml = stringify(object, {
-    lineWidth: 0,
+  const document = new Document(object, {
     schema: "core",
     sortMapEntries: false,
     aliasDuplicateObjects: false,
   });
+  const stepNodes = document.getIn(["runs", "steps"], true);
+  if (!isSeq(stepNodes)) {
+    throw new Error("Composite steps must be a YAML sequence.");
+  }
+  for (const [index, node] of stepNodes.items.entries()) {
+    if (!isMap(node)) throw new Error("Composite step must be a YAML map.");
+    if (index > 0) node.spaceBefore = true;
+  }
+  const yaml = document.toString({ lineWidth: 0 });
   // Round-trip commands through the same YAML implementation as workflows.
   const decoded = parse(yaml) as typeof object;
   if (JSON.stringify(decoded) !== JSON.stringify(object)) {

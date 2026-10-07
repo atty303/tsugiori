@@ -176,9 +176,10 @@ byte equality enforced by a conformance test.
 The compiler lowers workflow and composite authoring data to native GitHub
 Actions steps, validates it, and emits deterministic YAML and Action payloads.
 The YAML serializer selects plain, quoted, or block scalars while preserving
-string values, including command whitespace and trailing newlines. Workflow
-spacing and Action reference comments are attached to YAML document nodes. Each
-workflow is identified solely by its project-relative output path. Generation
+string values, including command whitespace and trailing newlines. Workflow and
+composite step spacing, and workflow Action reference comments, are attached to
+YAML document nodes. Each workflow is identified solely by its project-relative
+output path. Generation
 does not restrict its directory; authors ensure GitHub workflow placement. Each
 generated file starts with a source comment.
 

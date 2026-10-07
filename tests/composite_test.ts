@@ -356,6 +356,7 @@ runs:
   using: composite
   steps:
     - uses: ./.github
+
     - uses: ./.github/actions/greet
 `,
     {
@@ -371,6 +372,7 @@ runs:
   using: composite
   steps:
     - uses: ./
+
     - uses: ./actions/greet
 `,
     {
@@ -611,7 +613,7 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
     }
     assertEquals(/(?:^|\s)[&*][\w-]+/.test(yaml), false);
     if (decoded.runs) {
-      assertStringIncludes(yaml, "      run: echo hello\n    - name: Run\n");
+      assertStringIncludes(yaml, "      run: echo hello\n\n    - name: Run\n");
     }
   }
 });

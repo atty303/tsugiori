@@ -457,6 +457,7 @@ runs:
         VALUE: \${{ inputs.value }}
       shell: bash
       run: echo "\$VALUE"
+
     - name: Cache task artifact
       id: tsugiori-task-cache
       continue-on-error: true
@@ -464,6 +465,7 @@ runs:
       with:
         key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
         path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+
     - name: Prepare task artifact
       id: tsugiori-task-prepare
       env:
@@ -477,6 +479,7 @@ runs:
         TSUGIORI_ACTION_PATH: \${{ github.action_path }}
       shell: bash
       run: bash "\$TSUGIORI_ACTION_PATH/.tsugiori/prepare.sh"
+
     - name: Composite task
       env:
         TSUGIORI_INPUT_VALUE: \${{ inputs.value }}
