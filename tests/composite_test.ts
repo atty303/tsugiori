@@ -617,3 +617,47 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
     }
   }
 });
+
+Deno.test("composite shared steps preserve env and Action input order", async () => {
+  const action = defineCompositeAction("actions/order/action.yml", {
+    name: "Order",
+    description: "Preserve authored order",
+  }).steps(({ step }) =>
+    step
+      .uses("example/action@v1", {
+        env: { Z: "last", A: "first" },
+        with: { z: "${{ github.ref }}", a: "" },
+      })
+      .run({
+        name: "Run",
+        env: { Z: "last", A: "first" },
+        workingDirectory: "scripts",
+        shell: "bash",
+        run: "echo done\n\n",
+      })
+  );
+  const files = await generateFiles(
+    defineProject({ actions: [action] }),
+    "./actions.ts",
+    "unused",
+  );
+  const yaml = String(
+    files.find(({ path }) => path === "actions/order/action.yml")!.content,
+  );
+  const parsed = parse(yaml) as {
+    runs: { steps: Array<Record<string, unknown>> };
+  };
+  assertEquals(Object.keys(parsed.runs.steps[0].env as object), ["Z", "A"]);
+  assertEquals(Object.keys(parsed.runs.steps[1].env as object), ["Z", "A"]);
+  assertEquals(Object.keys(parsed.runs.steps[0].with as object), ["z", "a"]);
+  assertEquals(parsed.runs.steps[0].with, { z: "${{ github.ref }}", a: "" });
+  assertEquals(Object.keys(parsed.runs.steps[1]), [
+    "name",
+    "env",
+    "working-directory",
+    "shell",
+    "run",
+  ]);
+  assertEquals(parsed.runs.steps[1].run, "echo done\n\n");
+  assertStringIncludes(yaml, 'a: ""\n\n    - name: Run');
+});

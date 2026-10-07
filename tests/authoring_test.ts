@@ -143,17 +143,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./tsugiori.ts
           project-directory: .
+          entrypoint: ./tsugiori.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Conditional task
         if: \${{ steps.source.outputs.sha != '' }}
@@ -266,17 +266,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./tsugiori.ts
           project-directory: .
+          entrypoint: ./tsugiori.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Test
         run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
@@ -401,17 +401,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./tsugiori.ts
           project-directory: .
+          entrypoint: ./tsugiori.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Task
         run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
@@ -701,17 +701,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./tsugiori.ts
           project-directory: .
+          entrypoint: ./tsugiori.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Plan
         id: plan
@@ -918,4 +918,22 @@ Deno.test("GitHub string maps preserve empty and whitespace values through publi
   for (const step of decoded.jobs.values.steps) assertEquals(step.env, values);
   assertEquals(decoded.jobs.values.steps[1].with, values);
   assertEquals(decoded.jobs.values.outputs.empty, "${{ '' }}");
+});
+
+Deno.test("authored runner labels report misplaced self-hosted during lowering", () => {
+  const workflow = defineWorkflow(".github/workflows/runner.yml", {
+    on: { push: {} },
+  })
+    .job(
+      "test",
+      ({ job }) =>
+        job.runsOn(["x64", "SELF-HOSTED"]).run({ name: "Run", run: "true" }),
+    );
+  const error = assertThrows(
+    () =>
+      lowerProject(defineProject({ workflows: [workflow] }), "./workflows.ts"),
+    AuthoringValidationError,
+    "The self-hosted runner label must be listed first.",
+  );
+  assertStringIncludes(error.diagnostics[0], "jobs.0.runsOn.labels.1");
 });

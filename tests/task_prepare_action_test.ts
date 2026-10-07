@@ -63,17 +63,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./workflows.ts
           project-directory: project
+          entrypoint: ./workflows.ts
           source-key: source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Task
         run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" 'ci.yml/test/task-1'"

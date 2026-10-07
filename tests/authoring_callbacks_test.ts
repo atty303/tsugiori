@@ -320,17 +320,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./workflows.ts
           project-directory: .
+          entrypoint: ./workflows.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Task
         env:
@@ -463,8 +463,8 @@ runs:
       continue-on-error: true
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
-        key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
         path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+        key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
     - name: Prepare task artifact
       id: tsugiori-task-prepare
@@ -482,8 +482,8 @@ runs:
 
     - name: Composite task
       env:
-        TSUGIORI_INPUT_VALUE: \${{ inputs.value }}
         VALUE: \${{ inputs.value }}
+        TSUGIORI_INPUT_VALUE: \${{ inputs.value }}
       shell: bash
       run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" 'actions/echo/action.yml/composite/task-1'"
 `,

@@ -114,6 +114,11 @@
  * assertions. Caller jobs support conditions, needs, matrix strategy, name,
  * permissions and concurrency; they do not contain runner execution fields.
  *
+ * Generated maps retain JavaScript key enumeration order. Jobs and arrays,
+ * including needs and runner labels, retain their authored order. Schema
+ * property ordering remains fixed. A self-hosted label is optional; when
+ * present (case-insensitive), it must be first or generation fails validation.
+ *
  * A static platform matrix can use `strategy({ matrix: { include: rows } })`. Row
  * fields supply typed matrix references. Configure strategy before
  * `.runsOn(({ matrix }) => matrix.runner)` or other matrix-dependent fields.
@@ -2734,6 +2739,7 @@ interface ExecBase<
   Proof extends string = never,
 > {
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -5352,6 +5358,7 @@ interface JobInitBase<
     InputValues
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `defineWorkflow().job()` callback with `{ job }`.
@@ -5455,6 +5462,7 @@ interface DepJobBase<
     InputValues
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
+   * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `defineWorkflow().job()` callback with `{ job }`.

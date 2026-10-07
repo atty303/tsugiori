@@ -175,13 +175,16 @@ byte equality enforced by a conformance test.
 
 The compiler lowers workflow and composite authoring data to native GitHub
 Actions steps, validates it, and emits deterministic YAML and Action payloads.
+Authored maps retain JavaScript key enumeration order; jobs, dependencies, and
+runner labels retain their specified order. A self-hosted label, matched without
+case sensitivity, must be first when present; validation reports misplaced
+labels rather than reordering them. Fixed schema property ordering is unchanged.
 The YAML serializer selects plain, quoted, or block scalars while preserving
 string values, including command whitespace and trailing newlines. Workflow and
 composite step spacing, and workflow Action reference comments, are attached to
 YAML document nodes. Each workflow is identified solely by its project-relative
-output path. Generation
-does not restrict its directory; authors ensure GitHub workflow placement. Each
-generated file starts with a source comment.
+output path. Generation does not restrict its directory; authors ensure GitHub
+workflow placement. Each generated file starts with a source comment.
 
 `generate` writes the configured outputs. `generate --check` compares expected
 bytes to configured files and reports missing or changed outputs. It does not

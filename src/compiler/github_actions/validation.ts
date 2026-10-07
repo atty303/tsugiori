@@ -29,6 +29,7 @@ export type DiagnosticCode =
   | "job.runs-on.group.empty"
   | "job.runs-on.labels.empty"
   | "job.runs-on.labels.duplicate"
+  | "job.runs-on.labels.self-hosted.position"
   | "job.steps.empty"
   | "job.if.empty"
   | "job.permissions.invalid"
@@ -602,6 +603,17 @@ function validateRunnerSelection(
       ));
     }
   });
+
+  const selfHostedIndex = selection.labels.findIndex((label) =>
+    runnerLabelKey(label) === "self-hosted"
+  );
+  if (selfHostedIndex > 0) {
+    diagnostics.push(diagnostic(
+      "job.runs-on.labels.self-hosted.position",
+      [...path, "labels", selfHostedIndex],
+      "The self-hosted runner label must be listed first.",
+    ));
+  }
 
   validateDuplicates(
     selection.labels,

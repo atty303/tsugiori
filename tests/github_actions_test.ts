@@ -6,7 +6,7 @@ import {
   type Workflow,
 } from "../src/compiler/github_actions/mod.ts";
 
-Deno.test("emits canonical GitHub Actions YAML", async (t) => {
+Deno.test("emits GitHub Actions YAML in definition order", async (t) => {
   const workflow: Workflow = {
     name: "CI",
     on: { push: {}, pull_request: {} },
@@ -16,7 +16,7 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
         id: "test",
         runsOn: {
           type: "labels",
-          labels: ["x64", "SELF-HOSTED", "linux"],
+          labels: ["SELF-HOSTED", "x64", "linux"],
         },
         needs: ["build"],
         steps: [
@@ -36,7 +36,7 @@ Deno.test("emits canonical GitHub Actions YAML", async (t) => {
         runsOn: {
           type: "group",
           group: "production-runners",
-          labels: ["x64", "self-hosted", "linux"],
+          labels: ["self-hosted", "x64", "linux"],
         },
         needs: ["test", "build"],
         steps: [{ type: "run", name: "Deploy", run: "./deploy" }],
@@ -207,54 +207,238 @@ Deno.test("matrix run axis does not affect run step formatting", () => {
   assertEquals(parsed.jobs.test.steps[0].run, "echo test");
 });
 
-Deno.test("normalizes semantically unordered input", () => {
-  const first = validateWorkflow(canonicalizationWorkflow(
-    [
-      "push",
-      "pull_request",
-    ],
-    ["linux", "self-hosted", "x64"],
-    ["test", "build"],
-  ));
-  const second = validateWorkflow(canonicalizationWorkflow(
-    [
+Deno.test("preserves authored event, label, needs and job order", () => {
+  for (
+    const events of [["push", "pull_request"], [
       "pull_request",
       "push",
-    ],
-    ["x64", "linux", "self-hosted"],
-    ["build", "test"],
-  ));
-
-  assert(first.ok);
-  assert(second.ok);
-  assertEquals(emitWorkflow(first.value), emitWorkflow(second.value));
+    ]] as const
+  ) {
+    const labels = ["SELF-HOSTED", "x64", "Linux"] as const;
+    const needs = ["test", "build"];
+    const workflow = orderedWorkflow(events, labels, needs);
+    const result = validateWorkflow(workflow);
+    assert(result.ok);
+    const parsed = parse(emitWorkflow(result.value)) as {
+      on: object;
+      jobs: Record<string, { "runs-on": unknown; needs: string[] }>;
+    };
+    assertEquals(Object.keys(parsed.on), [...events]);
+    assertEquals(Object.keys(parsed.jobs), workflow.jobs.map(({ id }) => id));
+    assertEquals(parsed.jobs.deploy["runs-on"], labels);
+    assertEquals(parsed.jobs.deploy.needs, needs);
+  }
 });
 
-Deno.test("emits jobs by dependency layer in definition order", () => {
+Deno.test("preserves map order and native values across workflow fields", () => {
+  const values = { z: "${{ github.ref }}", a: "" };
+  const permissions = { contents: "write", actions: "read" } as const;
+  const inputs = {
+    z: {
+      type: "string",
+      description: "Last alphabetically",
+      default: undefined,
+    },
+    a: { type: "boolean", default: false },
+  } as const;
+  const secrets = { z: { required: true }, a: { required: false } };
+  const outputs = {
+    z: { value: "${{ jobs.build.outputs.z }}" },
+    a: { value: "" },
+  };
+  const matrix = {
+    z: ["two", "one"],
+    a: ["last", "first"],
+    include: [{ z: "last", a: "first" }],
+  };
   const result = validateWorkflow({
-    name: "Layered",
+    name: "Ordered",
+    on: {
+      workflow_dispatch: {
+        inputs: { z: inputs.z, a: { type: "string", default: "" } },
+      },
+      workflow_call: { inputs, secrets, outputs },
+    },
+    env: values,
+    permissions,
+    jobs: [{
+      ...job("build", []),
+      env: values,
+      permissions,
+      outputs: values,
+      strategy: { matrix },
+      steps: [{
+        type: "uses",
+        uses: "example/action@v1",
+        env: values,
+        with: values,
+      }],
+    }, {
+      id: "call",
+      uses: "./.github/workflows/callee.yml",
+      needs: [],
+      steps: [],
+      with: { z: false, a: 42 },
+      callSecrets: values,
+    }],
+  });
+  assert(result.ok, result.ok ? undefined : JSON.stringify(result.diagnostics));
+  const parsed = parse(emitWorkflow(result.value)) as {
+    on: {
+      workflow_dispatch: { inputs: Record<string, Record<string, unknown>> };
+      workflow_call: {
+        inputs: typeof inputs;
+        secrets: typeof secrets;
+        outputs: typeof outputs;
+      };
+    };
+    env: typeof values;
+    permissions: typeof permissions;
+    jobs: {
+      build: {
+        env: typeof values;
+        permissions: typeof permissions;
+        outputs: typeof values;
+        strategy: { matrix: typeof matrix };
+        steps: { env: typeof values; with: typeof values }[];
+      };
+      call: { with: { z: boolean; a: number }; secrets: typeof values };
+    };
+  };
+  for (
+    const map of [
+      parsed.env,
+      parsed.jobs.build.env,
+      parsed.jobs.build.steps[0].env,
+      parsed.jobs.build.outputs,
+      parsed.jobs.build.steps[0].with,
+      parsed.jobs.call.with,
+      parsed.jobs.call.secrets,
+      parsed.on.workflow_dispatch.inputs,
+      parsed.on.workflow_call.inputs,
+      parsed.on.workflow_call.secrets,
+      parsed.on.workflow_call.outputs,
+    ]
+  ) assertEquals(Object.keys(map), ["z", "a"]);
+  for (const map of [parsed.permissions, parsed.jobs.build.permissions]) {
+    assertEquals(Object.keys(map), ["contents", "actions"]);
+    assertEquals(map, permissions);
+  }
+  assertEquals(Object.keys(parsed.jobs.build.strategy.matrix), [
+    "z",
+    "a",
+    "include",
+  ]);
+  assertEquals(parsed.jobs.build.strategy.matrix, matrix);
+  assertEquals(Object.keys(parsed.jobs.build.strategy.matrix.include[0]), [
+    "z",
+    "a",
+  ]);
+  assertEquals(parsed.jobs.build.steps[0].with, values);
+  assertEquals(parsed.jobs.call.with, { z: false, a: 42 });
+  assertEquals(parsed.jobs.call.secrets, values);
+  assertEquals(parsed.on.workflow_dispatch.inputs.z, {
+    type: "string",
+    description: "Last alphabetically",
+  });
+  assertEquals(Object.keys(parsed.on.workflow_dispatch.inputs.z), [
+    "type",
+    "description",
+  ]);
+  assertEquals(parsed.on.workflow_call.inputs.a.default, false);
+});
+
+Deno.test("validates self-hosted position without normalizing runner labels", () => {
+  for (const type of ["labels", "group"] as const) {
+    for (
+      const labels of [
+        ["self-hosted", "x64", "linux"],
+        ["SELF-HOSTED", "x64", "Linux"],
+        ["Self-Hosted"],
+        ["x64", "linux"],
+        ["ubuntu-latest"],
+      ] as const
+    ) {
+      const result = validateWorkflow({
+        name: "Runner",
+        on: { push: {} },
+        jobs: [{
+          ...job("test", []),
+          runsOn: type === "labels"
+            ? { type, labels }
+            : { type, group: "runners", labels },
+        }],
+      });
+      assert(result.ok);
+      const parsed = parse(emitWorkflow(result.value)) as {
+        jobs: {
+          test: {
+            "runs-on": string | readonly string[] | {
+              group: string;
+              labels: readonly string[];
+            };
+          };
+        };
+      };
+      assertEquals(
+        parsed.jobs.test["runs-on"],
+        type === "group"
+          ? { group: "runners", labels }
+          : labels.length === 1
+          ? labels[0]
+          : labels,
+      );
+    }
+    for (const label of ["self-hosted", "SELF-HOSTED", "Self-Hosted"]) {
+      for (const index of [1, 2]) {
+        const labels = index === 1
+          ? ["x64", label, "linux"] as const
+          : ["x64", "linux", label] as const;
+        const result = validateWorkflow({
+          name: "Runner",
+          on: { push: {} },
+          jobs: [{
+            ...job("test", []),
+            runsOn: type === "labels"
+              ? { type, labels }
+              : { type, group: "runners", labels },
+          }],
+        });
+        assert(!result.ok);
+        assertEquals(
+          result.diagnostics.map(({ code, path }) => ({ code, path })),
+          [{
+            code: "job.runs-on.labels.self-hosted.position",
+            path: ["jobs", 0, "runsOn", "labels", index],
+          }],
+        );
+      }
+    }
+  }
+});
+
+Deno.test("emits jobs in definition order regardless of dependency layers", () => {
+  const workflow = {
+    name: "Ordered",
     on: { push: {} },
     jobs: [
-      job("publish", ["build", "verify"]),
+      job("publish", ["verify", "build"]),
       job("lint", []),
       job("verify", ["build"]),
       job("build", []),
       job("docs", []),
       job("package", ["build"]),
     ],
-  });
-
+  };
+  const result = validateWorkflow(workflow);
   assert(result.ok);
-  const jobIds = [...emitWorkflow(result.value).matchAll(/^ {2}([\w-]+):$/gm)]
-    .map((match) => match[1]);
-  assertEquals(jobIds, [
-    "lint",
-    "build",
-    "docs",
-    "verify",
-    "package",
-    "publish",
-  ]);
+  const parsed = parse(emitWorkflow(result.value)) as {
+    jobs: Record<string, { needs?: string[] }>;
+  };
+  assertEquals(Object.keys(parsed.jobs), workflow.jobs.map(({ id }) => id));
+  for (const job of workflow.jobs) {
+    assertEquals(parsed.jobs[job.id].needs ?? [], job.needs);
+  }
 });
 
 Deno.test("rejects invalid deployment-specific native fields", () => {
@@ -540,13 +724,13 @@ Deno.test("rejects invalid and duplicate step metadata", () => {
   );
 });
 
-function canonicalizationWorkflow(
+function orderedWorkflow(
   events: readonly (keyof Workflow["on"])[],
   runnerLabels: readonly [string, ...string[]],
   needs: readonly string[],
 ): Workflow {
   return {
-    name: "Canonical",
+    name: "Ordered",
     on: Object.fromEntries(events.map((event) => [event, {}])),
     jobs: [
       job("test", ["build"]),

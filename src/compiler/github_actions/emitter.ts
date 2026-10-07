@@ -1,17 +1,10 @@
 import { Document, isMap, isScalar, isSeq } from "../../deps.ts";
-import type {
-  ActionInputs,
-  Job,
-  RunnerSelection,
-  Step,
-  WorkflowPermissions,
-} from "./ast.ts";
+import type { Job, RunnerSelection, Step } from "./ast.ts";
 import type { ValidatedWorkflow } from "./validation.ts";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
     Object.keys(workflow.on)
-      .sort(compareText)
       .map((
         event,
       ) => [
@@ -52,10 +45,8 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
           : {},
       ]),
   );
-  const orderedJobs = jobsByDependencyLayer(workflow.jobs);
   const jobs = Object.fromEntries(
-    orderedJobs
-      .map((job) => [job.id, emitJob(job)]),
+    workflow.jobs.map((job) => [job.id, emitJob(job)]),
   );
 
   const document = new Document(
@@ -64,11 +55,11 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       ...(workflow.runName === undefined
         ? {}
         : { "run-name": workflow.runName }),
-      ...(workflow.env === undefined ? {} : { env: sortRecord(workflow.env) }),
+      ...(workflow.env === undefined ? {} : { env: workflow.env }),
       on: events,
       ...(workflow.permissions === undefined
         ? {}
-        : { permissions: emitPermissions(workflow.permissions) }),
+        : { permissions: workflow.permissions }),
       ...(workflow.concurrency === undefined ? {} : {
         concurrency: emitConcurrency(workflow.concurrency),
       }),
@@ -82,7 +73,7 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
   );
   const jobNodes = document.get("jobs", true);
   if (!isMap(jobNodes)) throw new Error("Workflow jobs must be a YAML map.");
-  for (const [index, job] of orderedJobs.entries()) {
+  for (const [index, job] of workflow.jobs.entries()) {
     const key = jobNodes.items[index].key;
     if (!isScalar(key)) {
       throw new Error("Workflow job ID must be a YAML scalar.");
@@ -122,35 +113,13 @@ function actionRefComment(ref: string): string {
     : ref;
 }
 
-function jobsByDependencyLayer(jobs: readonly Job[]): Job[] {
-  const ordered: Job[] = [];
-  const emitted = new Set<string>();
-  let remaining = [...jobs];
-
-  while (remaining.length > 0) {
-    const layer = remaining.filter((job) =>
-      job.needs.every((dependency) => emitted.has(dependency))
-    );
-    if (layer.length === 0) {
-      throw new Error(
-        "Validated workflow contains unresolved job dependencies.",
-      );
-    }
-    ordered.push(...layer);
-    for (const job of layer) emitted.add(job.id);
-    remaining = remaining.filter((job) => !emitted.has(job.id));
-  }
-
-  return ordered;
-}
-
 function emitJob(job: Job): Record<string, unknown> {
   const emitted: Record<string, unknown> = {
     ...(job.uses === undefined
       ? { "runs-on": emitRunnerSelection(job.runsOn!) }
       : { uses: job.uses }),
     ...(job.name === undefined ? {} : { name: job.name }),
-    ...(job.env === undefined ? {} : { env: sortRecord(job.env) }),
+    ...(job.env === undefined ? {} : { env: job.env }),
     ...(job.defaults === undefined ? {} : {
       defaults: {
         run: {
@@ -163,33 +132,29 @@ function emitJob(job: Job): Record<string, unknown> {
         },
       },
     }),
-    ...(job.with === undefined ? {} : { with: sortRecord(job.with) }),
+    ...(job.with === undefined ? {} : { with: job.with }),
     ...(job.callSecrets === undefined ? {} : {
-      secrets: job.callSecrets === "inherit"
-        ? "inherit"
-        : sortRecord(job.callSecrets),
+      secrets: job.callSecrets,
     }),
   };
   if (job.needs.length > 0) {
-    emitted.needs = [...job.needs].sort(compareText);
+    emitted.needs = [...job.needs];
   }
   if (job.if !== undefined) emitted.if = job.if;
   if (job.permissions !== undefined) {
-    emitted.permissions = emitPermissions(job.permissions);
+    emitted.permissions = job.permissions;
   }
   if (job.timeoutMinutes !== undefined) {
     emitted["timeout-minutes"] = job.timeoutMinutes;
   }
   if (job.environment !== undefined) emitted.environment = job.environment;
-  if (job.outputs !== undefined) emitted.outputs = sortRecord(job.outputs);
+  if (job.outputs !== undefined) emitted.outputs = job.outputs;
   if (job.strategy !== undefined) {
     emitted.strategy = {
       ...(job.strategy.failFast === undefined
         ? {}
         : { "fail-fast": job.strategy.failFast }),
-      matrix: typeof job.strategy.matrix === "string"
-        ? job.strategy.matrix
-        : sortRecord(job.strategy.matrix),
+      matrix: job.strategy.matrix,
     };
   }
   if (job.concurrency !== undefined) {
@@ -201,13 +166,13 @@ function emitJob(job: Job): Record<string, unknown> {
 
 function emitRunnerSelection(selection: RunnerSelection): unknown {
   if (selection.type === "labels") {
-    const labels = sortRunnerLabels(selection.labels);
+    const labels = [...selection.labels];
     return labels.length === 1 ? labels[0] : labels;
   }
 
   const emitted: Record<string, unknown> = { group: selection.group };
   if (selection.labels !== undefined) {
-    emitted.labels = sortRunnerLabels(selection.labels);
+    emitted.labels = [...selection.labels];
   }
   return emitted;
 }
@@ -229,11 +194,11 @@ export function emitStep(step: Step): Record<string, unknown> {
   if (step.timeoutMinutes !== undefined) {
     emitted["timeout-minutes"] = step.timeoutMinutes;
   }
-  if (step.env !== undefined) emitted.env = sortRecord(step.env);
+  if (step.env !== undefined) emitted.env = step.env;
   if (step.type === "uses") {
     emitted.uses = step.uses;
     if (step.with !== undefined) {
-      emitted.with = emitActionInputs(step.with);
+      emitted.with = step.with;
     }
   } else {
     if (step.workingDirectory !== undefined) {
@@ -255,55 +220,11 @@ function emitConcurrency(
   };
 }
 
-function sortRecord<T>(record: Readonly<Record<string, T>>): Record<string, T> {
-  return Object.fromEntries(
-    Object.entries(record).sort(([left], [right]) => compareText(left, right)),
-  );
-}
-
-function emitPermissions(
-  permissions: WorkflowPermissions,
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(permissions).sort(([left], [right]) =>
-      compareText(left, right)
-    ),
-  );
-}
-
-function emitActionInputs(inputs: ActionInputs): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(inputs).sort(([left], [right]) => compareText(left, right)),
-  );
-}
-
-function sortRunnerLabels(labels: readonly string[]): string[] {
-  return [...labels].sort((left, right) => {
-    const leftKey = runnerLabelKey(left);
-    const rightKey = runnerLabelKey(right);
-    if (leftKey === "self-hosted") {
-      return rightKey === "self-hosted" ? compareText(left, right) : -1;
-    }
-    if (rightKey === "self-hosted") {
-      return 1;
-    }
-    return compareText(leftKey, rightKey) || compareText(left, right);
-  });
-}
-
-function compareText(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function runnerLabelKey(label: string): string {
-  return label.toLowerCase();
-}
-
 function emitDefinitions<T extends object>(
   definitions: Readonly<Record<string, T>>,
 ): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(definitions).sort(([a], [b]) => compareText(a, b)).map((
+    Object.entries(definitions).map((
       [key, value],
     ) => [
       key,

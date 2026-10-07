@@ -171,12 +171,12 @@ env:
 on:
   workflow_call:
     inputs:
-      enabled:
-        type: boolean
-        default: true
       module:
         type: string
         required: true
+      enabled:
+        type: boolean
+        default: true
     secrets:
       token:
         required: true
@@ -613,17 +613,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
           path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
+          key: tsugiori-task-fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
         uses: ./actions/task-prepare
         with:
-          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
-          entrypoint: ./config.ts
           project-directory: .
+          entrypoint: ./config.ts
           source-key: fixture-source
+          cache-directory: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
 
       - name: Task
         timeout-minutes: 1
