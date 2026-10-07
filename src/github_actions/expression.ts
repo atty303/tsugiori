@@ -264,6 +264,9 @@ export class Expression<T = unknown, Proof extends string = never> {
     return this as unknown as Expression<U>;
   }
   /** Property/index dereference happens at runtime; missing property values depend on GitHub context semantics.
+   * Generated references use dot syntax for names starting with a letter or `_`
+   * and containing only letters, digits, `_` or `-`; other names use brackets.
+   * Numeric indices retain bracket syntax.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
    * @example
    * ```ts
@@ -363,7 +366,7 @@ function pathProperty<T>(
   return reference<T>(referencePath(base, key), referenceScopes.get(source));
 }
 export function referencePath(base: string, key: string): string {
-  const suffix = /^(?:[A-Za-z_][A-Za-z0-9_]*|\*)$/.test(key)
+  const suffix = /^(?:[A-Za-z_][A-Za-z0-9_-]*|\*)$/.test(key)
     ? `.${key}`
     : /^\d+$/.test(key)
     ? `[${key}]`

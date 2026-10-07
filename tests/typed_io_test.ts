@@ -48,6 +48,69 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
   );
 });
 
+Deno.test("hyphenated step and needs references retain JSON contracts and presence proofs", async () => {
+  const producer = defineWorkflow("ci.yml", { on: { push: {} } })
+    .job("detect-targets", ({ job }) =>
+      job.runsOn("ubuntu-latest")
+        .task({
+          id: "find-targets",
+          name: "Find",
+          outputs: { "target-names": { contract: names, required: false } },
+          run: () => {},
+        })
+        .task({
+          id: "inspect-targets",
+          name: "Inspect",
+          if: ({ steps }) =>
+            present(steps["find-targets"].outputs["target-names"]),
+          inputs: ({ steps }) => ({
+            targets: {
+              contract: names,
+              from: steps["find-targets"].outputs["target-names"],
+            },
+          }),
+          run: () => {},
+        })
+        .outputs(({ steps }) => ({
+          "target-names": steps["find-targets"].outputs["target-names"],
+        })));
+  const workflow = producer.job(
+    "deploy",
+    ({ job, jobs }) =>
+      job.needs(jobs["detect-targets"]).runsOn("ubuntu-latest")
+        .when(({ needs }) =>
+          present(needs["detect-targets"].outputs["target-names"])
+        )
+        .strategy(({ needs }) => ({
+          matrix: {
+            target: fromJSON(needs["detect-targets"].outputs["target-names"]),
+          },
+        }))
+        .run({ name: "Deploy", run: "true" }),
+  );
+  const lowered = await lowerProject(
+    defineProject({
+      workflows: [workflow],
+      localTaskPrepareAction: "./actions/task-prepare",
+    }),
+    "./tsugiori.ts",
+    "fixture-source",
+  );
+  const yaml = emitWorkflow(lowered.workflows[0].workflow);
+  assertStringIncludes(
+    yaml,
+    "target-names: ${{ steps.find-targets.outputs.target-names }}",
+  );
+  assertStringIncludes(
+    yaml,
+    "if: ${{ (steps.find-targets.outputs.target-names != '') }}",
+  );
+  assertStringIncludes(
+    yaml,
+    "target: ${{ fromJSON(needs.detect-targets.outputs.target-names) }}",
+  );
+});
+
 Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps", async () => {
   const first = defineWorkflow(".github/workflows/deploy.yml", {
     on: { push: {} },
@@ -248,7 +311,7 @@ Deno.test("typed input requires the source contract object and rejects env colli
   );
 });
 
-Deno.test("typed contracts follow bracket-rendered job and step references", () => {
+Deno.test("typed contracts follow hyphenated job and step references", () => {
   const other = jsonValue({ parse: names.parse });
   const first = defineWorkflow(".github/workflows/check.yml", {
     on: { push: {} },

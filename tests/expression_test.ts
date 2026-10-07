@@ -13,6 +13,7 @@ import {
   fromJSON,
   hashFiles,
   join,
+  rawExpression,
   rawNode,
   startsWith,
   success,
@@ -223,6 +224,32 @@ Deno.test("operators and built-ins retain GitHub expression syntax", () => {
       [failure(), "failure()"],
     ] as const
   ) assertStringIncludes(emitExpression(expression), syntax);
+});
+
+Deno.test("property references prefer GitHub dot syntax and preserve required brackets", () => {
+  const outputs = rawNode<Record<string, string>>("steps.mise.outputs");
+  for (
+    const [key, suffix] of [
+      ["cache-hit", ".cache-hit"],
+      ["_cache-hit2", "._cache-hit2"],
+      ["cache_hit", ".cache_hit"],
+      ["123name", "['123name']"],
+      ["-cache", "['-cache']"],
+      ["foo.bar", "['foo.bar']"],
+      ["foo bar", "['foo bar']"],
+      ["foo/bar", "['foo/bar']"],
+      ["it's", "['it''s']"],
+      ["", "['']"],
+    ]
+  ) {
+    assertEquals(
+      emitExpression(outputs.at(key)),
+      `\${{ steps.mise.outputs${suffix} }}`,
+    );
+  }
+  const raw = "steps.mise.outputs['cache-hit']";
+  assertEquals(emitExpression(rawNode<string>(raw)), `\${{ ${raw} }}`);
+  assertEquals(emitExpression(rawExpression(raw)), `\${{ ${raw} }}`);
 });
 
 Deno.test("a complete matrix can come from one typed expression", async () => {

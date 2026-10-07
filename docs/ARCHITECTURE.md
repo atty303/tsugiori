@@ -92,6 +92,10 @@ GitHub runtime values. `rawNode<T>()` and `.as<T>()` contain caller assertions,
 not runtime validation. Typed task JSON references give `fromJSON()` an inferred
 result type while preserving its ordinary GitHub expression rendering.
 
+Generated property references prefer GitHub-native dot syntax, including
+hyphenated names, and use brackets when required. Explicit raw expressions
+retain their authored spelling.
+
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,
 or task-step output declarations. Job outputs are authored after their steps and
