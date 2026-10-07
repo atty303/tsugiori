@@ -144,7 +144,8 @@ its [Deno configuration](examples/01-init/.github/deno.json), and its
 
 ### 2. Add typed jobs, steps, and conditions
 
-Add a step and a dependent job. `jobs.hello` refers to a job defined earlier.
+Add steps and a dependent job. `hello` exposes its step output as a job output,
+which `follow-up` reads through `needs.hello.outputs.message`.
 `github.ref.eq(...)` builds a GitHub runtime condition; it does not read the
 ref while TypeScript runs. Beyond the initial sample, keep each workflow in
 its own source file and import it from the
@@ -158,22 +159,52 @@ export const ci = defineWorkflow("workflows/ci.yml", {
   permissions: { contents: "read" },
 }).job("hello", ({ job }) =>
   job.runsOn("ubuntu-24.04")
-    .run({ name: "Say hello", run: "echo 'Hello from Tsugiori!'" })
+    .run({
+      id: "greet",
+      name: "Say hello",
+      run: 'echo "message=Hello from Tsugiori!" >> "$GITHUB_OUTPUT"',
+      outputs: ["message"],
+    })
     .run({
       name: "Show the ref on main",
       run: "echo 'Running on main'",
       if: ({ github }) => github.ref.eq("refs/heads/main"),
-    })).job(
+    }).outputs(({ steps }) => ({ message: steps.greet.outputs.message })))
+  .job(
     "follow-up",
     ({ job, jobs }) =>
       job.needs(jobs.hello).runsOn("ubuntu-24.04")
-        .run({ name: "Done", run: "echo 'The hello job completed'" }),
+        .run({
+          name: "Show the greeting",
+          env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),
+          run: 'echo "$MESSAGE"',
+        }),
   );
 ```
 
 The [complete workflow source](examples/02-typed-dsl/.github/workflows/src/ci.ts)
 generates [YAML](examples/02-typed-dsl/.github/workflows/ci.yml) with two visible
-jobs, a `needs` edge, and a step `if`.
+jobs, a `needs` edge, a job output, and a step `if`.
+
+The DSL rejects invalid references while TypeScript checks the source. For
+example, `hello` exports `message`, so reading `greeting` in `follow-up` fails:
+
+```ts
+env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.greeting }),
+```
+
+```text
+TS2339 [ERROR]: Property 'greeting' does not exist on type 'Ref<Readonly<{ message: string; }>, "needs.hello.outputs">'.
+```
+
+IDE completion follows the same state-specific types:
+
+| At the cursor after | Offered | Unavailable |
+| --- | --- | --- |
+| `job.` in a new job | `runsOn` | `run`, `task`, `uses` |
+| `job.runsOn(...).` | `run`, `task`, `uses` | `needs` |
+| `jobs.` in `follow-up` | `hello` | `follow-up` (the current job) |
+| `needs.hello.outputs.` in `follow-up` | `message` | `greeting` |
 
 ### 3. Add an existing Action
 

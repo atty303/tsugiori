@@ -196,6 +196,27 @@ withTest.job("build", ({ job, jobs }) => {
       );
       assertRelevantExactly(priorJobLabels, ["test"], ["build", "test"]);
 
+      const jobOutputLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        80,
+        "job-output",
+        `import { defineWorkflow } from "../src/github_actions/mod.ts";
+const source = defineWorkflow(".github/workflows/ci.yml", { on: { push: {} } })
+  .job("hello", ({ job }) => job.runsOn("ubuntu-latest")
+    .run({ id: "greet", name: "Greet", run: "true", outputs: ["message"] })
+    .outputs(({ steps }) => ({ message: steps.greet.outputs.message })));
+source.job("follow-up", ({ job, jobs }) => job.needs(jobs.hello)
+  .runsOn("ubuntu-latest").run({ name: "Show", run: "true", env: ({ needs }) => {
+    needs.hello.outputs./*completion*/
+    return { MESSAGE: needs.hello.outputs.message };
+  } }));`,
+      );
+      assertRelevantExactly(jobOutputLabels, ["message"], [
+        "message",
+        "greeting",
+      ]);
+
       const jobConditionLabels = await sourceCompletionLabels(
         writer,
         stream,

@@ -7,9 +7,12 @@ permissions:
 jobs:
   hello:
     runs-on: ubuntu-24.04
+    outputs:
+      message: ${{ steps.greet.outputs.message }}
     steps:
       - name: Say hello
-        run: echo 'Hello from Tsugiori!'
+        id: greet
+        run: echo "message=Hello from Tsugiori!" >> "$GITHUB_OUTPUT"
 
       - name: Show the ref on main
         if: ${{ (github.ref == 'refs/heads/main') }}
@@ -20,5 +23,7 @@ jobs:
     needs:
       - hello
     steps:
-      - name: Done
-        run: echo 'The hello job completed'
+      - name: Show the greeting
+        env:
+          MESSAGE: ${{ needs.hello.outputs.message }}
+        run: echo "$MESSAGE"

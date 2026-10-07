@@ -45,12 +45,54 @@ async function run(directory: string, args: string[]): Promise<void> {
 Deno.test("README TypeScript blocks are checked chapter source", async () => {
   const readme = await Deno.readTextFile(new URL("README.md", root));
   const blocks = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)];
-  assertEquals(blocks.length, 5);
+  assertEquals(blocks.length, 6);
+  const sourceBlockIndexes = [0, 1, 3, 4, 5];
   for (const [index, sourcePath] of snippetSources.entries()) {
     const source = await Deno.readTextFile(
       new URL(sourcePath, root),
     );
-    assert(lines(source).includes(lines(blocks[index][1])), sourcePath);
+    assert(
+      lines(source).includes(lines(blocks[sourceBlockIndexes[index]][1])),
+      sourcePath,
+    );
+  }
+});
+
+Deno.test("README invalid output reference reports its documented type error", async () => {
+  const readme = await Deno.readTextFile(new URL("README.md", root));
+  const match = readme.match(
+    /```ts\n(env: \(\{ needs \}\) => \(\{ MESSAGE: needs\.hello\.outputs\.greeting \}\),)\n```\n\n```text\n([^`]+)```/,
+  );
+  assert(match);
+  const directory =
+    new URL("examples/02-typed-dsl/.github/workflows/src/", root)
+      .pathname;
+  const file = await Deno.makeTempFile({ dir: directory, suffix: ".ts" });
+  try {
+    const source = await Deno.readTextFile(
+      new URL("examples/02-typed-dsl/.github/workflows/src/ci.ts", root),
+    );
+    const validLine =
+      "env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),";
+    assert(source.includes(validLine));
+    await Deno.writeTextFile(
+      file,
+      source.replace(validLine, match[1]),
+    );
+    const result = await new Deno.Command("mise", {
+      cwd: new URL("examples/02-typed-dsl/.github/", root).pathname,
+      args: ["exec", "--", "deno", "check", "--frozen=true", file],
+      stdout: "piped",
+      stderr: "piped",
+    }).output();
+    assert(result.code !== 0, "the invalid README snippet must fail checking");
+    const diagnostic = new TextDecoder().decode(result.stderr);
+    assert(
+      diagnostic.includes(match[2].trim()),
+      `README diagnostic differs from deno check:\n${diagnostic}`,
+    );
+  } finally {
+    await Deno.remove(file);
   }
 });
 
