@@ -1,0 +1,16 @@
+Task: Remove unused default project export from init and README
+Anchor: 96d09bf5c5ac717b54ed05b87ae784efb013a6af
+Base: ccbfba8a23f219e0f93e0442c96110dc81a44842
+Branch: main
+Commits: 96d09bf5c5ac717b54ed05b87ae784efb013a6af - template and documentation simplification
+Guidance: repository AGENTS.md; develop-repository and atty303 profile; Git task evidence
+Conditions: macOS; mise-managed tools; current clean main checkout; no-release refactor approved; template-only deletion adds no program observation boundary
+Authority: User deletion request and no-release selection; repository AGENTS.md; develop-repository
+## Transcript
+- U1:
+    init/readmeのexport default projectは意味ないから削除して
+    
+  - A: Applied develop-repository to clean main at ccbfba8. Fetched code and standard notes; notes merge already up to date. Confirmed runProject receives project directly and export default is unused. Removed the line from init template and README, and corrected Architecture from exports to constructs. Proposed no-release refactor. mise run check src/init/templates.ts passed including generated workflow guard, four existing init tests passed including README/template equality, and JSDoc plus 186 published examples passed. No new tests needed for this deletion.
+- U2:
+    release なし（推奨）
+  - A: Accepted no-release refactor. Reviewed three-file diff and diff check; created local commit 96d09bf. Retrieved full runtime JSONL and compared the two human messages in the current task cycle, preserving the human selection from the tool reply. Prepared normalized standard note. No push or release performed.
