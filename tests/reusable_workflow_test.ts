@@ -214,9 +214,9 @@ jobs:
       - name: Check
         id: check
         timeout-minutes: \${{ fromJSON(env.TIMEOUT) }}
-        run: echo check
-        shell: pwsh
         working-directory: .
+        shell: pwsh
+        run: echo check
 `,
     { serializer: (yaml) => yaml },
   );
@@ -460,8 +460,8 @@ jobs:
       - name: Release
         id: release
         timeout-minutes: 10
-        run: echo release
         shell: bash
+        run: echo release
 `,
     { serializer: (yaml) => yaml },
   );

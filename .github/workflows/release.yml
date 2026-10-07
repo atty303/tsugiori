@@ -27,8 +27,8 @@ jobs:
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
 
       - name: Check generated workflows
-        run: deno task tsugiori generate --check
         working-directory: .github
+        run: deno task tsugiori generate --check
 
       - name: Run repository checks and tests
         run: mise run test

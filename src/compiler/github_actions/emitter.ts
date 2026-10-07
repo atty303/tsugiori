@@ -236,11 +236,11 @@ export function emitStep(step: Step): Record<string, unknown> {
       emitted.with = emitActionInputs(step.with);
     }
   } else {
-    emitted.run = step.run;
-    if (step.shell !== undefined) emitted.shell = step.shell;
     if (step.workingDirectory !== undefined) {
       emitted["working-directory"] = step.workingDirectory;
     }
+    if (step.shell !== undefined) emitted.shell = step.shell;
+    emitted.run = step.run;
   }
   return emitted;
 }

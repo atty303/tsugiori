@@ -29,7 +29,6 @@ export function emitCompositeAction(
       return {
         name: step.name,
         id: step.id,
-        shell: "bash",
         env: {
           TSUGIORI_PROJECT_DIRECTORY:
             `\${{ github.action_path }}/.tsugiori/${payload.projectPath}`,
@@ -42,15 +41,14 @@ export function emitCompositeAction(
           TSUGIORI_INSTALL_DENO_VERSION: "2.9.7",
           TSUGIORI_ACTION_PATH: "${{ github.action_path }}",
         },
+        shell: "bash",
         run: 'bash "$TSUGIORI_ACTION_PATH/.tsugiori/prepare.sh"',
       };
     }
-    const emitted = emitStep(step);
-    if (step.type === "run") {
-      // Task invocation uses Bash; authored run steps require their own shell.
-      emitted.shell = step.shell ?? "bash";
-    }
-    return emitted;
+    // Task invocation uses Bash; authored run steps require their own shell.
+    return emitStep(
+      step.type === "run" ? { ...step, shell: step.shell ?? "bash" } : step,
+    );
   });
   const outputs = Object.fromEntries(
     Object.entries(action.metadata.outputs ?? {}).map((

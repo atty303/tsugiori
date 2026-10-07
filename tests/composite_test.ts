@@ -105,9 +105,9 @@ runs:
       if: \${{ (inputs.who != '') }}
       env:
         WHO: \${{ inputs.who }}
+      shell: bash
       run: |
         echo "greeting=hello" >> "\$GITHUB_OUTPUT"
-      shell: bash
 `,
     { serializer: (yaml) => yaml },
   );
@@ -610,6 +610,8 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
       assert(new RegExp(`${key}: ["']`).test(yaml));
     }
     assertEquals(/(?:^|\s)[&*][\w-]+/.test(yaml), false);
-    if (decoded.runs) assertEquals(/\n\n +-(?: |$)/m.test(yaml), false);
+    if (decoded.runs) {
+      assertStringIncludes(yaml, "      run: echo hello\n    - name: Run\n");
+    }
   }
 });

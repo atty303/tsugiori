@@ -455,8 +455,8 @@ runs:
     - name: Echo
       env:
         VALUE: \${{ inputs.value }}
-      run: echo "\$VALUE"
       shell: bash
+      run: echo "\$VALUE"
     - name: Cache task artifact
       id: tsugiori-task-cache
       continue-on-error: true
@@ -466,7 +466,6 @@ runs:
         path: \${{ runner.temp }}/tsugiori-artifacts/fixture-source-\${{ runner.os }}-\${{ runner.arch }}
     - name: Prepare task artifact
       id: tsugiori-task-prepare
-      shell: bash
       env:
         TSUGIORI_PROJECT_DIRECTORY: \${{ github.action_path }}/.tsugiori/source
         TSUGIORI_ENTRYPOINT: ./workflows.ts
@@ -476,13 +475,14 @@ runs:
         TSUGIORI_RUNNER_ARCH: \${{ runner.arch }}
         TSUGIORI_INSTALL_DENO_VERSION: 2.9.7
         TSUGIORI_ACTION_PATH: \${{ github.action_path }}
+      shell: bash
       run: bash "\$TSUGIORI_ACTION_PATH/.tsugiori/prepare.sh"
     - name: Composite task
       env:
         TSUGIORI_INPUT_VALUE: \${{ inputs.value }}
         VALUE: \${{ inputs.value }}
-      run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" 'actions/echo/action.yml/composite/task-1'"
       shell: bash
+      run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" 'actions/echo/action.yml/composite/task-1'"
 `,
     { serializer: (yaml) => yaml },
   );

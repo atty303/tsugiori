@@ -79,8 +79,8 @@ jobs:
         id: deploy
         env:
           AWS_REGION: ap-northeast-1
-        run: ./scripts/deploy.sh
         working-directory: deploy/signage-plugin-webview-cz
+        run: ./scripts/deploy.sh
 `,
     { serializer: (yaml) => yaml },
   );
@@ -650,8 +650,8 @@ jobs:
         id: deploy
         env:
           AWS_REGION: ap-northeast-1
-        run: ./deploy.sh
         working-directory: scripts
+        run: ./deploy.sh
 `,
       { serializer: (yaml) => yaml },
     );
