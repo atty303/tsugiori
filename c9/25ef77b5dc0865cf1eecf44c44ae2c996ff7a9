@@ -1,0 +1,108 @@
+Task: Rename Tsugiori public definition factories and migrate examples
+Anchor: c925ef77b5dc0865cf1eecf44c44ae2c996ff7a9
+Base: c5ab768cdfed7e97324c5ce641015fcd4da1a8a8
+Branch: main
+Commits: a260334 feat(github-actions): simplify definition factory names; f399fb6 fix(tests): normalize colored Deno diagnostics; 8bce0b3 fix(tests): disable color in diagnostic subprocess; c925ef7 docs(examples): use released definition factory names
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability applicability; git-task-evidence; user design decisions
+Conditions: Current checkout only; unrelated ignored .AGENTS.md.swp preserved; main push and minor release explicitly approved; 1Password signing temporarily failed then succeeded
+## Evidence
+- Stage 1 and stage 2 independently reviewed; no actionable findings in final diffs.
+- mise run check passed; mise run test passed 163 tests after final example regeneration.
+- JSR and GitHub Release v0.11.0 published from 8bce0b3; examples pinned to ^0.11.0 and regenerated.
+- Final main CI release workflow succeeded: https://github.com/atty303/tsugiori/actions/runs/37628443075 ; no additional release.
+- Generated GitHub workflow changes are source/cache identities and published prepare Action revision; Action payload regenerated.
+Authority: User request and approvals; repository AGENTS.md and current source/tests; develop-repository guidance
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) APIのdefine\*はdefineがないほうが自然に感じる
+    
+  - A: Applied dig to the naming question and examined the public API naming pattern.
+- U2:
+    A
+    
+  - A: Recorded the selected direction while continuing the design discussion.
+- U3:
+    A
+    
+  - A: Recorded the selected direction for a single public spelling.
+- U4:
+    A
+    
+  - A: Recorded the selected Composite Action factory name.
+- U5:
+    この命名でAPI全体を見直して評価して。僕はdefineがないほうが統一感があると思う
+    
+  - A: Evaluated the API as a whole and found the three factory names should move together.
+- U6:
+    A. 現在の例は全部project参照が1つだけではないか？ それならrunProjectにinlineにしたらいい
+  - A: Checked example entrypoints and adopted inline project construction at one-use runProject calls.
+- U7:
+    default exportが残っている箇所は想定外だ。default exportは不要
+    
+  - A: Removed unnecessary project default exports while retaining defaults for other contracts.
+- U8:
+    A
+    
+  - A: Confirmed the remaining design decision and prepared the implementation scope.
+- U9:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の公開 API `defineWorkflow`、`defineProject`、`defineCompositeAction` を、それぞれ `workflow`、`project`、`compositeAction` に変更してください。
+    
+    ## 目的
+    - 定義を作る関数を名詞形に揃え、API 全体の命名に統一感を持たせる。
+    - 利用例から不要な `project` 変数と project の default export をなくす。
+    
+    ## 成功条件
+    - 3つの新名が公開され、旧名は公開されない。
+    - README、初期化テンプレート、実例、リポジトリ自身の利用箇所、JSDoc、診断文、テストが新名と一致する。
+    - `project` の参照が `runProject` への受け渡し一度だけの入口では、`project(...)` を `runProject({ project: project(...), ... })` にインライン化する。
+    - 不要な project の default export を削除する。テスト用コードでモジュール間の参照が必要なら、必要な参照だけを明示する。
+    - 標準の検証を通し、生成済み workflow の差分と鮮度を確認する。
+    
+    ## 決定事項
+    - 3関数すべてから `define` を外す。
+      - 理由: `scenario(...)` や `textValue()` など、作るものを名前にした既存 API と揃う。
+      - 主な棄却案: 一部だけ改名すると命名規則が分かれる。
+    - 旧名の互換 alias は残さない。
+      - 理由: 公開 API の書き方を一つにする。
+      - 主な棄却案: 非推奨 alias の維持は同じ機能に二つの名前を残す。
+    - Composite Action の関数名は `compositeAction` とする。
+      - 理由: 現在作成できる Action の種類を正確に示す。
+      - 主な棄却案: `action` は将来ほかの実行方式を扱う際の区別が曖昧になる。
+    - 一度だけ使う `project` 値は `runProject` の引数内で作る。
+      - 理由: `const project = project(...)` という名前衝突を避け、不要な変数をなくせる。
+      - 主な棄却案: `config` などへの変数名変更は、その値を再利用しない入口では不要。
+    
+    ## 制約
+    - 生成される GitHub Actions の意味と task runtime の契約を変えない。
+    - `runProject` など、実行操作を表す別の公開 API は今回の改名対象にしない。
+    - Action contract など、project 以外の用途を持つ default export は削除しない。
+    
+    ## 対象外
+    - 新しい API 機能や互換 alias の追加。
+    - CLI コマンド名の変更。
+    
+    ## 未検証の前提
+    - なし。
+    
+    ## 実装時の指示
+    - 実装開始時に現在の checkout の変更と project の default export の参照箇所を再確認し、無関係な編集を保持する。
+    - `defineProject` を前提とする診断文は、実際に検証している条件を表す文へ直す。
+    
+  - A: Implemented the public rename, docs, templates, tests, diagnostics, and repository use; validated the staged release path.
+- U10:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_kcrKKRkhaCtzalVXT99phug9\",0]","question":"この変更のコミットを次回リリース対象にし、最大 minor bump として扱ってよいですか？ `develop-repository` スキルは release workflow を使うリポジトリで、この判断をコミット前に確認するよう求めています。現行 0.x の公開 API 改名なので、推奨は「対象にする・minor」です。回答を待つ間も実装と検証を進めます。","answer":"対象にする・minor（推奨）"}]
+    </send_user_message_question_reply>
+  - A: Accepted a release-targeted 0.x minor bump and committed the API change.
+- U11:
+    <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_H0Sbx3vTsNxRqAEA68y6M1MF\",0]","question":"実例の更新を完了するため、API 変更を main に push して次の 0.x minor release を起動してよいですか？ リポジトリの release workflow は main への push 後に動きます。現行の公開版 0.10.4 は新 API を持たず、task 実例の正規生成と lockfile 更新には新しい公開版が必要です。承認いただければ、まず CI が通る API 変更をコミットして push し、公開を確認後に実例と生成物を更新・検証します。`develop-repository` と AGENTS.md は push/release に明示承認を求めています。","answer":"push と release を承認する（推奨）"}]
+    </send_user_message_question_reply>
+  - A: With explicit push/release approval, pushed main, fixed CI diagnostic test failures, and confirmed JSR and GitHub Release v0.11.0.
+- U12:
+    retry
+    
+  - A: Retried 1Password signing successfully, committed and pushed the updated examples and generated artifacts; local check and 163 tests plus final CI passed.
