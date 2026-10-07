@@ -23,7 +23,7 @@
  * `job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
  * an error. Generated task preparation steps succeed by default and can be
  * overridden with `job.internal("prepare", "failure")`. Failures identify the
- * defineWorkflow, job, matrix, step, and field, and distinguish missing or invalid
+ * workflow, job, matrix, step, and field, and distinguish missing or invalid
  * fixtures, expression errors, and expectation mismatches.
  *
  * This test covers trigger filters, conditions, matrix expansion, `needs`,
@@ -45,7 +45,7 @@
  * @module
  */
 import {
-  defineProject,
+  project,
   type ProjectConfig,
   type TestableWorkflow,
   type TestJobsOf,
@@ -499,7 +499,7 @@ export class InstanceScenario<Job> {
     const child = new WorkflowScenario<TestJobsOf<P>>();
     define(child);
     child.program.workflowPath =
-      defineProject({ workflows: [workflow] }).workflows[0].path;
+      project({ workflows: [workflow] }).workflows[0].path;
     this.rules.call = child.program;
     return this;
   }
@@ -747,7 +747,7 @@ export class WorkflowScenario<Jobs> {
 /** Interpret a completed workflow with explicit fixtures and check expectations. The definition callback runs first; fixture callbacks run when their steps are reached. Returns results or rejects with {@link ScenarioError}. Supply config for local reusable calls. See this module for supported logic and verification limits.
  * @example Given a completed workflow with a `build` matrix job (stage) and task step `build` producing required text output `version`.
  * ```ts
- * await scenario(workflow, (test) => {
+ * await scenario(ci, (test) => {
  *   test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
  *   test.job("build", (job) => {
  *     job.eachMatrix(({ stage }, instance) => {
@@ -768,7 +768,7 @@ export async function scenario<
     /** Privacy-safe stage sink; sink exceptions do not change the result.
      * @example Given a completed `workflow` and `configureScenario`, a callback supplying its fixtures.
      * ```ts
-     * await scenario(workflow, configureScenario, { observe: (event) => console.log(event.stage, event.status) });
+     * await scenario(ci, configureScenario, { observe: (event) => console.log(event.stage, event.status) });
      * ```
      */
     observe?: ScenarioObserver;
@@ -776,8 +776,8 @@ export async function scenario<
 ): Promise<ScenarioResult> {
   const builder = new WorkflowScenario<TestJobsOf<Workflow>>();
   define(builder);
-  const primary = defineProject({ workflows: [workflow] }).workflows[0];
-  const config = options.config ?? defineProject({ workflows: [workflow] });
+  const primary = project({ workflows: [workflow] }).workflows[0];
+  const config = options.config ?? project({ workflows: [workflow] });
   if (!config.workflows.includes(primary)) {
     throw new ScenarioError(
       "fixture_invalid",

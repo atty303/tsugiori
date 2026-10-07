@@ -1,11 +1,11 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
-  defineCompositeAction,
-  defineProject,
-  defineWorkflow,
+  compositeAction,
+  project,
   rawNode,
   textValue,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitCompositeAction } from "../src/compiler/github_actions/action.ts";
@@ -17,7 +17,7 @@ Deno.test("whole callbacks execute once in their own scope and lower like fixed 
     counts.set(field, (counts.get(field) ?? 0) + 1);
   const text = textValue();
   const build = (callbacks: boolean) => {
-    const composite = defineCompositeAction("actions/echo/action.yml", {
+    const composite = compositeAction("actions/echo/action.yml", {
       name: "Echo",
       description: "Echo input",
       inputs: { value: { description: "Value" } },
@@ -57,7 +57,7 @@ Deno.test("whole callbacks execute once in their own scope and lower like fixed 
         },
       })
     );
-    const callee = defineWorkflow(".github/workflows/callee.yml", {
+    const callee = makeWorkflow(".github/workflows/callee.yml", {
       on: {
         workflow_call: {
           inputs: { revision: { type: "string", required: true } },
@@ -69,7 +69,7 @@ Deno.test("whole callbacks execute once in their own scope and lower like fixed 
       ({ job }) =>
         job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }),
     );
-    const workflow = defineWorkflow(".github/workflows/caller.yml", {
+    const workflow = makeWorkflow(".github/workflows/caller.yml", {
       on: { push: {} },
       secrets: ["TOKEN"],
     }).job("build", ({ job }) =>
@@ -200,7 +200,7 @@ Deno.test("whole callbacks execute once in their own scope and lower like fixed 
           }),
       );
     return lowerProject(
-      defineProject({
+      project({
         workflows: [workflow, callee],
         actions: [composite],
         localTaskPrepareAction: "./actions/task-prepare",
@@ -246,7 +246,7 @@ Deno.test("whole callbacks execute once in their own scope and lower like fixed 
 
 Deno.test("whole setting callbacks render contextual job, Action, run, and task fields", () => {
   const text = textValue();
-  const workflow = defineWorkflow(".github/workflows/callbacks.yml", {
+  const workflow = makeWorkflow(".github/workflows/callbacks.yml", {
     on: { push: {} },
     secrets: ["TOKEN"],
   }).job("build", ({ job }) =>
@@ -278,7 +278,7 @@ Deno.test("whole setting callbacks render contextual job, Action, run, and task 
         run: () => {},
       }));
   const lowered = lowerProject(
-    defineProject({
+    project({
       workflows: [workflow],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -343,7 +343,7 @@ jobs:
 });
 
 Deno.test("reusable call callbacks render typed and external inputs, secrets, and concurrency", () => {
-  const callee = defineWorkflow(".github/workflows/callee.yml", {
+  const callee = makeWorkflow(".github/workflows/callee.yml", {
     on: {
       workflow_call: {
         inputs: { revision: { type: "string", required: true } },
@@ -355,7 +355,7 @@ Deno.test("reusable call callbacks render typed and external inputs, secrets, an
     ({ job }) =>
       job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }),
   );
-  const workflow = defineWorkflow(".github/workflows/caller.yml", {
+  const workflow = makeWorkflow(".github/workflows/caller.yml", {
     on: { push: {} },
     secrets: ["TOKEN"],
   })
@@ -378,7 +378,7 @@ Deno.test("reusable call callbacks render typed and external inputs, secrets, an
         }),
     );
   const lowered = lowerProject(
-    defineProject({ workflows: [workflow, callee] }),
+    project({ workflows: [workflow, callee] }),
     "./workflows.ts",
   );
   assertInlineSnapshot(
@@ -410,7 +410,7 @@ jobs:
 
 Deno.test("composite callbacks render input bindings and the bundled task preparation bridge", () => {
   const text = textValue();
-  const composite = defineCompositeAction("actions/echo/action.yml", {
+  const composite = compositeAction("actions/echo/action.yml", {
     name: "Echo",
     description: "Echo input",
     inputs: { value: { description: "Value" } },
@@ -433,7 +433,7 @@ Deno.test("composite callbacks render input bindings and the bundled task prepar
       })
   );
   const lowered = lowerProject(
-    defineProject({ actions: [composite] }),
+    project({ actions: [composite] }),
     "./workflows.ts",
   );
   const payload = {
@@ -492,7 +492,7 @@ runs:
 });
 
 Deno.test("removed value and args callbacks fail without executing their bodies", () => {
-  defineWorkflow(".github/workflows/invalid.yml", { on: { push: {} } }).job(
+  makeWorkflow(".github/workflows/invalid.yml", { on: { push: {} } }).job(
     "check",
     ({ job }) => {
       const start = job.runsOn("ubuntu-latest");
@@ -543,13 +543,13 @@ Deno.test("mismatched callback results preserve contextual typing in diagnostics
     prefix: "tsugiori-callback-diagnostics-",
   });
   try {
-    const source = `import { defineWorkflow, textValue } from ${
+    const source = `import { workflow as makeWorkflow, textValue } from ${
       JSON.stringify(
         new URL("../src/github_actions/mod.ts", import.meta.url).href,
       )
     };
-const callee = defineWorkflow("callee.yml", { on: { workflow_call: { inputs: { value: { type: "boolean", required: true } } } } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({name: "Build", run: "true"}));
-defineWorkflow("caller.yml", { on: { push: {} } }).job("build", ({ job }) => {
+const callee = makeWorkflow("callee.yml", { on: { workflow_call: { inputs: { value: { type: "boolean", required: true } } } } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({name: "Build", run: "true"}));
+makeWorkflow("caller.yml", { on: { push: {} } }).job("build", ({ job }) => {
   job.reusable().call("./callee.yml", callee, { with: ({ github }) => ({value: github.sha}) });
   job.reusable().call("./callee.yml", callee, { with: ({ github }) => ({value: true, unknown: github.sha}) });
   job.reusable().rawCall("./callee.yml", { with: ({ github }) => ({value: { bad: github.sha }}) });

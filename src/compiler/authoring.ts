@@ -101,7 +101,7 @@ export function lowerProject(
   const loweredWorkflows: LoweredWorkflow[] = [];
 
   if (project.kind !== "github-actions.project") {
-    diagnostics.push("Default export must be created by defineProject().");
+    diagnostics.push("Project value must be created by project().");
   }
   if (project.workflows.length === 0 && (project.actions ?? []).length === 0) {
     diagnostics.push("Project must contain at least one workflow or Action.");

@@ -7,24 +7,24 @@ import {
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import {
-  defineCompositeAction,
-  defineProject,
-  defineWorkflow,
+  compositeAction,
+  project as makeProject,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 import { generateFiles } from "../src/compiler/generator.ts";
 import { parse } from "../src/deps.ts";
 
-const leaf = defineCompositeAction("actions/foo/action.yml", {
+const leaf = compositeAction("actions/foo/action.yml", {
   name: "Foo",
   description: "Foo",
 })
   .steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
-const parent = defineCompositeAction("actions/parent/action.yml", {
+const parent = compositeAction("actions/parent/action.yml", {
   name: "Parent",
   description: "Parent",
 })
   .steps(({ step }) => step.uses(leaf));
-const workflow = defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+const workflow = makeWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("ci", ({ job }) =>
     job.runsOn("ubuntu-latest").uses(parent)
       .uses(leaf, { uses: "example/foo@v1" }).task({
@@ -47,7 +47,7 @@ Deno.test("generation resolves one checkout location for local calls and workflo
       const [directory, expected] of [[root, "."], [nested, ".github"]] as const
     ) {
       const files = await generateFiles(
-        defineProject({
+        makeProject({
           workflows: [workflow],
           localTaskPrepareAction: "./actions/task-prepare",
         }),
@@ -75,7 +75,7 @@ Deno.test("generation resolves one checkout location for local calls and workflo
     const alias = resolve(root, "alias");
     await Deno.symlink(nested, alias, { type: "dir" });
     const files = await generateFiles(
-      defineProject({
+      makeProject({
         workflows: [workflow],
         localTaskPrepareAction: "./actions/task-prepare",
       }),
@@ -88,7 +88,7 @@ Deno.test("generation resolves one checkout location for local calls and workflo
       "./.github/actions/parent",
     );
     const explicit = await generateFiles(
-      defineProject({
+      makeProject({
         workflows: [workflow],
         workingDirectory: ".",
         localTaskPrepareAction: "./actions/task-prepare",
@@ -116,7 +116,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
   try {
     for (const workingDirectory of [".", ".github"]) {
       const files = await generateFiles(
-        defineProject({
+        makeProject({
           workflows: [workflow],
           workingDirectory,
           localTaskPrepareAction: "./actions/task-prepare",
@@ -134,7 +134,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
     await assertRejects(
       () =>
         generateFiles(
-          defineProject({ workflows: [workflow] }),
+          makeProject({ workflows: [workflow] }),
           "entry.ts",
           "unused",
           { projectDirectory: root },
@@ -154,7 +154,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
       await assertRejects(
         () =>
           generateFiles(
-            defineProject({ workflows: [workflow], workingDirectory }),
+            makeProject({ workflows: [workflow], workingDirectory }),
             "entry.ts",
             "unused",
             { projectDirectory: root },
@@ -163,7 +163,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
         "Invalid workingDirectory",
       );
     }
-    const remote = defineWorkflow("ci.yml", { on: { push: {} } })
+    const remote = makeWorkflow("ci.yml", { on: { push: {} } })
       .job(
         "ci",
         ({ job }) =>
@@ -171,7 +171,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
       );
     assertEquals(
       (await generateFiles(
-        defineProject({ workflows: [remote] }),
+        makeProject({ workflows: [remote] }),
         "entry.ts",
         "unused",
         { projectDirectory: root },
@@ -180,7 +180,7 @@ Deno.test("non-Git generation requires an explicit location only when checkout-r
     );
     assertEquals(
       (await generateFiles(
-        defineProject({ actions: [leaf] }),
+        makeProject({ actions: [leaf] }),
         "entry.ts",
         "unused",
         { projectDirectory: root },
@@ -208,12 +208,12 @@ Deno.test("CLI generation writes pwd-relative files and retains location diagnos
     await Deno.copyFile("deno.lock", resolve(root, "deno.lock"));
     await Deno.writeTextFile(
       entry,
-      `import { defineCompositeAction, defineProject, defineWorkflow, runProject } from ${
+      `import { compositeAction, project as makeProject, workflow as makeWorkflow, runProject } from ${
         JSON.stringify(source)
       };
-const action = defineCompositeAction("actions/foo/action.yml", { name: "Foo", description: "Foo" }).steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
-const workflow = defineWorkflow("workflows/ci.yml", { on: { push: {} } }).job("ci", ({ job }) => job.runsOn("ubuntu-latest").uses(action).task({ name: "Task", run: () => {} }));
-const project = defineProject({ workflows: [workflow], localTaskPrepareAction: "./actions/task-prepare" });
+const action = compositeAction("actions/foo/action.yml", { name: "Foo", description: "Foo" }).steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
+const workflow = makeWorkflow("workflows/ci.yml", { on: { push: {} } }).job("ci", ({ job }) => job.runsOn("ubuntu-latest").uses(action).task({ name: "Task", run: () => {} }));
+const project = makeProject({ workflows: [workflow], localTaskPrepareAction: "./actions/task-prepare" });
 Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });`,
     );
     const run = (diagnostics: string, cache: string) =>

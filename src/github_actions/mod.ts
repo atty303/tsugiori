@@ -3,7 +3,7 @@
  *
  * ## Authoring order and evaluation
  *
- * Start with {@link defineWorkflow} and its nonempty on object. Define jobs in
+ * Start with {@link workflow} and its nonempty on object. Define jobs in
  * dependency order. Inside a job callback, declare needs before consuming needs
  * references, configure strategy before fields that consume matrix, select a runner,
  * and append at least one step. Return the final state from that same callback.
@@ -88,7 +88,7 @@
  * references. `secrets: "inherit"` forwards one hop; it cannot prove repository
  * secret availability or organization/enterprise eligibility.
  *
- * `defineWorkflow()` takes a nonempty `on` object with supported event keys;
+ * `workflow()` takes a nonempty `on` object with supported event keys;
  * use `{}` for an event without settings. String and array trigger shorthands
  * are not accepted. Dispatch inputs belong in `on.workflow_dispatch.inputs`;
  * call inputs, secrets and outputs belong in `on.workflow_call`.
@@ -191,7 +191,7 @@ export type { Expression, RawExpression, Scope } from "./expression.ts";
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {}, pull_request: {} },
  * });
  * ```
@@ -551,7 +551,7 @@ export type WorkflowCall = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
  * @example
  * ```ts
- * const reusable = defineWorkflow(".github/workflows/release.yml", {
+ * const reusable = workflow(".github/workflows/release.yml", {
  *   on: { workflow_call: { inputs: {
  *     version: { type: "string", required: true },
  *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
@@ -582,7 +582,7 @@ export type WorkflowCallOutputs = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
        * @example
        * ```ts
-       * const reusable = defineWorkflow(".github/workflows/release.yml", {
+       * const reusable = workflow(".github/workflows/release.yml", {
        *   on: { workflow_call: { inputs: {
        *     version: { type: "string", required: true },
        *   }, outputs: { version: { description: "Built version", value: "${{ jobs.build.outputs.version }}" } } } },
@@ -602,7 +602,7 @@ export type WorkflowCallOutputs = Readonly<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: {
  *     push: { branches: ["main"], tags: ["v*"] },
  *     pull_request: { types: ["opened", "synchronize"] },
@@ -615,7 +615,7 @@ export type WorkflowTriggers = Readonly<{
   /** Push trigger settings. Use an empty object for every push.
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * });
    * ```
@@ -625,7 +625,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -639,7 +639,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -653,7 +653,7 @@ export type WorkflowTriggers = Readonly<{
   /** Pull request trigger settings.
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { pull_request: { types: ["opened", "synchronize"] } },
    * });
    * ```
@@ -663,7 +663,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -677,7 +677,7 @@ export type WorkflowTriggers = Readonly<{
   /** Pull request trigger in the base-repository context.
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { pull_request_target: { types: ["labeled"] } },
    * });
    * ```
@@ -687,7 +687,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: {
      *     push: { branches: ["main"], tags: ["v*"] },
      *     pull_request: { types: ["opened", "synchronize"] },
@@ -701,7 +701,7 @@ export type WorkflowTriggers = Readonly<{
   /** Manual trigger with typed input declarations.
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "choice", options: ["dev", "prd"] } },
@@ -715,7 +715,7 @@ export type WorkflowTriggers = Readonly<{
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: {
      *     workflow_dispatch: {
      *       inputs: {
@@ -731,7 +731,7 @@ export type WorkflowTriggers = Readonly<{
   /** Reusable workflow trigger and caller contract.
    * @example
    * ```ts
-   * const reusable = defineWorkflow(".github/workflows/release.yml", {
+   * const reusable = workflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -757,7 +757,7 @@ export type WorkflowTriggers = Readonly<{
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
        * @example
        * ```ts
-       * const reusable = defineWorkflow(".github/workflows/release.yml", {
+       * const reusable = workflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -803,7 +803,7 @@ type EventInputValue<I, K> = K extends keyof I ? InputValue<I[K]> : "";
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#available-contexts
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: {
  *     push: { branches: ["main"], tags: ["v*"] },
  *     pull_request: { types: ["opened", "synchronize"] },
@@ -834,7 +834,7 @@ const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
 /** A completed reusable workflow accepted by call().
  * @example
  * ```ts
- * const reusable = defineWorkflow(".github/workflows/release.yml", {
+ * const reusable = workflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -850,13 +850,13 @@ const workflowContract: unique symbol = Symbol("tsugiori.workflow-contract");
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow(".github/workflows/ci.yml", {
+ * const caller = workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
  *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
- * defineProject({ workflows: [reusable, caller] });
+ * project({ workflows: [reusable, caller] });
  * ```
  */
 export type ReusableWorkflow<
@@ -906,7 +906,7 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  * @see https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows#passing-secrets-to-nested-workflows
  * @example
  * ```ts
- * const reusable = defineWorkflow(".github/workflows/release.yml", {
+ * const reusable = workflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -922,13 +922,13 @@ type SecretValues<C extends WorkflowCall> = Readonly<
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow(".github/workflows/ci.yml", {
+ * const caller = workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
  *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
- * defineProject({ workflows: [reusable, caller] });
+ * project({ workflows: [reusable, caller] });
  * ```
  */
 export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
@@ -937,7 +937,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
        * @example
        * ```ts
-       * const reusable = defineWorkflow(".github/workflows/release.yml", {
+       * const reusable = workflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -953,13 +953,13 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     outputs: ["version"],
        *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
        *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-       * const caller = defineWorkflow(".github/workflows/ci.yml", {
+       * const caller = workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        * }).job(
        *   "release",
        *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
        * );
-       * defineProject({ workflows: [reusable, caller] });
+       * project({ workflows: [reusable, caller] });
        * ```
        */
       with?: CallValues<C>;
@@ -969,7 +969,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
        * @example
        * ```ts
-       * const reusable = defineWorkflow(".github/workflows/release.yml", {
+       * const reusable = workflow(".github/workflows/release.yml", {
        *   on: {
        *     workflow_call: {
        *       inputs: {
@@ -985,13 +985,13 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     outputs: ["version"],
        *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
        *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-       * const caller = defineWorkflow(".github/workflows/ci.yml", {
+       * const caller = workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        * }).job(
        *   "release",
        *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
        * );
-       * defineProject({ workflows: [reusable, caller] });
+       * project({ workflows: [reusable, caller] });
        * ```
        */
       with: CallValues<C>;
@@ -1002,7 +1002,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
        * @example
        * ```ts
-       * const deploy = defineWorkflow(".github/workflows/deploy.yml", {
+       * const deploy = workflow(".github/workflows/deploy.yml", {
        *   on: { workflow_call: { secrets: { token: { required: true } } } },
        * }).job("deploy", ({ job }) =>
        *   job.runsOn("ubuntu-latest").run({
@@ -1010,14 +1010,14 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     run: "deploy",
        *     env: ({ secrets }) => ({ TOKEN: secrets.token }),
        *   }));
-       * const caller = defineWorkflow(".github/workflows/ci.yml", {
+       * const caller = workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
        *   job.reusable().call("./.github/workflows/deploy.yml", deploy, {
        *     secrets: ({ secrets }) => ({ token: secrets.DEPLOY_TOKEN }),
        *   }));
-       * defineProject({ workflows: [deploy, caller] });
+       * project({ workflows: [deploy, caller] });
        * ```
        */
       secrets?: SecretValues<C> | "inherit";
@@ -1028,7 +1028,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsecrets
        * @example
        * ```ts
-       * const deploy = defineWorkflow(".github/workflows/deploy.yml", {
+       * const deploy = workflow(".github/workflows/deploy.yml", {
        *   on: { workflow_call: { secrets: { token: { required: true } } } },
        * }).job("deploy", ({ job }) =>
        *   job.runsOn("ubuntu-latest").run({
@@ -1036,14 +1036,14 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
        *     run: "deploy",
        *     env: ({ secrets }) => ({ TOKEN: secrets.token }),
        *   }));
-       * const caller = defineWorkflow(".github/workflows/ci.yml", {
+       * const caller = workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * }).job("release", ({ job }) =>
        *   job.reusable().call("./.github/workflows/deploy.yml", deploy, {
        *     secrets: ({ secrets }) => ({ token: secrets.DEPLOY_TOKEN }),
        *   }));
-       * defineProject({ workflows: [deploy, caller] });
+       * project({ workflows: [deploy, caller] });
        * ```
        */
       secrets: SecretValues<C> | "inherit";
@@ -1404,7 +1404,7 @@ export type AuthoringTaskStep = Readonly<{
   /** Task body executed on the compiled runtime after inputs have been parsed.
    * It receives native values, output writers, cwd and logging; generation and
    * scenarios never invoke it. A rejection fails the task step.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({ name: "Report", run: ({ logger }) => logger.info("done") });
    * ```
@@ -1515,25 +1515,25 @@ export type AuthoringWorkflow = Readonly<{
    */
   jobs: readonly AuthoringJob[];
 }>;
-/** Materialized project returned by {@link defineProject}. Pass it to runProject for generation. Workflow and Action metadata paths are relative to the invocation Deno project, not the source module URL.
+/** Materialized project returned by {@link project}. Pass it to runProject for generation. Workflow and Action metadata paths are relative to the invocation Deno project, not the source module URL.
  */
 export type ProjectConfig = Readonly<{
   /** Discriminant identifying the representation or result category.
    */
   kind: "github-actions.project";
-  /** Positive safe integer, default 1. Increase for changes to remote dependencies, lockfiles or Deno settings outside the automatically tracked local module graph. See {@link defineProject}.
+  /** Positive safe integer, default 1. Increase for changes to remote dependencies, lockfiles or Deno settings outside the automatically tracked local module graph. See {@link project}.
    */
   cacheVersion: number;
   /** Checkout-relative ./ Action path for an unreleased source checkout. Released packages select their matching preparation Action automatically.
    */
   localTaskPrepareAction?: string;
-  /** Checkout-relative project location for local Action references and workflow task preparation. When omitted, generation detects the path from Git root to the invocation directory. An explicit value takes precedence and supports generation without Git. Does not change task execution cwd. See {@link defineProject}.
+  /** Checkout-relative project location for local Action references and workflow task preparation. When omitted, generation detects the path from Git root to the invocation directory. An explicit value takes precedence and supports generation without Git. Does not change task execution cwd. See {@link project}.
    */
   workingDirectory?: string;
-  /** Completed workflows to generate together; include local reusable callees. See {@link defineProject}.
+  /** Completed workflows to generate together; include local reusable callees. See {@link project}.
    */
   workflows: readonly AuthoringWorkflow[];
-  /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
+  /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link compositeAction} and {@link project}.
    */
   actions?: readonly AuthoringCompositeAction[];
 }>;
@@ -1542,7 +1542,7 @@ export type ProjectConfig = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  *   permissions: { contents: "read" },
  * });
@@ -1558,7 +1558,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#name
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   name: "CI",
    * });
@@ -1569,7 +1569,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * });
    * ```
@@ -1584,7 +1584,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   vars: ["REGION"],
    * });
@@ -1596,7 +1596,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   secrets: ["DEPLOY_TOKEN"],
    * });
@@ -1607,7 +1607,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#run-name
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   runName: "CI for ${{ github.ref_name }}",
    * });
@@ -1618,7 +1618,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   env: { CI: "true" },
    * });
@@ -1629,7 +1629,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   concurrency: { group: "ci-${{ github.ref }}", cancelInProgress: true },
    * });
@@ -1640,7 +1640,7 @@ export type WorkflowOptions<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   permissions: { contents: "read" },
    * });
@@ -1733,7 +1733,7 @@ export interface StateEnv {
 
 /** Declared outputs are available to dependent jobs through needs, not through host-language values.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
  *   id: "checkout", name: "Checkout",
@@ -1751,7 +1751,7 @@ export interface JR<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1855,7 +1855,7 @@ type JobReferences = Readonly<
 >;
 /** Native action/run outputs are strings, including JSON serialized by the action itself.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   id: "build",
@@ -1872,7 +1872,7 @@ export type ActionOutputReference<
 /** Earlier step outputs are accessible as steps.<id>.outputs.<name>.
  * Tsugiori exposes only declared step ids and output names.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   id: "build",
@@ -1889,7 +1889,7 @@ export interface SR<
 > {
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -1903,7 +1903,7 @@ export interface SR<
   /** String output references from an earlier action or run step, read as steps.<id>.outputs.<name>.
    * This map contains runtime expression references, not values evaluated during generation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -2052,7 +2052,7 @@ type StepCommon<
 > = Readonly<{
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2064,7 +2064,7 @@ type StepCommon<
   id?: string;
   /** The step display name shown in the GitHub Actions run UI. It does not identify outputs; use id for references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsname
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
    * ```
@@ -2072,7 +2072,7 @@ type StepCommon<
   name: string;
   /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2092,7 +2092,7 @@ type StepCommon<
   >;
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2105,7 +2105,7 @@ type StepCommon<
   /** The maximum execution time in whole minutes before GitHub cancels the step. A step has no separate timeout when omitted; the job timeout still applies.
    * Literal values must be integers from 1 to 360; expression results are checked by GitHub. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2127,7 +2127,7 @@ type StepCommon<
     >;
   /** Environment variables supplied as a static map or one authoring callback returning the complete map in the step env scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2141,7 +2141,7 @@ type StepCommon<
 /** A uses step runs an action with named inputs. GitHub evaluates conditions and input expressions at runtime.
  * Tsugiori scenarios use fixtures rather than executing actions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
  *   id: "checkout", name: "Checkout",
@@ -2170,7 +2170,7 @@ type ObjectUsesStepOptions<
       /** Override the complete implementation reference, including local paths
        * and forks. Tsugiori keeps the declared input/output contract and does not
        * prove that the new implementation matches it.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`, given a completed `versionAction`.
+       * @example In a `workflow().job()` callback with `{ job }`, given a completed `versionAction`.
        * ```ts
        * job.runsOn("ubuntu-latest").uses(versionAction, { uses: "my-org/version@v1" });
        * ```
@@ -2184,7 +2184,7 @@ type ObjectUsesStepOptions<
   & (RequiredContractKeys<C> extends never ? Readonly<{
       /** Named string inputs. Required contract inputs without defaults must be
        * supplied; a callback form is documented on UsesStepOptions.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: { ref: "main" } });
        * ```
@@ -2194,7 +2194,7 @@ type ObjectUsesStepOptions<
     : Readonly<{
       /** Named string inputs. Required contract inputs without defaults must be
        * supplied; a callback form is documented on UsesStepOptions.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: { ref: "main" } });
        * ```
@@ -2229,7 +2229,7 @@ export type UsesStepOptions<
   & (RequiredContractKeys<C> extends never ? Readonly<
       {
         /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
          * ```
@@ -2252,7 +2252,7 @@ export type UsesStepOptions<
     : Readonly<
       {
         /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
          * ```
@@ -2301,7 +2301,7 @@ type ActionStepDefinition<
 /** A run step executes commands in a new shell process. Step shell and working-directory settings override job defaults. Values written to GITHUB_OUTPUT become string outputs.
  * The outputs list declares reference names; scenarios do not execute the script.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   id: "build",
@@ -2323,7 +2323,7 @@ export interface RunStepDefinition<
 > extends StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues> {
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2335,7 +2335,7 @@ export interface RunStepDefinition<
   readonly id?: Id;
   /** Runs command-line programs of at most 21,000 characters using the runner shell. Each run step starts a fresh non-login shell process; multiline commands within one step share that process. Shell state does not persist to the next step.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({ name: "Build", run: "deno test" });
    * ```
@@ -2344,7 +2344,7 @@ export interface RunStepDefinition<
   /** Named outputs exposed to subsequent consumers. A run step sets string values by appending `name=value` to the GITHUB_OUTPUT environment file.
    * This list declares output names for typed references; it does not write values or execute the script.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -2357,7 +2357,7 @@ export interface RunStepDefinition<
   readonly outputs?: Outputs;
   /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2369,7 +2369,7 @@ export interface RunStepDefinition<
   readonly workingDirectory?: string;
   /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
@@ -2384,7 +2384,7 @@ export interface RunStepDefinition<
  * Typed task input/output contracts and the task callback are additional runtime contracts, not GitHub workflow fields.
  * Each contract map may be omitted when empty. A nonempty explicitly annotated contract requires its declaration; run annotations do not declare contracts.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -2464,7 +2464,7 @@ interface TaskOptions<
    */
   readonly workingDirectory?: string;
   /** Unique step ID for typed output references.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -2483,7 +2483,7 @@ interface TaskOptions<
    * during authoring and returns a boolean expression; GitHub decides whether
    * to run the task. present() can guard optional typed input references.
    * See {@link TaskStepDefinition} and present() for absence handling.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Report",
@@ -2494,7 +2494,7 @@ interface TaskOptions<
    */
   readonly if?: Condition;
   /** Pairs each input contract with its runtime expression source. Omission is equivalent to an empty map; run still receives an empty inputs object. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -2522,7 +2522,7 @@ interface TaskOptions<
     >
   >;
   /** Declares native output contracts and whether each write is required. Omission is equivalent to an empty map; run still receives an output writer with no declared names.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -2538,7 +2538,7 @@ interface TaskOptions<
    */
   readonly outputs?: Outputs;
   /** Runs in the compiled task runtime with native values; await output writes.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -2566,16 +2566,16 @@ type TaskContracts<
   & (keyof I extends never ? unknown : Readonly<{ inputs: object }>)
   & (keyof O extends never ? unknown : Readonly<{ outputs: object }>);
 const jobDefinition = Symbol("tsugiori.job-definition");
-/** Identity key carrying a completed composite definition. Obtain it through {@link defineCompositeAction}; do not fabricate a definition or use this as a GitHub runtime value.
+/** Identity key carrying a completed composite definition. Obtain it through {@link compositeAction}; do not fabricate a definition or use this as a GitHub runtime value.
  */
 export const compositeActionDefinition = Symbol(
   "tsugiori.composite-action-definition",
 );
 const workflowDefinition = Symbol("tsugiori.workflow-definition");
-/** Workflow identity consumed by scenario(). Obtain one from {@link defineWorkflow} with at least one completed job; the identity ties the scenario to its authoring definition.
+/** Workflow identity consumed by scenario(). Obtain one from {@link workflow} with at least one completed job; the identity ties the scenario to its authoring definition.
  */
 export interface TestableWorkflow {
-  /** Retained workflow identity for generation; obtain through defineWorkflow().
+  /** Retained workflow identity for generation; obtain through workflow().
    */
   readonly [workflowDefinition]: AuthoringWorkflow;
   /** Type-level completed workflow shape for scenario inference.
@@ -2684,7 +2684,7 @@ type EffectiveOutputs<
 /** A job selects a runner and executes steps. Matrix expansion creates job variants with their own runtime matrix values.
  * Configure strategy before fields that reference its inferred matrix.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest")
  *   .strategy({
@@ -2742,7 +2742,7 @@ interface ExecBase<
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn(["self-hosted", "linux", "x64"]);
    * ```
@@ -2774,7 +2774,7 @@ interface ExecBase<
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").name("Build and test");
    * ```
@@ -2803,7 +2803,7 @@ interface ExecBase<
   >;
   /** Job env overrides workflow env; values within one map cannot depend on one another. Accepts a static map or one authoring callback returning the complete map.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenv
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").env(({ github }) => ({ SHA: github.sha }));
    * ```
@@ -2822,7 +2822,7 @@ interface ExecBase<
   >;
   /** Run defaults apply to run steps; explicit step shell/directory wins. A static object or authoring callback returns shell and workingDirectory together in the defaults scope.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
    *   shell: "bash",
@@ -2836,7 +2836,7 @@ interface ExecBase<
         {
           /** The command interpreter for run steps, for example bash, pwsh or cmd. Overrides job defaults; otherwise the runner chooses its platform default. On Linux/macOS the default is bash with sh fallback; Windows defaults to pwsh with powershell fallback. Explicit bash enables pipefail in addition to -e; a custom shell command must include {0} for the script file.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsshell
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
            *   shell: "bash",
@@ -2847,7 +2847,7 @@ interface ExecBase<
           shell?: string | ExpressionInput;
           /** The directory in which the run script executes. Overrides job defaults; otherwise uses the default workspace directory. The directory must already exist on the runner.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsworking-directory
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").defaultsRun(({ github }) => ({
            *   shell: "bash",
@@ -2880,7 +2880,7 @@ interface ExecBase<
   >;
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").when(({ github }) =>
    *   github.ref.eq("refs/heads/main")
@@ -2912,7 +2912,7 @@ interface ExecBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
    *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
@@ -2925,7 +2925,7 @@ interface ExecBase<
       {
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
@@ -2936,7 +2936,7 @@ interface ExecBase<
         matrix: Readonly<{
           /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest")
            *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
@@ -2949,7 +2949,7 @@ interface ExecBase<
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
@@ -2973,7 +2973,7 @@ interface ExecBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
    *   .strategy(() => ({
@@ -2998,7 +2998,7 @@ interface ExecBase<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest")
        *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
@@ -3010,7 +3010,7 @@ interface ExecBase<
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest")
        *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
@@ -3033,7 +3033,7 @@ interface ExecBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
    *   .strategy(() => ({
@@ -3057,7 +3057,7 @@ interface ExecBase<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest")
        *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
@@ -3068,7 +3068,7 @@ interface ExecBase<
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest")
        *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
@@ -3090,7 +3090,7 @@ interface ExecBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
    *   .strategy({
@@ -3115,7 +3115,7 @@ interface ExecBase<
       | Readonly<{
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
@@ -3127,7 +3127,7 @@ interface ExecBase<
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
@@ -3151,7 +3151,7 @@ interface ExecBase<
       ) => Readonly<{
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
@@ -3163,7 +3163,7 @@ interface ExecBase<
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest")
          *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
@@ -3191,7 +3191,7 @@ interface ExecBase<
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
    *   group: format("ci-{0}", github.ref),
@@ -3206,7 +3206,7 @@ interface ExecBase<
         {
           /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -3218,7 +3218,7 @@ interface ExecBase<
           group: ExpressionInput;
           /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -3230,7 +3230,7 @@ interface ExecBase<
           cancelInProgress: boolean;
           /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -3265,7 +3265,7 @@ interface ExecBase<
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").permissions({ contents: "read" });
    * ```
@@ -3285,7 +3285,7 @@ interface ExecBase<
   /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
    * Literal values retain a 1–360 integer limit; expression values pass through. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").timeoutMinutes(15);
    * ```
@@ -3315,7 +3315,7 @@ interface ExecBase<
   /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
    * Tsugiori supports the name only, not the structured name/url form; scenarios do not enforce protections.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").environment("production");
    * ```
@@ -3335,7 +3335,7 @@ interface ExecBase<
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
    *   id: "checkout", name: "Checkout",
@@ -3363,7 +3363,7 @@ interface ExecBase<
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
+             * @example In a `workflow().job()` callback with `{ job }`.
              * ```ts
              * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
              * ```
@@ -3386,7 +3386,7 @@ interface ExecBase<
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
+             * @example In a `workflow().job()` callback with `{ job }`.
              * ```ts
              * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
              * ```
@@ -3411,7 +3411,7 @@ interface ExecBase<
    * Tsugiori scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    * @example
-   * In a `defineWorkflow().job()` callback with `{ job }`.
+   * In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
    *   id: "checkout", name: "Checkout",
@@ -3442,7 +3442,7 @@ interface ExecBase<
       & Readonly<
         {
           /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
            * ```
@@ -3476,7 +3476,7 @@ interface ExecBase<
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -3515,7 +3515,7 @@ interface ExecBase<
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -3596,7 +3596,7 @@ interface ExecBase<
 /** Immutable composite sequence after its first step. Append steps before
  * mapping public outputs with {@link CStep.outputs}. See
  * {@link CompositeDraft.steps} for the defining callback and
- * {@link defineCompositeAction} for distribution and local uses resolution.
+ * {@link compositeAction} for distribution and local uses resolution.
  */
 export type CStep<
   WorkflowPath extends string,
@@ -3883,7 +3883,7 @@ interface CStepBase<
     Proof
   >;
 
-  /** Append a compiled Deno task. The inputs map callback builds GitHub expressions during authoring; run executes later with parsed native inputs and an output writer. Composite tasks support workingDirectory and omit timeoutMinutes. See {@link TaskStepDefinition} and {@link defineCompositeAction}.
+  /** Append a compiled Deno task. The inputs map callback builds GitHub expressions during authoring; run executes later with parsed native inputs and an output writer. Composite tasks support workingDirectory and omit timeoutMinutes. See {@link TaskStepDefinition} and {@link compositeAction}.
    * @example Given a composite state `built` after an earlier step.
    * ```ts
    * built.task({ name: "Report", run: ({ logger }) => logger.info("done") });
@@ -3969,7 +3969,7 @@ interface CStepBase<
   >;
 }
 
-/** Public composite Action metadata passed to {@link defineCompositeAction}. Inputs are strings, including defaults. Output descriptions declare the public names; {@link CStep.outputs} separately maps those names to step expressions.
+/** Public composite Action metadata passed to {@link compositeAction}. Inputs are strings, including defaults. Output descriptions declare the public names; {@link CStep.outputs} separately maps those names to step expressions.
  */
 export type ActionMetadata = Readonly<{
   /** Human-readable display name; references use IDs or output keys rather than this text.
@@ -4010,7 +4010,7 @@ export type ActionMetadata = Readonly<{
   >;
 }>;
 
-/** Materialized composite definition retained by {@link Composite}. Generation emits its metadata file and, for task steps, its source payload. Prefer {@link defineCompositeAction} to constructing records.
+/** Materialized composite definition retained by {@link Composite}. Generation emits its metadata file and, for task steps, its source payload. Prefer {@link compositeAction} to constructing records.
  */
 export type AuthoringCompositeAction = Readonly<{
   /** Project-relative metadata output file, ending in action.yml or action.yaml.
@@ -4039,12 +4039,12 @@ type CompositeInputs<M extends ActionMetadata> = [M] extends [unknown] ? {
   }
   : never;
 /** Completed composite Action usable as a contract in uses() and in
- * {@link defineProject}. Public inputs and outputs are strings even when an
+ * {@link project}. Public inputs and outputs are strings even when an
  * internal task uses JSON. A uses step ID exposes declared output names to later
  * steps; the reference is a GitHub expression, not an already obtained value.
  * See {@link ActionMetadata} and {@link CStep.outputs} for declaration
  * and mapping before consumption.
- * @example In a `defineWorkflow().job()` callback with `{ job }`, given a completed `versionAction` declaring public output `version`.
+ * @example In a `workflow().job()` callback with `{ job }`, given a completed `versionAction` declaring public output `version`.
  * ```ts
  * job.runsOn("ubuntu-latest").uses(versionAction, { id: "version" })
  *   .run({ name: "Report", run: 'echo "$VERSION"',
@@ -4058,11 +4058,11 @@ export type Composite<M extends ActionMetadata> =
     /** GitHub Action implementation reference. A contract supplies the default; a uses override selects a different implementation without proving that it matches the declared metadata.
      */
     uses: string;
-    /** Retained composite identity for generation; obtain through defineCompositeAction().
+    /** Retained composite identity for generation; obtain through compositeAction().
      */
     [compositeActionDefinition]: AuthoringCompositeAction;
   }>;
-/** Composite metadata and input references before its steps are defined. Call {@link CompositeDraft.steps} once and retain the returned immutable Action. See {@link defineCompositeAction}.
+/** Composite metadata and input references before its steps are defined. Call {@link CompositeDraft.steps} once and retain the returned immutable Action. See {@link compositeAction}.
  */
 export interface CompositeDraft<
   P extends string,
@@ -4077,8 +4077,8 @@ export interface CompositeDraft<
    * ```
    */
   readonly inputs: import("./expression.ts").Ref<CompositeInputs<M>, "inputs">;
-  /** Define a nonempty composite step sequence. The callback runs now with step.run/uses/task and must return its own completed state. If metadata declares outputs, finish with {@link CStep.outputs}; keys must match exactly. Retain the returned Action for uses() and {@link defineProject}.
-   * @example Given `draft` from defineCompositeAction with public output metadata for `version`.
+  /** Define a nonempty composite step sequence. The callback runs now with step.run/uses/task and must return its own completed state. If metadata declares outputs, finish with {@link CStep.outputs}; keys must match exactly. Retain the returned Action for uses() and {@link project}.
+   * @example Given `draft` from compositeAction with public output metadata for `version`.
    * ```ts
    * draft.steps(({ step }) => step.run({ id: "build", name: "Build", shell: "bash", run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"', outputs: ["version"] }).outputs(({ steps }) => ({ version: steps.build.outputs.version })));
    * ```
@@ -4112,7 +4112,7 @@ export interface CompositeDraft<
  * Declare a composite Action metadata file and its public metadata, then define its steps.
  * The file is project-relative and must end in action.yml or action.yaml; parent traversal and absolute
  * paths throw TypeError. This call creates a draft, not an executable Action.
- * Call {@link CompositeDraft.steps}. Referenced internal Actions are collected automatically; use defineProject actions for additional generation roots.
+ * Call {@link CompositeDraft.steps}. Referenced internal Actions are collected automatically; use project actions for additional generation roots.
  *
  * Output metadata describes the public interface. A run step declares output names
  * and writes their values to GITHUB_OUTPUT; a task declares contracts and calls
@@ -4121,7 +4121,7 @@ export interface CompositeDraft<
  * resulting Action outputs from later workflow/composite steps. Those references
  * build GitHub expressions, not values available during authoring.
  *
- * `defineCompositeAction(path, metadata).steps(...)` generates the specified
+ * `compositeAction(path, metadata).steps(...)` generates the specified
  * metadata file. Its parent directory owns local uses references and task payloads.
  * Root action.yml and action.yaml are supported. Directory arguments are rejected;
  * migrate them by appending /action.yml or /action.yaml. A project can contain actions, workflows,
@@ -4175,13 +4175,13 @@ export interface CompositeDraft<
  *
  * @example
  * ```ts
- * defineCompositeAction("actions/version/action.yml", {
+ * compositeAction("actions/version/action.yml", {
  *   name: "Version", description: "Expose a version",
  *   outputs: { version: { description: "Version string" } },
  * });
  * ```
  */
-export function defineCompositeAction<
+export function compositeAction<
   const P extends string,
   const M extends ActionMetadata,
 >(
@@ -4320,7 +4320,7 @@ interface StepBase<
   Proof extends string = never,
 > extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
   /** References to earlier named steps in this immutable job.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * const built = job.runsOn("ubuntu-latest").run({
    *   id: "build", name: "Build",
@@ -4333,7 +4333,7 @@ interface StepBase<
   readonly steps: Steps;
   /** Maps step values to string outputs for dependent jobs; GitHub can suppress outputs containing secrets.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -4381,7 +4381,7 @@ interface StepBase<
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
    *   id: "checkout", name: "Checkout",
@@ -4409,7 +4409,7 @@ interface StepBase<
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
+             * @example In a `workflow().job()` callback with `{ job }`.
              * ```ts
              * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
              * ```
@@ -4432,7 +4432,7 @@ interface StepBase<
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-             * @example In a `defineWorkflow().job()` callback with `{ job }`.
+             * @example In a `workflow().job()` callback with `{ job }`.
              * ```ts
              * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
              * ```
@@ -4457,7 +4457,7 @@ interface StepBase<
    * Tsugiori scenarios represent action behavior with fixtures.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsuses
    * @example
-   * In a `defineWorkflow().job()` callback with `{ job }`.
+   * In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
    *   id: "checkout", name: "Checkout",
@@ -4488,7 +4488,7 @@ interface StepBase<
       & Readonly<
         {
           /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", { with: ({ github }) => ({ ref: github.sha }) });
            * ```
@@ -4522,7 +4522,7 @@ interface StepBase<
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori preserves the script through YAML emission; scenarios do not execute it.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsrun
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -4561,7 +4561,7 @@ interface StepBase<
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * const version = textValue();
    * job.runsOn("ubuntu-latest")
@@ -4636,7 +4636,7 @@ interface StepBase<
           outputs?: O;
           /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").run({
            *   name: "Build",
@@ -4648,7 +4648,7 @@ interface StepBase<
           if?: C;
           /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").run({
            *   name: "Build",
@@ -4660,7 +4660,7 @@ interface StepBase<
           continueOnError?: F;
           /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.runsOn("ubuntu-latest").task({
            *   id: "version",
@@ -4694,7 +4694,7 @@ interface StepBase<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations#supported-keywords-for-jobs-that-call-a-reusable-workflow
  * @example
  * ```ts
- * const reusable = defineWorkflow(".github/workflows/release.yml", {
+ * const reusable = workflow(".github/workflows/release.yml", {
  *   on: {
  *     workflow_call: {
  *       inputs: {
@@ -4710,13 +4710,13 @@ interface StepBase<
  *     outputs: ["version"],
  *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
  *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
- * const caller = defineWorkflow(".github/workflows/ci.yml", {
+ * const caller = workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "release",
  *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
  * );
- * defineProject({ workflows: [reusable, caller] });
+ * project({ workflows: [reusable, caller] });
  * ```
  */
 export type CallJob<
@@ -4755,7 +4755,7 @@ interface CallJobBase<
 > {
   /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().when(({ github }) => github.ref.eq("refs/heads/main"));
    * ```
@@ -4774,7 +4774,7 @@ interface CallJobBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable()
    *   .strategy(() => ({
@@ -4796,7 +4796,7 @@ interface CallJobBase<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
@@ -4806,7 +4806,7 @@ interface CallJobBase<
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
@@ -4818,7 +4818,7 @@ interface CallJobBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
    * ```
@@ -4844,7 +4844,7 @@ interface CallJobBase<
     ) => Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
@@ -4854,7 +4854,7 @@ interface CallJobBase<
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
@@ -4879,7 +4879,7 @@ interface CallJobBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable()
    *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
@@ -4890,7 +4890,7 @@ interface CallJobBase<
       {
         /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.reusable()
          *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
@@ -4899,7 +4899,7 @@ interface CallJobBase<
         matrix: Readonly<{
           /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.reusable()
            *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
@@ -4910,7 +4910,7 @@ interface CallJobBase<
         /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
          * Tsugiori scenarios do not simulate cancellation or scheduling.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.reusable()
          *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
@@ -4923,7 +4923,7 @@ interface CallJobBase<
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
    * ```
@@ -4932,7 +4932,7 @@ interface CallJobBase<
     value: Readonly<{
       /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
@@ -4942,7 +4942,7 @@ interface CallJobBase<
       /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
        * Tsugiori scenarios do not simulate cancellation or scheduling.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.reusable()
        *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
@@ -4961,7 +4961,7 @@ interface CallJobBase<
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().name("Build and test");
    * ```
@@ -4982,7 +4982,7 @@ interface CallJobBase<
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Tsugiori supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().permissions({ contents: "read" });
    * ```
@@ -4993,7 +4993,7 @@ interface CallJobBase<
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().concurrency(({ github }) => ({
    *   group: format("ci-{0}", github.ref),
@@ -5008,7 +5008,7 @@ interface CallJobBase<
         {
           /** A concurrency group shared by jobs or runs in this repository. Only one member may run at a time. Names are case-insensitive; use distinct groups to avoid cancelling unrelated workflows.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.reusable().concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -5020,7 +5020,7 @@ interface CallJobBase<
           group: ExpressionInput;
           /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.reusable().concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -5032,7 +5032,7 @@ interface CallJobBase<
           cancelInProgress: boolean;
           /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-           * @example In a `defineWorkflow().job()` callback with `{ job }`.
+           * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
            * job.reusable().concurrency(({ github }) => ({
            *   group: format("ci-{0}", github.ref),
@@ -5061,7 +5061,7 @@ interface CallJobBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idwith
    * @example
    * ```ts
-   * const reusable = defineWorkflow(".github/workflows/release.yml", {
+   * const reusable = workflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -5077,13 +5077,13 @@ interface CallJobBase<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow(".github/workflows/ci.yml", {
+   * const caller = workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
    *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineProject({ workflows: [reusable, caller] });
+   * project({ workflows: [reusable, caller] });
    * ```
    */
   call<
@@ -5099,7 +5099,7 @@ interface CallJobBase<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
      * @example
      * ```ts
-     * const reusable = defineWorkflow(".github/workflows/release.yml", {
+     * const reusable = workflow(".github/workflows/release.yml", {
      *   on: {
      *     workflow_call: {
      *       inputs: {
@@ -5115,13 +5115,13 @@ interface CallJobBase<
      *     outputs: ["version"],
      *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
      *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-     * const caller = defineWorkflow(".github/workflows/ci.yml", {
+     * const caller = workflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "release",
      *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
      * );
-     * defineProject({ workflows: [reusable, caller] });
+     * project({ workflows: [reusable, caller] });
      * ```
      */
     /** GitHub-native reference; the caller owns its correspondence to callee. */
@@ -5164,7 +5164,7 @@ interface CallJobBase<
         /** Complete declared input map or a callback in the with scope, which excludes secrets.
          * @example In a job callback with `{ job }`, with a locally declared version contract.
          * ```ts
-         * const versionWorkflow = defineWorkflow(".github/workflows/version.yml", {
+         * const versionWorkflow = workflow(".github/workflows/version.yml", {
          *   on: { workflow_call: { inputs: { version: { type: "string", required: true } } } },
          * }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));
          * job.reusable().call("./.github/workflows/version.yml", versionWorkflow, {
@@ -5187,7 +5187,7 @@ interface CallJobBase<
         /** Complete declared secret map, its authoring callback, or inherit. Only this field exposes secrets.
          * @example In a job callback with `{ job }`, with a locally declared version contract.
          * ```ts
-         * const versionWorkflow = defineWorkflow(".github/workflows/version.yml", {
+         * const versionWorkflow = workflow(".github/workflows/version.yml", {
          *   on: { workflow_call: { inputs: { version: { type: "string", required: true } } } },
          * }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));
          * job.reusable().call("./.github/workflows/version.yml", versionWorkflow, {
@@ -5212,7 +5212,7 @@ interface CallJobBase<
   /** Runs a reusable workflow referenced by owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; external references select a SHA, tag or branch and cannot use expressions.
    * Pass a static args object; with and secrets each accept a whole-map authoring callback in their own scope. with excludes secrets. Callbacks run once during rawCall(); GitHub resolves their expressions. Tsugiori input/output contracts are caller assertions; scenarios require a call fixture.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().rawCall("owner/repo/.github/workflows/build.yml@v1", {
    *   with: { version: "1.0.0" },
@@ -5223,7 +5223,7 @@ interface CallJobBase<
   rawCall(
     /** The reusable workflow to invoke: owner/repository/.github/workflows/file@ref or ./.github/workflows/file. Local paths use the caller commit; a SHA pins an external version. Expressions are not allowed.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
-     * @example In a `defineWorkflow().job()` callback with `{ job }`.
+     * @example In a `workflow().job()` callback with `{ job }`.
      * ```ts
      * job.runsOn("ubuntu-latest").uses("actions/checkout@v4", {
      *   id: "checkout", name: "Checkout",
@@ -5282,7 +5282,7 @@ interface CallJobBase<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -5323,7 +5323,7 @@ interface JobInitBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    * @example
    * ```ts
-   * const reusable = defineWorkflow(".github/workflows/release.yml", {
+   * const reusable = workflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -5339,13 +5339,13 @@ interface JobInitBase<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow(".github/workflows/ci.yml", {
+   * const caller = workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
    *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineProject({ workflows: [reusable, caller] });
+   * project({ workflows: [reusable, caller] });
    * ```
    */
   reusable(): CallJobOf<
@@ -5361,7 +5361,7 @@ interface JobInitBase<
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn(["self-hosted", "linux", "x64"]);
    * ```
@@ -5382,7 +5382,7 @@ interface JobInitBase<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -5427,7 +5427,7 @@ interface DepJobBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iduses
    * @example
    * ```ts
-   * const reusable = defineWorkflow(".github/workflows/release.yml", {
+   * const reusable = workflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -5443,13 +5443,13 @@ interface DepJobBase<
    *     outputs: ["version"],
    *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
    *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * const caller = defineWorkflow(".github/workflows/ci.yml", {
+   * const caller = workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "release",
    *   ({ job }) => job.reusable().call("./.github/workflows/release.yml", reusable, { with: { version: "1.0.0" } }),
    * );
-   * defineProject({ workflows: [reusable, caller] });
+   * project({ workflows: [reusable, caller] });
    * ```
    */
   reusable(): CallJobOf<
@@ -5465,7 +5465,7 @@ interface DepJobBase<
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn(["self-hosted", "linux", "x64"]);
    * ```
@@ -5520,7 +5520,7 @@ interface JobBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -5562,7 +5562,7 @@ interface JobBase<
 /** The callback job exposes needs() only after earlier jobs exist.
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -5598,7 +5598,7 @@ export type JobAt<
 /** The job callback receives the new job and references to earlier jobs.
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -5656,7 +5656,7 @@ interface JobScopeBase<
   /** Start the new job with runsOn() or reusable().
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "test",
@@ -5676,7 +5676,7 @@ interface JobScopeBase<
   /** Earlier jobs available for explicit needs() dependencies.
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -5718,10 +5718,10 @@ type AddJobReference<
   : never;
 type AvailableJobId<JobId extends string, Jobs extends JobReferences> =
   JobId extends keyof Jobs ? never : JobId;
-/** Add a completed job before passing the workflow to defineProject().
+/** Add a completed job before passing the workflow to project().
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -5769,7 +5769,7 @@ interface WorkflowStartBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * const flow = defineWorkflow(".github/workflows/ci.yml", {
+   * const flow = workflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },
@@ -5788,7 +5788,7 @@ interface WorkflowStartBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "test",
@@ -5809,7 +5809,7 @@ interface WorkflowStartBase<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "test",
@@ -5842,7 +5842,7 @@ interface WorkflowStartBase<
 /** An immutable workflow with at least one completed job.
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job("build", ({ job }) =>
  *   job.runsOn("ubuntu-latest").run({
@@ -5909,7 +5909,7 @@ interface WorkflowBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * const flow = defineWorkflow(".github/workflows/ci.yml", {
+   * const flow = workflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },
@@ -5938,7 +5938,7 @@ interface WorkflowBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
    * @example
    * ```ts
-   * const reusable = defineWorkflow(".github/workflows/release.yml", {
+   * const reusable = workflow(".github/workflows/release.yml", {
    *   on: {
    *     workflow_call: {
    *       inputs: {
@@ -5986,7 +5986,7 @@ interface WorkflowBase<
     keyof Values & string,
     InputValues
   >;
-  /** Retained workflow identity for generation; obtain through defineWorkflow().
+  /** Retained workflow identity for generation; obtain through workflow().
    */
   readonly [workflowDefinition]: AuthoringWorkflow;
   /** Type-level completed workflow shape for scenario inference.
@@ -5997,7 +5997,7 @@ interface WorkflowBase<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job(
    *   "test",
@@ -6018,7 +6018,7 @@ interface WorkflowBase<
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
      * @example
      * ```ts
-     * defineWorkflow(".github/workflows/ci.yml", {
+     * workflow(".github/workflows/ci.yml", {
      *   on: { push: {} },
      * }).job(
      *   "test",
@@ -6082,7 +6082,7 @@ type JobDraft = Readonly<{
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
  * @example
  * ```ts
- * defineWorkflow(".github/workflows/ci.yml", {
+ * workflow(".github/workflows/ci.yml", {
  *   on: { push: {} },
  * }).job(
  *   "test",
@@ -6091,7 +6091,7 @@ type JobDraft = Readonly<{
  * );
  * ```
  */
-export function defineWorkflow<
+export function workflow<
   const WorkflowPath extends string,
   const On extends WorkflowTriggers,
   const Vars extends readonly string[] | undefined = undefined,
@@ -6105,7 +6105,7 @@ export function defineWorkflow<
       /** Declared names available in expression callbacks.
        * @example
        * ```ts
-       * defineWorkflow(".github/workflows/ci.yml", {
+       * workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   vars: ["REGION"],
        * });
@@ -6115,7 +6115,7 @@ export function defineWorkflow<
       /** Declared names available in expression callbacks.
        * @example
        * ```ts
-       * defineWorkflow(".github/workflows/ci.yml", {
+       * workflow(".github/workflows/ci.yml", {
        *   on: { push: {} },
        *   secrets: ["DEPLOY_TOKEN"],
        * });
@@ -6196,13 +6196,13 @@ export function defineWorkflow<
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobs
  * @example Given a completed workflow `ci`.
  * ```ts
- * defineProject({ cacheVersion: 1, workflows: [ci] });
+ * project({ cacheVersion: 1, workflows: [ci] });
  * ```
  */
-export function defineProject<
+export function project<
   const Workflows extends readonly Readonly<
     {
-      /** Retained workflow identity for generation; obtain through defineWorkflow().
+      /** Retained workflow identity for generation; obtain through workflow().
        */
       [workflowDefinition]: AuthoringWorkflow;
     }
@@ -6212,7 +6212,7 @@ export function defineProject<
     /** Increase when inputs outside the tracked source graph change the task binary.
      * @example Given a completed workflow `ci`.
      * ```ts
-     * defineProject({ cacheVersion: 2, workflows: [ci] });
+     * project({ cacheVersion: 2, workflows: [ci] });
      * ```
      */
     cacheVersion?: number;
@@ -6223,15 +6223,15 @@ export function defineProject<
     /** Completed workflows to generate together, including local reusable callees.
      * @example Given a completed workflow `ci`.
      * ```ts
-     * defineProject({ workflows: [ci] });
+     * project({ workflows: [ci] });
      * ```
      */
     workflows?: Workflows;
-    /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link defineCompositeAction} and {@link defineProject}.
+    /** Additional completed composite Action roots. Internal references from workflows and these roots are generated automatically; repeated definitions generate once. An Action-only project is allowed. See {@link compositeAction} and {@link project}.
      */
     actions?: readonly Readonly<
       {
-        /** Retained composite identity for generation; obtain through defineCompositeAction().
+        /** Retained composite identity for generation; obtain through compositeAction().
          */
         [compositeActionDefinition]: AuthoringCompositeAction;
       }
@@ -6273,7 +6273,7 @@ export function defineProject<
 }
 
 // The draft erases authoring generics; restore the initial context selected by
-// defineWorkflow without comparing it to a broad expression reference type.
+// workflow without comparing it to a broad expression reference type.
 function createWorkflowFacade<
   P extends string,
   V extends string,

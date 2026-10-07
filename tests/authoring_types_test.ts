@@ -7,7 +7,7 @@ import type {
   Workflow,
   WorkflowStart,
 } from "../src/github_actions/mod.ts";
-import { defineProject, defineWorkflow } from "../src/github_actions/mod.ts";
+import { project, workflow } from "../src/github_actions/mod.ts";
 import type { ExpressionEnvironment } from "../src/github_actions/expression_scope.ts";
 
 type Equal<Left, Right> = (<Value>() => Value extends Left ? 1 : 2) extends
@@ -116,11 +116,11 @@ function assertAuthoringContracts(): void {
     outputs: { revision: { description: "Revision" } },
   } as const;
 
-  const empty = defineWorkflow(".github/workflows/ci.yml", {
+  const empty = workflow(".github/workflows/ci.yml", {
     on: { push: {} },
   });
   // @ts-expect-error an empty workflow is not finalizable.
-  defineProject({ workflows: [empty] });
+  project({ workflows: [empty] });
 
   const withTest = empty.job("test", ({ job }) => {
     const checkedOut = job
@@ -156,7 +156,7 @@ function assertAuthoringContracts(): void {
   });
 
   let captured!: JobDone<".github/workflows/other.yml", "captured">;
-  defineWorkflow(".github/workflows/other.yml", {
+  workflow(".github/workflows/other.yml", {
     on: { push: {} },
   }).job("captured", ({ job }) => {
     captured = job
@@ -176,7 +176,7 @@ Deno.test("authoring type contracts compile", () => {});
 
 // Reference interfaces and grouped contexts retain immutable authoring maps.
 function assertReadonlyReferences(): void {
-  const flow = defineWorkflow("readonly.yml", { on: { push: {} } }).job(
+  const flow = workflow("readonly.yml", { on: { push: {} } }).job(
     "first",
     ({ job }) => {
       const state = job.runsOn("ubuntu-latest").run({

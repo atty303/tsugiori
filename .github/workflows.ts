@@ -1,14 +1,14 @@
 import {
-  defineProject,
-  defineWorkflow,
+  project,
   runProject,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 
 import checkout from "#actions/actions/checkout";
 import mise from "#actions/jdx/mise-action";
 import releaseAction from "#actions/atty303/repository-template/.github/actions/release";
 
-const ci = defineWorkflow("workflows/ci.yml", {
+const ci = workflow("workflows/ci.yml", {
   name: "ci",
   on: { pull_request: {}, push: {} },
   permissions: { contents: "read" },
@@ -46,7 +46,7 @@ const ci = defineWorkflow("workflows/ci.yml", {
       },
     }));
 
-const release = defineWorkflow("workflows/release.yml", {
+const release = workflow("workflows/release.yml", {
   name: "release",
   on: { push: { branches: ["main"] }, workflow_dispatch: {} },
   permissions: { contents: "read" },
@@ -72,17 +72,14 @@ const release = defineWorkflow("workflows/release.yml", {
       env: ({ secrets }) => ({ FNOX_AGE_KEY: secrets.FNOX_AGE_KEY }),
     }));
 
-const project = defineProject({
-  cacheVersion: 3,
-  localTaskPrepareAction: "./actions/task-prepare",
-  workingDirectory: ".github",
-  workflows: [ci, release],
-});
-export default project;
-
 if (import.meta.main) {
   Deno.exitCode = await runProject({
-    project,
+    project: project({
+      cacheVersion: 3,
+      localTaskPrepareAction: "./actions/task-prepare",
+      workingDirectory: ".github",
+      workflows: [ci, release],
+    }),
     entrypointUrl: import.meta.url,
   });
 }

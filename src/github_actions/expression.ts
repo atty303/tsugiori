@@ -426,7 +426,7 @@ export function emitExpression(value: ExpressionInput): string {
 }
 /** Escape hatch for a single node. T, syntax and context availability are caller asserted.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").when(({ github }) =>
  *   github.ref.eq(rawNode<string>("vars.RELEASE_REF"))
@@ -517,7 +517,7 @@ export const join = (
 /** Returns a pretty-printed JSON representation of a value, useful for inspecting contexts or passing structured data as a string.
  * The value is evaluated by GitHub, not during generation.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#tojson
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Inspect event",
@@ -595,7 +595,7 @@ export const caseOf = (
 };
 /** Admits execution even after cancellation; do not infer that prerequisites or resources are available.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#always
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Cleanup",
@@ -607,7 +607,7 @@ export const caseOf = (
 export const always = (): Expression<boolean> => call("always");
 /** Checks whether the workflow was cancelled.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#cancelled
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Cancellation",
@@ -619,7 +619,7 @@ export const always = (): Expression<boolean> => call("always");
 export const cancelled = (): Expression<boolean> => call("cancelled");
 /** Checks earlier success; GitHub applies this implicitly to conditions without a status function.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#success
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Success",
@@ -631,7 +631,7 @@ export const cancelled = (): Expression<boolean> => call("cancelled");
 export const success = (): Expression<boolean> => call("success");
 /** Checks failures in preceding steps or dependent jobs.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#failure
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Failure",
@@ -644,7 +644,7 @@ export const failure = (): Expression<boolean> => call("failure");
 /** Returns a SHA-256 hash for files matching the supplied glob patterns within GITHUB_WORKSPACE. Individual file hashes are combined into a final hash; no matches returns an empty string. ! patterns exclude matches; Windows matching is case-insensitive.
  * Tsugiori scenarios require an explicit site value instead of reading runner files.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#hashfiles
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Cache key",
@@ -660,7 +660,7 @@ export const hashFiles = (
 /** Information about the workflow run and its triggering event. Some properties exist only within runner steps or particular event types.
  * Tsugiori exposes a supported subset; the string-shaped catalog does not model every event-dependent null value. event remains an unknown payload.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").run({
  *   name: "Inspect event",
@@ -672,7 +672,7 @@ export const hashFiles = (
 export type GitHubContext = Readonly<{
   /** The name of the action currently running, or the [`id`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid) of a step. GitHub removes special characters, and uses the name `__run` when the current step runs a script without an `id`. If you use the same action more than once in the same job, the name will include a suffix with the sequence number with underscore before it. For example, the first script you run will have the name `__run`, and the second script will be named `__run_2`. Similarly, the second invocation of `actions/checkout` will be `actionscheckout2`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -684,7 +684,7 @@ export type GitHubContext = Readonly<{
   action: string;
   /** The path where an action is located. This property is only supported in composite actions. You can use this path to access files located in the same repository as the action, for example by changing directories to the path (using the corresponding environment variable): `cd "$GITHUB_ACTION_PATH"` . For more information on environment variables, see [GitHub documentation](https://docs.github.com/en/actions/reference/security/secure-use#use-an-intermediate-environment-variable).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -696,7 +696,7 @@ export type GitHubContext = Readonly<{
   action_path: string;
   /** For a step executing an action, this is the ref of the action being executed. For example, `v2`. Do not use in the `run` keyword. To make this context work with composite actions, reference it within the `env` context of the composite action.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -708,7 +708,7 @@ export type GitHubContext = Readonly<{
   action_ref: string;
   /** For a step executing an action, this is the owner and repository name of the action. For example, `actions/checkout`. Do not use in the `run` keyword. To make this context work with composite actions, reference it within the `env` context of the composite action.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -720,7 +720,7 @@ export type GitHubContext = Readonly<{
   action_repository: string;
   /** For a composite action, the current result of the composite action.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -732,7 +732,7 @@ export type GitHubContext = Readonly<{
   action_status: string;
   /** The username of the user that triggered the initial workflow run. If the workflow run is a re-run, this value may differ from `github.triggering_actor`. Any workflow re-runs will use the privileges of `github.actor`, even if the actor initiating the re-run (`github.triggering_actor`) has different privileges.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -744,7 +744,7 @@ export type GitHubContext = Readonly<{
   actor: string;
   /** The account ID of the person or app that triggered the initial workflow run. For example, `1234567`. Note that this is different from the actor username.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -756,7 +756,7 @@ export type GitHubContext = Readonly<{
   actor_id: string;
   /** The URL of the GitHub REST API.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -768,7 +768,7 @@ export type GitHubContext = Readonly<{
   api_url: string;
   /** The `base_ref` or target branch of the pull request in a workflow run. This property is only available when the event that triggers a workflow run is either `pull_request` or `pull_request_target`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -780,7 +780,7 @@ export type GitHubContext = Readonly<{
   base_ref: string;
   /** Path on the runner to the file that sets environment variables from workflow commands. This file is unique to the current step and is a different file for each step in a job. For more information, see [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -791,7 +791,7 @@ export type GitHubContext = Readonly<{
    */
   /** Variables set by workflow, job or step env. The most specific definition wins; runner-inherited environment variables are not included.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#env-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -803,7 +803,7 @@ export type GitHubContext = Readonly<{
   env: string;
   /** The full event webhook payload. You can access individual properties of the event using this context. This object is identical to the webhook payload of the event that triggered the workflow run, and is different for each event. The webhooks for each GitHub event is linked in [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_call). For example, for a workflow run triggered by the [`push` event](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#push), this object contains the contents of the [push webhook payload](https://docs.github.com/en/webhooks/webhook-events-and-payloads#push).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -815,7 +815,7 @@ export type GitHubContext = Readonly<{
   event: unknown;
   /** The name of the event that triggered the workflow run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -827,7 +827,7 @@ export type GitHubContext = Readonly<{
   event_name: string;
   /** The path to the file on the runner that contains the full event webhook payload.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -839,7 +839,7 @@ export type GitHubContext = Readonly<{
   event_path: string;
   /** The URL of the GitHub GraphQL API.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -851,7 +851,7 @@ export type GitHubContext = Readonly<{
   graphql_url: string;
   /** The `head_ref` or source branch of the pull request in a workflow run. This property is only available when the event that triggers a workflow run is either `pull_request` or `pull_request_target`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -863,7 +863,7 @@ export type GitHubContext = Readonly<{
   head_ref: string;
   /** The [`job_id`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id) of the current job. Note: This context property is set by the Actions runner, and is only available within the execution `steps` of a job. Otherwise, the value of this property will be `null`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -874,7 +874,7 @@ export type GitHubContext = Readonly<{
    */
   /** Information about the currently running job, including its status and container.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -886,7 +886,7 @@ export type GitHubContext = Readonly<{
   job: string;
   /** Path on the runner to the file that sets system `PATH` variables from workflow commands. This file is unique to the current step and is a different file for each step in a job. For more information, see [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#adding-a-system-path).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -898,7 +898,7 @@ export type GitHubContext = Readonly<{
   path: string;
   /** The fully-formed ref of the branch or tag that triggered the workflow run. For workflows triggered by `push`, this is the branch or tag ref that was pushed. For workflows triggered by `pull_request` that were not merged, this is the pull request merge branch. If the pull request was merged, this is the branch it was merged into. For workflows triggered by `release`, this is the release tag created. For other triggers, this is the branch or tag ref that triggered the workflow run. This is only set if a branch or tag is available for the event type. The ref given is fully-formed, meaning that for branches the format is `refs/heads/<branch_name>`. For pull request events except `pull_request_target` that were not merged, it is `refs/pull/<pr_number>/merge`. `pull_request_target` events have the `ref` from the base branch. For tags it is `refs/tags/<tag_name>`. For example, `refs/heads/feature-branch-1`. For more information about pull request merge branches, see [GitHub documentation](https://docs.github.com/en/pull-requests/reference/pull-requests#pull-request-refs-and-merge-branches).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -910,7 +910,7 @@ export type GitHubContext = Readonly<{
   ref: string;
   /** The short ref name of the branch or tag that triggered the workflow run. This value matches the branch or tag name shown on GitHub. For example, `feature-branch-1`. For pull requests that were not merged, the format is `<pr_number>/merge`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -922,7 +922,7 @@ export type GitHubContext = Readonly<{
   ref_name: string;
   /** `true` if branch protections or [rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/managing-rulesets-for-a-repository) are configured for the ref that triggered the workflow run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -934,7 +934,7 @@ export type GitHubContext = Readonly<{
   ref_protected: boolean;
   /** The type of ref that triggered the workflow run. Valid values are `branch` or `tag`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -946,7 +946,7 @@ export type GitHubContext = Readonly<{
   ref_type: string;
   /** The owner and repository name. For example, `octocat/Hello-World`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -958,7 +958,7 @@ export type GitHubContext = Readonly<{
   repository: string;
   /** The ID of the repository. For example, `123456789`. Note that this is different from the repository name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -970,7 +970,7 @@ export type GitHubContext = Readonly<{
   repository_id: string;
   /** The repository owner's username. For example, `octocat`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -982,7 +982,7 @@ export type GitHubContext = Readonly<{
   repository_owner: string;
   /** The repository owner's account ID. For example, `1234567`. Note that this is different from the owner's name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -994,7 +994,7 @@ export type GitHubContext = Readonly<{
   repository_owner_id: string;
   /** The Git URL to the repository. For example, `git://github.com/octocat/hello-world.git`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1006,7 +1006,7 @@ export type GitHubContext = Readonly<{
   repositoryUrl: string;
   /** The number of days that workflow run logs and artifacts are kept.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1018,7 +1018,7 @@ export type GitHubContext = Readonly<{
   retention_days: string;
   /** A unique number for each attempt of a particular workflow run in a repository. This number begins at 1 for the workflow run's first attempt, and increments with each re-run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1030,7 +1030,7 @@ export type GitHubContext = Readonly<{
   run_attempt: string;
   /** A unique number for each workflow run within a repository. This number does not change if you re-run the workflow run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1042,7 +1042,7 @@ export type GitHubContext = Readonly<{
   run_id: string;
   /** A unique number for each run of a particular workflow in a repository. This number begins at 1 for the workflow's first run, and increments with each new run. This number does not change if you re-run the workflow run.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1054,7 +1054,7 @@ export type GitHubContext = Readonly<{
   run_number: string;
   /** The source of a secret used in a workflow. Possible values are `None`, `Actions`, `Codespaces`, or `Dependabot`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1066,7 +1066,7 @@ export type GitHubContext = Readonly<{
   secret_source: string;
   /** The URL of the GitHub server. For example: `https://github.com`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1078,7 +1078,7 @@ export type GitHubContext = Readonly<{
   server_url: string;
   /** The commit SHA that triggered the workflow. The value of this commit SHA depends on the event that triggered the workflow. For more information, see [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows). For example, `ffac537e6cbbf934b08745a378932722df287a53`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1090,7 +1090,7 @@ export type GitHubContext = Readonly<{
   sha: string;
   /** A token to authenticate on behalf of the GitHub App installed on your repository. This is functionally equivalent to the `GITHUB_TOKEN` secret. For more information, see [GitHub documentation](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token). Note: This context property is set by the Actions runner, and is only available within the execution `steps` of a job. Otherwise, the value of this property will be `null`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1102,7 +1102,7 @@ export type GitHubContext = Readonly<{
   token: string;
   /** The username of the user that initiated the workflow run. If the workflow run is a re-run, this value may differ from `github.actor`. Any workflow re-runs will use the privileges of `github.actor`, even if the actor initiating the re-run (`github.triggering_actor`) has different privileges.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1114,7 +1114,7 @@ export type GitHubContext = Readonly<{
   triggering_actor: string;
   /** The name of the workflow. If the workflow file doesn't specify a `name`, the value of this property is the full path of the workflow file in the repository.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1126,7 +1126,7 @@ export type GitHubContext = Readonly<{
   workflow: string;
   /** The ref path to the workflow. For example, `octocat/hello-world/.github/workflows/my-workflow.yml@refs/heads/my_branch`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1138,7 +1138,7 @@ export type GitHubContext = Readonly<{
   workflow_ref: string;
   /** The commit SHA for the workflow file.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1150,7 +1150,7 @@ export type GitHubContext = Readonly<{
   workflow_sha: string;
   /** The default working directory on the runner for steps, and the default location of your repository when using the [`checkout`](https://github.com/actions/checkout) action.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1172,7 +1172,7 @@ export type StepContext<
 > = Readonly<{
   /** String outputs from this earlier step. The step must have an id; outputs are read as steps.<id>.outputs.<name>.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -1200,7 +1200,7 @@ export type StepContext<
   >;
   /** The result of a step before continue-on-error: success, failure, cancelled or skipped. A failing continued step has failure outcome and success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -1219,7 +1219,7 @@ export type StepContext<
   outcome: string;
   /** The final result of a step after continue-on-error: success, failure, cancelled or skipped.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -1246,7 +1246,7 @@ export type JobContext<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1281,7 +1281,7 @@ export type JobContext<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1317,7 +1317,7 @@ export type ScopeValues<
 > = {
   /** Information about the workflow run and the event that triggered it. Some properties are available only within runner steps.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Inspect event",
@@ -1331,7 +1331,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    * }).job("build", ({ job }) =>
    *   job.runsOn("ubuntu-latest").run({
@@ -1363,7 +1363,7 @@ export type ScopeValues<
   };
   /** Outputs and results of earlier steps with an id in the current job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#steps-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   id: "build",
@@ -1382,7 +1382,7 @@ export type ScopeValues<
   };
   /** The matrix parameters for this job variant; property names come from the workflow matrix definition.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#matrix-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
    *   .strategy({
@@ -1396,7 +1396,7 @@ export type ScopeValues<
   matrix: Matrix;
   /** Information about the current matrix strategy and expansion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#strategy-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1409,7 +1409,7 @@ export type ScopeValues<
     {
       /** The matrix strategy fail-fast setting: true cancels queued or running matrix members when a member fails.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#strategy-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1421,7 +1421,7 @@ export type ScopeValues<
       fail_fast: boolean;
       /** The zero-based index of this job in the matrix expansion.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#strategy-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1433,7 +1433,7 @@ export type ScopeValues<
       job_index: number;
       /** The total number of jobs generated by the matrix.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#strategy-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1445,7 +1445,7 @@ export type ScopeValues<
       job_total: number;
       /** The maximum number of matrix jobs allowed to run simultaneously.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#strategy-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1461,7 +1461,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#vars-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   vars: ["REGION"],
    * }).job("test", ({ job }) =>
@@ -1477,7 +1477,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
    *   secrets: ["DEPLOY_TOKEN"],
    * }).job("test", ({ job }) =>
@@ -1493,7 +1493,7 @@ export type ScopeValues<
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
    * ```ts
-   * defineWorkflow(".github/workflows/ci.yml", {
+   * workflow(".github/workflows/ci.yml", {
    *   on: {
    *     workflow_dispatch: {
    *       inputs: { stage: { type: "string", default: "dev" } },
@@ -1510,7 +1510,7 @@ export type ScopeValues<
   inputs: InputValues;
   /** Path on the runner to the file that sets environment variables from workflow commands. This file is unique to the current step and is a different file for each step in a job. For more information, see [GitHub documentation](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-commands#setting-an-environment-variable).
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1521,7 +1521,7 @@ export type ScopeValues<
    */
   /** Variables set by workflow, job or step env. The most specific definition wins; runner-inherited environment variables are not included.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#env-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1533,7 +1533,7 @@ export type ScopeValues<
   env: Readonly<Record<string, string>>;
   /** The [`job_id`](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id) of the current job. Note: This context property is set by the Actions runner, and is only available within the execution `steps` of a job. Otherwise, the value of this property will be `null`.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1544,7 +1544,7 @@ export type ScopeValues<
    */
   /** Information about the currently running job, including its status and container.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1557,7 +1557,7 @@ export type ScopeValues<
     {
       /** The current job status: success, failure or cancelled.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1569,7 +1569,7 @@ export type ScopeValues<
       status: string;
       /** Information about the job container when the job runs in a container.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1581,7 +1581,7 @@ export type ScopeValues<
       container: Readonly<{
         /** The id of the container running this job.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest").run({
          *   name: "Use context",
@@ -1593,7 +1593,7 @@ export type ScopeValues<
         id: string;
         /** The id of the container network. Service containers join the same network.
          * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
-         * @example In a `defineWorkflow().job()` callback with `{ job }`.
+         * @example In a `workflow().job()` callback with `{ job }`.
          * ```ts
          * job.runsOn("ubuntu-latest").run({
          *   name: "Use context",
@@ -1608,7 +1608,7 @@ export type ScopeValues<
   >;
   /** Information about the runner executing this job.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Use context",
@@ -1621,7 +1621,7 @@ export type ScopeValues<
     {
       /** The name of the runner executing the job. This name may not be unique in a workflow run as runners at the repository and organization levels could use the same name.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1633,7 +1633,7 @@ export type ScopeValues<
       name: string;
       /** The operating system of the runner executing the job. Possible values are `Linux`, `Windows`, or `macOS`.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1645,7 +1645,7 @@ export type ScopeValues<
       os: string;
       /** The architecture of the runner executing the job. Possible values are `X86`, `X64`, `ARM`, or `ARM64`.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1657,7 +1657,7 @@ export type ScopeValues<
       arch: string;
       /** The path to a temporary directory on the runner. This directory is emptied at the beginning and end of each job. Note that files will not be removed if the runner's user account does not have permission to delete them.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1669,7 +1669,7 @@ export type ScopeValues<
       temp: string;
       /** The path to the directory containing preinstalled tools for GitHub-hosted runners. For more information, see [GitHub documentation](https://docs.github.com/en/actions/concepts/runners/github-hosted-runners#preinstalled-software-for-github-owned-images).
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1681,7 +1681,7 @@ export type ScopeValues<
       tool_cache: string;
       /** This is set only if [debug logging](https://docs.github.com/en/actions/how-tos/monitor-workflows/enable-debug-logging) is enabled, and always has the value of `1`. It can be useful as an indicator to enable additional debugging or verbose logging in your own job steps.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").run({
        *   name: "Use context",
@@ -1708,7 +1708,7 @@ type Functions = {
 /** Context availability depends on the workflow field being evaluated: job conditions, step conditions and input expressions do not all expose the same contexts or functions.
  * Tsugiori narrows fields using the fixed availability catalog; unavailable properties require explicit raw assertions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").when(({ github, success }) =>
  *   success().and(github.ref.eq("refs/heads/main"))

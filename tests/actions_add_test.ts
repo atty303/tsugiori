@@ -18,9 +18,10 @@ async function fixture(run: (directory: string) => Promise<void>) {
   try {
     await Deno.writeTextFile(
       join(directory, "workflows.ts"),
-      `import {defineProject, runProject} from ${JSON.stringify(runner)};
-const project = defineProject({workingDirectory: ".", cacheVersion: 1, workflows: []});
-Deno.exitCode = await runProject({project, entrypointUrl: import.meta.url});\n`,
+      `import {project as makeProject, runProject} from ${
+        JSON.stringify(runner)
+      };
+Deno.exitCode = await runProject({project: makeProject({workingDirectory: ".", cacheVersion: 1, workflows: []}), entrypointUrl: import.meta.url});\n`,
     );
     const initialized = await command(directory, [
       "cache",
@@ -95,9 +96,10 @@ Deno.test("actions add preserves JSONC, order and lockfile; handles idempotence 
     );
     assertEquals(
       await Deno.readTextFile(join(directory, "workflows.ts")),
-      `import {defineProject, runProject} from ${JSON.stringify(runner)};
-const project = defineProject({workingDirectory: ".", cacheVersion: 1, workflows: []});
-Deno.exitCode = await runProject({project, entrypointUrl: import.meta.url});\n`,
+      `import {project as makeProject, runProject} from ${
+        JSON.stringify(runner)
+      };
+Deno.exitCode = await runProject({project: makeProject({workingDirectory: ".", cacheVersion: 1, workflows: []}), entrypointUrl: import.meta.url});\n`,
     );
     assertEquals(
       [...Deno.readDirSync(directory)].filter((entry) =>

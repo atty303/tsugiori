@@ -1,7 +1,7 @@
 import {
-  defineWorkflow,
   type Expression,
   rawNode,
+  workflow,
   type WorkflowInputValues,
 } from "../src/github_actions/mod.ts";
 import * as api from "../src/github_actions.ts";
@@ -51,8 +51,12 @@ type Check = [
 ];
 function assertInputTypes(): void {
   // @ts-expect-error no old-name alias is exported
-  void api.workflow;
-  const flow = defineWorkflow(".github/workflows/inputs.yml", {
+  void api.defineWorkflow;
+  // @ts-expect-error no old-name alias is exported
+  void api.defineProject;
+  // @ts-expect-error no old-name alias is exported
+  void api.defineCompositeAction;
+  const flow = workflow(".github/workflows/inputs.yml", {
     on: {
       push: {},
       workflow_dispatch: {
@@ -151,37 +155,37 @@ function assertInputTypes(): void {
         },
       ),
   );
-  defineWorkflow("x", {
+  workflow("x", {
     // @ts-expect-error on must be nonempty
     on: {},
   });
-  defineWorkflow("x", {
+  workflow("x", {
     // @ts-expect-error no string shorthand
     on: "push",
   });
-  defineWorkflow("x", {
+  workflow("x", {
     // @ts-expect-error no array shorthand
     on: ["push"],
   });
-  defineWorkflow("x", {
+  workflow("x", {
     on: { push: {} },
     // @ts-expect-error old split field
     events: ["push"],
   });
-  defineWorkflow("x", {
+  workflow("x", {
     on: {
       // @ts-expect-error unsupported trigger
       schedule: {},
       push: {},
     },
   });
-  defineWorkflow("x", {
+  workflow("x", {
     on: {
       // @ts-expect-error filters cannot be attached to another event
       workflow_dispatch: { branches: ["main"] },
     },
   });
-  defineWorkflow("x", {
+  workflow("x", {
     on: {
       workflow_dispatch: {
         inputs: {

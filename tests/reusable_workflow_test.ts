@@ -1,16 +1,16 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
-  defineProject,
-  defineWorkflow,
+  project,
   rawExpression,
   rawNode,
+  workflow,
 } from "../src/github_actions/mod.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { scenario } from "../src/testing/mod.ts";
 
-const platform = defineWorkflow(".github/workflows/platform.yml", {
+const platform = workflow(".github/workflows/platform.yml", {
   on: {
     workflow_call: {
       inputs: {
@@ -50,7 +50,7 @@ const platform = defineWorkflow(".github/workflows/platform.yml", {
     .outputs(({ steps }) => ({ result: steps.check.outputs.result })))
   .workflowOutputs(({ jobs }) => ({ result: jobs.build.outputs.result }));
 
-const ci = defineWorkflow(".github/workflows/ci.yml", {
+const ci = workflow(".github/workflows/ci.yml", {
   on: {
     workflow_call: {
       inputs: { module: { type: "string", required: true } },
@@ -71,7 +71,7 @@ const ci = defineWorkflow(".github/workflows/ci.yml", {
       ),
   )
   .workflowOutputs(({ jobs }) => ({ result: jobs.platform.outputs.result }));
-const main = defineWorkflow(".github/workflows/main.yml", {
+const main = workflow(".github/workflows/main.yml", {
   on: { push: { branches: ["master"], tags: ["*"] } },
 
   env: { CALLER_ONLY: "value" },
@@ -97,7 +97,7 @@ const main = defineWorkflow(".github/workflows/main.yml", {
         env: ({ needs }) => ({ RESULT: needs.ci.outputs.result }),
       }),
   );
-const config = defineProject({ workflows: [main, ci, platform] });
+const config = project({ workflows: [main, ci, platform] });
 
 Deno.test("Glaze native nested calls and platform matrix emit standard YAML", async () => {
   const lowered = await lowerProject(config, ".github/tsugiori.ts");
@@ -223,7 +223,7 @@ jobs:
 });
 
 Deno.test("typed reusable call emits the explicit native reference independently of the callee path", async () => {
-  const caller = defineWorkflow("generated/caller.yaml", { on: { push: {} } })
+  const caller = workflow("generated/caller.yaml", { on: { push: {} } })
     .job("call", ({ job }) =>
       job.reusable().call(
         "./.github/workflows/deployed-platform.yaml",
@@ -231,7 +231,7 @@ Deno.test("typed reusable call emits the explicit native reference independently
         { with: { module: "app" }, secrets: "inherit" },
       ));
   const lowered = await lowerProject(
-    defineProject({ workflows: [platform, caller] }),
+    project({ workflows: [platform, caller] }),
     "./config.ts",
   );
   assertInlineSnapshot(
@@ -300,11 +300,11 @@ for (const fail of [false, true]) {
 
 Deno.test("local references require config membership and input contracts", async () => {
   assertThrows(
-    () => lowerProject(defineProject({ workflows: [main] }), "config.ts"),
+    () => lowerProject(project({ workflows: [main] }), "config.ts"),
     Error,
     "included in the same project",
   );
-  const invalid = defineWorkflow(".github/workflows/invalid.yml", {
+  const invalid = workflow(".github/workflows/invalid.yml", {
     on: { push: {} },
   })
     .job(
@@ -320,14 +320,14 @@ Deno.test("local references require config membership and input contracts", asyn
       scenario(invalid, (t) => {
         t.github({ event_name: "push" }).secrets({ token: "fixture" });
         t.job("ci", (j) => j.call(ci, () => {}));
-      }, { config: defineProject({ workflows: [invalid, ci, platform] }) }),
+      }, { config: project({ workflows: [invalid, ci, platform] }) }),
     Error,
     "violates declared type",
   );
 });
 
 Deno.test("external workflow call uses explicit fixture", async () => {
-  const p = defineWorkflow(".github/workflows/external.yml", {
+  const p = workflow(".github/workflows/external.yml", {
     on: { push: {} },
   })
     .job(
@@ -350,7 +350,7 @@ Deno.test("external workflow call uses explicit fixture", async () => {
 
 Deno.test("host scenario observation preserves results and never exposes fixture values", async () => {
   const events: unknown[] = [];
-  const p = defineWorkflow(".github/workflows/observe.yml", {
+  const p = workflow(".github/workflows/observe.yml", {
     on: { push: {} },
   }).job(
     "job",
@@ -400,7 +400,7 @@ Deno.test("host scenario observation preserves results and never exposes fixture
 });
 
 Deno.test("dispatch choice and run name render into native YAML", async () => {
-  const dispatch = defineWorkflow(".github/workflows/release.yml", {
+  const dispatch = workflow(".github/workflows/release.yml", {
     on: {
       workflow_dispatch: {
         inputs: {
@@ -431,7 +431,7 @@ Deno.test("dispatch choice and run name render into native YAML", async () => {
       }),
   );
   const lowered = await lowerProject(
-    defineProject({ workflows: [dispatch] }),
+    project({ workflows: [dispatch] }),
     "config.ts",
   );
   assertInlineSnapshot(
@@ -468,7 +468,7 @@ jobs:
 });
 
 Deno.test("dispatch scenarios expose workflow env to steps", async () => {
-  const dispatch = defineWorkflow(".github/workflows/release.yml", {
+  const dispatch = workflow(".github/workflows/release.yml", {
     on: {
       workflow_dispatch: {
         inputs: {
@@ -509,7 +509,7 @@ Deno.test("dispatch scenarios expose workflow env to steps", async () => {
 });
 
 Deno.test("PR-target scenarios filter activity types", async () => {
-  const pr = defineWorkflow(".github/workflows/pr.yml", {
+  const pr = workflow(".github/workflows/pr.yml", {
     on: { pull_request_target: { types: ["opened"] } },
   }).job(
     "job",
@@ -534,7 +534,7 @@ Deno.test("PR-target scenarios filter activity types", async () => {
 });
 
 Deno.test("push scenarios honor ordered tag filters", async () => {
-  const tags = defineWorkflow(".github/workflows/tags.yml", {
+  const tags = workflow(".github/workflows/tags.yml", {
     on: { push: { tags: ["v*", "!v*-alpha"] } },
   }).job(
     "job",
@@ -555,7 +555,7 @@ Deno.test("push scenarios honor ordered tag filters", async () => {
 });
 
 Deno.test("native defaults emit only specified values and tasks retain step timeout", async () => {
-  const p = defineWorkflow(".github/workflows/defaults.yml", {
+  const p = workflow(".github/workflows/defaults.yml", {
     on: { push: {} },
   })
     .job(
@@ -580,7 +580,7 @@ Deno.test("native defaults emit only specified values and tasks retain step time
         ),
     );
   const lowered = await lowerProject(
-    defineProject({
+    project({
       workflows: [p],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -633,14 +633,14 @@ jobs:
   );
 });
 Deno.test("caller matrix instance expectations are checked independently", async () => {
-  const callee = defineWorkflow(".github/workflows/callee.yml", {
+  const callee = workflow(".github/workflows/callee.yml", {
     on: { workflow_call: {} },
   }).job(
     "job",
     ({ job }) =>
       job.runsOn("ubuntu-latest").run({ id: "run", name: "Run", run: "true" }),
   );
-  const caller = defineWorkflow(".github/workflows/caller.yml", {
+  const caller = workflow(".github/workflows/caller.yml", {
     on: { push: {} },
   }).job(
     "call",
@@ -659,7 +659,7 @@ Deno.test("caller matrix instance expectations are checked independently", async
               t.job("job", (j) =>
                 j.step("run").fixture({})))
           ));
-      }, { config: defineProject({ workflows: [caller, callee] }) }),
+      }, { config: project({ workflows: [caller, callee] }) }),
     Error,
     "Expected value differs",
   );

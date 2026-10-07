@@ -30,18 +30,16 @@ Deno.test({
       await Deno.writeTextFile(
         resolve(author, "actions.ts"),
         `
-import { defineCompositeAction, defineProject, runProject, textValue } from "./src/github_actions.ts";
+import { compositeAction, project as makeProject, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
-const draft = defineCompositeAction("action.yaml", { name: "Task", description: "Independent task", inputs: { who: { description: "Recipient", required: true } }, outputs: { result: { description: "Result" } } });
+const draft = compositeAction("action.yaml", { name: "Task", description: "Independent task", inputs: { who: { description: "Recipient", required: true } }, outputs: { result: { description: "Result" } } });
 const action = draft.steps(({ step }) => step.task({ id: "tsugiori-task-prepare", name: "Execute", inputs: { who: { contract: textValue(), from: draft.inputs.who } }, outputs: { result: { contract: textValue(), required: true } }, run: async ({ inputs, outputs }) => {
   if (Deno.env.get("TASK_FAIL") === "1") throw new Error("private task failure");
   await Deno.writeTextFile("result.txt", marker + ":" + inputs.who);
   await outputs.set("result", inputs.who);
 }}).outputs(({ steps }) => ({ result: steps["tsugiori-task-prepare"].outputs.result })));
-const parent = defineCompositeAction("parent/action.yml", { name: "Parent", description: "Parent" }).steps(({ step }) => step.uses(action, { with: { who: "world" } }));
-const project = defineProject({ workingDirectory: ".", actions: [parent], cacheVersion: 7 });
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+const parent = compositeAction("parent/action.yml", { name: "Parent", description: "Parent" }).steps(({ step }) => step.uses(action, { with: { who: "world" } }));
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", actions: [parent], cacheVersion: 7 }), entrypointUrl: import.meta.url });
 `,
       );
       const env = {

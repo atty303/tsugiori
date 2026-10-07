@@ -2,10 +2,10 @@ import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   type ActionContract,
-  defineProject,
-  defineWorkflow,
   literal,
+  project,
   toJSON,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 
 const contract = {
@@ -19,7 +19,7 @@ const contract = {
   outputs: { url: { description: "URL" } },
 } as const satisfies ActionContract;
 function steps(options: unknown, action: ActionContract | string = contract) {
-  const workflow = defineWorkflow("ci.yml", { on: { push: {} } })
+  const workflow = makeWorkflow("ci.yml", { on: { push: {} } })
     .job(
       "publish",
       ({ job }) =>
@@ -28,7 +28,7 @@ function steps(options: unknown, action: ActionContract | string = contract) {
           options,
         ]),
     );
-  return defineProject({ workflows: [workflow] }).workflows[0].jobs[0].steps;
+  return project({ workflows: [workflow] }).workflows[0].jobs[0].steps;
 }
 Deno.test("direct action contracts retain uses and leave defaults to GitHub", () => {
   assertEquals(steps({ with: { target: "web" } })[0], {
@@ -141,14 +141,14 @@ Deno.test("action ref annotations survive lowering without changing YAML values"
     ...pinned,
     originalRef: "ref\nuses: malicious\u2028tail",
   };
-  const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
     "test",
     ({ job }) =>
       job.runsOn("ubuntu-latest").uses(pinned).uses(pinned, { uses: "a/b@v5" })
         .run({ name: "Hello", run: "echo hello" }).uses(dangerous),
   );
   const lowered = await lowerProject(
-    defineProject({ workflows: [workflow] }),
+    project({ workflows: [workflow] }),
     "./workflows.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);

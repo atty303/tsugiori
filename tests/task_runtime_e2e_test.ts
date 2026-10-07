@@ -34,19 +34,17 @@ Deno.test({
       await Deno.writeTextFile(
         resolve(fixture, "workflows.ts"),
         `
-import { defineProject, defineWorkflow, runProject, textValue } from "./src/github_actions.ts";
+import { project as makeProject, workflow, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
-const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
     outputs: { result: { contract: textValue(), required: true } },
     run: async (ctx) => {
       if (Deno.env.get("TASK_FAIL") === "1") throw new Error("task-failure-private");
       await Deno.writeTextFile("task-result.txt", marker);
       await ctx.outputs.set("result", "first\\nsecond");
-    } }))] });
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+    } }))] }), entrypointUrl: import.meta.url });
 `,
       );
       const output = resolve(fixture, "github-output");
@@ -478,12 +476,10 @@ exit 1
       await Deno.writeTextFile(
         resolve(fixture, "workflows.ts"),
         `
-import { defineProject, defineWorkflow, runProject } from "./src/github_actions.ts";
-const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [
-  defineWorkflow("workflows/ci.yml", { on: { push: {} } }).job("test", ({ job }) =>
-    job.runsOn("ubuntu-latest").run({ name: "Native", run: "true" }))] });
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+import { project as makeProject, workflow, runProject } from "./src/github_actions.ts";
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [
+  workflow("workflows/ci.yml", { on: { push: {} } }).job("test", ({ job }) =>
+    job.runsOn("ubuntu-latest").run({ name: "Native", run: "true" }))] }), entrypointUrl: import.meta.url });
 `,
       );
       await removeIfPresent(delivery);
@@ -619,19 +615,17 @@ Deno.test({
         'export const cacheVersion = 1;\nexport const externalMarker = "first";\n',
       );
       const entrypointSource =
-        `import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
+        `import { project as makeProject, workflow, runProject } from "@atty303/tsugiori/github-actions";
 import { cacheVersion, externalMarker } from ${JSON.stringify(externalUrl)};
 import { remoteMarker } from ${JSON.stringify(remoteUrl)};
 void externalMarker;
 void remoteMarker;
-const ci = defineWorkflow("workflows/ci.yml", {
+const ci = workflow("workflows/ci.yml", {
   on: { push: {  } },
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} })
 );
-const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] });
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] }), entrypointUrl: import.meta.url });
 `;
       await Deno.writeTextFile(
         resolve(fixture, "workflows.ts"),
@@ -753,13 +747,11 @@ Deno.test({
         resolve(project, "workflows.ts"),
         `import { consumerMarker } from "consumer-only";
 void consumerMarker;
-import { defineProject, defineWorkflow, runProject } from "@atty303/tsugiori/github-actions";
-const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workingDirectory: "ci/workflows", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {  } },
+import { project as makeProject, workflow, runProject } from "@atty303/tsugiori/github-actions";
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ localTaskPrepareAction: "./actions/task-prepare", workingDirectory: "ci/workflows", workflows: [workflow("workflows/ci.yml", { on: { push: {  } },
 }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({
   name: "Test", inputs: {}, outputs: {}, run: () => {},
-}))] });
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });\n`,
+}))] }), entrypointUrl: import.meta.url });\n`,
       );
       const environment = {
         ...Deno.env.toObject(),
@@ -844,19 +836,18 @@ Deno.test("local graph keys remain portable when the project and outside imports
       resolve(project, "definition.ts"),
       `
 import { marker } from "../outside.ts";
-import { defineProject, defineWorkflow } from "./src/github_actions.ts";
+import { project as makeProject, workflow } from "./src/github_actions.ts";
 void marker;
-export default defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+export const config = makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} }))] });
 `,
     );
     await Deno.writeTextFile(
       resolve(project, "workflows.ts"),
       `
-import project from "./definition.ts";
+import { config } from "./definition.ts";
 import { runProject } from "./src/github_actions.ts";
-export default project;
-if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+if (import.meta.main) Deno.exitCode = await runProject({ project: config, entrypointUrl: import.meta.url });
 `,
     );
     const generated = await run(

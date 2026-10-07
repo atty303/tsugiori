@@ -1,11 +1,11 @@
 import {
-  defineCompositeAction,
-  defineProject,
-  defineWorkflow,
+  compositeAction,
+  project,
   textValue,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 
-const draft = defineCompositeAction("actions/greet/action.yml", {
+const draft = compositeAction("actions/greet/action.yml", {
   name: "Greet",
   description: "Greeting",
   inputs: {
@@ -37,7 +37,7 @@ const action = draft.steps(({ step }) =>
     .outputs(({ steps }) => ({ greeting: steps.two.outputs.value }))
 );
 function checkWorkflow() {
-  const workflow = defineWorkflow(".github/workflows/greet.yml", {
+  const workflow = makeWorkflow(".github/workflows/greet.yml", {
     on: { push: {} },
   }).job("greet", ({ job }) => {
     const start = job.runsOn("ubuntu-latest");
@@ -51,8 +51,8 @@ function checkWorkflow() {
     invoked.steps.greet.outputs.missing;
     return invoked;
   });
-  defineProject({ actions: [action] });
-  defineProject({ workflows: [workflow], actions: [action] });
+  project({ actions: [action] });
+  project({ workflows: [workflow], actions: [action] });
 }
 void checkWorkflow;
 function checkComposite() {

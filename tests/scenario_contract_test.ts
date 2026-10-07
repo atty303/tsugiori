@@ -1,12 +1,12 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
-  defineProject,
-  defineWorkflow,
   jsonValue,
+  project,
   rawExpression,
   scenario,
   textValue,
+  workflow,
 } from "../src/github_actions.ts";
 
 const countValue = jsonValue({
@@ -28,7 +28,7 @@ const taskMustNotRun = () => {
   throw new Error("Task body was executed");
 };
 
-const wired = defineWorkflow(".github/workflows/wired.yml", {
+const wired = workflow(".github/workflows/wired.yml", {
   on: {
     workflow_dispatch: {
       inputs: { value: { type: "string", required: true } },
@@ -129,7 +129,7 @@ Deno.test("harness rejects missing dispatch inputs and invalid task output contr
   );
 });
 
-const statuses = defineWorkflow(".github/workflows/statuses.yml", {
+const statuses = workflow(".github/workflows/statuses.yml", {
   on: { push: {} },
 }).job("first", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -195,7 +195,7 @@ Deno.test("harness keeps outcome and conclusion distinct and overrides raw field
   );
 });
 
-const matrix = defineWorkflow(".github/workflows/matrix.yml", {
+const matrix = workflow(".github/workflows/matrix.yml", {
   on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -227,7 +227,7 @@ Deno.test("harness chooses fixture and expectation independently for each matrix
   });
 });
 
-const includedMatrix = defineWorkflow(".github/workflows/included-matrix.yml", {
+const includedMatrix = workflow(".github/workflows/included-matrix.yml", {
   on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -282,7 +282,7 @@ Deno.test("harness applies matrix include to every compatible original combinati
   assertEquals(excludedThenIncluded.jobs.split.instances.length, 2);
 });
 
-const mergedOutputs = defineWorkflow(".github/workflows/merged-outputs.yml", {
+const mergedOutputs = workflow(".github/workflows/merged-outputs.yml", {
   on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -325,7 +325,7 @@ Deno.test("harness propagates deterministic matrix job outputs to needs", async 
   assertEquals((ambiguous as { kind?: string }).kind, "expression_unsupported");
 });
 
-const distinctOutputs = defineWorkflow(
+const distinctOutputs = workflow(
   ".github/workflows/distinct-outputs.yml",
   {
     on: { push: {} },
@@ -359,7 +359,7 @@ Deno.test("harness combines distinct nonempty matrix output names", async () => 
   });
 });
 
-const filtered = defineWorkflow(".github/workflows/filtered.yml", {
+const filtered = workflow(".github/workflows/filtered.yml", {
   on: {
     push: {
       branches: [
@@ -389,7 +389,7 @@ Deno.test("harness respects ordered positive and negative branch filters", async
   assertEquals(included.result, "success");
 });
 
-const versionFiltered = defineWorkflow(
+const versionFiltered = workflow(
   ".github/workflows/version-filtered.yml",
   {
     on: { push: { branches: ["v[12].[0-9]+.[0-9]+"] } },
@@ -406,7 +406,7 @@ Deno.test("harness evaluates GitHub branch character classes and repetition", as
   assertEquals(result.result, "success");
 });
 
-const matrixRaw = defineWorkflow(".github/workflows/matrix-raw.yml", {
+const matrixRaw = workflow(".github/workflows/matrix-raw.yml", {
   on: { push: {} },
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
@@ -443,7 +443,7 @@ Deno.test("harness selects unsupported expression values at each matrix step", a
 });
 
 Deno.test("common input references follow each trigger and call defaults", async () => {
-  const mixed = defineWorkflow(".github/workflows/mixed.yml", {
+  const mixed = workflow(".github/workflows/mixed.yml", {
     on: {
       push: {},
       workflow_dispatch: {
@@ -494,7 +494,7 @@ Deno.test("common input references follow each trigger and call defaults", async
         }));
     });
   }
-  const caller = defineWorkflow(".github/workflows/caller-defaults.yml", {
+  const caller = workflow(".github/workflows/caller-defaults.yml", {
     on: { push: {} },
   })
     .job(
@@ -516,5 +516,5 @@ Deno.test("common input references follow each trigger and call defaults", async
             return {};
           }));
       }));
-  }, { config: defineProject({ workflows: [mixed, caller] }) });
+  }, { config: project({ workflows: [mixed, caller] }) });
 });

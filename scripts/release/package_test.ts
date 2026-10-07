@@ -261,11 +261,11 @@ Deno.test("release archive binds generation to its committed Action and rejects 
         typeof import("../../src/compiler/generator.ts") = await import(
           `file://${directory}/src/compiler/generator.ts`
         );
-      const { defineProject, defineWorkflow }:
+      const { project, workflow: makeWorkflow }:
         typeof import("../../src/github_actions/mod.ts") = await import(
           `file://${directory}/src/github_actions/mod.ts`
         );
-      const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+      const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
         "test",
         ({ job }) =>
           job.runsOn("ubuntu-latest").task({
@@ -276,7 +276,7 @@ Deno.test("release archive binds generation to its committed Action and rejects 
           }),
       );
       const generated = await generateFiles(
-        defineProject({ workflows: [workflow] }),
+        project({ workflows: [workflow] }),
         "./workflows.ts",
         "source",
       );

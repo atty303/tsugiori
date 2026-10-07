@@ -32,9 +32,9 @@ testing. `github-actions/authoring`, `github-actions/run`, and
 contracts. These entrypoints share a responsibility-based `src/` tree. A future
 provider can have its own entrypoint and import graph without changing the
 GitHub Actions entrypoint. The authoring API uses immutable facades:
-`defineWorkflow()` groups trigger settings under a native `on` object; job
+`workflow()` groups trigger settings under a native `on` object; job
 methods become available as the definition advances, and only a workflow with a
-completed, non-empty job can reach `defineProject()`. Jobs are authored in
+completed, non-empty job can reach `project()`. Jobs are authored in
 dependency order, so a new job can reference completed jobs. Action steps take a
 metadata contract or an implementation reference directly through
 `job.uses(contractOrUses, options?)`. Contracts declare input names,

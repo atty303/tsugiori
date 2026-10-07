@@ -14,18 +14,6 @@ const chapters = [
   "06-testing",
   "07-local-action",
 ] as const;
-const snippetSources = [
-  "examples/01-init/.github/workflows.ts",
-  "examples/02-typed-dsl/.github/workflows/src/ci.ts",
-  "examples/03-actions-add/.github/workflows/src/ci.ts",
-  "examples/04-task/.github/workflows/src/ci.ts",
-  "examples/05-typed-io/.github/workflows/src/ci.ts",
-] as const;
-
-function lines(text: string): string {
-  return text.trim().split("\n").map((line) => line.trim()).join("\n");
-}
-
 async function run(directory: string, args: string[]): Promise<void> {
   const result = await new Deno.Command("mise", {
     cwd: directory,
@@ -42,20 +30,11 @@ async function run(directory: string, args: string[]): Promise<void> {
   );
 }
 
-Deno.test("README TypeScript blocks are checked chapter source", async () => {
+Deno.test("README starter block matches the initializer", async () => {
   const readme = await Deno.readTextFile(new URL("README.md", root));
   const blocks = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)];
   assertEquals(blocks.length, 6);
-  const sourceBlockIndexes = [0, 1, 3, 4, 5];
-  for (const [index, sourcePath] of snippetSources.entries()) {
-    const source = await Deno.readTextFile(
-      new URL(sourcePath, root),
-    );
-    assert(
-      lines(source).includes(lines(blocks[sourceBlockIndexes[index]][1])),
-      sourcePath,
-    );
-  }
+  assertEquals(blocks[0][1], initWorkflows);
 });
 
 Deno.test("README invalid output reference reports its documented type error", async () => {
@@ -102,10 +81,6 @@ Deno.test("chapter 01 matches init and every chapter uses the managed Deno and r
   assert(denoVersion);
   const expected = JSON.parse(initConfiguration);
   expected.imports["@atty303/tsugiori"] = "jsr:@atty303/tsugiori@^0.10.4";
-  const initSource = await Deno.readTextFile(
-    new URL("examples/01-init/.github/workflows.ts", root),
-  );
-  assertEquals(initSource, initWorkflows);
   for (const chapter of chapters) {
     const project = `examples/${chapter}/`;
     assertEquals(

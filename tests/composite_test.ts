@@ -8,9 +8,9 @@ import {
 } from "@std/assert";
 import { resolve } from "node:path";
 import {
-  defineCompositeAction,
-  defineProject,
-  defineWorkflow,
+  compositeAction,
+  project as makeProject,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 import { scenario } from "../src/testing/mod.ts";
 import { generateFiles } from "../src/compiler/generator.ts";
@@ -20,7 +20,7 @@ import { TASK_PREPARE_SCRIPT } from "../src/task-runtime/bootstrap.ts";
 import { generateV1 } from "../services/type-service/src/github/actions/v1.ts";
 
 Deno.test("composite outputs and nested local calls render into native YAML", async () => {
-  const draft = defineCompositeAction("actions/greet/action.yml", {
+  const draft = compositeAction("actions/greet/action.yml", {
     name: "Greet",
     description: "Greeting",
     author: "Example",
@@ -39,11 +39,11 @@ Deno.test("composite outputs and nested local calls render into native YAML", as
       if: ({ inputs }) => inputs.who.ne(""),
     }).outputs(({ steps }) => ({ greeting: steps.greet.outputs.greeting }))
   );
-  const parent = defineCompositeAction("actions/parent/action.yml", {
+  const parent = compositeAction("actions/parent/action.yml", {
     name: "Parent",
     description: "Calls local action",
   }).steps(({ step }) => step.uses(action, { with: { who: "world" } }));
-  const workflow = defineWorkflow(".github/workflows/greet.yml", {
+  const workflow = makeWorkflow(".github/workflows/greet.yml", {
     on: { push: {} },
   }).job(
     "greet",
@@ -54,7 +54,7 @@ Deno.test("composite outputs and nested local calls render into native YAML", as
       }),
   );
   const files = await generateFiles(
-    defineProject({ workflows: [workflow], actions: [action, parent] }),
+    makeProject({ workflows: [workflow], actions: [action, parent] }),
     "./actions.ts",
     "unused",
   );
@@ -128,7 +128,7 @@ runs:
 });
 
 Deno.test("rendered composite metadata exposes an external Action contract", async () => {
-  const draft = defineCompositeAction("actions/greet/action.yml", {
+  const draft = compositeAction("actions/greet/action.yml", {
     name: "Greet",
     description: "Greeting",
     author: "Example",
@@ -148,7 +148,7 @@ Deno.test("rendered composite metadata exposes an external Action contract", asy
     }).outputs(({ steps }) => ({ greeting: steps.greet.outputs.greeting }))
   );
   const [file] = await generateFiles(
-    defineProject({ actions: [action] }),
+    makeProject({ actions: [action] }),
     "./actions.ts",
     "unused",
   );
@@ -163,20 +163,20 @@ Deno.test("rendered composite metadata exposes an external Action contract", asy
 });
 
 Deno.test("composite metadata collection includes referenced actions and deduplicates identities", async () => {
-  const action = defineCompositeAction("actions/greet/action.yml", {
+  const action = compositeAction("actions/greet/action.yml", {
     name: "Greet",
     description: "Greeting",
   })
     .steps(({ step }) =>
       step.run({ name: "Greet", shell: "bash", run: "true" })
     );
-  const workflow = defineWorkflow(".github/workflows/greet.yml", {
+  const workflow = makeWorkflow(".github/workflows/greet.yml", {
     on: { push: {} },
   })
     .job("greet", ({ job }) => job.runsOn("ubuntu-latest").uses(action));
   assertEquals(
     (await generateFiles(
-      defineProject({ workflows: [workflow] }),
+      makeProject({ workflows: [workflow] }),
       "./actions.ts",
       "unused",
     )).map((file) => file.path),
@@ -184,21 +184,21 @@ Deno.test("composite metadata collection includes referenced actions and dedupli
   );
   assertEquals(
     (await generateFiles(
-      defineProject({ actions: [action] }),
+      makeProject({ actions: [action] }),
       "./actions.ts",
       "unused",
     )).length,
     1,
   );
   assertEquals(
-    lowerProject(defineProject({ actions: [action, action] }), "actions.ts")
+    lowerProject(makeProject({ actions: [action, action] }), "actions.ts")
       .actions.length,
     1,
   );
 });
 
 Deno.test("composite definitions reject missing outputs, invalid paths, and empty projects", async () => {
-  const draft = defineCompositeAction("actions/greet/action.yml", {
+  const draft = compositeAction("actions/greet/action.yml", {
     name: "Greet",
     description: "Greeting",
     outputs: { greeting: { description: "Greeting" } },
@@ -212,12 +212,11 @@ Deno.test("composite definitions reject missing outputs, invalid paths, and empt
     "output mappings",
   );
   assertThrows(
-    () =>
-      defineCompositeAction("../escape", { name: "Bad", description: "Bad" }),
+    () => compositeAction("../escape", { name: "Bad", description: "Bad" }),
     TypeError,
   );
   await assertRejects(
-    () => generateFiles(defineProject({}), "empty.ts", "unused"),
+    () => generateFiles(makeProject({}), "empty.ts", "unused"),
     Error,
     "at least one",
   );
@@ -231,22 +230,22 @@ Deno.test("generated Action bootstrap stays synchronized with workflow preparati
 });
 
 Deno.test("Composite collection shares nested identities and orders metadata paths", async () => {
-  const leaf = defineCompositeAction("actions/shared/action.yaml", {
+  const leaf = compositeAction("actions/shared/action.yaml", {
     name: "Shared",
     description: "Shared",
   }).steps(({ step }) =>
     step.run({ name: "Leaf", shell: "bash", run: "true" })
   );
   const parent = (path: string) =>
-    defineCompositeAction(path, { name: "Parent", description: "Parent" })
+    compositeAction(path, { name: "Parent", description: "Parent" })
       .steps(({ step }) => step.uses(leaf).uses(leaf));
   const a = parent("actions/a/action.yml");
   const z = parent("actions/z/action.yml");
-  const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
     "ci",
     ({ job }) => job.runsOn("ubuntu-latest").uses(z).uses(a),
   );
-  const paths = (project: ReturnType<typeof defineProject>) =>
+  const paths = (project: ReturnType<typeof makeProject>) =>
     generateFiles(project, "actions.ts", "unused").then((files) =>
       files.map((f) => f.path)
     );
@@ -258,56 +257,56 @@ Deno.test("Composite collection shares nested identities and orders metadata pat
   ];
   assertEquals(
     await paths(
-      defineProject({ workflows: [workflow], actions: [z, leaf, a, leaf] }),
+      makeProject({ workflows: [workflow], actions: [z, leaf, a, leaf] }),
     ),
     expected,
   );
   assertEquals(
-    await paths(defineProject({ workflows: [workflow], actions: [a, z] })),
+    await paths(makeProject({ workflows: [workflow], actions: [a, z] })),
     expected,
   );
   assertEquals(
-    await paths(defineProject({ actions: [z, a] })),
+    await paths(makeProject({ actions: [z, a] })),
     expected.slice(1),
   );
-  const override = defineWorkflow("remote.yml", { on: { push: {} } }).job(
+  const override = makeWorkflow("remote.yml", { on: { push: {} } }).job(
     "ci",
     ({ job }) =>
       job.runsOn("ubuntu-latest").uses(leaf, { uses: "example/action@v1" }),
   );
-  assertEquals(await paths(defineProject({ workflows: [override] })), [
+  assertEquals(await paths(makeProject({ workflows: [override] })), [
     "remote.yml",
   ]);
 });
 
 Deno.test("root and nested composite paths render relative to the project directory", async () => {
-  const root = defineCompositeAction("action.yml", {
+  const root = compositeAction("action.yml", {
     name: "Root",
     description: "Root",
   })
     .steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
-  const nested = defineCompositeAction("actions/./greet/action.yaml", {
+  const nested = compositeAction("actions/./greet/action.yaml", {
     name: "Nested",
     description: "Nested",
   })
     .steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
-  const parent = defineCompositeAction("actions/parent/action.yml", {
+  const parent = compositeAction("actions/parent/action.yml", {
     name: "Parent",
     description: "Parent",
   })
     .steps(({ step }) => step.uses(root).uses(nested));
-  const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
     "ci",
     ({ job }) =>
       job.runsOn("ubuntu-latest").uses(root).uses(nested).uses(parent),
   );
   const files = await generateFiles(
-    defineProject({ workingDirectory: ".github", workflows: [workflow] }),
+    makeProject({ workingDirectory: ".github", workflows: [workflow] }),
     "actions.ts",
     "unused",
   );
   const atRoot = await generateFiles(
-    defineProject({ workflows: [workflow] }),
+    makeProject({ workflows: [workflow] }),
     "actions.ts",
     "unused",
   );
@@ -383,7 +382,7 @@ runs:
 
 Deno.test("composite metadata paths normalize directories and reject placement conflicts", async () => {
   const make = (path: string) =>
-    defineCompositeAction(path, { name: "Root", description: "Root" }).steps((
+    compositeAction(path, { name: "Root", description: "Root" }).steps((
       { step },
     ) => step.run({ name: "Run", shell: "bash", run: "true" }));
   for (
@@ -395,11 +394,11 @@ Deno.test("composite metadata paths normalize directories and reject placement c
     ]
   ) {
     const action = make(path);
-    const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+    const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
       "ci",
       ({ job }) => job.runsOn("ubuntu-latest").uses(action),
     );
-    const project = defineProject({
+    const project = makeProject({
       workingDirectory: ".github",
       workflows: [workflow],
     });
@@ -429,7 +428,7 @@ Deno.test("composite metadata paths normalize directories and reject placement c
     assertThrows(
       () =>
         lowerProject(
-          defineProject({ actions: [make("action.yml"), make(path)] }),
+          makeProject({ actions: [make("action.yml"), make(path)] }),
           "actions.ts",
         ),
       Error,
@@ -439,44 +438,44 @@ Deno.test("composite metadata paths normalize directories and reject placement c
 });
 
 Deno.test("shared Composite traversal retains cycle and deep-path checks", () => {
-  const leaf = defineCompositeAction("leaf/action.yml", {
+  const leaf = compositeAction("leaf/action.yml", {
     name: "Leaf",
     description: "Leaf",
   }).steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
   let nested = leaf;
   for (let depth = 1; depth < 10; depth++) {
     const child = nested;
-    nested = defineCompositeAction(`level${depth}/action.yml`, {
+    nested = compositeAction(`level${depth}/action.yml`, {
       name: "Leaf",
       description: "Leaf",
     }).steps(({ step }) => step.uses(child));
   }
   const workflow = (action: typeof leaf) =>
-    defineWorkflow("ci.yml", { on: { push: {} } }).job(
+    makeWorkflow("ci.yml", { on: { push: {} } }).job(
       "ci",
       ({ job }) => job.runsOn("ubuntu-latest").uses(leaf).uses(action),
     );
   assertEquals(
     lowerProject(
-      defineProject({ workflows: [workflow(nested)], actions: [leaf] }),
+      makeProject({ workflows: [workflow(nested)], actions: [leaf] }),
       "actions.ts",
     ).actions.length,
     10,
   );
-  const tooDeep = defineCompositeAction("deep/action.yml", {
+  const tooDeep = compositeAction("deep/action.yml", {
     name: "Leaf",
     description: "Leaf",
   }).steps(({ step }) => step.uses(nested));
   assertThrows(
     () =>
       lowerProject(
-        defineProject({ workflows: [workflow(tooDeep)], actions: [leaf] }),
+        makeProject({ workflows: [workflow(tooDeep)], actions: [leaf] }),
         "actions.ts",
       ),
     Error,
     "exceeds ten levels",
   );
-  const materialized = defineProject({ actions: [leaf] }).actions![0];
+  const materialized = makeProject({ actions: [leaf] }).actions![0];
   const steps: import("../src/github_actions/mod.ts").AuthoringStep[] = [];
   const cyclic = {
     ...materialized,
@@ -491,7 +490,7 @@ Deno.test("shared Composite traversal retains cycle and deep-path checks", () =>
   assertThrows(
     () =>
       lowerProject(
-        { ...defineProject({ actions: [leaf] }), actions: [cyclic] },
+        { ...makeProject({ actions: [leaf] }), actions: [cyclic] },
         "actions.ts",
       ),
     Error,
@@ -500,7 +499,7 @@ Deno.test("shared Composite traversal retains cycle and deep-path checks", () =>
 });
 
 Deno.test("scenario accepts an automatically collected Composite with native fixtures", async () => {
-  const action = defineCompositeAction("actions/fixture/action.yml", {
+  const action = compositeAction("actions/fixture/action.yml", {
     name: "Fixture",
     description: "Fixture",
     outputs: { value: { description: "Value" } },
@@ -513,7 +512,7 @@ Deno.test("scenario accepts an automatically collected Composite with native fix
       outputs: ["value"],
     }).outputs(({ steps }) => ({ value: steps.produce.outputs.value }))
   );
-  const workflow = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const workflow = makeWorkflow("ci.yml", { on: { push: {} } }).job(
     "ci",
     ({ job }) =>
       job.runsOn("ubuntu-latest").uses(action, { id: "call" }).run({
@@ -558,7 +557,7 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
     "printf x\t| cat",
     "echo\rvalue",
   ];
-  const action = defineCompositeAction("actions/scalars/action.yml", {
+  const action = compositeAction("actions/scalars/action.yml", {
     name: "Scalars",
     description: values.description,
   }).steps(({ step }) =>
@@ -567,7 +566,7 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
       step.run({ name: "First", run: commands[0], shell: "bash", env: values }),
     )
   );
-  const workflow = defineWorkflow(".github/workflows/scalars.yml", {
+  const workflow = makeWorkflow(".github/workflows/scalars.yml", {
     on: { push: {} },
   }).job("test", ({ job }) =>
     commands.slice(1).reduce(
@@ -579,7 +578,7 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
       }),
     ));
   const files = await generateFiles(
-    defineProject({ workflows: [workflow], actions: [action] }),
+    makeProject({ workflows: [workflow], actions: [action] }),
     "./scalars.ts",
     "unused",
   );
@@ -619,7 +618,7 @@ Deno.test("workflow and composite YAML preserve scalar values with natural quoti
 });
 
 Deno.test("composite shared steps preserve env and Action input order", async () => {
-  const action = defineCompositeAction("actions/order/action.yml", {
+  const action = compositeAction("actions/order/action.yml", {
     name: "Order",
     description: "Preserve authored order",
   }).steps(({ step }) =>
@@ -637,7 +636,7 @@ Deno.test("composite shared steps preserve env and Action input order", async ()
       })
   );
   const files = await generateFiles(
-    defineProject({ actions: [action] }),
+    makeProject({ actions: [action] }),
     "./actions.ts",
     "unused",
   );

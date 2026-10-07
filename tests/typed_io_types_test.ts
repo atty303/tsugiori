@@ -1,7 +1,6 @@
 import type { TaskContext } from "../src/task/mod.ts";
 import {
-  defineCompositeAction,
-  defineWorkflow,
+  compositeAction,
   type Expression,
   fromJSON,
   jsonValue,
@@ -9,6 +8,7 @@ import {
   rawNode,
   type TaskStepDefinition,
   textValue,
+  workflow,
 } from "../src/github_actions/mod.ts";
 
 function assertTypedIO(): void {
@@ -18,7 +18,7 @@ function assertTypedIO(): void {
       return value as string[];
     },
   });
-  const first = defineWorkflow(".github/workflows/typed.yml", {
+  const first = workflow(".github/workflows/typed.yml", {
     on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -186,7 +186,7 @@ function assertTypedIO(): void {
         }),
   );
 
-  const conditional = defineWorkflow(".github/workflows/conditional.yml", {
+  const conditional = workflow(".github/workflows/conditional.yml", {
     on: { push: {} },
   }).job("produce", ({ job }) =>
     job.runsOn("ubuntu-latest").task({
@@ -217,7 +217,7 @@ function assertTypedIO(): void {
   );
 
   const text = textValue();
-  const textJob = defineWorkflow(".github/workflows/text.yml", {
+  const textJob = workflow(".github/workflows/text.yml", {
     on: { push: {} },
   })
     .job("produce", ({ job }) =>
@@ -252,7 +252,7 @@ function assertTypedIO(): void {
 void assertTypedIO;
 
 function assertOptionalTaskContracts(): void {
-  defineWorkflow("optional.yml", { on: { push: {} } }).job(
+  workflow("optional.yml", { on: { push: {} } }).job(
     "test",
     ({ job }) =>
       job.runsOn("ubuntu-latest")
@@ -305,7 +305,7 @@ function assertOptionalTaskContracts(): void {
           },
         }),
   );
-  defineCompositeAction("actions/optional/action.yml", {
+  compositeAction("actions/optional/action.yml", {
     name: "Optional",
     description: "Optional contracts",
   }).steps(({ step }) =>
@@ -396,7 +396,7 @@ function rejectPhantomTaskContracts(): void {
     run: typedRun,
   };
 
-  defineWorkflow("phantom.yml", { on: { push: {} } }).job("test", ({ job }) => {
+  workflow("phantom.yml", { on: { push: {} } }).job("test", ({ job }) => {
     const execution = job.runsOn("ubuntu-latest");
     void declared;
     execution.task({
@@ -428,7 +428,7 @@ function rejectPhantomTaskContracts(): void {
     });
     return execution.task({ name: "Empty", run: () => {} });
   });
-  defineCompositeAction("actions/phantom/action.yml", {
+  compositeAction("actions/phantom/action.yml", {
     name: "Phantom",
     description: "Phantom contracts",
   }).steps(({ step }) => {

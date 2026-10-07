@@ -5,19 +5,19 @@ import {
   cancelled,
   caseOf,
   contains,
-  defineProject,
-  defineWorkflow,
   endsWith,
   failure,
   format,
   fromJSON,
   hashFiles,
   join,
+  project,
   rawExpression,
   rawNode,
   startsWith,
   success,
   toJSON,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
@@ -31,7 +31,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
     inputs: { value: { description: "Input", required: true } },
     outputs: { "result": { description: "Output" } },
   } as const;
-  const first = defineWorkflow(".github/workflows/ci.yml", {
+  const first = workflow(".github/workflows/ci.yml", {
     on: { push: {} },
     secrets: ["token"],
   })
@@ -46,7 +46,7 @@ Deno.test("typed expressions compose across job and step fields", async () => {
         matrix: steps.source.outputs.matrix,
       }));
     });
-  const config = defineProject({
+  const config = project({
     workflows: [
       first.job(
         "deploy",
@@ -144,9 +144,9 @@ Deno.test("expression nodes cannot be interpolated as host strings", () => {
 });
 
 Deno.test("a step ID colliding with an expression method is addressable", async () => {
-  const config = defineProject({
+  const config = project({
     workflows: [
-      defineWorkflow(".github/workflows/ci.yml", {
+      workflow(".github/workflows/ci.yml", {
         on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")
@@ -253,9 +253,9 @@ Deno.test("property references prefer GitHub dot syntax and preserve required br
 });
 
 Deno.test("a complete matrix can come from one typed expression", async () => {
-  const config = defineProject({
+  const config = project({
     workflows: [
-      defineWorkflow(".github/workflows/ci.yml", {
+      workflow(".github/workflows/ci.yml", {
         on: { push: {} },
       }).job("test", ({ job }) =>
         job.runsOn("ubuntu-latest")
@@ -286,7 +286,7 @@ jobs:
 });
 
 Deno.test("declared run outputs expose GitHub references during authoring", () => {
-  defineWorkflow("ci.yml", { on: { push: {} } }).job("prepare", ({ job }) => {
+  workflow("ci.yml", { on: { push: {} } }).job("prepare", ({ job }) => {
     const source = job.runsOn("ubuntu-latest").run({
       id: "source",
       name: "Source",

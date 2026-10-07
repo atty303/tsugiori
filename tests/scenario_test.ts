@@ -1,7 +1,6 @@
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
-  defineWorkflow,
   fromJSON,
   hashFiles,
   jsonValue,
@@ -9,6 +8,7 @@ import {
   scenario,
   textValue,
   toJSON,
+  workflow,
 } from "../src/github_actions.ts";
 
 const strings = jsonValue({
@@ -27,7 +27,7 @@ const stageValue = jsonValue({
     return value;
   },
 });
-const detected = defineWorkflow(".github/workflows/sample.yml", {
+const detected = workflow(".github/workflows/sample.yml", {
   on: { push: { branches: ["main"] } },
 }).job("detect", ({ job }) =>
   job.runsOn("ubuntu-24.04").task({
@@ -180,7 +180,7 @@ Deno.test("scenario distinguishes expectation failures from fixture errors", asy
   assertEquals((invalid as { kind?: string }).kind, "fixture_missing");
 });
 
-const unsupported = defineWorkflow(".github/workflows/unsupported.yml", {
+const unsupported = workflow(".github/workflows/unsupported.yml", {
   on: { push: {} },
 }).job("check", ({ job }) =>
   job.runsOn("ubuntu-latest")

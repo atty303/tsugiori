@@ -1,7 +1,7 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { parse } from "../src/deps.ts";
-import { defineProject, defineWorkflow } from "../src/github_actions/mod.ts";
+import { project, workflow } from "../src/github_actions/mod.ts";
 import { generateFiles } from "../src/compiler/generator.ts";
 
 Deno.test("prepare Action installs the repository's verified toolchain and forwards inputs/output", async () => {
@@ -29,7 +29,7 @@ Deno.test("prepare Action installs the repository's verified toolchain and forwa
 });
 
 Deno.test("task generation renders the explicit local preparation Action and project directory", async () => {
-  const ci = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const ci = workflow("ci.yml", { on: { push: {} } }).job(
     "test",
     ({ job }) =>
       job.runsOn("ubuntu-latest").task({
@@ -40,7 +40,7 @@ Deno.test("task generation renders the explicit local preparation Action and pro
       }),
   );
   const [file] = await generateFiles(
-    defineProject({
+    project({
       workingDirectory: "project",
       localTaskPrepareAction: "./actions/task-prepare",
       workflows: [ci],
@@ -83,12 +83,12 @@ jobs:
 });
 
 Deno.test("native-only generation needs no task preparation identity", async () => {
-  const native = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const native = workflow("ci.yml", { on: { push: {} } }).job(
     "test",
     ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }),
   );
   const files = await generateFiles(
-    defineProject({ workflows: [native] }),
+    project({ workflows: [native] }),
     "./workflows.ts",
     "source",
   );
@@ -112,7 +112,7 @@ jobs:
 });
 
 Deno.test("task generation requires release identity and validates local preparation paths", async () => {
-  const ci = defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  const ci = workflow("ci.yml", { on: { push: {} } }).job(
     "test",
     ({ job }) =>
       job.runsOn("ubuntu-latest").task({
@@ -125,7 +125,7 @@ Deno.test("task generation requires release identity and validates local prepara
   await assertRejects(
     () =>
       generateFiles(
-        defineProject({ workflows: [ci] }),
+        project({ workflows: [ci] }),
         "./workflows.ts",
         "source",
       ),
@@ -143,7 +143,7 @@ Deno.test("task generation requires release identity and validates local prepara
     ]
   ) {
     assertThrows(
-      () => defineProject({ localTaskPrepareAction: path, workflows: [ci] }),
+      () => project({ localTaskPrepareAction: path, workflows: [ci] }),
       TypeError,
     );
   }

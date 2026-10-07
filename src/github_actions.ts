@@ -1,8 +1,8 @@
 /**
  * GitHub Actions authoring, generation and scenario testing.
  *
- * Use defineWorkflow() or defineCompositeAction(), return immutable completed
- *  states and materialize them with defineProject(). Configuration callbacks build
+ * Use workflow() or compositeAction(), return immutable completed
+ *  states and materialize them with project(). Configuration callbacks build
  *  GitHub expressions now; task bodies run later on the compiled runtime.
  *
  * Detailed responsibilities and examples live in the selective entrypoints:

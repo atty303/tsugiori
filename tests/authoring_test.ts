@@ -6,10 +6,10 @@ import {
   assertThrows,
 } from "@std/assert";
 import {
-  defineProject,
-  defineWorkflow,
   literal,
+  project,
   rawExpression,
+  workflow as makeWorkflow,
 } from "@atty303/tsugiori/github-actions";
 import {
   AuthoringValidationError,
@@ -20,7 +20,7 @@ import { pathToFileURL } from "node:url";
 import { writeGeneratedFiles } from "../src/compiler/write.ts";
 
 Deno.test("native deployment fields remain visible in generated Actions YAML", async () => {
-  const deploy = defineWorkflow(".github/workflows/deploy.yml", {
+  const deploy = makeWorkflow(".github/workflows/deploy.yml", {
     on: { push: { branches: ["master"] } },
 
     permissions: { contents: "read" },
@@ -46,7 +46,7 @@ Deno.test("native deployment fields remain visible in generated Actions YAML", a
         result: rawExpression("steps.deploy.outputs.result"),
       })));
   const lowered = await lowerProject(
-    defineProject({ workflows: [deploy] }),
+    project({ workflows: [deploy] }),
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
@@ -91,7 +91,7 @@ Deno.test("blank raw expressions are rejected", () => {
 });
 
 Deno.test("authored step conditions and failure policy survive task lowering", async () => {
-  const ci = defineWorkflow(".github/workflows/ci.yml", {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
     on: { workflow_dispatch: {} },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -114,7 +114,7 @@ Deno.test("authored step conditions and failure policy survive task lowering", a
       }));
 
   const lowered = await lowerProject(
-    defineProject({
+    project({
       workflows: [ci],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -165,7 +165,7 @@ jobs:
 });
 
 Deno.test("workflow dispatch string inputs are emitted from authoring options", async () => {
-  const deploy = defineWorkflow(".github/workflows/deploy.yml", {
+  const deploy = makeWorkflow(".github/workflows/deploy.yml", {
     on: {
       push: {},
       workflow_dispatch: {
@@ -185,7 +185,7 @@ Deno.test("workflow dispatch string inputs are emitted from authoring options", 
       job.runsOn("ubuntu-24.04").run({ name: "Deploy", run: "true" }),
   );
   const lowered = await lowerProject(
-    defineProject({ workflows: [deploy] }),
+    project({ workflows: [deploy] }),
     "./tsugiori.ts",
   );
   const yaml = emitWorkflow(lowered.workflows[0].workflow);
@@ -222,7 +222,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
     },
     outputs: {},
   } as const;
-  const ci = defineWorkflow(".github/workflows/ci.yml", {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
     permissions: { contents: "read" },
   }).job("test", ({ job }) =>
@@ -237,7 +237,7 @@ Deno.test("task-backed steps lower to visible preparation and runtime steps", as
       .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
   const lowered = await lowerProject(
-    defineProject({
+    project({
       workflows: [ci],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -292,7 +292,7 @@ jobs:
 });
 
 Deno.test("task registry retains invocation entrypoints", async () => {
-  const ci = defineWorkflow(".github/workflows/ci.yml", {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job("test", ({ job }) =>
     job
@@ -302,7 +302,7 @@ Deno.test("task registry retains invocation entrypoints", async () => {
       .task({ name: "Report", inputs: {}, outputs: {}, run: async () => {} }));
 
   const lowered = await lowerProject(
-    defineProject({ workflows: [ci] }),
+    project({ workflows: [ci] }),
     "./tsugiori.ts",
   );
 
@@ -317,13 +317,13 @@ Deno.test("task registry retains invocation entrypoints", async () => {
 });
 
 Deno.test("duplicate workflow outputs fail before generation", () => {
-  const first = defineWorkflow(".github/workflows/ci.yml", {
+  const first = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job(
     "first",
     ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
   );
-  const second = defineWorkflow(".github/workflows/ci.yml", {
+  const second = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job(
     "second",
@@ -333,7 +333,7 @@ Deno.test("duplicate workflow outputs fail before generation", () => {
   assertThrows(
     () =>
       lowerProject(
-        defineProject({ workflows: [first, second] }),
+        project({ workflows: [first, second] }),
         "./tsugiori.ts",
       ),
     AuthoringValidationError,
@@ -342,7 +342,7 @@ Deno.test("duplicate workflow outputs fail before generation", () => {
 });
 
 Deno.test("task-backed steps reject Windows runners", () => {
-  const ci = defineWorkflow(".github/workflows/ci.yml", {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job(
     "test",
@@ -356,14 +356,14 @@ Deno.test("task-backed steps reject Windows runners", () => {
   );
 
   assertThrows(
-    () => lowerProject(defineProject({ workflows: [ci] }), "./tsugiori.ts"),
+    () => lowerProject(project({ workflows: [ci] }), "./tsugiori.ts"),
     AuthoringValidationError,
     "unsupported Windows runner",
   );
 });
 
 Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
-  const ci = defineWorkflow(".github/workflows/ci.yml", {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   }).job("test", ({ job }) =>
     job
@@ -376,7 +376,7 @@ Deno.test("compiler-owned task step IDs avoid authored step IDs", async () => {
       .task({ name: "Task", inputs: {}, outputs: {}, run: () => {} }));
 
   const lowered = await lowerProject(
-    defineProject({
+    project({
       workflows: [ci],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -421,7 +421,7 @@ jobs:
 });
 
 Deno.test("workflow states are immutable and dependencies use prior job references", async () => {
-  const base = defineWorkflow(".github/workflows/ci.yml", {
+  const base = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
   });
   const testOnly = base.job("test", ({ job }) =>
@@ -435,11 +435,11 @@ Deno.test("workflow states are immutable and dependencies use prior job referenc
       .run({ name: "Build", run: "true" }));
 
   const first = await lowerProject(
-    defineProject({ workflows: [testOnly] }),
+    project({ workflows: [testOnly] }),
     "./tsugiori.ts",
   );
   const second = await lowerProject(
-    defineProject({ workflows: [complete] }),
+    project({ workflows: [complete] }),
     "./tsugiori.ts",
   );
 
@@ -484,20 +484,20 @@ jobs:
 });
 
 Deno.test("authoring rejects runtime-invalid provider-native values", () => {
-  const ci = defineWorkflow(".github/workflows/cache-version.yml", {
+  const ci = makeWorkflow(".github/workflows/cache-version.yml", {
     on: { push: {} },
   }).job(
     "test",
     ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Run", run: "true" }),
   );
-  assertEquals(defineProject({ workflows: [ci] }).cacheVersion, 1);
+  assertEquals(project({ workflows: [ci] }).cacheVersion, 1);
   assertEquals(
-    defineProject({ cacheVersion: 2, workflows: [ci] }).cacheVersion,
+    project({ cacheVersion: 2, workflows: [ci] }).cacheVersion,
     2,
   );
   for (const cacheVersion of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
     assertThrows(
-      () => defineProject({ cacheVersion, workflows: [ci] }),
+      () => project({ cacheVersion, workflows: [ci] }),
       TypeError,
       "Cache version must be a positive safe integer.",
     );
@@ -505,7 +505,7 @@ Deno.test("authoring rejects runtime-invalid provider-native values", () => {
 
   assertThrows(
     () =>
-      defineWorkflow(".github/workflows/ci.yml", {
+      makeWorkflow(".github/workflows/ci.yml", {
         on: { push: {} },
         permissions: [] as never,
       }),
@@ -515,7 +515,7 @@ Deno.test("authoring rejects runtime-invalid provider-native values", () => {
 
   assertThrows(
     () =>
-      defineWorkflow("bad.yml", { on: { push: {} } }).job(
+      makeWorkflow("bad.yml", { on: { push: {} } }).job(
         "test",
         ({ job }) =>
           job.runsOn("ubuntu-latest").uses("actions/checkout@v7", {
@@ -783,7 +783,7 @@ Deno.test("direct project does not let JSON-unsafe provider values bypass valida
 Deno.test("workflow triggers reject shorthands and retired options at runtime", () => {
   for (const on of [undefined, null, {}, "push", ["push"]]) {
     assertThrows(
-      () => defineWorkflow("ci.yml", { on } as never),
+      () => makeWorkflow("ci.yml", { on } as never),
       TypeError,
       "nonempty",
     );
@@ -801,8 +801,7 @@ Deno.test("workflow triggers reject shorthands and retired options at runtime", 
     ]
   ) {
     assertThrows(
-      () =>
-        defineWorkflow("ci.yml", { on: { push: {} }, [field]: {} } as never),
+      () => makeWorkflow("ci.yml", { on: { push: {} }, [field]: {} } as never),
       TypeError,
       "Unsupported workflow option",
     );
@@ -810,7 +809,7 @@ Deno.test("workflow triggers reject shorthands and retired options at runtime", 
 });
 
 Deno.test("workflowOutputs replaces direct native outputs without mutating earlier definitions", async () => {
-  const direct = defineWorkflow(".github/workflows/outputs.yml", {
+  const direct = makeWorkflow(".github/workflows/outputs.yml", {
     on: {
       workflow_call: {
         outputs: {
@@ -835,11 +834,11 @@ Deno.test("workflowOutputs replaces direct native outputs without mutating earli
     replacement: jobs.run.outputs.value,
   }));
   const first = await lowerProject(
-    defineProject({ workflows: [direct] }),
+    project({ workflows: [direct] }),
     "config.ts",
   );
   const second = await lowerProject(
-    defineProject({ workflows: [replacement] }),
+    project({ workflows: [replacement] }),
     "config.ts",
   );
   assertInlineSnapshot(
@@ -887,7 +886,7 @@ jobs:
 
 Deno.test("GitHub string maps preserve empty and whitespace values through public authoring", async () => {
   const values = { EMPTY: "", SPACE: "  ", PADDED: " value \t" };
-  const workflow = defineWorkflow("values.yml", {
+  const workflow = makeWorkflow("values.yml", {
     on: { push: {} },
     env: values,
   })
@@ -899,7 +898,7 @@ Deno.test("GitHub string maps preserve empty and whitespace values through publi
   const { generateFiles } = await import("../src/compiler/generator.ts");
   const { parse } = await import("../src/deps.ts");
   const files = await generateFiles(
-    defineProject({ workflows: [workflow] }),
+    project({ workflows: [workflow] }),
     "values.ts",
     "unused",
   );
@@ -921,7 +920,7 @@ Deno.test("GitHub string maps preserve empty and whitespace values through publi
 });
 
 Deno.test("authored runner labels report misplaced self-hosted during lowering", () => {
-  const workflow = defineWorkflow(".github/workflows/runner.yml", {
+  const workflow = makeWorkflow(".github/workflows/runner.yml", {
     on: { push: {} },
   })
     .job(
@@ -930,8 +929,7 @@ Deno.test("authored runner labels report misplaced self-hosted during lowering",
         job.runsOn(["x64", "SELF-HOSTED"]).run({ name: "Run", run: "true" }),
     );
   const error = assertThrows(
-    () =>
-      lowerProject(defineProject({ workflows: [workflow] }), "./workflows.ts"),
+    () => lowerProject(project({ workflows: [workflow] }), "./workflows.ts"),
     AuthoringValidationError,
     "The self-hosted runner label must be listed first.",
   );

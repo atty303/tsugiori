@@ -37,7 +37,7 @@ export function projectSource(
     !Array.isArray(project.workflows)
   ) {
     throw new ProjectSourceError(
-      "The project must be created by defineProject().",
+      "The project must be created by project().",
     );
   }
   if (
@@ -130,7 +130,7 @@ export async function resolveProjectWorkingDirectory(
     });
     throw new ProjectSourceError(
       project.workingDirectory === undefined
-        ? "Cannot resolve the project location from Git root. Ensure Git is available and the invocation directory is inside a checkout, or set defineProject({ workingDirectory: ... }) to its checkout-relative location."
+        ? "Cannot resolve the project location from Git root. Ensure Git is available and the invocation directory is inside a checkout, or set project({ workingDirectory: ... }) to its checkout-relative location."
         : "Invalid workingDirectory: use a nonempty checkout-relative path that remains inside the Actions checkout.",
       { cause },
     );

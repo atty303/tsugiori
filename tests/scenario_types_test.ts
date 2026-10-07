@@ -1,10 +1,10 @@
 import { scenario } from "../src/testing/mod.ts";
 import {
-  defineWorkflow,
   fromJSON,
   jsonValue,
   present,
   toJSON,
+  workflow,
 } from "../src/github_actions.ts";
 
 function assertScenarioTypes(): void {
@@ -14,7 +14,7 @@ function assertScenarioTypes(): void {
       return value;
     },
   });
-  const flow = defineWorkflow(".github/workflows/typed-scenario.yml", {
+  const flow = workflow(".github/workflows/typed-scenario.yml", {
     on: { push: {} },
   }).job("count", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -60,7 +60,7 @@ function assertTypedMatrixFromOutput(): void {
       });
     },
   });
-  const detected = defineWorkflow(".github/workflows/matrix-output.yml", {
+  const detected = workflow(".github/workflows/matrix-output.yml", {
     on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")

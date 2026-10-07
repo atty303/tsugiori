@@ -1,13 +1,13 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
 import {
-  defineCompositeAction,
-  defineProject,
-  defineWorkflow,
+  compositeAction,
   fromJSON,
   jsonValue,
   present,
+  project as makeProject,
   textValue,
+  workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
 import { parseWireValue, serializeValue } from "../src/task/mod.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
@@ -49,7 +49,7 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
 });
 
 Deno.test("hyphenated step and needs references retain JSON contracts and presence proofs", async () => {
-  const producer = defineWorkflow("ci.yml", { on: { push: {} } })
+  const producer = makeWorkflow("ci.yml", { on: { push: {} } })
     .job("detect-targets", ({ job }) =>
       job.runsOn("ubuntu-latest")
         .task({
@@ -89,7 +89,7 @@ Deno.test("hyphenated step and needs references retain JSON contracts and presen
         .run({ name: "Deploy", run: "true" }),
   );
   const lowered = await lowerProject(
-    defineProject({
+    makeProject({
       workflows: [workflow],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -112,7 +112,7 @@ Deno.test("hyphenated step and needs references retain JSON contracts and presen
 });
 
 Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps", async () => {
-  const first = defineWorkflow(".github/workflows/deploy.yml", {
+  const first = makeWorkflow(".github/workflows/deploy.yml", {
     on: { push: {} },
   }).job("detect", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -152,7 +152,7 @@ Deno.test("typed detect to matrix to task input lowers to ordinary Actions steps
   );
 
   const lowered = await lowerProject(
-    defineProject({
+    makeProject({
       workflows: [complete],
       localTaskPrepareAction: "./actions/task-prepare",
     }),
@@ -230,7 +230,7 @@ jobs:
 
 Deno.test("typed input requires the source contract object and rejects env collision", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = defineWorkflow(".github/workflows/check.yml", {
+  const first = makeWorkflow(".github/workflows/check.yml", {
     on: { push: {} },
   }).job("source", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -313,7 +313,7 @@ Deno.test("typed input requires the source contract object and rejects env colli
 
 Deno.test("typed contracts follow hyphenated job and step references", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = defineWorkflow(".github/workflows/check.yml", {
+  const first = makeWorkflow(".github/workflows/check.yml", {
     on: { push: {} },
   }).job("source-job", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -353,7 +353,7 @@ Deno.test("typed contracts follow hyphenated job and step references", () => {
 
 Deno.test("computed job outputs do not retain task contracts", () => {
   const other = jsonValue({ parse: names.parse });
-  const first = defineWorkflow(".github/workflows/computed.yml", {
+  const first = makeWorkflow(".github/workflows/computed.yml", {
     on: { push: {} },
   }).job("source", ({ job }) =>
     job.runsOn("ubuntu-latest").task({
@@ -390,16 +390,16 @@ Deno.test("runner passes null for an omitted optional typed source", async () =>
     const core = new URL("../src/github_actions/mod.ts", import.meta.url)
       .href;
     const runner = new URL("../src/runner/main.ts", import.meta.url).href;
-    const program = `import {defineProject,defineWorkflow,jsonValue} from ${
-      JSON.stringify(core)
-    };
+    const program =
+      `import {project as makeProject,workflow as makeWorkflow,jsonValue} from ${
+        JSON.stringify(core)
+      };
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value))throw new TypeError();return value;}});
-const first=defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
-const project=defineProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:({ needs }) => ({targets:{contract,from:needs.source.outputs.targets}}),outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
-      JSON.stringify(resultPath)
-    },JSON.stringify(inputs.targets));}}))]});
-Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
+const first=makeWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("source",({job})=>job.runsOn("ubuntu-latest").task({id:"emit",name:"Emit",inputs:{},outputs:{targets:{contract,required:false}},run:()=>{}}).outputs(({steps})=>({targets:steps.emit.outputs.targets})));
+Deno.exitCode=await runProject({project: makeProject({workflows:[first.job("consumer",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:({ needs }) => ({targets:{contract,from:needs.source.outputs.targets}}),outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+        JSON.stringify(resultPath)
+      },JSON.stringify(inputs.targets));}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["eval", program],
       env: { ...Deno.env.toObject(), TSUGIORI_INPUT_TARGETS: "" },
@@ -416,8 +416,8 @@ Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github
     ) {
       const skippable = program
         .replace(
-          "defineWorkflow,jsonValue}",
-          "defineWorkflow,jsonValue,rawNode}",
+          "workflow as makeWorkflow,jsonValue}",
+          "workflow as makeWorkflow,jsonValue,rawNode}",
         )
         .replace('name:"Emit",inputs:', `name:"Emit",${producerOption}inputs:`)
         .replace("required:false", "required:true");
@@ -431,8 +431,8 @@ Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github
       assertEquals(await Deno.readTextFile(resultPath), "null");
     }
     const withPresent = program.replace(
-      "defineWorkflow,jsonValue}",
-      "defineWorkflow,jsonValue,present}",
+      "workflow as makeWorkflow,jsonValue}",
+      "workflow as makeWorkflow,jsonValue,present}",
     );
     const guardedPrograms = [
       withPresent.replace(
@@ -470,15 +470,14 @@ Deno.test("runner parses JSON input and rejects absent or invalid wire values", 
       .href;
     const runner = new URL("../src/runner/main.ts", import.meta.url).href;
     const program =
-      `import {defineProject,defineWorkflow,jsonValue,rawNode} from ${
+      `import {project as makeProject,workflow as makeWorkflow,jsonValue,rawNode} from ${
         JSON.stringify(core)
       };
 import {runProject} from ${JSON.stringify(runner)};
 const contract=jsonValue({parse(value){if(!Array.isArray(value)||!value.every(item=>typeof item==="string"))throw new TypeError("invalid names");return value;}});
-const project=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
+Deno.exitCode=await runProject({project: makeProject({workflows:[makeWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("consumer",({job})=>job.runsOn("ubuntu-latest").task({name:"Consume",inputs:{targets:{contract,from:rawNode("matrix.targets")}},outputs:{},run:async({inputs})=>{await Deno.writeTextFile(${
         JSON.stringify(resultPath)
-      },JSON.stringify(inputs.targets));}}))]});
-Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
+      },JSON.stringify(inputs.targets));}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/consumer/task-1"]);`;
     for (
       const [wire, expectedCode] of [["[]", 0], ["", 1], ["null", 1], [
         "{}",
@@ -505,10 +504,10 @@ Deno.test("omitted task contracts lower identically to explicit empty contracts"
   const run = () => {};
   const text = textValue();
   const projects = [false, true].map((explicit) =>
-    defineProject({
+    makeProject({
       localTaskPrepareAction: "./actions/task-prepare",
       workflows: [
-        defineWorkflow("optional.yml", { on: { push: {} } }).job(
+        makeWorkflow("optional.yml", { on: { push: {} } }).job(
           "test",
           ({ job }) =>
             job.runsOn("ubuntu-latest")
@@ -534,7 +533,7 @@ Deno.test("omitted task contracts lower identically to explicit empty contracts"
         ),
       ],
       actions: [
-        defineCompositeAction("actions/optional/action.yml", {
+        compositeAction("actions/optional/action.yml", {
           name: "Optional",
           description: "Optional contracts",
         }).steps(({ step }) =>

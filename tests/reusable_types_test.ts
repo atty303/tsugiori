@@ -1,7 +1,7 @@
-import { defineProject, defineWorkflow } from "../src/github_actions/mod.ts";
+import { project, workflow } from "../src/github_actions/mod.ts";
 
 function assertReusableTypes(): void {
-  const definition = defineWorkflow(".github/workflows/callee.yml", {
+  const definition = workflow(".github/workflows/callee.yml", {
     on: {
       workflow_call: {
         inputs: {
@@ -23,7 +23,7 @@ function assertReusableTypes(): void {
         outputs: ["message"],
       }).outputs(({ steps }) => ({ message: steps.out.outputs.message })),
   ).workflowOutputs(({ jobs }) => ({ message: jobs.job.outputs.message }));
-  const caller = defineWorkflow(".github/workflows/caller.yml", {
+  const caller = workflow(".github/workflows/caller.yml", {
     on: { push: {} },
   });
   caller.job(
@@ -119,6 +119,6 @@ function assertReusableTypes(): void {
       secrets: "inherit",
     });
   });
-  void defineProject({ workflows: [callee, finished] });
+  void project({ workflows: [callee, finished] });
 }
 void assertReusableTypes;

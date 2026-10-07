@@ -1,7 +1,7 @@
 import {
   type ActionContract,
-  defineWorkflow,
   literal,
+  workflow,
 } from "../src/github_actions/mod.ts";
 
 const metadata = {
@@ -20,7 +20,7 @@ const metadata = {
 } as const satisfies ActionContract;
 
 function checkTypes() {
-  defineWorkflow("ci.yml", { on: { push: {} } }).job(
+  workflow("ci.yml", { on: { push: {} } }).job(
     "publish",
     ({ job }) => {
       const start = job.runsOn("ubuntu-latest");

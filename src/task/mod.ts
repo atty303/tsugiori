@@ -18,7 +18,7 @@
  * @module
  */
 /** Messages emitted by the task during runner execution.
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -113,7 +113,7 @@ export interface ValueContract<
  */
 export type ContractValue<C> = C extends ValueContract<infer T> ? T : never;
 /** Named task output contracts, with required writes enforced at runtime.
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -132,7 +132,7 @@ export type OutputDefinitions = Readonly<
     string,
     Readonly<{
       /** The same contract object can be reused by the producing and consuming tasks.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -148,7 +148,7 @@ export type OutputDefinitions = Readonly<
        */
       contract: ValueContract<unknown>;
       /** Whether this task must write the output when it executes.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -167,7 +167,7 @@ export type OutputDefinitions = Readonly<
   >
 >;
 /** Task inputs pair validation with a GitHub runtime expression source.
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -186,7 +186,7 @@ export type InputDefinitions = Readonly<
     string,
     Readonly<{
       /** Validates the native task input value.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -202,7 +202,7 @@ export type InputDefinitions = Readonly<
        */
       contract: ValueContract<unknown>;
       /** The source expression evaluated by GitHub before task execution.
-       * @example In a `defineWorkflow().job()` callback with `{ job }`.
+       * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
@@ -230,7 +230,7 @@ type Missing<S, Proof extends string> = SourceValue<S> extends
   > ? Required extends true ? never : Path extends Proof ? never : null
   : never;
 /** Native output values inferred from declared contracts.
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -264,7 +264,7 @@ export type InputValues<
     | Missing<I[K]["from"], Proof>;
 };
 /** Task callbacks receive native inputs and an asynchronous output writer.
- * @example In a `defineWorkflow().job()` callback with `{ job }`.
+ * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
@@ -284,7 +284,7 @@ export interface TaskContext<
   Proof extends string = never,
 > {
   /** The native step working directory during task execution.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   name: "Read configuration",
@@ -296,7 +296,7 @@ export interface TaskContext<
    */
   readonly cwd: string;
   /** Task logging during runner execution.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -312,7 +312,7 @@ export interface TaskContext<
    */
   readonly logger: TaskLogger;
   /** Parsed input values; these are host values in run, not expression nodes.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
@@ -328,7 +328,7 @@ export interface TaskContext<
    */
   readonly inputs: InputValues<I, Proof>;
   /** Output writes are asynchronous and must complete before the task returns.
-   * @example In a `defineWorkflow().job()` callback with `{ job }`.
+   * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",

@@ -135,7 +135,7 @@ const SOURCE_TOOL_IDENTITY: ToolIdentity = {
 /** Options for {@link runProject}. The project is already constructed; entrypointUrl identifies the executable module, while Deno.cwd() determines the generation directory.
  */
 export type RunOptions = Readonly<{
-  /** Project from defineProject(); generation consumes this value without reimporting it.
+  /** Project from project(); generation consumes this value without reimporting it.
    */
   project: ProjectConfig;
   /** Local executable entrypoint's `import.meta.url`, even when `project` is
@@ -151,9 +151,9 @@ export type RunOptions = Readonly<{
  * callers can assign the result to `Deno.exitCode`. `actions add <uses>` edits
  * the invocation directory's inline Deno imports only; it does not fetch modules,
  * update the lockfile, or add imports to the authoring source.
- * @example Given a project from defineProject in this executable entrypoint.
+ * @example Given a project from project in this executable entrypoint.
  * ```ts
- * Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
+ * Deno.exitCode = await runProject({ project: config, entrypointUrl: import.meta.url });
  * ```
  */
 export async function runProject(

@@ -136,36 +136,36 @@ const importCode = [...imports].map(([name, url]) =>
 ).join("\n");
 const setup = `
 declare const logger: TaskLogger;
-const workflow = defineWorkflow(".github/workflows/doc.yml", { on: { push: {} } })
+const sampleWorkflow = workflow(".github/workflows/doc.yml", { on: { push: {} } })
   .job("build", ({ job }) => job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] } })
     .task({ id: "build", name: "Build", inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
       outputs: { version: { contract: textValue(), required: true } }, run: async ({ outputs }) => { await outputs.set("version", "1.0.0"); } })
     .outputs(({ steps }) => ({ version: steps.build.outputs.version })))
   .job("deploy", ({ job, jobs }) => job.needs(jobs.build).runsOn("ubuntu-latest").run({ id: "deploy", name: "Deploy", run: "true" }));
-const versionAction = defineCompositeAction("actions/version", { name: "Version", description: "Version", outputs: { version: { description: "Version" } } })
+const versionAction = compositeAction("actions/version", { name: "Version", description: "Version", outputs: { version: { description: "Version" } } })
   .steps(({ step }) => step.run({ id: "build", name: "Build", shell: "bash", run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"', outputs: ["version"] }).outputs(({ steps }) => ({ version: steps.build.outputs.version })));
-const inputAction = defineCompositeAction("actions/greet", { name: "Greet", description: "Greet", inputs: { who: { description: "Recipient", required: true } } });
+const inputAction = compositeAction("actions/greet", { name: "Greet", description: "Greet", inputs: { who: { description: "Recipient", required: true } } });
 declare const outputs: TaskContext<{}, { version: { contract: ValueContract<string, "text">; required: true } }>["outputs"];
 const stagesContract = jsonValue({ parse(value: unknown): readonly string[] {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) throw new TypeError("Expected stage names");
   return value;
 } });
-const optionalWorkflow = defineWorkflow(".github/workflows/optional.yml", { on: { push: {} } })
+const optionalWorkflow = workflow(".github/workflows/optional.yml", { on: { push: {} } })
   .job("prepare", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "plan", name: "Plan", inputs: {}, outputs: { stages: { contract: stagesContract, required: false } }, run: async ({ outputs }) => { await outputs.set("stages", ["dev", "prd"]); } }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })));
-const ci = workflow;
-const project = defineProject({ workflows: [workflow] });
-function configureScenario(test: WorkflowScenario<TestJobsOf<typeof workflow>>) {
+const ci = sampleWorkflow;
+const config = project({ workflows: [sampleWorkflow] });
+function configureScenario(test: WorkflowScenario<TestJobsOf<typeof sampleWorkflow>>) {
   test.github({ event_name: "push", ref: "refs/heads/main", sha: "abc", event: {} });
   test.job("build", (job) => { job.eachMatrix(({ stage }, instance) => { instance.step("build").fixture({ outputs: { version: stage } }); }); });
   test.job("deploy", (job) => { job.step("deploy").fixture({}); });
 }
-const test = new WorkflowScenario<TestJobsOf<typeof workflow>>();
-const testJob = new JobScenario<TestJobsOf<typeof workflow>["build"]>({ steps: new Map(), internals: new Map() });
+const test = new WorkflowScenario<TestJobsOf<typeof sampleWorkflow>>();
+const testJob = new JobScenario<TestJobsOf<typeof sampleWorkflow>["build"]>({ steps: new Map(), internals: new Map() });
 const testStep = testJob.step("build");
-const reusable = defineWorkflow(".github/workflows/reusable.yml", { on: { workflow_call: {} } })
+const reusable = workflow(".github/workflows/reusable.yml", { on: { workflow_call: {} } })
   .job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ id: "build", name: "Build", run: "true" }));
-const draft = defineCompositeAction("actions/version", { name: "Version", description: "Expose version", outputs: { version: { description: "Version" } } });
+const draft = compositeAction("actions/version", { name: "Version", description: "Expose version", outputs: { version: { description: "Version" } } });
 function compositeFixture(step: Parameters<Parameters<typeof draft.steps>[0]>[0]["step"]) {
   return step.run({ id: "build", name: "Build", shell: "bash", run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"', outputs: ["version"] });
 }
@@ -196,7 +196,7 @@ return depends.run({ name: "End", run: "true" });
 });`;
     } else if (sample.text.includes("callback with `{ job }`")) {
       body =
-        `defineWorkflow(".github/workflows/example.yml", { on: { push: {} } }).job("example", ({ job }) => {\n${code}\nreturn job.runsOn("ubuntu-latest").run({ name: "End", run: "true" });\n});`;
+        `workflow(".github/workflows/example.yml", { on: { push: {} } }).job("example", ({ job }) => {\n${code}\nreturn job.runsOn("ubuntu-latest").run({ name: "End", run: "true" });\n});`;
     } else if (sample.text.includes("composite state `built`")) {
       body = `function example(built: ${compositeType}) {\n${code}\n}`;
     }

@@ -1,20 +1,20 @@
 import {
-  defineProject,
-  defineWorkflow,
   type Expression,
   fromJSON,
+  project,
   rawNode,
   textValue,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 
 function assertContracts(): void {
   const widenedNames: string[] = ["env"];
-  defineWorkflow(".github/workflows/bad-vars.yml", {
+  workflow(".github/workflows/bad-vars.yml", {
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     vars: widenedNames,
   });
-  defineWorkflow(".github/workflows/bad-secrets.yml", {
+  workflow(".github/workflows/bad-secrets.yml", {
     on: { push: {} },
     // @ts-expect-error declared keys must retain literal names
     secrets: widenedNames,
@@ -27,7 +27,7 @@ function assertContracts(): void {
     inputs: { stage: { description: "Input", required: true } },
     outputs: { "name": { description: "Output" } },
   } as const;
-  defineWorkflow(".github/workflows/logic.yml", {
+  workflow(".github/workflows/logic.yml", {
     on: {
       push: {},
       workflow_dispatch: { inputs: { commit: { type: "string" } } },
@@ -48,7 +48,7 @@ function assertContracts(): void {
   const impossible: Expression<string> = broad;
   void impossible;
   const matrixContract = textValue();
-  defineWorkflow(".github/workflows/inline.yml", {
+  workflow(".github/workflows/inline.yml", {
     on: { push: {} },
   })
     .job(
@@ -63,7 +63,7 @@ function assertContracts(): void {
           },
         }),
     );
-  defineWorkflow(".github/workflows/collision.yml", {
+  workflow(".github/workflows/collision.yml", {
     on: { push: {} },
   }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest")
@@ -78,7 +78,7 @@ function assertContracts(): void {
         steps.eq.outputs.result;
         return { result: steps.at("eq").at("outputs").at("result") };
       }));
-  const first = defineWorkflow(".github/workflows/ci.yml", {
+  const first = workflow(".github/workflows/ci.yml", {
     on: { push: {} },
     vars: ["env"],
     secrets: ["token"],
@@ -172,7 +172,7 @@ function assertContracts(): void {
           },
         }),
   );
-  defineProject({ workflows: [second] });
+  project({ workflows: [second] });
 }
 void assertContracts;
 Deno.test("typed expression contracts compile", () => {});

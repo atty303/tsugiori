@@ -1,11 +1,7 @@
-import {
-  defineWorkflow,
-  literal,
-  textValue,
-} from "../src/github_actions/mod.ts";
+import { literal, textValue, workflow } from "../src/github_actions/mod.ts";
 
 function checkCallbacks() {
-  const callee = defineWorkflow("callee.yml", {
+  const callee = workflow("callee.yml", {
     on: {
       workflow_call: {
         inputs: {
@@ -20,7 +16,7 @@ function checkCallbacks() {
     ({ job }) =>
       job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }),
   );
-  defineWorkflow("caller.yml", { on: { push: {} }, secrets: ["TOKEN"] }).job(
+  workflow("caller.yml", { on: { push: {} }, secrets: ["TOKEN"] }).job(
     "check",
     ({ job }) => {
       const execution = job.runsOn("ubuntu-latest");

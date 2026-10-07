@@ -24,12 +24,12 @@ Deno.test("task output writer writes declared multiline values and permits omitt
     const core = new URL("../src/github_actions/mod.ts", import.meta.url)
       .href;
     const runner = new URL("../src/runner/main.ts", import.meta.url).href;
-    const program = `import {textValue, defineProject, defineWorkflow} from ${
-      JSON.stringify(core)
-    };
+    const program =
+      `import {textValue, project as makeProject, workflow} from ${
+        JSON.stringify(core)
+      };
 import {runProject} from ${JSON.stringify(runner)};
-const project = defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{contract:textValue(),required:true},omitted:{contract:textValue(),required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]});
-Deno.exitCode = await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
+Deno.exitCode = await runProject({project: makeProject({workflows:[workflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{contract:textValue(),required:true},omitted:{contract:textValue(),required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["eval", program],
       env: { ...Deno.env.toObject(), GITHUB_OUTPUT: output },
@@ -49,12 +49,11 @@ Deno.exitCode = await runProject({project,entrypointUrl:import.meta.url},[".gith
 Deno.test("runner rejects a required task output that was not set", async () => {
   const core = new URL("../src/github_actions/mod.ts", import.meta.url).href;
   const runner = new URL("../src/runner/main.ts", import.meta.url).href;
-  const program = `import {textValue,defineProject,defineWorkflow} from ${
+  const program = `import {textValue,project as makeProject,workflow} from ${
     JSON.stringify(core)
   };
 import {runProject} from ${JSON.stringify(runner)};
-const project=defineProject({workflows:[defineWorkflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test",({job})=>job.runsOn("ubuntu-latest").task({name:"Task",inputs:{},outputs:{result:{contract:textValue(),required:true}},run:()=>{}}))]});
-Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
+Deno.exitCode=await runProject({project: makeProject({workflows:[workflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test",({job})=>job.runsOn("ubuntu-latest").task({name:"Task",inputs:{},outputs:{result:{contract:textValue(),required:true}},run:()=>{}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
   const result = await new Deno.Command(Deno.execPath(), {
     args: ["eval", program],
     stdout: "piped",
@@ -70,14 +69,14 @@ Deno.exitCode=await runProject({project,entrypointUrl:import.meta.url},[".github
 Deno.test("runner keeps the empty task context when both contracts are omitted", async () => {
   const core = new URL("../src/github_actions/mod.ts", import.meta.url).href;
   const runner = new URL("../src/runner/main.ts", import.meta.url).href;
-  const program = `import {defineProject,defineWorkflow} from ${
+  const program = `import {project as makeProject,workflow} from ${
     JSON.stringify(core)
   };
 import {runProject} from ${JSON.stringify(runner)};
 const run = ({inputs, outputs}) => {
   if (Object.keys(inputs).length !== 0 || typeof outputs.set !== "function") throw new Error("Invalid empty context");
 };
-const project = defineProject({workflows:[defineWorkflow("ci.yml", {on:{push:{}}}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({name:"Omitted",run}).task({name:"Explicit",inputs:{},outputs:{},run}))]});
+const project = makeProject({workflows:[workflow("ci.yml", {on:{push:{}}}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({name:"Omitted",run}).task({name:"Explicit",inputs:{},outputs:{},run}))]});
 for (const entry of ["ci.yml/test/task-1", "ci.yml/test/task-2"]) {
   if (await runProject({project,entrypointUrl:import.meta.url},[entry]) !== 0) Deno.exit(1);
 }`;
