@@ -1,0 +1,96 @@
+Task: Focus README Getting started on evaluating and trying Tsugiori
+Anchor: ee051d695f062473330bf10387721bdfe5a0893b
+Base: 96d09bf5c5ac717b54ed05b87ae784efb013a6af
+Branch: main
+Commits: bb5384597fcc757ec4c090b73c9c216bdc1bc6d2 - README and generated-output verification; ee051d695f062473330bf10387721bdfe5a0893b - approved README guidance
+Guidance: repository AGENTS.md; dig; develop-repository and atty303 profile; design-review; maintain-agent-guidance; Git task evidence
+Conditions: macOS; current checkout; mise-managed Deno; docs-only change; no-release approved; existing local export deletion preserved; no external publication; source and release context injected only in verification harness
+Authority: User implementation request, approved README policy and no-release selection; repository AGENTS.md and applicable skills
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) あとgetting startedの説明が詳細すぎる。すべて仕様を説明すればいいというものではない。tsugioriを知らないが興味がある人にとって意味がある内容にして。
+    
+  - A: Applied dig; inspected README Getting started, init template equality tests and published code-block checker. Asked whether to show focused snippets or full TypeScript; recommended snippets.
+- U2:
+    B. 全文自体は実行しなくてもtsugioriが何を生成するかが見えるので最初に知りたいことだ
+    
+  - A: Accepted full TypeScript to support evaluation without execution. Asked whether to include generated YAML as prose only, folded full output or an excerpt.
+- U3:
+    B. 全文は興味ある。GitHubの仕様やDenoの仕様を説明しているところが間違いなく余分だ
+    
+  - A: Accepted folded full generated YAML and identified GitHub/Deno specification prose as excess. Proposed retaining complete TypeScript, concise first-use steps and existing API navigation; asked for agreement.
+- U4:
+    B. AGENTS.mdに方針を追記. API docへの導線は今のままでいい。興味の出た人は自分で調べる
+    
+  - A: Applied maintain-agent-guidance. Inspected existing README/API ownership in AGENTS and proposed repository-scoped audience policy and agreed editing scope. No edits yet. Memory lookup returned no guidance used for this decision.
+- U5:
+    A
+    
+  - A: Produced an implementation prompt preserving TypeScript and folded YAML, concise commands and unchanged API navigation, plus exact approved AGENTS policy.
+- U6:
+    設定JSONも残す
+    
+  - A: Updated the implementation prompt to retain full configuration JSON and its init-template equality verification as well.
+- U7:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の README.md の Getting started を、Tsugiori を知らないが興味を持った開発者に向けて編集してください。合意した README の編集方針を、リポジトリの AGENTS.md に追記してください。
+    
+    ## 目的
+    - 実行前でも、必要な設定、Tsugiori のコード、生成される GitHub Actions YAML の全体像を理解できるようにする。
+    - 興味を持った読者が、少ない説明で初回実行まで進めるようにする。
+    - README が仕様の網羅的な説明へ戻らないよう、読者と目的を agent guidance に明記する。
+    
+    ## 成功条件
+    - Getting started に設定 JSON と `workflows.ts` の全文を残す。
+    - 対応する生成 YAML 全文を折りたたみで掲載し、cache や runtime 準備の step も省略しない。
+    - Deno が必要なことと、初期化 → 依存取得 → YAML 生成 → commit → GitHub で実行する手順を簡潔に示す。
+    - GitHub／Deno の仕様説明、パス解決の詳細、Composite Actions の説明を Getting started から削除する。
+    - 既存の API doc への導線は変更しない。
+    - 掲載 YAML が実際の生成結果と一致し、掲載 TypeScript と関連する文書・テストの検証が通る。
+    - AGENTS.md に合意した編集方針を追加する。
+    
+    ## 決定事項
+    - 設定 JSON、TypeScript、生成 YAML は全文を見せる。
+      - 理由: 設定・コード・出力の全体像は、実行せずに Tsugiori を評価する読者にも価値がある。
+      - 主な棄却案: 設定 JSON の削除や、コード・YAML の抜粋。読者が知りたい全体像を欠くため採用しない。
+    - 生成 YAML は折りたたむ。
+      - 理由: 全文を確認できる状態を保ちながら、通常の読み進めを妨げない。
+      - 主な棄却案: YAML を常時展開する案。長い準備 step が本文を占めるため採用しない。
+    - 削減対象は理解や初回実行に不要な仕様説明とする。
+      - 理由: 問題は文章量そのものではなく、読者の関心に対する内容の優先順位にある。
+      - 主な棄却案: 短さを目的に全文例まで削る案。評価に役立つ内容も失うため採用しない。
+    - API doc への既存の導線は現状を保つ。
+      - 理由: 興味を持った読者は自分で詳細を調べられる。
+      - 主な棄却案: 削除した説明ごとに新たなリンクや誘導文を追加する案。不要な説明を増やすため採用しない。
+    
+    ## 制約
+    - init、DSL、compiler、runtime の動作を変更しない。
+    - 生成 YAML を手で組み立てたり、一部を省略して全文として掲載したりしない。
+    - 現在の checkout で作業し、既存の変更を保持する。
+    - Push、PR 作成、deploy、release は行わない。
+    
+    ## 対象外
+    - Getting started 以外の README 本文の全面改稿。
+    - API ドキュメントの再構成。
+    - init テンプレートの機能変更。
+    - GitHub Actions や Deno の仕様を別の新規文書へ転記すること。
+    
+    ## 未検証の前提
+    - 掲載 YAML の生成手順と source key などの再現条件は、現在の compiler と標準生成経路から確認する。
+    - 現在の公開コード例検証が、折りたたみ内の YAML をどう扱うか確認する。
+    
+    ## 実装時の指示
+    - AGENTS.md の既存の README／公開 API documentation の責務分担と整合する場所へ、次の合意済み方針を追加する。不要な重複があれば既存記述へ統合する。
+    
+      Write the README for developers who are unfamiliar with Tsugiori and interested in evaluating it. Prioritize what they can author, what Tsugiori generates, and how to try it. Keep complete examples when their overall structure helps understanding; brevity alone is not the goal. Do not turn Getting started into a GitHub Actions or Deno specification guide or an exhaustive Tsugiori API reference.
+    
+    - `tests/init_test.ts` にある、README の設定 JSON・TypeScript と init テンプレートとの一致検証を維持する。
+    - `scripts/check_api_docs.ts` は README のコード例も検証対象にしている。実際に掲載する TypeScript を引き続き検証する。
+    - 直前の local commit `96d09bf` は、init テンプレートと README の `export default project` を削除した変更で、まだ push していない。これを保持する。
+    
+  - A: Applied develop-repository, design-review and maintain-agent-guidance. Started clean on main at 96d09bf, preserving the prior unpushed export deletion. Fetched origin and notes, with notes merge already up to date; fetched v0.10.1. Proposed no-release docs commits. Public package installation was rejected by Denos minimum dependency age for 0.10.1 and 0.10.0; did not change the policy. Extracted v0.10.1 source into an owned temporary artifact directory, stamped release identity and version using the release package convention, locally mapped the unchanged sample TypeScript and ran normal install/generation. Copied the resulting complete YAML to folded README output. Reduced prose, kept JSON and TypeScript exactly, and preserved all README text outside Getting started. Added approved AGENTS policy. Extended init test to evaluate actual README TypeScript with a harness-only project export and import mapping, supplying example release/source identities to generateFiles and comparing all YAML bytes. Tests verify structure and identity consistency, not recomputation of the example source graph. Four init tests, mise check and published JSDoc/186 examples passed. Verified unchanged API navigation and byte equality with actual generation. Deleted owned temporary artifact directory. Opened README panel; UI tool returned queued, so no rendered UI observation claimed.
+- U8:
+    release なし（推奨）
+  - A: Accepted no-release docs. Reviewed scope and diff; created bb53845 for README and verification, then ee051d6 as a separate approved guidance change. Re-read complete session JSONL and compared all eight human messages in this cycle. Prepared normalized standard task note; no push, release or runtime/init behavior change.
