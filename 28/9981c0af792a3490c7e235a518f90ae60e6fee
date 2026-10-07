@@ -1,0 +1,164 @@
+Task: Rebuild Tsugiori README Getting started and examples
+Anchor: 289981c0af792a3490c7e235a518f90ae60e6fee
+Base: d1502a7ae05239ca047fd055f8ad2177259378d8
+Branch: main
+Commits: 289981c0af792a3490c7e235a518f90ae60e6fee fixes init sample, adds six tutorial chapters and local Action appendix, aligns guidance and tests
+Guidance: AGENTS.md; develop-repository; design-program-observability; design-review; maintain-agent-guidance; dig
+Conditions: Current checkout; patch maximum approved; no deploy, release, push, or PR; initial worktree clean; origin/main matched base; sandbox approvals used only for local Git metadata
+## Evidence
+mise run check passed; mise run test passed 161 tests; chapter-specific frozen typecheck and generate --check passed for all seven example projects; dax interpolation with shell metacharacters remained one Git argument.
+Authority: User implementation brief and approvals; current source, generated YAML, tests, and AGENTS.md
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) READMEの構成をさらに改造する。Getting startedを入門ガイドに再構成する
+    
+    1. init
+    2. simple typed dsl
+    3. actions add
+    4. task
+    5. testing
+    
+    このぐらいの段階に分ける想定だ。
+  - A: 現行の `init` は、checkout Action と task を含むサンプルを生成します。一方、想定された順番でコードを積み上げるなら、最初はより小さな workflow から始める必要があります。
+- U2: B
+  - A: `init` を最小化する場合も、現行APIでは workflow に完成した job と step が必要です。生成直後の形を決めると、次の「simple typed DSL」へどう進むかが定まります。
+- U3: A
+  - A: `init` で既に workflow・job・step の基本形が揃うため、次の章には新しい学びが必要です。現行APIでは、GitHubの実行時値を型付きのコールバックから参照できます。
+- U4: A+B. jobとneeds追加、step追加、if expressionぐらいあれば体験は十分か？ 詳細はAPIリファレンスの想定だ
+  - A: はい、十分です。`job` と `needs` で型付きの依存関係、step の追加で組み立て方、`if` でGitHub実行時式を体験できます。各APIの網羅的な説明はリファレンスに任せ、入門では生成されるYAMLとの対応を示すのがよさそうです。
+- U5: コードは生成物とセットで example/ に章ごとの完成形を配置する
+  - A: 各章の完成形を `example/` に置き、対応する生成YAMLも保存する方針で更新します。現状、リポジトリには章別サンプルの配置規則がないため、各章をどこまで単独で実行可能にするかを決めたいです。
+- U6: A. examples/ね
+  - A: `actions add` は、Actionの参照をDeno設定に追加し、取得・ロックした型付き契約を `job.uses()` に渡す流れです。入門ではどのActionを使うかで、この章の複雑さが変わります。
+- U7: A. @v7を追加してdeno.lockで管理する仕組みを体験させる
+  - A: `@v7` の参照は `actions add` で設定し、`deno install` で解決結果を `deno.lock` に記録する流れにします。次のtask章は、testing章で何を検証するかにも関わります。
+- U8: B. daxでshell commandを呼ぶtaskにする。Deno+daxがシェルスクリプトのシンプルさを維持しながら型付きになるメリットを伝える
+  - A: daxのコマンド結果は文字列として取得でき、`actions/checkout` の後ならGitを使う例が自然です。[dax公式README](https://github.com/dsherret/dax)にもコマンド出力を `.text()` で受ける例があります。
+- U9: A. ただし引数を与えるコマンドのほうがいい。workflow dispatch inputsを注入し、daxが安全にescapeする実例
+  - A: `workflow_dispatch` の文字列をtask入力に渡します。Gitのrevision名では空白や記号を含む正常な入力を示しにくいため、escapeの効果を見せる題材としてはGitの表示形式が適しています。
+- U10: B
+  - A: `format` 入力をdaxへ渡し、Gitの表示結果を型付き出力にする方針で揃いました。testing章では、Tsugioriのscenarioはworkflowの条件や値の流れを検証しますが、task本体のGitコマンドは実行しません。
+- U11: その前にtask間のtyped i/oをzodで実現する章を挿入
+  - A: 現行APIでは、`jsonValue({ parse: schema.parse })` のようにZodのschemaをtask入出力の契約に使えます。同じ契約を出力側と入力側で共有すると、task間でJSONの型と実行時検証がつながります。
+- U12: 前章の例は捨てて新しい例を作ったほうがメリットを示しやすいのでは？
+  - A: はい。前章は「daxでdispatch入力を安全にコマンドへ渡す」ことに集中させ、Zod章は別の例で**複数の値をtask間で渡す利点**を見せるほうが明快です。先ほどの「既存taskを発展させる」案は取り下げます。
+- U13: A
+  - A: Zod章は、1つ目のtaskがファイル一覧を作り、2つ目のtaskが型付き配列として受け取る例にします。値の受け渡しをどの範囲まで見せるかで、必要なコード量が変わります。
+- U14: A
+  - A: 2つのtaskは同じjobに置き、Zod契約でファイル一覧を受け渡す形にします。残るtesting章は、どこまで実行して確かめるかを決める必要があります。
+- U15: まずtask本体をunit testする、そしてscenarioでworkflow logicをテストする、この責務を適切に示せる例
+  - A: testing章は、先にtask本体をunit testし、次にscenarioでworkflow logicを検証する順序にします。scenario側には、値の受け渡しに加えて分岐があると、両者の責務の違いが伝わります。
+- U16: A
+  - A: Zod例は「ファイルがある場合は後続taskを実行し、0件ならskipする」形にします。testing章では、unit testで収集処理を確認した後、scenarioで両方の経路を確認できます。
+- U17: A
+  - A: READMEは各章の要点と操作を示し、`examples/` に章ごとの完成形と生成YAMLを置きます。Zod例について、後続taskの処理を具体化するとunit testの題材も決まります。
+- U18: A
+  - A: ここまでの構成は次の6段階です。各章の完成形と生成YAMLは、独立して実行できる `examples/` のディレクトリに置きます。
+- U19: B. taskはそれ自体がI => Oの関数であり、テストはDeno/TSの作法に従って自然にできる、Tsugiori固有のものはなにもない、ということを伝えられる構成か？
+  - A: 現状の構成のままでは、その主張を**そのまま**伝えるのは難しいです。現在のtask `run` は入力を受け取りますが、戻り値で出力する関数ではなく、`outputs.set()` で出力を書きます（[API定義](/Users/a13400/src/atty303/tsugiori/src/github_actions/mod.ts:2555)）。ただし、処理本体を普通の `I => O` 関数にし、薄い `run` から呼べば、標準の `Deno.test` で自然にunit testできます。scenarioだけがTsugiori固有のworkf
+- U20: いや、説明がまずかった。Iの契約はあるし戻りはreturnではないが、単なる関数だということがいいたい
+  - A: 了解です。`run` は型付き入力と出力writerを受け取る**普通のTypeScript関数**で、戻り値が出力である必要はありません。先ほどは `I => O` を戻り値の形に限定して捉えていました。task APIの変更は不要です。
+- U21: A. つまりrunにinline lambdaを書くとテストしにくいが、関数オブジェクトを渡せばそれはdslからも使えるしunit testもできるよ、ということだ
+  - A: その理解で揃いました。Zod章では `run` に名前付きの関数オブジェクトを渡し、testing章では**同じ関数**を標準の `Deno.test` から直接呼びます。その後でscenarioを使い、task本体を実行せずにworkflowの条件と値の受け渡しを検証します。これなら、unit testにTsugiori専用の仕組みが要らないことをコードで示せます。`actions/checkout@v7` も[公式リリース](https://github.com/actions/checkout/releases)で公開を確認できました。
+- U22: B. zod章ではinline lmabdaだ。テスト章で独立させたらテスト可能になるという構成だ。そのtask関数の実装例は別ファイルにして。現実では別ファイルにするだろうから。
+  - A: 了解です。Zod章では2つのtaskをinline lambdaで書き、testing章でその実装を別ファイルの関数へ切り出します。workflow側は `run` に関数オブジェクトを渡し、標準の `Deno.test` から同じ関数を直接呼ぶ、という変化を見せます。
+- U23: A
+  - A: testing章では、Zod章の2つのinline taskを別ファイルの関数へ切り出し、両方をunit testします。その後にscenarioで `hasFiles` による実行・skipと、型付き出力から入力への受け渡しを確認します。章5と章6の `examples/` は、それぞれその時点の完成形を保存します。
+- U24: B. composite actionに言及するとしたら？
+  - A: composite actionは、workflow内のtaskから一歩進んで、再利用できるActionを定義・生成する機能です。`defineCompositeAction()` は `action.yml` を生成し、完成した定義を `uses()` に渡せます。task間の入出力とtestingを学ぶ途中に入れると、公開Actionのmetadataや出力mappingも説明する必要があります。
+- U25: B. 流れはtestingで終わりにし、repository 内local actionを共有する例としての付録にする
+  - A: 付録として、testingまでの6章とは独立した `examples/` の完成例を置きます。生成したlocal composite actionを同じリポジトリのworkflowから呼び、共有方法を示す構成ですね。
+- U26: B
+  - A: 付録では、Deno taskを内包したlocal composite actionを定義します。次に、どの範囲で同じActionを使うかを決めます。local actionは呼び出すjobのworkspaceに存在する必要があるため、各jobでcheckoutも示す構成になります。
+- U27: B
+  - A: 付録では、taskを内包したlocal composite actionを1つ定義し、同じリポジトリの2つのworkflowから呼びます。完成例には生成された `action.yml` と両workflowのYAMLを含めます。本編はtestingで終え、付録は独立して試せる形にします。
+- U28: B. READMEの対象読者をAGENTSに明記。想定読者にとって不要な仕様を今後記述しない
+  - A: 現行の `AGENTS.md` にも「Tsugioriを知らず、導入を評価している開発者向け」とあります。ただ、GitHub ActionsやTypeScriptの予備知識が明示されていないため、どこまで基礎仕様を説明するか判断がぶれます。今回の合意を既存の記述へ統合するのが適切です。
+- U29: A
+  - A: READMEの対象読者は、GitHub Actionsの基本概念とTypeScriptを知り、Tsugioriを初めて評価する開発者とします。次は「不要な仕様」を判断する基準を明確にします。
+- U30: A
+  - A: READMEには、例を試して生成結果を理解し、導入可否を判断するための情報を残す基準にします。現行READMEのGetting started以外にも、API入口の説明や比較表があります。
+- U31: この基準でgetting started以外は既に適切だと思うが？
+  - A: はい、現行のGetting started以外は概ねその基準に合っています。`Why Tsugiori?` と比較表は導入判断に役立ち、API documentationは詳細へ進むための案内です。先ほどの「README全体を整理する」という推奨は範囲を広げすぎました。
+- U32: A
+  - A: ````markdown # 実装依頼
+- U33: # 実装依頼
+    
+    ## 依頼
+    TsugioriのREADMEのGetting startedを段階的な入門ガイドへ再構成し、各章の完成例と生成物を`examples/`に作成してください。`init`の生成テンプレートも入門の出発点に合わせて変更し、READMEの対象読者と掲載基準を`AGENTS.md`の既存方針に統合してください。
+    
+    ## 目的
+    - GitHub ActionsとTypeScriptの基礎を知る開発者が、Tsugioriを初めて試し、何を書けて何が生成されるかを順に理解できるようにする。
+    - task本体は普通のTypeScript関数として標準のDenoテストで検証でき、scenarioはworkflow logicを検証する、という責務の違いをコードで示す。
+    
+    ## 成功条件
+    - Getting startedが次の順序で進む。
+      1. `init`：そのままYAMLを生成できる最小のworkflow
+      2. simple typed DSL：job、`needs`、step、`if`の型付き式
+      3. actions add：`actions/checkout@v7`の追加、型付き契約の利用、`deno.lock`による固定
+      4. task：`workflow_dispatch`の`format`入力をdaxの補間でGitコマンドの引数に渡し、結果を型付き出力に書く
+      5. typed I/O：別の例で、Zod契約を使い、ファイル一覧を同じjobの2つのtask間で渡す
+      6. testing：task本体のunit test、続いてscenarioによるworkflow logicのテスト
+    - `init`は`workflow_dispatch`、1 job、短い`run` stepを持つ実行可能な最小テンプレートを生成する。
+    - 各章の独立したDenoプロジェクトを`examples/`に置き、設定、必要なlockfile、完成したソース、生成YAMLを揃える。各例で生成と`generate --check`が通る。
+    - READMEには各章の要点となるコードとコマンドを載せ、完成したソースと生成物へリンクする。必要な範囲で生成YAMLとの対応を示す。
+    - 第4章では`format`の既定値を`%h %s`とし、空白やシェル記号を含む入力もdaxが単一の引数として渡すことを確かめる。
+    - 第5章では、ファイル収集taskがZodで検証する型付き配列と`hasFiles`を出力し、後続taskが配列を受け取ってファイル数と合計行数を表示する。0件なら後続taskをskipする。この章のtask本体はinline lambdaで書く。
+    - 第6章では、第5章の両task本体を別ファイルの関数へ切り出し、その関数オブジェクトをDSLの`run`へ渡す。同じ関数を標準の`Deno.test`から直接呼んでunit testする。その後、scenarioでtask本体を実行せず、入力・出力の受け渡しと実行・skipの両経路を検証する。
+    - testingで本編を終え、付録にtaskを内包したrepository内local composite actionの独立例を置く。1つのActionを2つのworkflowから呼び、生成された`action.yml`と両workflowのYAMLを保存する。
+    - `AGENTS.md`の既存のREADME方針へ、対象読者はGitHub Actionsのworkflow・job・stepとTypeScriptの基礎を知り、Tsugioriは初めて評価する開発者であることを明記する。READMEには例の実行、生成結果の理解、導入判断に必要な説明を載せ、詳細仕様や制限はAPIリファレンス・設計文書へ案内する基準を統合する。
+    - 現行READMEのGetting started以外は概ね適切なので、必要なリンクや整合性の修正に留める。
+    
+    ## 決定事項
+    - `init`テンプレートも変更する。
+      - 理由: 生成直後から入門の段階を自然に進められる。
+      - 主な棄却案: READMEだけで既存のAction・task入りテンプレートをいったん簡素化する案は、導入手順が不自然になる。
+    - 各章の完成例を独立した`examples/`内のプロジェクトにする。
+      - 理由: 任意の章を単独で生成・検証でき、ソースと生成物の対応が明確になる。
+      - 主な棄却案: 設定を共有して章ごとの差分だけ置く案は、章単独では試しにくい。
+    - simple typed DSL章では構造の型チェックと型付きGitHub式の両方を示す。
+      - 理由: job・`needs`・step・`if`で基本的な型の利点を体験できる。
+      - 主な棄却案: DSLの形だけ、または式だけを示す案は学習内容が不足する。
+    - actions add章では`actions/checkout@v7`を使う。
+      - 理由: 馴染みのあるActionで、追加コマンド、契約のimport、`uses()`、lockfileの関係に集中できる。
+      - 主な棄却案: 出力を持つActionで出力参照まで扱う案は、この章では複雑になる。
+    - task章ではdaxとGitの表示形式を使う。
+      - 理由: dispatch入力を安全にコマンド引数へ渡し、Denoとdaxの手軽さ、型付き入出力を示せる。
+      - 主な棄却案: revision名を引数にする案は、空白やシェル記号を含む正常な入力でescapeの効果を示しにくい。
+    - Zod章は前章のGit表示例から独立したファイル一覧の例にする。
+      - 理由: 配列をtask間で渡す実用的な理由と、実行時検証の価値が明確になる。
+      - 主な棄却案: 前章の文字列出力を構造化する案は、Zodの利点が伝わりにくい。
+    - Zod章はinline lambda、testing章で別ファイルの関数に切り出す。
+      - 理由: 普通の関数としてunit testできる形へ変える過程を読者が見られる。
+      - 主な棄却案: 最初から関数を切り出す案は、この変化を示せない。
+    - composite actionはtesting後の付録にする。
+      - 理由: 本編をworkflow・task・testingで完結させつつ、taskをlocal actionとして複数workflowで共有できることを示せる。
+      - 主な棄却案: 本編の途中に挿入する案は、Actionのmetadataと出力mappingで学習の流れが広がる。
+    
+    ## 制約
+    - 現在のcheckoutで作業し、無関係な変更を保持する。
+    - GitHub Actionsのworkflow、job、stepを可視のまま生成する既存の境界を守る。
+    - deploy、release、push、PR作成は行わない。
+    - READMEをGitHub Actions、Deno、Tsugiori APIの網羅的な仕様書にしない。
+    - 各例が実装済みAPIで成立することを確認し、生成物とコードの不一致を残さない。
+    - 付録のlocal actionはrepository内で共有する例とし、外部公開を前提にしない。
+    
+    ## 対象外
+    - Tsugioriの公開task APIの変更。
+    - 新しいruntime機能の実装。
+    - composite actionの外部配布・公開手順。
+    - Getting started以外のREADME本文の全面的な書き換え。
+    
+    ## 未検証の前提
+    - 実装時点の`init`テンプレート、生成コマンド、scenario API、Zodとdaxの依存解決、およびAction契約サービスの挙動を現行ソースと実行環境で再確認する。
+    - 章別プロジェクトのパスから、生成workflowとlocal actionが意図した場所へ出力されることを確認する。
+    
+    ## 実装時の指示
+    - READMEの掲載コードは実際の完成例から検証し、独立して複製した未検証の例にしない。
+    - `init`テンプレート、README、関連テストの整合性を更新する。
+    - task本体のunit testには標準のDeno/TypeScriptを使い、scenarioがtask本体を実行するかのように説明しない。
+    - `AGENTS.md`のREADME方針は既存文を統合・修正し、重複する規則を追加しない。
+  - A: Accepted the implementation brief; inspected current source and guidance, then implemented six independent tutorial projects and the composite appendix, updated init, README, AGENTS, generated files and tests.
+- U34: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_nvS19HcoEWAOgxeOlHNHWiJi\",0]","question":"今回のlocal commitのrelease影響は最大patchで進めてよいですか？ `init`の初期例が変わります。release実行は含みません。","answer":"最大patch（推奨）"}]
+    </send_user_message_question_reply>
+  - A: Recorded patch-release approval; verified all chapter projects and generated files, ran mise check and 161 repository tests, reviewed the diff, and created local commit 289981c without push or release.
