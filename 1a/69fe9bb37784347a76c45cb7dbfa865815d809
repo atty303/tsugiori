@@ -1,0 +1,23 @@
+Task: Add type-error and IDE-completion examples to the typed DSL chapter
+Anchor: 1a69fe9bb37784347a76c45cb7dbfa865815d809
+Base: d0c9d559b4bd72f72f1237f2b91ea46dfeb4afb9
+Branch: main (origin/main behind by four local commits; no push)
+Commits: 1a69fe9 docs(readme): demonstrate typed job output references
+Guidance: AGENTS.md; develop-repository; atty303 engineering policy; Git task evidence; data handling
+Conditions: Current checkout only; release-free local commit approved; no push, release, deploy or PR; mise-managed Deno; generated YAML committed
+## Evidence
+README's invalid needs.hello.outputs.greeting reference produced TS2339 with the documented type; Deno LSP offered message and omitted greeting. mise run check passed; mise run test passed with 163 tests. Example 02 typechecked and generate --check passed.
+Authority: User requests in this cycle, repository source and tests, AGENTS.md, and the applied development guidance.
+## Transcript
+- U1: Add typed jobs, steps, and conditions
+    ここで静的型検査により不正は定義はコンパイルエラーになることの具体例も追加したい。これはexampleではなく短いコードとエラー出力でのせる。
+    また、IDEの補完でそのコンテキストで有効な候補しかでないことも示したい
+  - A: Inspected README, typed DSL and Deno LSP tests; proposed a release-free local commit and began a concrete diagnostic and completion illustration.
+- U2: follow-upはhelloのoutputsを読む例にしたほうがいい
+  - A: Changed example 02 so hello publishes a step output as a job output and follow-up reads needs.hello.outputs.message; regenerated YAML and aligned README.
+- U3: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_JTntLU8TAuRSentuzMjl89uR\",0]","question":"今回のローカルcommitはrelease影響なし（docsのみ）で進めてよいですか？ READMEと掲載コードの検証を更新します。","answer":"releaseなし（推奨）"}]
+    </send_user_message_question_reply>
+  - A: Recorded approval for a release-free documentation commit; continued source, generated YAML, and test verification.
+- U4: job.runよりcontext objectの有効でないプロパティ読み取りのほうが実際に起こしそうなエラーではないか？
+  - A: Replaced the negative snippet with needs.hello.outputs.greeting, captured its real TS2339 diagnostic, checked README code against the source, added Deno LSP completion coverage for message versus greeting, passed mise run check and all 163 tests, and made local commit 1a69fe9.
