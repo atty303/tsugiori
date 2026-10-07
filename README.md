@@ -14,33 +14,49 @@ existing Actions, shell commands, and inline Deno tasks in the step order you
 choose. Tsugiori generates standard YAML and manages task compilation, runtime
 preparation, and artifact caching; GitHub Actions runs each job and step.
 
-## Why Tsugiori?
+## When Tsugiori is worth it
 
-- **Define the workflow and the work together.** Write Deno task bodies
-  alongside their triggers, conditions, inputs, and outputs. Reuse functions and
-  libraries through the same Deno project and lockfile, without maintaining a
-  separate task build and packaging pipeline.
+Consider a CI workflow that finds changed files and runs checks only for the
+affected parts of a repository. The file list must reach later steps, the
+condition needs both run and skip cases, and the collection code may outgrow a
+short shell command. Tsugiori lets you check those references and data contracts
+with TypeScript, test the collection function directly, and test the workflow's
+decisions locally without a GitHub Actions runner. The file-list workflow later
+in this guide is a smaller learning example: it collects tracked TypeScript
+files rather than detecting changes.
 
-- **Keep every task visible as a GitHub Actions step.** Each task runs in its
-  own native step, preserving the boundaries you authored for ordering,
-  conditions, failures, outputs, and logs. GitHub Actions owns orchestration.
+Any one of these pressures—passing structured values, maintaining conditions
+and job dependencies, or growing shell steps—can make Tsugiori worth trying. For
+a straightforward workflow with a few steps, plain GitHub Actions YAML is
+usually enough. The main changes are authoring the workflow in TypeScript and
+using Deno. Commit the generated YAML and Deno's lockfile; you do not maintain
+a second, handwritten workflow definition.
 
-- **Build on the Actions you already use.** Place tasks between existing `uses`
-  and `run` steps. Continue using GitHub Actions features such as matrices, job
-  dependencies, permissions, environments, and reusable workflows.
+## How Tsugiori helps
 
-- **Let Tsugiori prepare the task runtime.** Tsugiori compiles Deno tasks into a
-  shared executable artifact, prepares it on the runner, and reuses validated
-  artifacts through `actions/cache`. You write the task; Tsugiori handles how it
-  reaches the runner.
+- **Catch wiring mistakes while authoring.** Typed job and step builders,
+  Action contracts, GitHub expressions, and task inputs and outputs let
+  TypeScript reject invalid references before CI runs.
 
-- **Adopt tasks incrementally.** Workflows can use existing Actions and shell
-  commands without any Deno tasks. Once a workflow is authored in Tsugiori,
-  replace individual shell steps with tasks as needed.
+- **Test task code as TypeScript.** Write a Deno task body as a named function
+  that you can call directly from a standard `Deno.test`. Keep task code and
+  workflow definitions in the same Deno project without a separate task build
+  and packaging pipeline.
 
-- **Check definitions before CI runs.** Typed Action contracts, expressions, and
-  task inputs and outputs help catch mistakes during authoring. Commit the
-  generated YAML for review and use `generate --check` to detect stale output.
+- **Test workflow decisions locally.** `scenario()` uses fixtures to check
+  typed conditions and value flow, including run and skip paths, without
+  executing Actions, shell steps, or task bodies.
+
+- **Keep GitHub Actions in control.** Generated YAML retains native jobs and
+  steps. Put tasks between existing `uses` and `run` steps, and keep using
+  matrices, job dependencies, permissions, environments, and reusable workflows.
+  Each task remains a separate step with its own logs and outputs.
+
+- **Let Tsugiori prepare tasks when you need them.** A workflow can contain no
+  Deno tasks, or adopt them one step at a time. For task-backed steps, Tsugiori
+  compiles and prepares a shared executable artifact and reuses validated
+  artifacts through `actions/cache`. Commit the generated YAML for review and
+  use `generate --check` to detect stale output.
 
 ## Getting started
 
