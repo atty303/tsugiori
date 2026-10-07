@@ -1,0 +1,116 @@
+Task: Explain when Tsugiori is worth adopting before Getting started
+Anchor: c5ab768cdfed7e97324c5ce641015fcd4da1a8a8
+Base: c6497e3a4a63a605ba54aeda369621f8fc724ead
+Branch: main
+Commits: c5ab768cdfed7e97324c5ce641015fcd4da1a8a8 docs(readme): show when Tsugiori is worth adopting
+Guidance: AGENTS.md; develop-repository; dig; user adoption-fit decisions and no-release/no-push constraint
+Conditions: Current checkout; README-only edit; untracked .AGENTS.md.swp preserved; Git metadata writes needed sandbox escalation
+## Evidence
+mise run check passed; mise run test passed 163 tests. Wrangler emitted a debug-log EPERM warning, but the type-service dry-run and suite completed with exit 0. git diff --cached --check passed.
+Authority: Current README, implementation and architecture docs, test results, and human user instructions in this task cycle.
+## Transcript
+- U1: ゼロベースでREADMEを読み直して明らかな不整合や破綻はないか？
+  - A: Reviewed README against examples, template, generated YAML, links, task contracts, and tests; reported one published-snippet verification gap without changing files.
+- U2: READMEのターゲットになった気持ちでよんでレビューして
+  - A: Reviewed as a new reader but emphasized hands-on navigation and commands; user subsequently corrected the evaluation focus.
+- U3: そういう観点ではなくて、tsugioriの提供する価値を理解できるか知りたいのだが。まずREADMEを読んで、試す価値があるか判断してから手を動かすだろ？
+  - A: Reframed the review around pre-trial adoption value; identified late placement of typed wiring and runner-free logic testing.
+- U4: > 単純な数stepのworkflowでも採用すべきかを判断できません。
+    
+    たしかにこれは適用する価値がないと僕も思っている。
+    
+    
+    
+    > どんなworkflowなら導入コストに見合うか
+    
+    そのとおりだ。
+    
+    
+    
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) getting startedの前にその価値を伝える構成を提案して
+  - A: Started the dig decision tree; recommended leading with fit criteria before an example.
+- U5: A
+  - A: Accepted fit-first structure and asked whether one concrete maintenance burden is enough.
+- U6: A
+  - A: Accepted independent fit signals and asked how to demonstrate value before the guide.
+- U7: A
+  - A: Accepted a short prose scenario rather than early code and asked whether to use a real CI situation.
+- U8: B
+  - A: Accepted a realistic prose situation distinct from simplified chapter examples and asked about an explicit simple-YAML boundary.
+- U9: A
+  - A: Accepted the simple-workflow boundary and asked whether to integrate it into existing Why bullets.
+- U10: B. whyの前に追加する
+  - A: Accepted a separate fit section before Why and asked whether adoption costs should be stated.
+- U11: それらの実質の負担はYAMLに変わるTSだけで他は生成物だ。追加の依存はDenoだけと認識している
+  - A: Corrected the cost model: TypeScript replaces YAML; generated YAML and lockfile are outputs; Deno is the added toolchain. Asked how to state this.
+- U12: A
+  - A: Accepted the TypeScript and Deno cost framing and asked which CI situation should represent the value.
+- U13: A
+  - A: Accepted changed-file conditional checks as the representative situation and asked for common understanding.
+- U14: B. この追加をおいたあとに自然につながるようにWhy tsugori?のタイトルも変えたい
+  - A: Requested renaming Why after the new section; asked which benefit-oriented heading should follow fit.
+- U15: B
+  - A: Selected How Tsugiori helps and asked whether its bullets should be adjusted.
+- U16: A
+  - A: Accepted reorganizing benefits around typed references, direct task testing, scenario, native steps, and preparation; asked for final agreement.
+- U17: A
+  - A: Confirmed shared understanding; produced a self-contained implementation prompt with scope, decisions, constraints, and verification.
+- U18: # 実装依頼
+    
+    ## 依頼
+    TsugioriのREADMEで、Getting startedの前に「導入する価値があるworkflow」を判断できる説明を追加し、既存の「Why Tsugiori?」を「How Tsugiori helps」へ再構成してください。
+    
+    ## 目的
+    - GitHub Actionsのworkflow・job・stepとTypeScriptの基礎を知り、Tsugioriを初めて評価する開発者が、手を動かす前に自分のCIで試す価値があるか判断できるようにする。
+    - 適用場面、Tsugioriがもたらす効果、Getting startedの順に自然に読めるようにする。
+    
+    ## 成功条件
+    - Getting startedの前を次の順序にする。
+      1. **When Tsugiori is worth it**：適用場面と導入判断
+      2. **How Tsugiori helps**：その課題に対するTsugioriの効果
+      3. **Getting started**：既存の段階的な入門ガイド
+    - 適用場面の節では、変更ファイルに応じて検証を実行・skipする現実的なCIを短い文章で描く。型付きの値の受け渡し、Deno task、runnerなしのworkflow logicテストがどう役立つかを示す。
+    - 入出力の受け渡し、条件・依存関係の検証、shell stepの保守など、一つでも実際の負担があれば検討対象になると伝える。単純な数stepのworkflowには通常のYAMLで十分だと明記する。
+    - 主な導入負担は、workflow定義をYAMLの代わりにTypeScriptで書くことと、Denoを導入することとして説明する。生成YAMLと`deno.lock`を、別途手書きで保守する定義として扱わない。
+    - 「How Tsugiori helps」は既存の六項目を機械的に残さず、型付き参照、普通のTypeScript関数としてのtask、scenarioによるrunner不要のロジックテスト、既存Actionとの共存、taskの準備とキャッシュが適用場面にどう役立つかに沿って整理する。
+    - task本体のunit testとscenarioの責務を混同しない。scenarioはtask本体を実行しないことが伝わる。
+    - 新しい価値説明は短い文章を中心にし、Getting startedのコード例を重複させない。入門ガイドのファイル一覧例は、現実的な適用場面を学ぶために単純化した例として矛盾なく読める。
+    - READMEの既存リンク、掲載コード、生成物との整合性を保ち、リポジトリの標準チェックと関連テストを通す。
+    
+    ## 決定事項
+    - 適用判断の節を既存の価値説明より前に追加する。
+      - 理由: 読者が自分のCIに関係があるかを判断してから機能説明と入門ガイドへ進める。
+      - 主な棄却案: 既存の「Why Tsugiori?」だけを組み替える案は、適用判断と機能説明の役割が混ざる。
+    - 適用条件はworkflowの規模やstep数ではなく、実際に解消したい負担で示す。
+      - 理由: 型付きDSL、task、scenarioのいずれか一つにも導入価値があり得る。
+      - 主な棄却案: Deno taskの利用や一定以上のstep数を必須条件にする案は、適用範囲を不必要に狭める。
+    - 現実のCIの困りごとを文章で示し、コードによる学習はGetting startedに任せる。
+      - 理由: 試す価値の判断に集中でき、既存の章別exampleとの重複を避けられる。
+      - 主な棄却案: 冒頭にコードやYAMLとの比較例を増やす案は、入門ガイドまでの距離を長くする。
+    - 既存の「Why Tsugiori?」を「How Tsugiori helps」に改題し、内容も適用場面から自然につながるよう調整する。
+      - 理由: 導入判断の後に、機能と効果を根拠として読める。
+      - 主な棄却案: 見出しだけ変えて既存の六項目をそのまま残す案は、scenarioなどの重要な価値が埋もれる。
+    - 単純な数stepのworkflowには通常のYAMLで十分と明記する。
+      - 理由: 導入コストに見合う場面を率直に示せる。
+      - 主な棄却案: 適用場面だけを肯定的に列挙する案は、導入しない判断がしにくい。
+    
+    ## 制約
+    - 現在のcheckoutで作業し、無関係な変更を保持する。
+    - READMEをGitHub Actions、Deno、Tsugiori APIの網羅的な仕様書にしない。
+    - GitHub Actionsがjobとstepを実行し、Tsugioriが標準YAMLを生成する境界を保つ。
+    - deploy、release、push、PR作成は行わない。
+    
+    ## 対象外
+    - Tsugioriの公開APIやruntime機能の変更。
+    - 章別exampleや生成物の作り替え。
+    - Getting started本文とREADMEの比較表・API案内の全面的な書き換え。
+    
+    ## 未検証の前提
+    - 現行READMEの価値説明、Getting started、関連するAPI文書とexampleの表現を実装前に再確認する。
+    - READMEの既存テストが見出しや掲載コードの変更に依存しているか確認する。
+    
+    ## 実装時の指示
+    - 「変更ファイルに応じた検証」は導入価値を説明する現実的な場面として書き、既存のファイル一覧exampleが変更ファイル検出を実装しているかのように述べない。
+    - 型付きDSLによる静的検査、task関数のunit test、scenarioによるworkflow logicテストを、それぞれの保証範囲に合わせて説明する。
+    - 生成YAMLとlockfileは保存・確認する成果物であることと、手書きで二重管理する定義ではないことを両立して表現する。
+  - A: Edited only README: added fit section and reorganized How Tsugiori helps; verified mise run check, mise run test (163 passed), diff check; created local docs commit c5ab768, with no push or release.
