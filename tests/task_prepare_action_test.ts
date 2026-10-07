@@ -1,8 +1,14 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { parse } from "../src/deps.ts";
-import { project, workflow } from "../src/github_actions/mod.ts";
+import {
+  compositeAction,
+  project,
+  workflow,
+} from "../src/github_actions/mod.ts";
 import { generateFiles } from "../src/compiler/generator.ts";
+import { lowerProject } from "../src/compiler/authoring.ts";
+import { emitCompositeAction } from "../src/compiler/github_actions/action.ts";
 
 Deno.test("prepare Action installs the repository's verified toolchain and forwards inputs/output", async () => {
   const action = parse(
@@ -108,6 +114,165 @@ jobs:
         run: "true"
 `,
     { serializer: (yaml) => yaml },
+  );
+});
+
+Deno.test("custom task artifact cache steps retain their settings and precede preparation", async () => {
+  const ci = workflow("ci.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest")
+        .run({ name: "Before", run: "true" })
+        .task({ name: "Task", run: () => {} }),
+  );
+  const config = project({
+    workflows: [ci],
+    localTaskPrepareAction: "./actions/task-prepare",
+    taskArtifactCache: ({ kind, job, path, key }) =>
+      kind === "workflow"
+        ? job.uses("acme/cache@v1", {
+          id: "tsugiori-task-prepare",
+          name: "Restore custom cache",
+          continueOnError: false,
+          with: { directory: path, identity: key },
+        }).run({ name: "Cache setup", run: "cachectl ready", shell: "bash" })
+        : job,
+  });
+  const [file] = await generateFiles(config, "./workflows.ts", "source", {
+    projectDirectory: Deno.cwd(),
+  });
+  const yaml = parse(String(file.content)) as {
+    jobs: { test: { steps: Record<string, unknown>[] } };
+  };
+  const steps = yaml.jobs.test.steps;
+  assertEquals(steps.map((step) => step.name), [
+    "Before",
+    "Restore custom cache",
+    "Cache setup",
+    "Prepare task artifact",
+    "Task",
+  ]);
+  assertEquals(steps[1].uses, "acme/cache@v1");
+  assertEquals(steps[1]["continue-on-error"], false);
+  assertEquals(steps[1].with, {
+    directory:
+      "${{ runner.temp }}/tsugiori-artifacts/source-${{ runner.os }}-${{ runner.arch }}",
+    identity: "tsugiori-task-source-${{ runner.os }}-${{ runner.arch }}",
+  });
+  assertEquals(steps[2].run, "cachectl ready");
+  assertEquals(steps[3].id, "tsugiori-task-prepare-2");
+});
+
+Deno.test("empty task artifact cache job omits only the cache step", async () => {
+  const ci = workflow("ci.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").task({ name: "Task", run: () => {} }),
+  );
+  const [file] = await generateFiles(
+    project({
+      workflows: [ci],
+      localTaskPrepareAction: "./actions/task-prepare",
+      taskArtifactCache: ({ job }) => job,
+    }),
+    "./workflows.ts",
+    "source",
+  );
+  const yaml = parse(String(file.content)) as {
+    jobs: { test: { steps: { name: string }[] } };
+  };
+  assertEquals(yaml.jobs.test.steps.map((step) => step.name), [
+    "Prepare task artifact",
+    "Task",
+  ]);
+});
+
+Deno.test("custom cache steps use the ordinary workflow validation", async () => {
+  const ci = workflow("ci.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest")
+        .run({ id: "reused", name: "Before", run: "true" })
+        .task({ name: "Task", run: () => {} }),
+  );
+  await assertRejects(
+    () =>
+      generateFiles(
+        project({
+          workflows: [ci],
+          localTaskPrepareAction: "./actions/task-prepare",
+          taskArtifactCache: ({ job }) =>
+            job.uses("acme/cache@v1", { id: "reused" }),
+        }),
+        "./workflows.ts",
+        "source",
+      ),
+    Error,
+    'Step ID "reused" duplicates',
+  );
+});
+
+Deno.test("composite task cache factory receives the relocated source key", () => {
+  const action = compositeAction("actions/example/action.yml", {
+    name: "Example",
+    description: "Example",
+  }).steps(({ step }) => step.task({ name: "Task", run: () => {} }));
+  const config = project({
+    actions: [action],
+    taskArtifactCache: ({ kind, job, path, key }) =>
+      kind === "composite"
+        ? job.run({ name: "Cache setup", run: "true", shell: "bash" })
+          .uses("acme/cache@v1", { with: { directory: path, identity: key } })
+        : job,
+  });
+  const lowered = lowerProject(
+    config,
+    "./actions.ts",
+    "workflow-source",
+    false,
+    ".",
+    "composite-source",
+  );
+  const yaml = parse(emitCompositeAction(lowered.actions[0], {
+    files: [],
+    projectPath: ".",
+    entrypoint: "./actions.ts",
+    sourceKey: "composite-source",
+  })) as { runs: { steps: Record<string, unknown>[] } };
+  const steps = yaml.runs.steps;
+  assertEquals(steps.slice(0, 3).map((step) => step.name), [
+    "Cache setup",
+    undefined,
+    "Prepare task artifact",
+  ]);
+  assertEquals(steps[1].with, {
+    directory:
+      "${{ runner.temp }}/tsugiori-artifacts/composite-source-${{ runner.os }}-${{ runner.arch }}",
+    identity:
+      "tsugiori-task-composite-source-${{ runner.os }}-${{ runner.arch }}",
+  });
+  assertEquals(
+    steps[2].run,
+    'bash "$TSUGIORI_ACTION_PATH/.tsugiori/prepare.sh"',
+  );
+});
+
+Deno.test("composite cache factory steps retain composite step constraints", () => {
+  const action = compositeAction("actions/example/action.yml", {
+    name: "Example",
+    description: "Example",
+  }).steps(({ step }) => step.task({ name: "Task", run: () => {} }));
+  const config = project({
+    actions: [action],
+    taskArtifactCache: ({ kind, job }) =>
+      kind === "composite"
+        ? job.uses("acme/cache@v1", { timeoutMinutes: 5 })
+        : job,
+  });
+  assertThrows(
+    () => lowerProject(config, "./actions.ts", "source"),
+    Error,
+    "does not support step timeout-minutes",
   );
 });
 

@@ -2,6 +2,7 @@ import { resolveProjectWorkingDirectory } from "./source.ts";
 import type { DiagnosticRecorder } from "../task-runtime/diagnostics.ts";
 import { posix } from "node:path";
 import { actionPayload } from "./action_payload.ts";
+import { collectCompositeActions } from "./composite.ts";
 import { emitCompositeAction } from "./github_actions/action.ts";
 import { TASK_PREPARE_SCRIPT } from "../task-runtime/bootstrap.ts";
 import type { ProjectConfig } from "../github_actions/mod.ts";
@@ -35,12 +36,23 @@ export async function generateFiles(
     projectDirectory,
     options.recorder,
   );
+  const hasActionTasks = collectCompositeActions(project).some((action) =>
+    action.runs.steps.some((step) => step.type === "task")
+  );
+  const payload = hasActionTasks
+    ? await actionPayload(
+      projectDirectory,
+      entrypointArgument,
+      project.cacheVersion,
+    )
+    : undefined;
   const lowered = lowerProject(
     project,
     entrypointArgument,
     sourceKey,
     false,
     workingDirectory,
+    payload?.sourceKey ?? sourceKey,
   );
   if (
     project.workflows.some((workflow) =>
@@ -59,16 +71,6 @@ export async function generateFiles(
     content: generatedWorkflowHeader(entrypointArgument) +
       emitWorkflow(workflow.workflow),
   }));
-  const hasActionTasks = lowered.actions.some(({ action }) =>
-    action.runs.steps.some((step) => step.type === "task")
-  );
-  const payload = hasActionTasks
-    ? await actionPayload(
-      projectDirectory,
-      entrypointArgument,
-      project.cacheVersion,
-    )
-    : undefined;
   for (const action of lowered.actions) {
     const needsPayload = action.action.runs.steps.some((step) =>
       step.type === "task"

@@ -31,7 +31,7 @@
  * the task binary. For metadata import management see
  * [ActionContract](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring/~/ActionContract).
  *
- * Task-backed jobs include two visible preparation steps: `actions/cache`, then
+ * Task-backed jobs include a visible `actions/cache` step by default, then
  * this release's composite preparation Action, pinned to its source commit SHA.
  * Generation uses `deno info` to compute a source key and embeds it in
  * YAML; the cache key also includes the runner's OS and architecture. Regenerate

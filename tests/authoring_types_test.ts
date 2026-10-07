@@ -4,6 +4,7 @@ import type {
   JobDone,
   JR,
   Step,
+  TaskArtifactCacheJob,
   Workflow,
   WorkflowStart,
 } from "../src/github_actions/mod.ts";
@@ -72,6 +73,31 @@ type _StepSurface = Expect<
     "uses" | "run" | "steps" | "task" | "outputs"
   >
 >;
+type _TaskArtifactCacheSurface = Expect<
+  Equal<StringKeys<TaskArtifactCacheJob>, "uses" | "run">
+>;
+
+function assertTaskArtifactCacheTypes(): void {
+  const cache = {
+    uses: "acme/cache@v1",
+    name: "Cache",
+    description: "Cache task artifacts",
+    inputs: { directory: { description: "Artifact path", required: true } },
+  } as const;
+  project({
+    taskArtifactCache: ({ job, path, kind }) => {
+      // @ts-expect-error task execution depends on artifact preparation.
+      job.task({ name: "Restore", run: () => {} });
+      // @ts-expect-error required Action inputs must be supplied.
+      job.uses(cache);
+      return kind === "composite"
+        ? job.uses(cache, { with: { directory: path } })
+          .run({ name: "Ready", run: "true", shell: "bash" })
+        : job.uses(cache, { with: { directory: path } });
+    },
+  });
+}
+void assertTaskArtifactCacheTypes;
 
 type _JobIfScope = Expect<
   Equal<

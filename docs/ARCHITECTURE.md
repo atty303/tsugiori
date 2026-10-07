@@ -222,12 +222,17 @@ Compiler lowering records inline task functions in a registry. A task-backed
 step gets an entrypoint of the form `<workflow-path>/<job-id>/task-<ordinal>`,
 where the ordinal counts task steps within the job.
 
-Each task-backed job contains a pinned `actions/cache` step followed by a normal
-composite preparation Action distributed from `actions/task-prepare/`. The
-backend embeds a generate-time source key in YAML and combines it with GitHub's
-runner OS and architecture for cache delivery. Generation and fallback builds
-share the `deno info` local-source identity calculation. `generate --check`
-guards source-key changes as well as structure.
+Each task-backed job contains a pinned `actions/cache` step by default,
+followed by a normal composite preparation Action distributed from
+`actions/task-prepare/`. A project-level cache factory can provide native
+`uses` and `run` steps before preparation, including inside task-backed
+composite Actions. The factory receives the transport path and key; it owns
+its steps' inputs and failure policy. The backend embeds a generate-time
+source key in YAML and combines it with GitHub's runner OS and architecture
+for cache delivery. Composite Actions use the relocated payload's source key
+before the factory runs. Generation and fallback builds share the `deno info`
+local-source identity calculation. `generate --check` guards source-key
+changes as well as structure.
 
 The compiled artifact owns hit validation and immutable runtime publication.
 Build-time metadata is embedded using a preload module, calculated before that

@@ -1,6 +1,8 @@
 import { collectCompositeActions } from "./composite.ts";
+import { cacheStepsFor } from "../github_actions/cache_factory_registry.ts";
 import type {
   AuthoringCompositeAction,
+  AuthoringStep,
   AuthoringWorkflow,
   ProjectConfig,
 } from "../github_actions/mod.ts";
@@ -29,13 +31,14 @@ export type RegisteredTask = Readonly<{
 export type LoweredWorkflow = Readonly<{
   path: string;
   workflow: ValidatedWorkflow;
+  prepareStepIds: Readonly<Record<string, string>>;
 }>;
 
 export type LoweredCompositeAction = Readonly<
   {
     action: AuthoringCompositeAction;
     steps: readonly Step[];
-    preparation?: Readonly<{ prepareStepId: string; cacheStepId: string }>;
+    preparation?: Readonly<{ prepareStepId: string }>;
   }
 >;
 
@@ -62,6 +65,8 @@ export function lowerProject(
   sourceKey = "unresolved",
   internalActionLowering = false,
   projectDirectory = project.workingDirectory ?? ".",
+  actionSourceKey = sourceKey,
+  cacheFactory = cacheStepsFor(project),
 ): LoweredProject {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
@@ -110,6 +115,7 @@ export function lowerProject(
   for (const workflow of project.workflows) {
     validateWorkflowPath(workflow, outputs, diagnostics);
     const jobs: Job[] = [];
+    const prepareStepIds: Record<string, string> = {};
 
     for (const job of workflow.jobs) {
       if (job.uses !== undefined) {
@@ -152,10 +158,50 @@ export function lowerProject(
       }
       const layoutKey = `${workflow.path}/${job.id}`;
 
+      const suffix = `${sourceKey}-\${{ runner.os }}-\${{ runner.arch }}`;
+      const cachePath = `\${{ runner.temp }}/tsugiori-artifacts/${suffix}`;
+      const cacheKey = `tsugiori-task-${suffix}`;
+      const cacheSteps: readonly AuthoringStep[] = taskNames.length === 0
+        ? []
+        : cacheFactory?.({
+          kind: internalActionLowering ? "composite" : "workflow",
+          path: cachePath,
+          key: cacheKey,
+        }) ?? [{
+          type: "uses",
+          name: "Cache task artifact",
+          id: allocateStepId(CACHE_STEP_ID, usedStepIds),
+          continueOnError: true,
+          uses: `actions/cache@${ACTIONS_CACHE_COMMIT}`,
+          with: { path: cachePath, key: cacheKey },
+        }];
+      for (const step of cacheSteps) {
+        if (step.id !== undefined) usedStepIds.add(step.id);
+      }
+
       let taskOrdinal = 0;
       let preparationEmitted = false;
       const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
-      for (const step of job.steps) {
+      if (taskNames.length > 0) prepareStepIds[job.id] = prepareStepId;
+      const firstTask = job.steps.findIndex((step) => step.type === "task");
+      const authoringSteps = firstTask < 0 ? job.steps : [
+        ...job.steps.slice(0, firstTask),
+        ...cacheSteps,
+        ...job.steps.slice(firstTask),
+      ];
+      for (const step of authoringSteps) {
+        if (internalActionLowering) {
+          if (step.type === "run" && !step.shell?.trim()) {
+            diagnostics.push(
+              `Composite ${workflow.path} run steps require shell.`,
+            );
+          }
+          if (step.timeoutMinutes !== undefined) {
+            diagnostics.push(
+              `Composite ${workflow.path} does not support step timeout-minutes.`,
+            );
+          }
+        }
         if (step.type === "uses") {
           steps.push({
             type: "uses",
@@ -206,12 +252,12 @@ export function lowerProject(
 
         taskOrdinal += 1;
         if (!preparationEmitted) {
-          steps.push(...preparationSteps(
+          steps.push(preparationStep(
             entrypointArgument,
-            usedStepIds,
             projectDirectory,
             prepareStepId,
             sourceKey,
+            cachePath,
             taskPrepareAction(project.localTaskPrepareAction) ?? "unresolved",
           ));
           preparationEmitted = true;
@@ -294,6 +340,7 @@ export function lowerProject(
       loweredWorkflows.push({
         path: workflow.path,
         workflow: validation.value,
+        prepareStepIds,
       });
     } else {
       diagnostics.push(...validation.diagnostics.map(formatDiagnostic));
@@ -335,16 +382,6 @@ export function lowerProject(
         typeof action.outputValues[name] !== "string"
       ) diagnostics.push(`Invalid Action output ${name}.`);
     }
-    for (const step of action.runs.steps) {
-      if (step.type === "run" && !step.shell?.trim()) {
-        diagnostics.push(`Composite ${action.path} run steps require shell.`);
-      }
-      if (step.timeoutMinutes !== undefined) {
-        diagnostics.push(
-          `Composite ${action.path} does not support step timeout-minutes.`,
-        );
-      }
-    }
     // Reuse the native step lowering and task registry. Action preparation is
     // replaced by an ordinary run step in the Action emitter, never executed here.
     const lowered = lowerProject(
@@ -364,24 +401,18 @@ export function lowerProject(
         }],
       },
       entrypointArgument,
-      sourceKey,
+      actionSourceKey,
       true,
       projectDirectory,
+      actionSourceKey,
+      cacheFactory,
     );
     tasks.push(...lowered.tasks);
-    const ids = new Set(
-      action.runs.steps.flatMap((step) =>
-        step.id === undefined ? [] : [step.id]
-      ),
-    );
-    const prepareStepId = allocateStepId(PREPARE_STEP_ID, ids);
-    const cacheStepId = allocateStepId(CACHE_STEP_ID, ids);
+    const prepareStepId = lowered.workflows[0].prepareStepIds.composite;
     actions.push({
       action,
       steps: lowered.workflows[0].workflow.jobs[0].steps,
-      ...(lowered.tasks.length === 0
-        ? {}
-        : { preparation: { prepareStepId, cacheStepId } }),
+      ...(lowered.tasks.length === 0 ? {} : { preparation: { prepareStepId } }),
     });
   }
 
@@ -416,42 +447,29 @@ function validateWorkflowPath(
   outputs.add(workflow.path);
 }
 
-function preparationSteps(
+function preparationStep(
   entrypointArgument: string,
-  usedStepIds: Set<string>,
   projectDirectory: string,
   prepareStepId: string,
   sourceKey: string,
+  cachePath: string,
   action: string,
-): readonly Step[] {
-  const cacheStepId = allocateStepId(CACHE_STEP_ID, usedStepIds);
-  const suffix = `${sourceKey}-\${{ runner.os }}-\${{ runner.arch }}`;
-  const cachePath = `\${{ runner.temp }}/tsugiori-artifacts/${suffix}`;
+): Step {
   const entrypoint = entrypointArgument.startsWith(".")
     ? entrypointArgument
     : `./${entrypointArgument}`;
-  return [
-    {
-      type: "uses",
-      name: "Cache task artifact",
-      id: cacheStepId,
-      continueOnError: true,
-      uses: `actions/cache@${ACTIONS_CACHE_COMMIT}`,
-      with: { path: cachePath, key: `tsugiori-task-${suffix}` },
+  return {
+    type: "uses",
+    name: "Prepare task artifact",
+    id: prepareStepId,
+    uses: action,
+    with: {
+      "project-directory": projectDirectory,
+      entrypoint,
+      "source-key": sourceKey,
+      "cache-directory": cachePath,
     },
-    {
-      type: "uses",
-      name: "Prepare task artifact",
-      id: prepareStepId,
-      uses: action,
-      with: {
-        "project-directory": projectDirectory,
-        entrypoint,
-        "source-key": sourceKey,
-        "cache-directory": cachePath,
-      },
-    },
-  ];
+  };
 }
 
 function allocateStepId(base: string, used: Set<string>): string {

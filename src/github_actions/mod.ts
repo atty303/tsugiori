@@ -134,6 +134,7 @@
  */
 import { posix } from "node:path";
 import type { ActionContract, ActionContractInput } from "./action_contract.ts";
+import { registerCacheSteps } from "./cache_factory_registry.ts";
 export type {
   ActionContract,
   ActionContractInput,
@@ -1537,6 +1538,75 @@ export type ProjectConfig = Readonly<{
    */
   actions?: readonly AuthoringCompositeAction[];
 }>;
+
+/** Values supplied when preparing the cache for a task artifact. `path` and `key` are complete GitHub Actions values, including runner expressions. */
+export type TaskArtifactCacheContext = Readonly<{
+  /** The source of the task-backed steps. Composite Actions can require an explicit shell for run steps. */
+  kind: "workflow" | "composite";
+  /** Runner directory where task preparation restores or builds the artifact. */
+  path: string;
+  /** Stable cache key including the source, cache version, OS, and architecture. */
+  key: string;
+}>;
+
+/** Append native Action and shell steps before task artifact preparation. The builder starts without references to earlier authored steps. Returning it unchanged omits cache steps.
+ * @example Inside project, using the provided `path` and `key`.
+ * ```ts
+ * project({ workflows: [ci], taskArtifactCache: ({ job, path, key }) =>
+ *   job.uses("actions/cache@v4", { with: { path, key } }) });
+ * ```
+ */
+export interface TaskArtifactCacheJob {
+  /** Append an Action step using the same Action input handling as job.uses().
+   * @example Inside a taskArtifactCache factory.
+   * ```ts
+   * project({ workflows: [ci], taskArtifactCache: ({ job, path, key }) =>
+   *   job.uses("actions/cache@v4", { with: { path, key } }) });
+   * ```
+   */
+  uses<
+    const C extends ActionContract | string,
+    const Id extends string | undefined = undefined,
+  >(
+    action: C,
+    ...options: RequiredContractKeys<NoInfer<C>> extends never
+      ? [options?: UsesStepOptions<NoInfer<C>, Id>]
+      : [options: UsesStepOptions<NoInfer<C>, Id>]
+  ): TaskArtifactCacheJob;
+  /** Append a shell step using the same validation and expression handling as job.run(). Composite Action run steps require `shell`.
+   * @example Inside a taskArtifactCache factory.
+   * ```ts
+   * project({ workflows: [ci], taskArtifactCache: ({ job }) =>
+   *   job.run({ name: "Prepare cache service", run: "cachectl ready", shell: "bash" }) });
+   * ```
+   */
+  run(definition: RunStepDefinition): TaskArtifactCacheJob;
+}
+
+/** Called during generation for each task-backed workflow job and composite Action. Return the supplied job after appending zero or more uses/run steps. Steps run before task preparation; task() is unavailable because it requires that preparation. List a local composite Action used only by this factory in project.actions so it is generated with the project.
+ * @example Inside project, with a compatible cache Action.
+ * ```ts
+ * project({ workflows: [ci], taskArtifactCache: ({ kind, path, key, job }) =>
+ *   kind === "composite"
+ *     ? job.run({ name: "Check cache", run: "cachectl ready", shell: "bash" })
+ *       .uses("acme/cache@v1", { with: { directory: path, identity: key } })
+ *     : job.uses("acme/cache@v1", { with: { directory: path, identity: key } }) });
+ * ```
+ */
+export type TaskArtifactCacheFactory = (
+  context:
+    & TaskArtifactCacheContext
+    & Readonly<{
+      /** Append cache setup steps and return this job state. It has no access to earlier authored step outputs.
+       * @example Inside a taskArtifactCache factory.
+       * ```ts
+       * project({ workflows: [ci], taskArtifactCache: ({ job, path, key }) =>
+       *   job.uses("actions/cache@v4", { with: { path, key } }) });
+       * ```
+       */
+      job: TaskArtifactCacheJob;
+    }>,
+) => TaskArtifactCacheJob;
 
 /** Workflow settings define triggers, names, environment variables and the default token permissions. Reusable workflows exchange inputs, secrets and outputs; workflow environment variables do not cross the call boundary.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
@@ -6218,6 +6288,17 @@ export function project<
     cacheVersion?: number;
     /** Checkout-relative Action path for developing Tsugiori itself; released packages select their matching Action automatically. */
     localTaskPrepareAction?: string;
+    /** Build the steps placed immediately before task artifact preparation. Runs during generation for each task-backed workflow job and composite Action. The supplied job supports only uses() and run(); returning it unchanged omits caching. When omitted, Tsugiori emits its pinned actions/cache step.
+     * @example Given a completed workflow `ci`.
+     * ```ts
+     * project({
+     *   workflows: [ci],
+     *   taskArtifactCache: ({ job, path, key }) =>
+     *     job.uses("actions/cache@v4", { with: { path, key } }),
+     * });
+     * ```
+     */
+    taskArtifactCache?: TaskArtifactCacheFactory;
     /** Checkout-relative project location for local Action references and workflow task preparation. Omit to detect the invocation directory relative to Git root during generation. Set explicitly when Git is unavailable or when the runner checkout layout differs. Generation fails if a required location cannot be resolved or escapes the checkout. This does not change generation destinations or task execution cwd. */
     workingDirectory?: string;
     /** Completed workflows to generate together, including local reusable callees.
@@ -6254,7 +6335,8 @@ export function project<
       "Local task prepare Action must be a ./ checkout-relative path without parent traversal.",
     );
   }
-  return Object.freeze({
+  const taskArtifactCache = input.taskArtifactCache;
+  const config = Object.freeze({
     kind: "github-actions.project",
     ...(input.localTaskPrepareAction === undefined
       ? {}
@@ -6269,7 +6351,54 @@ export function project<
     actions: Object.freeze(
       (input.actions ?? []).map((value) => value[compositeActionDefinition]),
     ),
-  });
+  }) as ProjectConfig;
+  if (taskArtifactCache !== undefined) {
+    registerCacheSteps(config, (context) => {
+      const states = new WeakMap<
+        TaskArtifactCacheJob,
+        readonly AuthoringStep[]
+      >();
+      const wrap = (
+        state: StepOf<string, string, StepReferences>,
+      ): TaskArtifactCacheJob => {
+        const job = Object.freeze({
+          uses: (...args: unknown[]) =>
+            wrap(
+              (state.uses as unknown as (
+                ...args: unknown[]
+              ) => StepOf<string, string, StepReferences>)(...args),
+            ),
+          run: (definition: RunStepDefinition) => wrap(state.run(definition)),
+        }) as TaskArtifactCacheJob;
+        states.set(job, state[jobDefinition].job.steps);
+        return job;
+      };
+      const draft: JobDraft & Readonly<{ runsOn: string }> = {
+        workflowPath: "",
+        id: "",
+        owner: Symbol("tsugiori.task-artifact-cache"),
+        runsOn: "ubuntu-latest",
+        needs: [],
+        steps: [],
+        references: Object.freeze({}),
+        contracts: new Map(),
+        proofPaths: new Set(),
+        composite: context.kind === "composite",
+      };
+      const result = taskArtifactCache({
+        ...context,
+        job: wrap(createStepFacade(draft)),
+      });
+      const steps = states.get(result);
+      if (steps === undefined) {
+        throw new TypeError(
+          "Task artifact cache factory must return its job state.",
+        );
+      }
+      return steps;
+    });
+  }
+  return config;
 }
 
 // The draft erases authoring generics; restore the initial context selected by

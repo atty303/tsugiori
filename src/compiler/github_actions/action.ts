@@ -9,19 +9,6 @@ export function emitCompositeAction(
 ): string {
   const rendered = steps.map((step) => {
     if (
-      payload && step.type === "uses" && step.id === preparation?.cacheStepId
-    ) {
-      const suffix =
-        `${payload.sourceKey}-\${{ runner.os }}-\${{ runner.arch }}`;
-      return emitStep({
-        ...step,
-        with: {
-          path: `\${{ runner.temp }}/tsugiori-artifacts/${suffix}`,
-          key: `tsugiori-task-${suffix}`,
-        },
-      });
-    }
-    if (
       payload && step.type === "uses" && step.id === preparation?.prepareStepId
     ) {
       const suffix =

@@ -435,6 +435,10 @@ Deno.test("composite callbacks render input bindings and the bundled task prepar
   const lowered = lowerProject(
     project({ actions: [composite] }),
     "./workflows.ts",
+    "unresolved",
+    false,
+    ".",
+    "fixture-source",
   );
   const payload = {
     files: [],

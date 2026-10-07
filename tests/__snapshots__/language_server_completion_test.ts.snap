@@ -139,6 +139,8 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     };
 }>',
   "step-signature": 'run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; }>',
+  "task-cache-job": "(parameter) job: TaskArtifactCacheJob",
+  "task-cache-run-signature": "run(definition: RunStepDefinition): TaskArtifactCacheJob",
   "task-callback": '(parameter) context: TaskContext<{
     readonly who: {
         readonly contract: ValueContract<string, "text">;

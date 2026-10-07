@@ -848,7 +848,7 @@ function displayFixtures(): readonly {
   kind?: "signatureHelp";
 }[] {
   const imports =
-    `import { workflow, compositeAction, textValue, literal, present } from "../src/github_actions/mod.ts";`;
+    `import { workflow, compositeAction, project, textValue, literal, present } from "../src/github_actions/mod.ts";`;
   const base = `const draft = workflow("ci.yml", { on: { push: {} } });`;
   const build =
     `const flow = draft.job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ id: "build", name: "Build", run: "true", outputs: ["version"] }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))`;
@@ -963,6 +963,10 @@ function displayFixtures(): readonly {
     `const reusable = workflow("called.yml", { on: { workflow_call: { inputs: { version: { type: "string", required: true } } } } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }));`;
   const extra: readonly [string, string][] = [
     [
+      "task-cache-job",
+      `${base} const ci = draft.job("cache", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Task", run: () => {} })); project({ workflows: [ci], taskArtifactCache: ({ job, path, key }) => { job/*completion*/; return job.uses("acme/cache@v1", { with: { directory: path, identity: key } }); } });`,
+    ],
+    [
       "job-scope",
       `${base} ${build}; flow.job("scope", (context) => { context/*completion*/; return context.job.runsOn("ubuntu-latest").run({ name: "Test", run: "true" }); });`,
     ],
@@ -976,6 +980,10 @@ function displayFixtures(): readonly {
     ],
   ];
   const signatures: readonly [string, string][] = [
+    [
+      "task-cache-run-signature",
+      `${base} const ci = draft.job("cache", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Task", run: () => {} })); project({ workflows: [ci], taskArtifactCache: ({ job }) => job.run(/*completion*/{ name: "Check", run: "true", shell: "bash" }) });`,
+    ],
     [
       "simple-step-signature",
       `${base} draft.job("simple", ({ job }) => job.runsOn("ubuntu-latest").run(/*completion*/{ id: "one", name: "One", run: "true" }));`,
