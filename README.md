@@ -53,13 +53,7 @@ released Tsugiori version in place of `<released-version>`.
 
 ```sh
 mkdir -p .github
-```
-
-```sh
 cd .github
-```
-
-```sh
 deno run --no-config --no-lock -A jsr:@atty303/tsugiori@<released-version>/init
 ```
 
@@ -128,9 +122,6 @@ From `.github`, install dependencies and generate the workflow:
 
 ```sh
 deno install -P
-```
-
-```sh
 deno task tsugiori generate
 ```
 
