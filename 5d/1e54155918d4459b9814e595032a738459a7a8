@@ -1,0 +1,94 @@
+Task: Infer checkout-relative project location for Action references and task preparation
+Anchor: 5d1e54155918d4459b9814e595032a738459a7a8
+Base: 0942935d7aff7c438a244e7e130e5cb7f607b147
+Branch: main
+Commits: 5d1e54155918d4459b9814e595032a738459a7a8 implements generation-time location resolution and verifies its contracts
+Guidance: AGENTS.md; dig; investigate-problem; develop-repository; design-review; design-program-observability; review; git-task-evidence
+Conditions: Current checkout; durable GitHub Actions library; no new dependencies; explicit README/init settings retained; patch release classification approved; no deploy/release/push/PR; local Git and tool caches required sandbox escalation; remote notes older than local and integrated without replacing local content
+Authority: User implementation request, patch approval and explicit README setting instruction; repository AGENTS.md; applicable skills and current source
+## Transcript
+- U1:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) composite actionのパスはpwd(.github)からの相対で定義していてそれはいいが、workflow usesにrenderするパスはrootからのパスでないといけない
+  - A: Used dig and investigate-problem; inspected local reference lowering, explicit workingDirectory behavior and existing tests; asked automatic detection versus explicit configuration.
+- U2:
+    どうやってAを実装する？
+  - A: Explained Git-root-relative generation context, compiler separation and shared path usage; asked fallback policy without Git.
+- U3:
+    A
+  - A: Accepted explicit override plus automatic detection and failure when required location is unresolved; asked task preparation scope.
+- U4:
+    taskは何に使っている？
+  - A: Traced project-directory through checkout-root preparation and clarified that task execution cwd is independent.
+- U5:
+    B
+  - A: Accepted one resolved project location for local Action references and workflow task preparation; asked final agreement.
+- U6:
+    A
+  - A: Provided a standalone implementation request with agreed decisions, success conditions and boundaries.
+- U7:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori のプロジェクト位置を生成時に自動取得し、local composite Action の `uses` と workflow task preparation に適用してください。
+    
+    ## 目的
+    - `.github` を pwd として定義・生成する場合、Action 定義パスは pwd 相対のまま、生成 YAML の local `uses` を repository root 相対にする。
+    - task preparation にも同じプロジェクト位置を使い、通常は `workingDirectory` の明示設定を不要にする。
+    
+    ## 成功条件
+    - repository root が `/repo`、pwd が `/repo/.github` のとき、`actions/foo/action.yml` は `/repo/.github/actions/foo/action.yml` に生成され、オブジェクト経由の呼び出しは `uses: ./.github/actions/foo` になる。
+    - workflow 内と composite 内の `.uses(action)` に同じ変換が適用される。
+    - repository root を pwd とする場合は `uses: ./actions/foo` になる。
+    - `workingDirectory` 省略時、task preparation の `project-directory` に Git root から pwd までの相対パスが使われる。
+    - 明示した `workingDirectory` は自動取得値より優先され、Git のない環境でも使用できる。
+    - 自動取得も明示指定もできず、プロジェクト位置が必要な場合は、原因と指定方法が分かる生成エラーになる。
+    - 明示的な `uses` override と task 本体の実行 cwd の扱いは変わらない。
+    - 生成経路を通す検証で上記を確認し、関連する公開 JSDoc、README、architecture documentation が実装と整合する。
+    
+    ## 決定事項
+    - 定義パスと生成ファイルの位置は pwd 相対を維持する。
+      - 理由: 現在の authoring と生成先の基準は適切であり、修正対象は runner に渡す参照である。
+      - 主な棄却案: Action 定義パスを repository root 相対へ変更する。利用者の定義方法を変更するため棄却。
+    - `workingDirectory` 省略時は、生成時に Git root から pwd までの相対パスを自動取得する。
+      - 理由: 実際の生成先と参照先の不一致を避け、通常の明示設定を不要にする。
+      - 主な棄却案: 明示設定を常に必須にする。位置情報の二重管理が残るため棄却。
+    - 既存の `workingDirectory` を共通の明示指定として使い、自動取得値より優先する。
+      - 理由: 既存設定を維持し、Git のない環境でも生成でき、新しい設定を増やさずに済む。
+      - 主な棄却案: Git root 取得を必須にする。配布ソースなどからの生成を制限するため棄却。
+    - 解決したプロジェクト位置を local Action の `uses` と workflow task preparation の両方に使う。
+      - 理由: どちらも checkout root から見た同じプロジェクト位置を必要とする。
+      - 主な棄却案: `uses` だけに自動取得値を使う。task preparation に別途同じ位置の設定が必要になるため棄却。
+    - 必要な位置情報を解決できない場合は生成エラーにする。
+      - 理由: 推測した基準で誤った YAML を生成しないため。
+      - 主な棄却案: 暗黙に `"."` へフォールバックする。`.github` などからの生成で誤った参照になるため棄却。
+    
+    ## 制約
+    - 現在の checkout で作業する。
+    - Action 定義パス、生成先、明示的な `uses` override、task 本体の実行 cwd の意味を変更しない。
+    - root 外への参照を許可する変更は行わない。
+    - deploy、release、push、remote ref 更新、PR 作成は行わない。
+    
+    ## 対象外
+    - task 本体の cwd の自動変更。
+    - checkout の自動挿入。
+    - ダウンロードされた composite Action を基準とする local `uses` の独自解決。
+    - composite task payload の配置・配布方式の変更。
+    
+    ## 未検証の前提
+    - Git root の取得方法として `git rev-parse --show-toplevel` を想定している。適用される実行権限、symlink を含むパスの扱い、エラー伝達を実装前に確認する。
+    - `workingDirectory` の省略と明示 `"."` を現在の authoring config が区別できるか確認する。区別できなければ、明示値の優先を保つための内部表現を調整する。
+    - プロジェクト位置を必要としない生成について、既存の非 Git 環境での利用経路を確認する。
+    
+    ## 実装時の指示
+    - 現在は `defineProject()` が `workingDirectory` 省略時に `"."` を補い、`src/compiler/authoring.ts` の local Action lowering と `preparationSteps()` がその値を使用している。
+    - 生成の入口は `src/runner/main.ts`、生成処理は `src/compiler/generator.ts`、pwd と entrypoint 情報は `src/compiler/source.ts` にある。実装時に現状を再確認する。
+    - Git root の取得は生成側の環境処理で行い、compiler には解決済みの位置情報を渡す。compiler 自身に Git 実行を持ち込まない。
+    - 同じ位置情報を nested composite の lowering にも引き継ぐ。
+    - `tests/composite_test.ts` の既存テストは明示 `workingDirectory: ".github"` による変換を検証している。省略時の自動取得、明示値優先、Git のない環境、task preparation を含む生成経路の検証を追加する。
+  - A: Read develop-repository, design-review and observability guidance; inspected state and release workflow; requested patch release classification while proceeding with implementation.
+- U8:
+    patch でよい
+  - A: Implemented omitted-vs-explicit configuration, Git-based location resolution and diagnostics, nested lowering, CLI/compiler tests and docs. Static checks passed; independent review identified template mismatch and non-Git composite fixture; addressed both. Full test initially exposed those failures, then a release fixture retaining the intermediate auto template.
+- U9:
+    READMEは明示設定のままにしておいて
+  - A: Retained explicit workingDirectory in README and init template per user instruction; kept omission-based detection and documented both. Final static checks, init and release package tests passed; independent delta review found no further actionable issues. Stable mise run test completed with 153 passed and 0 failed; final documentation-only changes passed mise run check and public JSDoc verification of 186 TypeScript examples. Independent delta review found no actionable issues; final doc/source-key-only delta was directly checked. Local commit 5d1e54155918d4459b9814e595032a738459a7a8 created; no remote writes or release performed.
