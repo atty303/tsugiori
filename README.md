@@ -44,9 +44,8 @@ preparation, and artifact caching; GitHub Actions runs each job and step.
 
 ## Getting started
 
-Start with a workflow that combines an existing Action and a TypeScript task.
-It checks out your repository and prints a greeting, with each step visible in
-GitHub Actions.
+This sample shows how to combine an existing Action and a TypeScript task in
+one workflow, and how Tsugiori turns them into ordinary GitHub Actions steps.
 
 With Deno installed, run these commands from your repository root. Use a
 released Tsugiori version in place of `<released-version>`.
@@ -171,11 +170,7 @@ jobs:
 </details>
 
 Commit `.github/deno.json`, `.github/deno.lock`, `.github/workflows.ts` and
-`.github/workflows/tsugiori.yml` to your default branch. In GitHub's Actions tab,
-select **Tsugiori sample**, then **Run workflow** to see the greeting.
-
-Replace the sample with your own Actions and tasks. After editing
-`workflows.ts`, run the generation command again and commit the updated YAML.
+`.github/workflows/tsugiori.yml` to your repository.
 
 ## API documentation
 
