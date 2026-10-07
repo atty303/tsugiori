@@ -61,14 +61,12 @@ Deno.test("README invalid output reference reports its documented type error", a
     const result = await new Deno.Command("mise", {
       cwd: new URL("examples/02-typed-dsl/.github/", root).pathname,
       args: ["exec", "--", "deno", "check", "--frozen=true", file],
+      env: { NO_COLOR: "1" },
       stdout: "piped",
       stderr: "piped",
     }).output();
     assert(result.code !== 0, "the invalid README snippet must fail checking");
-    const diagnostic = new TextDecoder().decode(result.stderr).replace(
-      /\x1b\[[0-9;]*m/g,
-      "",
-    );
+    const diagnostic = new TextDecoder().decode(result.stderr);
     assert(
       diagnostic.includes(match[2].trim()),
       `README diagnostic differs from deno check:\n${diagnostic}`,
