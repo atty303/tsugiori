@@ -146,9 +146,10 @@ its [Deno configuration](examples/01-init/.github/deno.json), and its
 
 Add a step and a dependent job. `jobs.hello` refers to a job defined earlier.
 `github.ref.eq(...)` builds a GitHub runtime condition; it does not read the
-ref while TypeScript runs. From this chapter onward, define the workflow in
-`workflows/src/ci.ts` and import it from the
-[project entrypoint](examples/02-typed-dsl/.github/workflows.ts):
+ref while TypeScript runs. Beyond the initial sample, keep each workflow in
+its own source file and import it from the
+[project entrypoint](examples/02-typed-dsl/.github/workflows.ts). This
+workflow lives in `workflows/src/ci.ts`:
 
 ```ts
 export const ci = defineWorkflow("workflows/ci.yml", {
