@@ -1,22 +1,4 @@
-import { TSUGIORI_PACKAGE_VERSION } from "../package_identity.ts";
-
-export const configuration = JSON.stringify(
-  {
-    imports: {
-      "@atty303/tsugiori": `jsr:@atty303/tsugiori@^${TSUGIORI_PACKAGE_VERSION}`,
-    },
-    permissions: {
-      default: {
-        import: ["jsr.io:443", "tsugiori.atty303.workers.dev:443"],
-      },
-    },
-    tasks: { tsugiori: "deno run --frozen=true -A ./workflows.ts" },
-  },
-  null,
-  2,
-) + "\n";
-
-export const workflows = `import {
+import {
   defineProject,
   defineWorkflow,
   runProject,
@@ -41,4 +23,3 @@ if (import.meta.main) {
     entrypointUrl: import.meta.url,
   });
 }
-`;

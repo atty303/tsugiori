@@ -1,0 +1,105 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@atty303/tsugiori@0.10.4": "0.10.4",
+    "jsr:@david/console-static-text@~0.3.5": "0.3.5",
+    "jsr:@david/dax@0.50.1": "0.50.1",
+    "jsr:@david/path@~0.3.4": "0.3.4",
+    "jsr:@david/shell@~0.7.2": "0.7.2",
+    "jsr:@david/which@~0.7.4": "0.7.4",
+    "jsr:@eemeli/yaml@2.9.1": "2.9.1",
+    "jsr:@std/bytes@^1.0.6": "1.0.6",
+    "jsr:@std/fmt@1": "1.0.10",
+    "jsr:@std/internal@^1.0.14": "1.0.14",
+    "jsr:@std/io@0.225": "0.225.3",
+    "jsr:@std/path@1": "1.1.6",
+    "jsr:@std/path@^1.1.6": "1.1.6",
+    "jsr:@zod/zod@4.6.5": "4.6.5",
+    "npm:jsonc-parser@3.3.1": "3.3.1"
+  },
+  "jsr": {
+    "@atty303/tsugiori@0.10.4": {
+      "integrity": "f7e21e90dc76c78b1dc65ed181c111b9c611a0292d9d23239575ed0294acdc61",
+      "dependencies": [
+        "jsr:@eemeli/yaml",
+        "npm:jsonc-parser"
+      ]
+    },
+    "@david/console-static-text@0.3.5": {
+      "integrity": "7a6ab3610e6f0fa5743d56f7a05347a96afa9fae19de2d84ff964f09de441101"
+    },
+    "@david/dax@0.50.1": {
+      "integrity": "baa67d0dda45447ff846bfa1ee25d070770ff1d6f92cf1edd512cf75a5e8e6d5",
+      "dependencies": [
+        "jsr:@david/console-static-text",
+        "jsr:@david/path",
+        "jsr:@david/shell"
+      ]
+    },
+    "@david/path@0.3.4": {
+      "integrity": "6e9c8e8914401fa7489c50cc9214d5593229bdeb96b23c494f43ed2a518cbf67",
+      "dependencies": [
+        "jsr:@std/path@^1.1.6"
+      ]
+    },
+    "@david/shell@0.7.2": {
+      "integrity": "faea8457525c58c8409c189107a67abbfff7d9f3de6b3a369ee635be474b33ee",
+      "dependencies": [
+        "jsr:@david/console-static-text",
+        "jsr:@david/path",
+        "jsr:@david/which",
+        "jsr:@std/fmt",
+        "jsr:@std/io",
+        "jsr:@std/path@1"
+      ]
+    },
+    "@david/which@0.7.4": {
+      "integrity": "b4ed8e7f489b3689afb4b8315944211c807f91c03229e48ab888e55336c73087"
+    },
+    "@eemeli/yaml@2.9.1": {
+      "integrity": "8987c5ee76629274c14b610d5eb0b6f71d08eafe0dd8b9d233aec69bbf9e705d"
+    },
+    "@std/bytes@1.0.6": {
+      "integrity": "f6ac6adbd8ccd99314045f5703e23af0a68d7f7e58364b47d2c7f408aeb5820a"
+    },
+    "@std/fmt@1.0.10": {
+      "integrity": "90dfba288802ac6de82fb31d0917eb9e4450b9925b954d5e51fc29ac07419db5"
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    },
+    "@std/io@0.225.3": {
+      "integrity": "27b07b591384d12d7b568f39e61dff966b8230559122df1e9fd11cc068f7ddd1",
+      "dependencies": [
+        "jsr:@std/bytes"
+      ]
+    },
+    "@std/path@1.1.6": {
+      "integrity": "c68485c2a4dfbb5ae3cc74fae4e8c4e5d874cf8a8ed12927917235c758b46cbe",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@zod/zod@4.6.5": {
+      "integrity": "de9ee54513b84efecbdf2988f5a01eca0e2883be4b5625cf320bc0d6dbbade3e"
+    }
+  },
+  "npm": {
+    "jsonc-parser@3.3.1": {
+      "integrity": "sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ=="
+    }
+  },
+  "redirects": {
+    "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v7": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1?ref=v7"
+  },
+  "remote": {
+    "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1?ref=v7": "3940358ab82aa38d68089718fc2402536d3c267b8cb473e0831c8614d858b4fd"
+  },
+  "workspace": {
+    "dependencies": [
+      "jsr:@atty303/tsugiori@0.10.4",
+      "jsr:@david/dax@0.50.1",
+      "jsr:@zod/zod@4.6.5"
+    ]
+  }
+}

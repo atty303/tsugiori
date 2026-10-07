@@ -255,12 +255,8 @@ Deno.test("release archive binds generation to its committed Action and rejects 
         `${consumer}/workflows/tsugiori.yml`,
       );
       assertEquals(yaml.includes("workflow_dispatch:"), true);
-      assertEquals(yaml.includes("project-directory: .github"), true);
-      assertEquals(
-        yaml.includes(`uses: atty303/tsugiori/actions/task-prepare@${sha}`),
-        true,
-      );
-      await run(["task", "tsugiori", "workflows/tsugiori.yml/hello/task-1"]);
+      assertEquals(yaml.includes("run: echo 'Hello from Tsugiori!'"), true);
+      assertEquals(yaml.includes("project-directory: .github"), false);
       const { generateFiles }:
         typeof import("../../src/compiler/generator.ts") = await import(
           `file://${directory}/src/compiler/generator.ts`

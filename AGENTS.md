@@ -82,12 +82,13 @@ versions and superseded decisions. Do not add historical decision records.
   the JSR documentation is coherent. README owns getting started and navigation;
   API docs own detailed usage/specification. Do not optimize for short IDE
   hovers at the expense of public documentation completeness.
-- Write the README for developers who are unfamiliar with Tsugiori and
-  interested in evaluating it. Prioritize what they can author, what Tsugiori
-  generates, and how to try it. Keep complete examples when their overall
-  structure helps understanding; brevity alone is not the goal. Do not turn
-  Getting started into a GitHub Actions or Deno specification guide or an
-  exhaustive Tsugiori API reference.
+- Write the README for developers who know GitHub Actions workflows, jobs and
+  steps and basic TypeScript, but are new to Tsugiori and evaluating it.
+  Prioritize what they can author, what Tsugiori generates, and how to try it.
+  Include only explanation needed to run the examples, understand the generated
+  result, or decide whether to adopt Tsugiori; link detailed semantics and
+  limits to the API docs or design documentation. Keep complete examples when
+  their overall structure helps understanding; brevity alone is not the goal.
 - Typecheck the actual published TypeScript code blocks, supplying prerequisites
   only in the verification harness. Do not verify separate copied examples or
   disable type checking to accommodate documentation.

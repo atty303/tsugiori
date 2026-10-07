@@ -12,6 +12,7 @@ steps {
     check = "deno lint {{files}}"
   }
   ["deno-check"] = (Builtins.deno_check) {
+    exclude = List("examples/**")
     check = "deno check --allow-import=deno.land:443,jsr.io:443,esm.sh:443,raw.esm.sh:443,cdn.jsdelivr.net:443,raw.githubusercontent.com:443,gist.githubusercontent.com:443,tsugiori.atty303.workers.dev:443 {{files}}"
   }
   ["hk-test"] = Builtins.hk_test

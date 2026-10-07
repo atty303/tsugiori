@@ -1,0 +1,14 @@
+{
+  "imports": {
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@0.10.4",
+    "#actions/actions/checkout": "https://tsugiori.atty303.workers.dev/github/actions/v1/actions/checkout@v7"
+  },
+  "permissions": {
+    "default": {
+      "import": ["jsr.io:443", "tsugiori.atty303.workers.dev:443"]
+    }
+  },
+  "tasks": {
+    "tsugiori": "deno run --frozen=true -A ./workflows.ts"
+  }
+}

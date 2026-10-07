@@ -1,0 +1,13 @@
+{
+  "imports": {
+    "@atty303/tsugiori": "jsr:@atty303/tsugiori@0.10.4"
+  },
+  "permissions": {
+    "default": {
+      "import": ["jsr.io:443", "tsugiori.atty303.workers.dev:443"]
+    }
+  },
+  "tasks": {
+    "tsugiori": "deno run --frozen=true -A ./workflows.ts"
+  }
+}

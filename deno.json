@@ -16,7 +16,7 @@
     "@std/testing/unstable-snapshot": "jsr:@std/testing@1.0.21/unstable-snapshot"
   },
   "tasks": {
-    "test": "deno test -A",
-    "test:update": "deno test -A --update-snapshots -- --update"
+    "test": "deno test -A tests/ scripts/ services/",
+    "test:update": "deno test -A --update-snapshots tests/ scripts/ services/ -- --update"
   }
 }

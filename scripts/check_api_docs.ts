@@ -112,7 +112,8 @@ if (missing.size) {
   throw new Error(`Missing public JSDoc/examples:\n${[...missing].join("\n")}`);
 }
 
-examples(await Deno.readTextFile(new URL("README.md", root)), "README.md");
+// README snippets are verified against the standalone example projects by
+// tests/readme_examples_test.ts, where their real imports and context apply.
 
 const imports = new Map<string, string>();
 for (

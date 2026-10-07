@@ -90,11 +90,6 @@ Deno.test("init creates only its two project files, with the documented template
     );
     assertEquals(ts, workflows);
     const yaml = /```yaml\n([\s\S]*?)```/.exec(started)![1];
-    const sourceKey = /source-key: (S[A-Z0-9]+)/.exec(yaml)![1];
-    const prepareAction =
-      /uses: (atty303\/tsugiori\/actions\/task-prepare@[a-f0-9]{40})/.exec(
-        yaml,
-      )![1];
     await Deno.writeTextFile(
       `${directory}/verified-workflows.ts`,
       `${ts}\nexport { project };\n`,
@@ -119,8 +114,8 @@ import { generateFiles } from ${
         )
       };
 const files = await generateFiles(
-  { ...project, localTaskPrepareAction: ${JSON.stringify(prepareAction)} },
-  "./workflows.ts", ${JSON.stringify(sourceKey)},
+  project,
+  "./workflows.ts", "Sunused",
   { projectDirectory: ${JSON.stringify(directory)} },
 );
 if (files.length !== 1 || files[0].path !== "workflows/tsugiori.yml") {
