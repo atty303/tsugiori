@@ -213,8 +213,7 @@ Deno.test("CLI generation writes pwd-relative files and retains location diagnos
       };
 const action = compositeAction("actions/foo/action.yml", { name: "Foo", description: "Foo" }).steps(({ step }) => step.run({ name: "Run", shell: "bash", run: "true" }));
 const workflow = makeWorkflow("workflows/ci.yml", { on: { push: {} } }).job("ci", ({ job }) => job.runsOn("ubuntu-latest").uses(action).task({ name: "Task", run: () => {} }));
-const project = makeProject({ workflows: [workflow], localTaskPrepareAction: "./actions/task-prepare" });
-Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });`,
+Deno.exitCode = await runProject({ project: makeProject({ workflows: [workflow], localTaskPrepareAction: "./actions/task-prepare" }), entrypointUrl: import.meta.url });`,
     );
     const run = (diagnostics: string, cache: string) =>
       new Deno.Command(Deno.execPath(), {

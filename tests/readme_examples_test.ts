@@ -65,7 +65,10 @@ Deno.test("README invalid output reference reports its documented type error", a
       stderr: "piped",
     }).output();
     assert(result.code !== 0, "the invalid README snippet must fail checking");
-    const diagnostic = new TextDecoder().decode(result.stderr);
+    const diagnostic = new TextDecoder().decode(result.stderr).replace(
+      /\x1b\[[0-9;]*m/g,
+      "",
+    );
     assert(
       diagnostic.includes(match[2].trim()),
       `README diagnostic differs from deno check:\n${diagnostic}`,
