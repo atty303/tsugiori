@@ -1,3 +1,5 @@
+import { resolveProjectWorkingDirectory } from "./source.ts";
+import type { DiagnosticRecorder } from "../task-runtime/diagnostics.ts";
 import { posix } from "node:path";
 import { actionPayload } from "./action_payload.ts";
 import { emitCompositeAction } from "./github_actions/action.ts";
@@ -22,8 +24,24 @@ export async function generateFiles(
   project: ProjectConfig,
   entrypointArgument: string,
   sourceKey: string,
+  options: Readonly<{
+    projectDirectory?: string;
+    recorder?: DiagnosticRecorder;
+  }> = {},
 ): Promise<readonly GeneratedFile[]> {
-  const lowered = await lowerProject(project, entrypointArgument, sourceKey);
+  const projectDirectory = options.projectDirectory ?? Deno.cwd();
+  const workingDirectory = await resolveProjectWorkingDirectory(
+    project,
+    projectDirectory,
+    options.recorder,
+  );
+  const lowered = lowerProject(
+    project,
+    entrypointArgument,
+    sourceKey,
+    false,
+    workingDirectory,
+  );
   if (
     project.workflows.some((workflow) =>
       workflow.jobs.some((job) =>
@@ -45,7 +63,11 @@ export async function generateFiles(
     action.runs.steps.some((step) => step.type === "task")
   );
   const payload = hasActionTasks
-    ? await actionPayload(Deno.cwd(), entrypointArgument, project.cacheVersion)
+    ? await actionPayload(
+      projectDirectory,
+      entrypointArgument,
+      project.cacheVersion,
+    )
     : undefined;
   for (const action of lowered.actions) {
     const needsPayload = action.action.runs.steps.some((step) =>

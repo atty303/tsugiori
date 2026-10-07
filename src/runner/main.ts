@@ -17,8 +17,11 @@
  *
  * Workflow paths are relative to Deno.cwd(). Deno tasks set that directory to
  * the task project; direct invocation must use the same directory.
- * workingDirectory selects the checkout-relative project directory inside the
- * preparation Action. Normal run steps and task bodies keep native defaults.
+ * Generation detects the checkout-relative project location from Git root for
+ * local Action references and workflow task preparation. An explicit project
+ * workingDirectory takes precedence and supports generation without Git.
+ * Automatic detection requires permission to run Git; unresolved required
+ * locations fail generation. Normal run steps and task bodies keep native defaults.
  * The project supplies imports and its lockfile. Keep top-level authoring
  * deterministic; put task work inside task run callbacks.
  *
@@ -248,6 +251,7 @@ export async function runProject(
         source.project,
         source.entrypointArgument,
         identity?.sourceKey ?? "unused",
+        { projectDirectory: source.projectDirectory, recorder },
       );
       if (parsed.options.check === "true") {
         const stale = await checkGeneratedFiles(

@@ -37,7 +37,7 @@ Deno.test({
 import { defineProject, defineWorkflow, runProject, textValue } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
-const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
     outputs: { result: { contract: textValue(), required: true } },
     run: async (ctx) => {
@@ -479,7 +479,7 @@ exit 1
         resolve(fixture, "workflows.ts"),
         `
 import { defineProject, defineWorkflow, runProject } from "./src/github_actions.ts";
-const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [
+const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [
   defineWorkflow("workflows/ci.yml", { on: { push: {} } }).job("test", ({ job }) =>
     job.runsOn("ubuntu-latest").run({ name: "Native", run: "true" }))] });
 export default project;
@@ -629,7 +629,7 @@ const ci = defineWorkflow("workflows/ci.yml", {
 }).job("test", ({ job }) =>
   job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} })
 );
-const project = defineProject({ localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] });
+const project = defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", cacheVersion, workflows: [ci] });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `;
@@ -846,7 +846,7 @@ Deno.test("local graph keys remain portable when the project and outside imports
 import { marker } from "../outside.ts";
 import { defineProject, defineWorkflow } from "./src/github_actions.ts";
 void marker;
-export default defineProject({ localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
+export default defineProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [defineWorkflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test", outputs: {}, run: () => {} }))] });
 `,
     );

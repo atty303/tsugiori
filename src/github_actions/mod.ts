@@ -1522,9 +1522,9 @@ export type ProjectConfig = Readonly<{
   /** Checkout-relative ./ Action path for an unreleased source checkout. Released packages select their matching preparation Action automatically.
    */
   localTaskPrepareAction?: string;
-  /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
+  /** Checkout-relative project location for local Action references and workflow task preparation. When omitted, generation detects the path from Git root to the invocation directory. An explicit value takes precedence and supports generation without Git. Does not change task execution cwd. See {@link defineProject}.
    */
-  workingDirectory: string;
+  workingDirectory?: string;
   /** Completed workflows to generate together; include local reusable callees. See {@link defineProject}.
    */
   workflows: readonly AuthoringWorkflow[];
@@ -4132,10 +4132,11 @@ export interface CompositeDraft<
  *
  * `.uses(action, options)` shares declared input names, requiredness and output
  * names. Generation recursively collects its definition. Generation resolves its local
- * reference from the project's checkout-relative `workingDirectory` (default
- * `.`). If the Deno project is `.github`, set `workingDirectory: ".github"`;
- * `actions/greet/action.yml` then generates there and is called as
- * `./.github/actions/greet`. This setting does not change task execution cwd.
+ * reference from the invocation directory relative to Git root, unless the
+ * project's checkout-relative `workingDirectory` explicitly overrides it.
+ * When invoked from `.github`, `actions/greet/action.yml` generates there and
+ * is called as `./.github/actions/greet`. Without Git, set `workingDirectory`
+ * explicitly. This setting does not change task execution cwd.
  * An explicit `uses` override selects a different standard reference while keeping
  * the contract's types.
  *
@@ -6209,7 +6210,7 @@ export function defineProject<
     cacheVersion?: number;
     /** Checkout-relative Action path for developing Tsugiori itself; released packages select their matching Action automatically. */
     localTaskPrepareAction?: string;
-    /** Actions project directory for artifact preparation only. */
+    /** Checkout-relative project location for local Action references and workflow task preparation. Omit to detect the invocation directory relative to Git root during generation. Set explicitly when Git is unavailable or when the runner checkout layout differs. Generation fails if a required location cannot be resolved or escapes the checkout. This does not change generation destinations or task execution cwd. */
     workingDirectory?: string;
     /** Completed workflows to generate together, including local reusable callees.
      * @example Given a completed workflow `ci`.
@@ -6251,7 +6252,9 @@ export function defineProject<
       ? {}
       : { localTaskPrepareAction: input.localTaskPrepareAction }),
     cacheVersion,
-    workingDirectory: input.workingDirectory ?? ".",
+    ...(input.workingDirectory === undefined
+      ? {}
+      : { workingDirectory: input.workingDirectory }),
     workflows: Object.freeze(
       (input.workflows ?? []).map((value) => value[workflowDefinition]),
     ),

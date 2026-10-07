@@ -39,7 +39,7 @@ const action = draft.steps(({ step }) => step.task({ id: "tsugiori-task-prepare"
   await outputs.set("result", inputs.who);
 }}).outputs(({ steps }) => ({ result: steps["tsugiori-task-prepare"].outputs.result })));
 const parent = defineCompositeAction("parent/action.yml", { name: "Parent", description: "Parent" }).steps(({ step }) => step.uses(action, { with: { who: "world" } }));
-const project = defineProject({ actions: [parent], cacheVersion: 7 });
+const project = defineProject({ workingDirectory: ".", actions: [parent], cacheVersion: 7 });
 export default project;
 if (import.meta.main) Deno.exitCode = await runProject({ project, entrypointUrl: import.meta.url });
 `,

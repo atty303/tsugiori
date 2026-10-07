@@ -134,10 +134,14 @@ if (import.meta.main) {
 The sample checks out the repository and runs one Deno task that prints a
 message. It generates `workflows/tsugiori.yml` and runs only through GitHub's
 manual workflow dispatch. Commit it to the default branch to make it available
-in the Actions UI. Replace the sample with your own workflow and tasks.
-`workingDirectory: ".github"` selects the workflow project's checkout-relative
-location for task preparation; edit it if you place the project elsewhere.
-Continue running the following commands from the workflow project directory.
+in the Actions UI. Replace the sample with your own workflow and tasks. The
+sample explicitly sets `workingDirectory: ".github"`. If omitted, generation
+detects the workflow project's location relative to Git root for local Action
+references and task preparation. Set `workingDirectory` explicitly to a
+checkout-relative path when Git is unavailable or the runner checkout layout
+differs. This does not change generation destinations or task execution cwd.
+Automatic detection requires permission to run Git. Continue running the
+following commands from the workflow project directory.
 
 Install dependencies with the configured permission set and commit the Deno
 lockfile. `-P` explicitly loads `permissions.default`; configuring it alone does

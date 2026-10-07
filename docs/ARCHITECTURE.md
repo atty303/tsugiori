@@ -138,10 +138,15 @@ Action directory, even with different metadata extensions.
 The Action path identifies its project-relative action.yml or action.yaml file.
 Its parent directory determines local uses and task payload placement, including
 metadata files at the project root. Object calls resolve from the project's
-checkout-relative `workingDirectory`; explicit reference overrides retain
-ordinary GitHub semantics. Local composite `uses` references resolve in the
-caller workspace, never implicitly in the downloaded Action directory. No
-checkout or task cwd change is inserted.
+checkout-relative location. Generation resolves that location from Git root to
+the invocation directory, canonicalizing filesystem paths, unless an explicit
+`workingDirectory` takes precedence. The compiler receives the resolved value
+without invoking Git. Workflow task preparation uses the same location; task
+execution cwd is independent. Without Git or an explicit location, generation
+fails when checkout-relative references or workflow task preparation require it.
+Explicit reference overrides retain ordinary GitHub semantics. Local composite
+`uses` references resolve in the caller workspace, never implicitly in the
+downloaded Action directory. No checkout or task cwd change is inserted.
 
 Task actions distribute the reachable local source graph and discovered project
 configuration beneath their own `.tsugiori/` directory. Local file topology is
@@ -247,10 +252,10 @@ change the application's toolchain or later steps' PATH. Only the source
 check external Deno. Task-body execution happens in subsequent native Actions
 steps and never triggers preparation fallback.
 
-The Action passes the project's `workingDirectory` to its own script, referenced
-through the Action's absolute directory. Its `runtime-path` output forwards the
-inner prepare step's output. Normal steps and task bodies retain native
-defaults. Transport artifacts live under
+The Action passes the resolved checkout-relative project location to its own
+script, referenced through the Action's absolute directory. Its `runtime-path`
+output forwards the inner prepare step's output. Normal steps and task bodies
+retain native defaults. Transport artifacts live under
 `runner.temp/tsugiori-artifacts/<source-key>-<runner-os>-<runner-arch>/`.
 Runner-local build caches and immutable runtimes live under the platform cache's
 `tsugiori/` directory (`XDG_CACHE_HOME` overrides the base). Each task receives

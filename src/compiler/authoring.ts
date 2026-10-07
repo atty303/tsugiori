@@ -61,6 +61,7 @@ export function lowerProject(
   entrypointArgument: string,
   sourceKey = "unresolved",
   internalActionLowering = false,
+  projectDirectory = project.workingDirectory ?? ".",
 ): LoweredProject {
   const diagnostics: string[] = [];
   validateCalls(project, diagnostics);
@@ -98,7 +99,6 @@ export function lowerProject(
   const tasks: RegisteredTask[] = [];
   const outputs = new Set<string>();
   const loweredWorkflows: LoweredWorkflow[] = [];
-  const projectDirectory = project.workingDirectory;
 
   if (project.kind !== "github-actions.project") {
     diagnostics.push("Default export must be created by defineProject().");
@@ -163,7 +163,7 @@ export function lowerProject(
             ...(step.id === undefined ? {} : { id: step.id }),
             uses: step.calleeAction
               ? localActionReference(
-                project.workingDirectory,
+                projectDirectory,
                 posix.dirname(step.calleeAction.path),
               )
               : step.uses,
@@ -366,6 +366,7 @@ export function lowerProject(
       entrypointArgument,
       sourceKey,
       true,
+      projectDirectory,
     );
     tasks.push(...lowered.tasks);
     const ids = new Set(
