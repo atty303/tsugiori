@@ -1,11 +1,11 @@
 // Use the workflow builder and GitHub's plain-text value contract.
-import { defineWorkflow, textValue } from "@atty303/tsugiori/github-actions";
+import { textValue, workflow } from "@atty303/tsugiori/github-actions";
 import $ from "@david/dax";
 // Use the typed checkout Action contract.
 import checkout from "#actions/actions/checkout";
 
 // Generate this workflow at workflows/ci.yml.
-export const ci = defineWorkflow("workflows/ci.yml", {
+export const ci = workflow("workflows/ci.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "CI",
   // Declare the manual trigger and its input.

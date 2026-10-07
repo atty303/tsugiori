@@ -1,7 +1,7 @@
 {
   "version": "5",
   "specifiers": {
-    "jsr:@atty303/tsugiori@~0.10.4": "0.10.4",
+    "jsr:@atty303/tsugiori@0.11": "0.11.0",
     "jsr:@david/console-static-text@~0.3.5": "0.3.5",
     "jsr:@david/dax@0.50.1": "0.50.1",
     "jsr:@david/path@~0.3.4": "0.3.4",
@@ -17,8 +17,8 @@
     "npm:jsonc-parser@3.3.1": "3.3.1"
   },
   "jsr": {
-    "@atty303/tsugiori@0.10.4": {
-      "integrity": "f7e21e90dc76c78b1dc65ed181c111b9c611a0292d9d23239575ed0294acdc61",
+    "@atty303/tsugiori@0.11.0": {
+      "integrity": "ecbcd795039e8b1b5118eb1f23202a2e668adf68e65f397aa6d5bcb63a6227de",
       "dependencies": [
         "jsr:@eemeli/yaml",
         "npm:jsonc-parser"
@@ -93,7 +93,7 @@
   },
   "workspace": {
     "dependencies": [
-      "jsr:@atty303/tsugiori@~0.10.4",
+      "jsr:@atty303/tsugiori@0.11",
       "jsr:@david/dax@0.50.1"
     ]
   }

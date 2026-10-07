@@ -1,9 +1,9 @@
 // Import typed task contracts and workflow expressions.
 import {
-  defineWorkflow,
   jsonValue,
   present,
   textValue,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 import $ from "@david/dax";
 import { z } from "@zod/zod";
@@ -15,7 +15,7 @@ import checkout from "#actions/actions/checkout";
 const files = jsonValue(z.array(z.string()));
 
 // Generate this workflow at workflows/ci.yml.
-export const ci = defineWorkflow("workflows/ci.yml", {
+export const ci = workflow("workflows/ci.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "CI",
   // Allow manual runs.

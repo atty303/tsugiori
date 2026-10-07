@@ -1,12 +1,12 @@
 // Build the first workflow with typed steps.
-import { defineWorkflow } from "@atty303/tsugiori/github-actions";
+import { workflow } from "@atty303/tsugiori/github-actions";
 // Use the typed checkout contract.
 import checkout from "#actions/actions/checkout";
 // Import the repository-local composite Action definition.
 import { greet } from "../../actions/greet/src/mod.ts";
 
 // Generate the first caller workflow.
-export const first = defineWorkflow("workflows/first.yml", {
+export const first = workflow("workflows/first.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "Greet from the first workflow",
   // Allow manual runs.

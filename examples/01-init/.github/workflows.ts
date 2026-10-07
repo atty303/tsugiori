@@ -1,12 +1,12 @@
 // Import the project runner and typed workflow builder.
 import {
-  defineProject,
-  defineWorkflow,
+  project,
   runProject,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 
 // Write this workflow to the selected GitHub Actions YAML path.
-const sample = defineWorkflow("workflows/tsugiori.yml", {
+const sample = workflow("workflows/tsugiori.yml", {
   // Set the name shown in GitHub Actions.
   name: "Tsugiori sample",
   // Allow a manual workflow dispatch.
@@ -26,19 +26,16 @@ const sample = defineWorkflow("workflows/tsugiori.yml", {
         run: "echo 'Hello from Tsugiori!'",
       }));
 
-// Register the workflow in a project rooted at .github.
-const project = defineProject({
-  // Resolve generated paths from this directory.
-  workingDirectory: ".github",
-  // Generate every registered workflow.
-  workflows: [sample],
-});
-
 if (import.meta.main) {
   // Route CLI commands such as generate through this project.
   Deno.exitCode = await runProject({
-    // Pass the project containing the workflow.
-    project,
+    // Register the workflow in a project rooted at .github.
+    project: project({
+      // Resolve generated paths from this directory.
+      workingDirectory: ".github",
+      // Generate every registered workflow.
+      workflows: [sample],
+    }),
     // Let the runner locate this entrypoint.
     entrypointUrl: import.meta.url,
   });

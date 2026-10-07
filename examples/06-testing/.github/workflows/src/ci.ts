@@ -1,8 +1,8 @@
 // Import the workflow builder, expression type, and presence check.
 import {
-  defineWorkflow,
   type Expression,
   present,
+  workflow,
 } from "@atty303/tsugiori/github-actions";
 // Use the typed checkout Action contract.
 import checkout from "#actions/actions/checkout";
@@ -10,7 +10,7 @@ import checkout from "#actions/actions/checkout";
 import { collectFiles, countLines, files, hasFiles } from "./tasks.ts";
 
 // Generate this workflow at workflows/ci.yml.
-export const ci = defineWorkflow("workflows/ci.yml", {
+export const ci = workflow("workflows/ci.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "CI",
   // Allow manual runs.

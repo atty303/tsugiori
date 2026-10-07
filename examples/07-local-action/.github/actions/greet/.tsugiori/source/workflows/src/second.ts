@@ -1,12 +1,12 @@
 // Build the second workflow with typed steps.
-import { defineWorkflow } from "@atty303/tsugiori/github-actions";
+import { workflow } from "@atty303/tsugiori/github-actions";
 // Use the typed checkout contract.
 import checkout from "#actions/actions/checkout";
 // Reuse the same repository-local composite Action.
 import { greet } from "../../actions/greet/src/mod.ts";
 
 // Generate the second caller workflow.
-export const second = defineWorkflow("workflows/second.yml", {
+export const second = workflow("workflows/second.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "Greet from the second workflow",
   // Allow manual runs.

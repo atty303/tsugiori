@@ -1,11 +1,8 @@
 // Build a local composite Action with typed task values.
-import {
-  defineCompositeAction,
-  textValue,
-} from "@atty303/tsugiori/github-actions";
+import { compositeAction, textValue } from "@atty303/tsugiori/github-actions";
 
 // Generate Action metadata at actions/greet/action.yml.
-const draft = defineCompositeAction("actions/greet/action.yml", {
+const draft = compositeAction("actions/greet/action.yml", {
   // Name and describe the local Action in its metadata.
   name: "Greet",
   description: "Create a greeting from a Deno task",

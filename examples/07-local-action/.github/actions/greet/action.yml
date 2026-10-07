@@ -17,16 +17,16 @@ runs:
       continue-on-error: true
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
       with:
-        path: ${{ runner.temp }}/tsugiori-artifacts/S340R59XUIR1OFE2SV2TOKH6QODTRE66XL65LFDPVMFADWA90QN-${{ runner.os }}-${{ runner.arch }}
-        key: tsugiori-task-S340R59XUIR1OFE2SV2TOKH6QODTRE66XL65LFDPVMFADWA90QN-${{ runner.os }}-${{ runner.arch }}
+        path: ${{ runner.temp }}/tsugiori-artifacts/S4IP8RBZJ7CKHM8Z02XAFZVZKPP386G1VCX5FO587OPSYOL2CWD-${{ runner.os }}-${{ runner.arch }}
+        key: tsugiori-task-S4IP8RBZJ7CKHM8Z02XAFZVZKPP386G1VCX5FO587OPSYOL2CWD-${{ runner.os }}-${{ runner.arch }}
 
     - name: Prepare task artifact
       id: tsugiori-task-prepare
       env:
         TSUGIORI_PROJECT_DIRECTORY: ${{ github.action_path }}/.tsugiori/source/.
         TSUGIORI_ENTRYPOINT: ./workflows.ts
-        TSUGIORI_SOURCE_KEY: S340R59XUIR1OFE2SV2TOKH6QODTRE66XL65LFDPVMFADWA90QN
-        TSUGIORI_ARTIFACT_CACHE: ${{ runner.temp }}/tsugiori-artifacts/S340R59XUIR1OFE2SV2TOKH6QODTRE66XL65LFDPVMFADWA90QN-${{ runner.os }}-${{ runner.arch }}
+        TSUGIORI_SOURCE_KEY: S4IP8RBZJ7CKHM8Z02XAFZVZKPP386G1VCX5FO587OPSYOL2CWD
+        TSUGIORI_ARTIFACT_CACHE: ${{ runner.temp }}/tsugiori-artifacts/S4IP8RBZJ7CKHM8Z02XAFZVZKPP386G1VCX5FO587OPSYOL2CWD-${{ runner.os }}-${{ runner.arch }}
         TSUGIORI_RUNNER_OS: ${{ runner.os }}
         TSUGIORI_RUNNER_ARCH: ${{ runner.arch }}
         TSUGIORI_INSTALL_DENO_VERSION: 2.9.7

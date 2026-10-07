@@ -1,10 +1,10 @@
 // Build a typed GitHub Actions workflow.
-import { defineWorkflow } from "@atty303/tsugiori/github-actions";
+import { workflow } from "@atty303/tsugiori/github-actions";
 // Import the generated contract for checkout.
 import checkout from "#actions/actions/checkout";
 
 // Generate this workflow at workflows/ci.yml.
-export const ci = defineWorkflow("workflows/ci.yml", {
+export const ci = workflow("workflows/ci.yml", {
   // Name the workflow shown in GitHub Actions.
   name: "CI",
   // Allow manual runs.
