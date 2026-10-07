@@ -143,12 +143,10 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
   "task-cache-run-signature": "run(definition: RunStepDefinition): TaskArtifactCacheJob",
   "task-callback": '(parameter) context: TaskContext<{
     readonly who: {
-        readonly contract: ValueContract<string, "text">;
-        readonly from: Expression<"world", never>;
+        readonly from: Expression<"world", never, undefined, false>;
     };
 }, {
     readonly greeting: {
-        readonly contract: ValueContract<string, "text">;
         readonly required: true;
     };
 }, never>',
@@ -157,7 +155,6 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
         readonly who: string;
     }, SkippableOutputs<{
         readonly greeting: {
-            readonly contract: ValueContract<string, "text">;
             readonly required: true;
         };
     }>>;

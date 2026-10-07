@@ -57,11 +57,12 @@
  * functions are exported separately. Host TypeScript strings, including template
  * strings, are accepted as literal operands to AST methods. An expression field
  * requires an AST or `rawExpression()` and never interprets an ordinary string
- * as an expression. Task inputs declare a contract and source together; Tsugiori
+ * as an expression. Task inputs bind a source and optionally a contract; Tsugiori
  * generates their step environment variables and parses them before `run`.
  * `jsonValue()` accepts any parser with `parse(value: unknown): T`, including a
  * Zod schema supplied by the consumer project, and requires it to preserve the
- * JSON shape. `textValue()` handles non-empty text. Each output declares whether
+ * JSON shape. `textValue()` is the default for non-empty text. Direct typed input
+ * references inherit their contract when omitted. Each output declares whether
  * it is required. An omitted output is logically `null` and has an empty wire
  * value; a task cannot write top-level `null` or an empty text value. JSON arrays
  * and nested `null` remain ordinary values. The producer validates before writing
@@ -144,14 +145,18 @@ export type {
 // Attribution, modifications and fixed source basis: docs/GITHUB_ACTIONS_SPEC.md.
 export { githubActionsSpec } from "./github_spec.ts";
 import type {
+  ContractValue,
+  InputContract,
   InputDefinitions,
   InputValues,
+  OutputContract,
   OutputDefinitions,
   OutputValues,
   TaskContext,
   ValueContract,
 } from "../task/mod.ts";
 export { jsonValue, textValue } from "../task/mod.ts";
+import { textValue } from "../task/mod.ts";
 import {
   emitExpression,
   Expression,
@@ -1401,7 +1406,7 @@ export type AuthoringTaskStep = Readonly<{
     >
   >;
   /** Native task output validators and required-write flags. The task writes through TaskContext.outputs.set(); these declarations do not map job outputs. */
-  outputs: OutputDefinitions;
+  outputs: Readonly<Record<string, Required<OutputDefinitions[string]>>>;
   /** Task body executed on the compiled runtime after inputs have been parsed.
    * It receives native values, output writers, cwd and logging; generation and
    * scenarios never invoke it. A rejection fails the task step.
@@ -2009,8 +2014,8 @@ type TypedNames<O extends OutputDefinitions> =
   & Readonly<{
     __typed: {
       [K in keyof O]: TypedMarker<
-        O[K] extends { contract: ValueContract<infer T> } ? T : never,
-        O[K]["contract"],
+        OutputValues<O>[K],
+        OutputContract<O[K]>,
         O[K]["required"]
       >;
     };
@@ -2021,6 +2026,13 @@ type JobOutputNames<O extends Readonly<Record<string, unknown>>> =
     __typed: {
       [K in keyof O]: O[K] extends
         TypedReference<infer T, infer C, string, infer R> ? TypedMarker<T, C, R>
+        : O[K] extends Expression<unknown, string, infer C>
+          ? [C] extends [undefined] ? string
+          : TypedMarker<
+            ContractValue<InputContract<{ from: O[K] }>>,
+            InputContract<{ from: O[K] }>,
+            false
+          >
         : string;
     };
   }>;
@@ -2069,7 +2081,7 @@ type TaskInputDefinitions = Readonly<
   Record<
     string,
     Readonly<{
-      contract: ValueContract<unknown>;
+      contract?: ValueContract<unknown>;
       from: ExpressionInput;
     }>
   >
@@ -2459,8 +2471,8 @@ export interface RunStepDefinition<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -2539,8 +2551,8 @@ interface TaskOptions<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -2563,14 +2575,14 @@ interface TaskOptions<
    * ```
    */
   readonly if?: Condition;
-  /** Pairs each input contract with its runtime expression source. Omission is equivalent to an empty map; run still receives an empty inputs object. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
+  /** Binds each input to a runtime expression source. An omitted contract inherits a direct typed reference contract, or defaults to textValue() for other sources. Computed expressions do not retain contracts. Explicit contracts must match typed reference source objects. Omission is equivalent to an empty map; run still receives an empty inputs object. Accepts a static map or one authoring callback returning all bindings. Its context retains earlier output types and presence proofs from job/task conditions; run receives parsed native values.
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -2591,14 +2603,14 @@ interface TaskOptions<
       Proof | ConditionProof<Condition>
     >
   >;
-  /** Declares native output contracts and whether each write is required. Omission is equivalent to an empty map; run still receives an output writer with no declared names.
+  /** Declares outputs and whether each write is required. Each omitted contract defaults to textValue(); jsonValue() opts into JSON validation and encoding. Omission is equivalent to an empty map; run still receives an output writer with no declared names.
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -2613,8 +2625,8 @@ interface TaskOptions<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -2742,7 +2754,7 @@ type AddTaskReference<
   : Steps;
 type SkippableOutputs<O extends OutputDefinitions> = {
   readonly [K in keyof O]: Readonly<
-    { contract: O[K]["contract"]; required: false }
+    { contract: OutputContract<O[K]>; required: false }
   >;
 };
 type EffectiveOutputs<
@@ -3590,8 +3602,8 @@ interface ExecBase<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -4735,8 +4747,8 @@ interface StepBase<
            * job.runsOn("ubuntu-latest").task({
            *   id: "version",
            *   name: "Read version",
-           *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-           *   outputs: { version: { contract: textValue(), required: true } },
+           *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+           *   outputs: { version: { required: true } },
            *   run: async ({ inputs, outputs, logger }) => {
            *     logger.info(inputs.sha);
            *     await outputs.set("version", "1.0.0");
@@ -6965,13 +6977,14 @@ function createExecutionJobFacade(
         TaskInputDefinitions,
         OutputDefinitions
       >,
-    ) =>
-      appendStep(
+    ) => {
+      const step = taskStep(definition, draft.contracts, draft.proofPaths);
+      return appendStep(
         draft,
-        taskStep(definition, draft.contracts, draft.proofPaths),
-        Object.keys(definition.outputs ?? {}),
+        step,
+        Object.keys(step.outputs),
         Object.fromEntries(
-          Object.entries(definition.outputs ?? {}).map(([name, output]) => [
+          Object.entries(step.outputs).map(([name, output]) => [
             name,
             {
               contract: output.contract,
@@ -6980,8 +6993,9 @@ function createExecutionJobFacade(
             },
           ]),
         ),
-      ),
-  }) as ExecOf<string, string>;
+      );
+    },
+  }) as unknown as ExecOf<string, string>;
 }
 function createStepFacade(
   draft:
@@ -7177,7 +7191,10 @@ function taskStep(
         `Task input ${JSON.stringify(name)} is not a valid environment name.`,
       );
     }
-    if (typeof input.contract?.parse !== "function") {
+    if (
+      input.contract !== undefined &&
+      typeof input.contract?.parse !== "function"
+    ) {
       throw new TypeError(
         `Task input ${JSON.stringify(name)} requires a contract.`,
       );
@@ -7196,7 +7213,8 @@ function taskStep(
     }
     const binding = referenceBinding(source);
     const sourceContract = binding?.contract;
-    if (sourceContract !== undefined && sourceContract !== input.contract) {
+    const contract = input.contract ?? sourceContract ?? textValue();
+    if (sourceContract !== undefined && sourceContract !== contract) {
       throw new TypeError(
         `Task input ${JSON.stringify(name)} uses a different contract object.`,
       );
@@ -7211,7 +7229,7 @@ function taskStep(
         );
       })();
     inputs[name] = {
-      contract: input.contract,
+      contract,
       from: envName,
       optional: binding?.required === false &&
         !(source instanceof Expression && source.node.kind === "path" &&
@@ -7219,10 +7237,12 @@ function taskStep(
     };
   }
   validateActionOutputs(Object.keys(definition.outputs ?? {}));
+  const outputs: Record<string, Required<OutputDefinitions[string]>> = {};
   for (const [name, output] of Object.entries(definition.outputs ?? {})) {
     if (
       typeof output.required !== "boolean" ||
-      typeof output.contract?.parse !== "function"
+      (output.contract !== undefined &&
+        typeof output.contract?.parse !== "function")
     ) {
       throw new TypeError(
         `Task output ${
@@ -7230,6 +7250,10 @@ function taskStep(
         } requires a contract and required flag.`,
       );
     }
+    outputs[name] = Object.freeze({
+      contract: output.contract ?? textValue(),
+      required: output.required,
+    });
   }
   return Object.freeze({
     type: "task",
@@ -7239,7 +7263,7 @@ function taskStep(
     ...(definition.id === undefined ? {} : { id: definition.id }),
     name: definition.name,
     inputs,
-    outputs: definition.outputs ?? {},
+    outputs: Object.freeze(outputs),
     run: definition.run,
     ...fields,
     ...(condition === undefined ? {} : { if: condition.rendered }),

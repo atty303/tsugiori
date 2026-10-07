@@ -40,9 +40,15 @@ const wired = workflow(".github/workflows/wired.yml", {
       id: "number",
       name: "Number",
       inputs: {},
-      outputs: { count: { contract: countValue, required: true } },
+      outputs: {
+        count: { contract: countValue, required: true },
+        label: { required: false },
+      },
       run: taskMustNotRun,
-    }).outputs(({ steps }) => ({ count: steps.number.outputs.count })))
+    }).outputs(({ steps }) => ({
+      count: steps.number.outputs.count,
+      label: steps.number.outputs.label,
+    })))
   .job(
     "consume",
     ({ job, jobs }) =>
@@ -52,11 +58,11 @@ const wired = workflow(".github/workflows/wired.yml", {
           name: "Read number",
           inputs: ({ needs }) => ({
             count: {
-              contract: countValue,
               from: needs.produce.outputs.count,
             },
+            label: { from: needs.produce.outputs.label },
           }),
-          outputs: {},
+          outputs: { reply: { required: true }, omitted: { required: false } },
           run: taskMustNotRun,
         })
         .uses(action, {
@@ -70,7 +76,6 @@ const wired = workflow(".github/workflows/wired.yml", {
           if: () => always(),
           inputs: ({ steps }) => ({
             token: {
-              contract: textValue(),
               from: steps.action.outputs.token,
             },
           }),
@@ -85,13 +90,14 @@ Deno.test("harness wires typed task values, action strings, and evaluated inputs
     test.inputs({ value: "request" });
     test.job("produce", (job) => {
       job.step("number").fixture({ outputs: { count: 7 } });
-      job.expectOutputs({ count: "7" });
+      job.expectOutputs({ count: "7", label: "" });
     });
     test.job("consume", (job) => {
       job.step("read").fixture(({ inputs }) => {
         assertEquals(inputs.count, 7);
-        return {};
-      }).expectInputs({ count: 7 });
+        assertEquals(inputs.label, null);
+        return { outputs: { reply: "ok" } };
+      }).expectInputs({ count: 7, label: null }).expectOutputs({ reply: "ok" });
       job.step("action").fixture(({ inputs }) => {
         assertEquals(inputs.value, "request");
         return { outputs: { token: "literal-token" } };

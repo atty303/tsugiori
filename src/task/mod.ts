@@ -3,7 +3,9 @@
  *
  * Task run callbacks receive parsed values through {@link TaskContext}. They run
  *  in a prepared task binary, not during workflow definition or a scenario.
- *  {@link textValue} validates nonempty strings; {@link jsonValue} accepts a
+ *  Omitted contracts default to {@link textValue}, which validates nonempty
+ *  strings. Direct typed input references inherit their source contract; other
+ *  sources use text. {@link jsonValue} opts into JSON and accepts a
  *  consumer-owned parser preserving JSON shape. Missing wire values become null;
  *  explicit empty text and top-level null writes are rejected. Required outputs
  *  must be written when a task executes. Skipped/continue-on-error tasks expose
@@ -23,8 +25,8 @@
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -118,8 +120,8 @@ export type ContractValue<C> = C extends ValueContract<infer T> ? T : never;
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -131,14 +133,15 @@ export type OutputDefinitions = Readonly<
   Record<
     string,
     Readonly<{
-      /** The same contract object can be reused by the producing and consuming tasks.
+      /** Output validator and wire encoding; omitted contracts use textValue().
+       * A direct consuming input inherits this contract when its contract is omitted.
        * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-       *   outputs: { version: { contract: textValue(), required: true } },
+       *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+       *   outputs: { version: { required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
        *     await outputs.set("version", "1.0.0");
@@ -146,15 +149,15 @@ export type OutputDefinitions = Readonly<
        * });
        * ```
        */
-      contract: ValueContract<unknown>;
+      contract?: ValueContract<unknown>;
       /** Whether this task must write the output when it executes.
        * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-       *   outputs: { version: { contract: textValue(), required: true } },
+       *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+       *   outputs: { version: { required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
        *     await outputs.set("version", "1.0.0");
@@ -172,8 +175,8 @@ export type OutputDefinitions = Readonly<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -185,14 +188,16 @@ export type InputDefinitions = Readonly<
   Record<
     string,
     Readonly<{
-      /** Validates the native task input value.
+      /** Validates the native task input value. Omission inherits a direct typed
+       * source contract, or uses textValue() for other sources. An explicit contract
+       * must be the same object as a typed reference source contract.
        * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-       *   outputs: { version: { contract: textValue(), required: true } },
+       *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+       *   outputs: { version: { required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
        *     await outputs.set("version", "1.0.0");
@@ -200,15 +205,15 @@ export type InputDefinitions = Readonly<
        * });
        * ```
        */
-      contract: ValueContract<unknown>;
+      contract?: ValueContract<unknown>;
       /** The source expression evaluated by GitHub before task execution.
        * @example In a `workflow().job()` callback with `{ job }`.
        * ```ts
        * job.runsOn("ubuntu-latest").task({
        *   id: "version",
        *   name: "Read version",
-       *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-       *   outputs: { version: { contract: textValue(), required: true } },
+       *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+       *   outputs: { version: { required: true } },
        *   run: async ({ inputs, outputs, logger }) => {
        *     logger.info(inputs.sha);
        *     await outputs.set("version", "1.0.0");
@@ -221,22 +226,78 @@ export type InputDefinitions = Readonly<
   >
 >;
 type SourceValue<S> = S extends (...args: never[]) => infer R ? R : S;
-type Missing<S, Proof extends string> = SourceValue<S> extends
+type TextContract = ValueContract<string, "text">;
+type SourceContract<S> = S extends
+  import("../github_actions/expression.ts").Expression<
+    unknown,
+    string,
+    infer C extends ValueContract<unknown> | undefined
+  > ? Exclude<C, undefined> | (undefined extends C ? TextContract : never)
+  : TextContract;
+type DeclaredContract<D, Fallback> = D extends { readonly contract?: infer C }
+  ? Exclude<C, undefined> | (undefined extends C ? Fallback : never)
+  : Fallback;
+/** Effective output contract; omitted contracts use {@link textValue}.
+ * @example
+ * ```ts
+ * type Contract = OutputContract<{ required: true }>;
+ * const contract: Contract = textValue();
+ * ```
+ */
+export type OutputContract<D extends OutputDefinitions[string]> =
+  DeclaredContract<D, TextContract>;
+/** Effective input contract. An explicit contract wins; otherwise a direct
+ * typed reference supplies its contract, and other sources use {@link textValue}.
+ * Computed expressions do not retain reference contracts. Preserve reference
+ * types through helpers; widening to Expression can erase the native value type,
+ * so inferred inputs then remain unknown until narrowed or explicitly declared.
+ * @example
+ * ```ts
+ * type Contract = InputContract<{ from: string }>;
+ * const contract: Contract = textValue();
+ * ```
+ * @example In a `workflow().job()` callback with `{ job }`.
+ * ```ts
+ * const items = jsonValue({ parse(value: unknown): string[] {
+ *   if (!Array.isArray(value) || !value.every(item => typeof item === "string")) {
+ *     throw new TypeError("Expected strings");
+ *   }
+ *   return value;
+ * } });
+ * job.runsOn("ubuntu-latest")
+ *   .task({ id: "make", name: "Make", if: undefined,
+ *     outputs: { items: { contract: items, required: true } },
+ *     run: async ({ outputs }) => { await outputs.set("items", ["dev"]); },
+ *   })
+ *   .task({ name: "Read",
+ *     inputs: ({ steps }) => ({ items: { from: steps.make.outputs.items } }),
+ *     run: ({ inputs, logger }) => { logger.info(inputs.items.join(",")); },
+ *   });
+ * ```
+ */
+export type InputContract<D extends InputDefinitions[string]> =
+  DeclaredContract<D, SourceContract<SourceValue<D["from"]>>>;
+type Missing<S, Proof extends string> = S extends
   import("../github_actions/expression.ts").TypedReference<
     unknown,
     ValueContract<unknown>,
     infer Path extends string,
     infer Required extends boolean
   > ? Required extends true ? never : Path extends Proof ? never : null
+  : S extends import("../github_actions/expression.ts").Expression<
+    unknown,
+    string,
+    infer C extends ValueContract<unknown> | undefined
+  > ? Exclude<C, undefined> extends never ? never : null
   : never;
-/** Native output values inferred from declared contracts.
+/** Native output values inferred from explicit contracts or the text default.
  * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -245,7 +306,7 @@ type Missing<S, Proof extends string> = SourceValue<S> extends
  * ```
  */
 export type OutputValues<O extends OutputDefinitions> = {
-  readonly [K in keyof O]: ContractValue<O[K]["contract"]>;
+  readonly [K in keyof O]: ContractValue<OutputContract<O[K]>>;
 };
 /** Native input values; unguarded optional sources also allow null.
  * @example
@@ -260,8 +321,8 @@ export type InputValues<
   Proof extends string = never,
 > = {
   readonly [K in keyof I]:
-    | ContractValue<I[K]["contract"]>
-    | Missing<I[K]["from"], Proof>;
+    | ContractValue<InputContract<I[K]>>
+    | Missing<SourceValue<I[K]["from"]>, Proof>;
 };
 /** Task callbacks receive native inputs and an asynchronous output writer.
  * @example In a `workflow().job()` callback with `{ job }`.
@@ -269,8 +330,8 @@ export type InputValues<
  * job.runsOn("ubuntu-latest").task({
  *   id: "version",
  *   name: "Read version",
- *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
- *   outputs: { version: { contract: textValue(), required: true } },
+ *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+ *   outputs: { version: { required: true } },
  *   run: async ({ inputs, outputs, logger }) => {
  *     logger.info(inputs.sha);
  *     await outputs.set("version", "1.0.0");
@@ -301,8 +362,8 @@ export interface TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -317,8 +378,8 @@ export interface TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -333,8 +394,8 @@ export interface TaskContext<
    * job.runsOn("ubuntu-latest").task({
    *   id: "version",
    *   name: "Read version",
-   *   inputs: ({ github }) => ({ sha: { contract: textValue(), from: github.sha } }),
-   *   outputs: { version: { contract: textValue(), required: true } },
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   outputs: { version: { required: true } },
    *   run: async ({ inputs, outputs, logger }) => {
    *     logger.info(inputs.sha);
    *     await outputs.set("version", "1.0.0");
@@ -359,7 +420,19 @@ export interface TaskContext<
     ) => Promise<void>;
   }>;
 }
-/** Non-empty text contract. Empty text and top-level null are reserved for omitted values.
+const textContract: TextContract = Object.freeze({
+  kind: "text" as const,
+  parse: (value: unknown): string => {
+    if (typeof value !== "string" || value.length === 0) {
+      throw new TypeError("Text value must be a non-empty string.");
+    }
+    return value;
+  },
+  [valueType]: undefined as unknown as string,
+});
+/** Shared non-empty text contract, also the default for omitted task contracts.
+ * Every call returns the same frozen object. Empty text and top-level null are
+ * reserved for omitted values; omit optional output writes instead.
  * @example
  * ```ts
  * const version = textValue();
@@ -367,16 +440,7 @@ export interface TaskContext<
  * ```
  */
 export function textValue(): ValueContract<string, "text"> {
-  return Object.freeze({
-    kind: "text" as const,
-    parse: (value: unknown): string => {
-      if (typeof value !== "string" || value.length === 0) {
-        throw new TypeError("Text value must be a non-empty string.");
-      }
-      return value;
-    },
-    [valueType]: undefined as unknown as string,
-  });
+  return textContract;
 }
 
 /** JSON contract using a consumer-owned parser that preserves the JSON shape.

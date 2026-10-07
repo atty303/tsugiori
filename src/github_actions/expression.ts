@@ -7,6 +7,8 @@ import {
 import type { ValueContract } from "../task/mod.ts";
 
 const expressionBrand = Symbol("tsugiori.expression");
+const referenceContractType = Symbol("tsugiori.reference-contract-type");
+const referenceScopeType = Symbol("tsugiori.reference-scope-type");
 /** An explicit whole GitHub runtime expression created by rawExpression().
  * @example
  * ```ts
@@ -29,7 +31,7 @@ export type TypedReference<
   Path extends string,
   Required extends boolean,
 > =
-  & Expression<string>
+  & Expression<string, never, C, true>
   & Readonly<
     {
       [typedReference]: {
@@ -117,13 +119,34 @@ type Node =
 
 /** GitHub expressions compute values from literals, contexts, operators and functions. Comparisons coerce unlike types and ignore string case; && and || return operands rather than necessarily booleans.
  * Tsugiori stores an expression AST for YAML emission; host string interpolation throws. githubActionsSpec owns the fixed specification basis.
+ * Task references carry a native contract separately from their GitHub wire
+ * value type. Computed expressions carry no contract. A broad Expression type
+ * may still retain a contract at runtime, so task input inference is conservative
+ * when annotations discard that information. Keep a helper's input type in its
+ * return type to preserve native task value inference.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#operators
  * @example
  * ```ts
  * literal("main").eq("main");
  * ```
  */
-export class Expression<T = unknown, Proof extends string = never> {
+export class Expression<
+  T = unknown,
+  Proof extends string = never,
+  Contract extends ValueContract<unknown> | undefined =
+    | ValueContract<unknown>
+    | undefined,
+  Scoped extends boolean = boolean,
+> {
+  /** Retained native task contract type. A widened Expression may still carry a
+   * runtime contract; task inputs must not assume such an expression is text.
+   * This marker stores no execution-time value.
+   */
+  declare readonly [referenceContractType]: Contract;
+  /** Whether property lookup may recover a task contract from its context.
+   * This marker stores no execution-time value.
+   */
+  declare readonly [referenceScopeType]: Scoped;
   /** Type-level expression value marker; no GitHub runtime value is available on the host.
    */
   readonly [expressionBrand]!: T;
@@ -159,7 +182,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal("main").eq("main");
    * ```
    */
-  eq(value: Operand<unknown>): Expression<boolean> {
+  eq(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, "==", value);
   }
   /** Negates GitHub loose equality, including its coercion rules.
@@ -169,7 +192,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal("main").ne("dev");
    * ```
    */
-  ne(value: Operand<unknown>): Expression<boolean> {
+  ne(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, "!=", value);
   }
   /** Relational comparisons return false for NaN after numeric coercion.
@@ -179,7 +202,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal(1).lt(2);
    * ```
    */
-  lt(value: Operand<unknown>): Expression<boolean> {
+  lt(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, "<", value);
   }
   /** Relational comparisons return false for NaN after numeric coercion.
@@ -189,7 +212,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal(1).le(2);
    * ```
    */
-  le(value: Operand<unknown>): Expression<boolean> {
+  le(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, "<=", value);
   }
   /** Relational comparisons return false for NaN after numeric coercion.
@@ -199,7 +222,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal(2).gt(1);
    * ```
    */
-  gt(value: Operand<unknown>): Expression<boolean> {
+  gt(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, ">", value);
   }
   /** Relational comparisons return false for NaN after numeric coercion.
@@ -209,7 +232,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal(2).ge(1);
    * ```
    */
-  ge(value: Operand<unknown>): Expression<boolean> {
+  ge(value: Operand<unknown>): Expression<boolean, never, undefined, false> {
     return binary(this, ">=", value);
   }
   /** Returns the left operand when falsy, otherwise the right operand. Falsy values include false, 0, empty strings and null.
@@ -222,7 +245,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    */
   and<U, OtherProof extends string = never>(
     value: Expression<U, OtherProof> | U,
-  ): Expression<FalsyPart<T> | U, Proof | OtherProof> {
+  ): Expression<FalsyPart<T> | U, Proof | OtherProof, undefined, false> {
     const result = binary<FalsyPart<T> | U>(this, "&&", value);
     presenceProofs.set(
       result,
@@ -231,7 +254,12 @@ export class Expression<T = unknown, Proof extends string = never> {
         ...expressionProofs(value),
       ]),
     );
-    return result as Expression<FalsyPart<T> | U, Proof | OtherProof>;
+    return result as Expression<
+      FalsyPart<T> | U,
+      Proof | OtherProof,
+      undefined,
+      false
+    >;
   }
   /** Returns the left operand when truthy, otherwise the right operand; use it to select a fallback.
    * Tsugiori grants no presence proof for typed task references.
@@ -241,7 +269,9 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal("").or("fallback");
    * ```
    */
-  or<U>(value: Operand<U>): Expression<TruthyPart<T> | U> {
+  or<U>(
+    value: Operand<U>,
+  ): Expression<TruthyPart<T> | U, never, undefined, false> {
     return binary(this, "||", value);
   }
   /** Applies GitHub truthiness; the result is a boolean.
@@ -251,7 +281,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    * literal(false).not();
    * ```
    */
-  not(): Expression<boolean> {
+  not(): Expression<boolean, never, undefined, false> {
     return new Expression({ kind: "unary", operator: "!", value: this.node });
   }
   /** An assertion about the runtime value; this does not validate JSON.
@@ -260,8 +290,8 @@ export class Expression<T = unknown, Proof extends string = never> {
    * fromJSON(literal('{"version":22}')).as<{ version: number }>();
    * ```
    */
-  as<U>(): Expression<U> {
-    return this as unknown as Expression<U>;
+  as<U>(): Expression<U, never, Contract, Scoped> {
+    return this as unknown as Expression<U, never, Contract, Scoped>;
   }
   /** Property/index dereference happens at runtime; missing property values depend on GitHub context semantics.
    * Generated references use dot syntax for names starting with a letter or `_`
@@ -273,8 +303,13 @@ export class Expression<T = unknown, Proof extends string = never> {
    * fromJSON(literal('{"version":22}')).as<{ version: number }>().at("version");
    * ```
    */
-  at<K extends keyof T>(key: K): Expression<T[K]> {
-    return pathProperty(this, String(key));
+  at<K extends keyof T>(
+    key: K,
+  ): [Scoped] extends [false] ? Expression<T[K], never, undefined, false>
+    : Expression<T[K]> {
+    return pathProperty(this, String(key)) as unknown as [Scoped] extends
+      [false] ? Expression<T[K], never, undefined, false>
+      : Expression<T[K]>;
   }
   /** Native object wildcard filter; object iteration order is not guaranteed.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
@@ -284,7 +319,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    *   .filter();
    * ```
    */
-  filter(): Expression<readonly Element<T>[]>;
+  filter(): Expression<readonly Element<T>[], never, undefined, false>;
   /** Native object wildcard filter; object iteration order is not guaranteed.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
    * @example
@@ -296,7 +331,7 @@ export class Expression<T = unknown, Proof extends string = never> {
    */
   filter<K extends keyof Element<T>>(
     key: K,
-  ): Expression<readonly Element<T>[K][]>;
+  ): Expression<readonly Element<T>[K][], never, undefined, false>;
   /** Native object wildcard filter; object iteration order is not guaranteed.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#object-filters
    * @example
@@ -306,11 +341,21 @@ export class Expression<T = unknown, Proof extends string = never> {
    * );
    * ```
    */
-  filter(key?: PropertyKey): Expression<readonly unknown[]> {
+  filter(
+    key?: PropertyKey,
+  ): Expression<readonly unknown[], never, undefined, false> {
     const collection = pathProperty<readonly unknown[]>(this, "*");
     return key === undefined
-      ? collection
-      : pathProperty<readonly unknown[]>(collection, String(key));
+      ? collection as unknown as Expression<
+        readonly unknown[],
+        never,
+        undefined,
+        false
+      >
+      : pathProperty<readonly unknown[]>(
+        collection,
+        String(key),
+      ) as unknown as Expression<readonly unknown[], never, undefined, false>;
   }
 }
 type Element<T> = T extends readonly (infer U)[] ? U
@@ -318,7 +363,27 @@ type Element<T> = T extends readonly (infer U)[] ? U
   : unknown;
 
 export type Ref<T, Path extends string = string> =
-  & Expression<T>
+  & (T extends object ? {
+      /** Selects a context property and retains its task contract and path.
+       * @example
+       * ```ts
+       * job.runsOn("ubuntu-latest").task({ name: "Read", inputs: ({ github }) => ({ value: { from: github.at("sha") } }), run: () => {} });
+       * ```
+       */
+      at<K extends keyof T>(
+        key: K,
+      ): AsReference<
+        T[K],
+        K extends number ? `${Path}[${K}]` : `${Path}.${K & string}`
+      >;
+    }
+    : Record<never, never>)
+  & Expression<
+    T,
+    never,
+    undefined,
+    unknown extends T ? boolean : T extends object ? true : false
+  >
   & (T extends readonly (infer U)[]
     ? Readonly<{ [index: number]: Ref<U, `${Path}[${number}]`> }>
     : T extends object ? Readonly<
@@ -348,8 +413,8 @@ function binary<T>(
   left: Expression<unknown, string>,
   operator: string,
   right: Operand<unknown>,
-): Expression<T> {
-  return new Expression<T>({
+): Expression<T, never, undefined, false> {
+  return new Expression<T, never, undefined, false>({
     kind: "binary",
     operator,
     left: left.node,
@@ -359,7 +424,7 @@ function binary<T>(
 function pathProperty<T>(
   source: Expression<unknown, string>,
   key: string,
-): Expression<T> {
+): Ref<T> {
   const base = source.node.kind === "path"
     ? source.node.value
     : renderNode(source.node);
@@ -377,7 +442,10 @@ function reference<T>(
   value: string,
   contracts?: ReadonlyMap<string, ReferenceBinding>,
 ): Ref<T> {
-  const expression = new Expression<T>({ kind: "path", value });
+  const expression = new Expression<T, never, undefined, true>({
+    kind: "path",
+    value,
+  });
   if (contracts !== undefined) referenceScopes.set(expression, contracts);
   const binding = contracts?.get(value);
   if (binding !== undefined) referenceContracts.set(expression, binding);
@@ -433,11 +501,16 @@ export function emitExpression(value: ExpressionInput): string {
  * );
  * ```
  */
-export function rawNode<T>(source: string): Expression<T> {
+export function rawNode<T>(
+  source: string,
+): Expression<T, never, undefined, false> {
   if (!source.trim()) {
     throw new TypeError("Raw expression node must not be empty.");
   }
-  return new Expression<T>({ kind: "raw", value: source });
+  return new Expression<T, never, undefined, false>({
+    kind: "raw",
+    value: source,
+  });
 }
 /** Builds a literal expression without evaluating it on the runner.
  * @example
@@ -447,14 +520,18 @@ export function rawNode<T>(source: string): Expression<T> {
  */
 export function literal<T extends string | number | boolean | null>(
   value: T,
-): Expression<T> {
-  return new Expression<T>(nodeOf(value));
+): Expression<T, never, undefined, false> {
+  return new Expression<T, never, undefined, false>(nodeOf(value));
 }
 function call<T>(
   name: string,
   ...args: readonly Operand<unknown>[]
-): Expression<T> {
-  return new Expression<T>({ kind: "call", name, args: args.map(nodeOf) });
+): Expression<T, never, undefined, false> {
+  return new Expression<T, never, undefined, false>({
+    kind: "call",
+    name,
+    args: args.map(nodeOf),
+  });
 }
 /** Case-insensitive containment; GitHub casts scalar operands to strings.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#contains
@@ -466,7 +543,8 @@ function call<T>(
 export const contains = (
   search: Operand<unknown>,
   item: Operand<unknown>,
-): Expression<boolean> => call("contains", search, item);
+): Expression<boolean, never, undefined, false> =>
+  call("contains", search, item);
 /** Case-insensitive string prefix; GitHub casts operands to strings.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#startswith
  * @example
@@ -477,7 +555,8 @@ export const contains = (
 export const startsWith = (
   search: Operand<unknown>,
   item: Operand<unknown>,
-): Expression<boolean> => call("startsWith", search, item);
+): Expression<boolean, never, undefined, false> =>
+  call("startsWith", search, item);
 /** Case-insensitive string suffix; GitHub casts operands to strings.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#endswith
  * @example
@@ -488,7 +567,8 @@ export const startsWith = (
 export const endsWith = (
   search: Operand<unknown>,
   item: Operand<unknown>,
-): Expression<boolean> => call("endsWith", search, item);
+): Expression<boolean, never, undefined, false> =>
+  call("endsWith", search, item);
 /** GitHub format placeholders use numbered braces; double braces escape literal braces.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#format
  * @example
@@ -499,7 +579,8 @@ export const endsWith = (
 export const format = (
   pattern: Operand<string>,
   ...values: readonly [Operand<unknown>, ...Operand<unknown>[]]
-): Expression<string> => call("format", pattern, ...values);
+): Expression<string, never, undefined, false> =>
+  call("format", pattern, ...values);
 /** Joins array/string elements with a separator (comma by default).
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#join
  * @example
@@ -510,7 +591,7 @@ export const format = (
 export const join = (
   value: Operand<unknown>,
   separator?: Operand<string>,
-): Expression<string> =>
+): Expression<string, never, undefined, false> =>
   separator === undefined
     ? call("join", value)
     : call("join", value, separator);
@@ -526,8 +607,9 @@ export const join = (
  * });
  * ```
  */
-export const toJSON = (value: Operand<unknown>): Expression<string> =>
-  call("toJSON", value);
+export const toJSON = (
+  value: Operand<unknown>,
+): Expression<string, never, undefined, false> => call("toJSON", value);
 /** Returns a JSON object or JSON data type for a value, allowing conversion of strings into objects, booleans and numbers.
  * Typed task references retain their contract; other result types are assertions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#fromjson
@@ -540,14 +622,16 @@ export function fromJSON<
   T,
   C extends ValueContract<unknown, "json">,
   P extends string,
->(value: TypedReference<T, C, P, true>): Expression<T>;
+>(value: TypedReference<T, C, P, true>): Expression<T, never, undefined, false>;
 /** Parses a GitHub JSON string; use as<T>() only when asserting its unvalidated shape.
  * @example
  * ```ts
  * fromJSON(literal('{"version":22}')).as<{ version: number }>();
  * ```
  */
-export function fromJSON(value: Operand<unknown>): Expression<unknown>;
+export function fromJSON(
+  value: Operand<unknown>,
+): Expression<unknown, never, undefined, false>;
 /** Returns a JSON object or JSON data type for a value, allowing conversion of strings into objects, booleans and numbers.
  * Typed task references retain their contract; other result types are assertions.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#fromjson
@@ -556,7 +640,9 @@ export function fromJSON(value: Operand<unknown>): Expression<unknown>;
  * guarded.strategy(({ needs }) => ({ matrix: { stage: fromJSON(needs.prepare.outputs.stages) } }));
  * ```
  */
-export function fromJSON(value: Operand<unknown>): Expression<unknown> {
+export function fromJSON(
+  value: Operand<unknown>,
+): Expression<unknown, never, undefined, false> {
   return call("fromJSON", value);
 }
 /** Checks the output wire value for presence and grants a proof to guarded task inputs or matrix expressions.
@@ -570,12 +656,12 @@ export function present<
   C extends ValueContract<unknown>,
   P extends string,
   R extends boolean,
->(value: TypedReference<T, C, P, R>): Expression<boolean, P> {
+>(value: TypedReference<T, C, P, R>): Expression<boolean, P, undefined, false> {
   const result = value.ne("");
   if (value.node.kind === "path") {
     presenceProofs.set(result, new Set([value.node.value]));
   }
-  return result as Expression<boolean, P>;
+  return result as Expression<boolean, P, undefined, false>;
 }
 /** Returns the value for the first truthy predicate/value pair, otherwise the final default value.
  * Branches do not grant presence proofs for typed task references.
@@ -587,7 +673,7 @@ export function present<
  */
 export const caseOf = (
   ...values: readonly Operand<unknown>[]
-): Expression<unknown> => {
+): Expression<unknown, never, undefined, false> => {
   if (values.length < 3 || values.length % 2 !== 1) {
     throw new TypeError("case requires predicate/value pairs and a default.");
   }
@@ -604,7 +690,8 @@ export const caseOf = (
  * });
  * ```
  */
-export const always = (): Expression<boolean> => call("always");
+export const always = (): Expression<boolean, never, undefined, false> =>
+  call("always");
 /** Checks whether the workflow was cancelled.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#cancelled
  * @example In a `workflow().job()` callback with `{ job }`.
@@ -616,7 +703,8 @@ export const always = (): Expression<boolean> => call("always");
  * });
  * ```
  */
-export const cancelled = (): Expression<boolean> => call("cancelled");
+export const cancelled = (): Expression<boolean, never, undefined, false> =>
+  call("cancelled");
 /** Checks earlier success; GitHub applies this implicitly to conditions without a status function.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#success
  * @example In a `workflow().job()` callback with `{ job }`.
@@ -628,7 +716,8 @@ export const cancelled = (): Expression<boolean> => call("cancelled");
  * });
  * ```
  */
-export const success = (): Expression<boolean> => call("success");
+export const success = (): Expression<boolean, never, undefined, false> =>
+  call("success");
 /** Checks failures in preceding steps or dependent jobs.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#failure
  * @example In a `workflow().job()` callback with `{ job }`.
@@ -640,7 +729,8 @@ export const success = (): Expression<boolean> => call("success");
  * });
  * ```
  */
-export const failure = (): Expression<boolean> => call("failure");
+export const failure = (): Expression<boolean, never, undefined, false> =>
+  call("failure");
 /** Returns a SHA-256 hash for files matching the supplied glob patterns within GITHUB_WORKSPACE. Individual file hashes are combined into a final hash; no matches returns an empty string. ! patterns exclude matches; Windows matching is case-insensitive.
  * Tsugiori scenarios require an explicit site value instead of reading runner files.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#hashfiles
@@ -655,7 +745,7 @@ export const failure = (): Expression<boolean> => call("failure");
  */
 export const hashFiles = (
   ...paths: readonly [Operand<string>, ...Operand<string>[]]
-): Expression<string> => call("hashFiles", ...paths);
+): Expression<string, never, undefined, false> => call("hashFiles", ...paths);
 
 /** Information about the workflow run and its triggering event. Some properties exist only within runner steps or particular event types.
  * Tsugiori exposes a supported subset; the string-shaped catalog does not model every event-dependent null value. event remains an unknown payload.

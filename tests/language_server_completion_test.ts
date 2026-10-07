@@ -439,6 +439,62 @@ const flow = workflow("empty.yml", { on: { push: {} } });`;
         emptySignature,
       );
 
+      const defaultTextHover = await sourceHover(
+        writer,
+        stream,
+        82,
+        "default-text-input",
+        `${emptyTaskSource} flow.job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Text", inputs: ({ github }) => ({ sha: { from: github.sha } }), outputs: { text: { required: true } }, run: async ({ inputs, outputs }) => { const value = inputs.sha; value/*completion*/; await outputs.set("text", value); } }));`,
+        true,
+      );
+      assert(
+        defaultTextHover.includes("const value: string"),
+        defaultTextHover,
+      );
+      const inheritedJsonHover = await sourceHover(
+        writer,
+        stream,
+        83,
+        "inherited-json-input",
+        `import { workflow, jsonValue } from "../src/github_actions/mod.ts";
+const items = jsonValue({ parse(value: unknown): string[] { return value as string[]; } });
+workflow("json.yml", { on: { push: {} } }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "make", name: "Make", if: undefined, outputs: { items: { contract: items, required: true } }, run: () => {} }).task({ name: "Read", inputs: ({ steps }) => ({ items: { from: steps.make.outputs.at("items") } }), run: ({ inputs }) => { const value = inputs.items; value/*completion*/; } }));`,
+        true,
+      );
+      assert(
+        inheritedJsonHover.includes("const value: string[]"),
+        inheritedJsonHover,
+      );
+      const widenedJsonHover = await sourceHover(
+        writer,
+        stream,
+        84,
+        "widened-json-input",
+        `import { workflow, jsonValue, type Expression } from "../src/github_actions/mod.ts";
+const items = jsonValue({ parse(value: unknown): string[] { return value as string[]; } });
+const widen = (source: Expression<string>): Expression<string> => source;
+workflow("json.yml", { on: { push: {} } }).job("make", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "make", name: "Make", outputs: { items: { contract: items, required: true } }, run: () => {} }).outputs(({ steps }) => ({ items: widen(steps.make.outputs.items) }))).job("read", ({ job, jobs }) => job.needs(jobs.make).runsOn("ubuntu-latest").task({ name: "Read", inputs: ({ needs }) => ({ items: { from: needs.make.outputs.items } }), run: ({ inputs }) => { const value = inputs.items; value/*completion*/; } }));`,
+        true,
+      );
+      assert(
+        widenedJsonHover.includes("const value: unknown"),
+        widenedJsonHover,
+      );
+
+      const computedPropertyHover = await sourceHover(
+        writer,
+        stream,
+        85,
+        "computed-property-input",
+        `import { workflow, fromJSON, literal } from "../src/github_actions/mod.ts";
+workflow("computed.yml", { on: { push: {} } }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Read", inputs: { version: { from: fromJSON(literal('{"version":"v1"}')).as<{ version: string }>().at("version") } }, run: ({ inputs }) => { const value = inputs.version; value/*completion*/; } }));`,
+        true,
+      );
+      assert(
+        computedPropertyHover.includes("const value: string"),
+        computedPropertyHover,
+      );
+
       const displays: Record<string, string> = {};
       for (const [index, fixture] of displayFixtures().entries()) {
         const hover = await sourceHover(
@@ -921,11 +977,11 @@ function displayFixtures(): readonly {
     ],
     [
       "typed-task",
-      `${base} draft.job("task", ({ job }) => { const state = job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { contract: textValue(), from: literal("world") } }, outputs: { greeting: { contract: textValue(), required: true } }, run: async ({ inputs, outputs }) => { await outputs.set("greeting", inputs.who); } }); state/*completion*/; return state; });`,
+      `${base} draft.job("task", ({ job }) => { const state = job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { from: literal("world") } }, outputs: { greeting: { required: true } }, run: async ({ inputs, outputs }) => { await outputs.set("greeting", inputs.who); } }); state/*completion*/; return state; });`,
     ],
     [
       "task-callback",
-      `${base} draft.job("task", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { contract: textValue(), from: literal("world") } }, outputs: { greeting: { contract: textValue(), required: true } }, run: async (context) => { context/*completion*/; await context.outputs.set("greeting", context.inputs.who); } }));`,
+      `${base} draft.job("task", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "emit", name: "Emit", inputs: { who: { from: literal("world") } }, outputs: { greeting: { required: true } }, run: async (context) => { context/*completion*/; await context.outputs.set("greeting", context.inputs.who); } }));`,
     ],
     ["composite-draft", `${composite} actionDraft/*completion*/;`],
     [

@@ -101,8 +101,11 @@ Step output names come from typed action definitions, declared run-step outputs,
 or task-step output declarations. Job outputs are authored after their steps and
 become the typed `needs` surface of subsequent jobs. A task is defined directly
 in `job.task({ inputs, outputs, env, run })`. Each typed input couples a
-contract to a GitHub expression source; the compiler creates its step `env`
-entry and rejects collisions with authored `env`. Task output writes validate
+contract to a GitHub expression source. Contracts are optional: outputs default
+to the shared `textValue()` contract; inputs inherit a direct typed reference
+contract or default to text when the source carries no contract. Explicit input
+contracts must match the source contract object. The compiler creates its step
+`env` entry and rejects collisions with authored `env`. Task output writes validate
 and serialize native values before appending GitHub's multiline format to
 `GITHUB_OUTPUT`; the runner parses and validates input wire values before
 calling `run`.

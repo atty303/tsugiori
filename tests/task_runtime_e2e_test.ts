@@ -34,12 +34,12 @@ Deno.test({
       await Deno.writeTextFile(
         resolve(fixture, "workflows.ts"),
         `
-import { project as makeProject, workflow, runProject, textValue } from "./src/github_actions.ts";
+import { project as makeProject, workflow, runProject } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
 if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} } })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
-    outputs: { result: { contract: textValue(), required: true } },
+    outputs: { result: { required: true } },
     run: async (ctx) => {
       if (Deno.env.get("TASK_FAIL") === "1") throw new Error("task-failure-private");
       await Deno.writeTextFile("task-result.txt", marker);

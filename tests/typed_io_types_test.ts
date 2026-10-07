@@ -2,6 +2,7 @@ import type { TaskContext } from "../src/task/mod.ts";
 import {
   compositeAction,
   type Expression,
+  format,
   fromJSON,
   jsonValue,
   present,
@@ -250,6 +251,143 @@ function assertTypedIO(): void {
   );
 }
 void assertTypedIO;
+
+function assertDefaultValueContracts(): void {
+  const items = jsonValue({ parse: (value: unknown) => value as string[] });
+  const widen = (source: Expression<string>): Expression<string> => source;
+  const flow = workflow("defaults.yml", { on: { push: {} } })
+    .job("produce", ({ job }) =>
+      job.runsOn("ubuntu-latest").task({
+        id: "make",
+        name: "Produce",
+        if: undefined,
+        outputs: {
+          text: { required: true },
+          items: { contract: items, required: false },
+        },
+        run: async ({ outputs }) => {
+          await outputs.set("text", "hello");
+          // @ts-expect-error default output values are strings
+          await outputs.set("text", 1);
+          // @ts-expect-error output names still follow declarations
+          await outputs.set("unknown", "hello");
+        },
+      }).outputs(({ steps }) => ({
+        text: steps.make.outputs.text,
+        items: steps.make.outputs.items,
+        widened: widen(steps.make.outputs.items),
+      })))
+    .job("consume", ({ job, jobs }) =>
+      job.needs(jobs.produce)
+        .runsOn("ubuntu-latest").task({
+          id: "read",
+          name: "Consume",
+          inputs: ({ needs, github }) => ({
+            text: { from: needs.produce.outputs.text },
+            explicit: {
+              contract: textValue(),
+              from: needs.produce.outputs.text,
+            },
+            items: { from: needs.produce.outputs.at("items") },
+            sha: { from: github.sha },
+            widened: { from: widen(needs.produce.outputs.items) },
+            passthrough: { from: needs.produce.outputs.widened },
+            assertedContext: {
+              from: needs.produce.outputs.as<{ items: string }>().at("items"),
+            },
+            property: {
+              from: fromJSON(rawNode("'{}'")).as<{ version: string }>().at(
+                "version",
+              ),
+            },
+            mixed: {
+              from: Math.random() > 0.5
+                ? needs.produce.outputs.items
+                : github.sha,
+            },
+            computed: { from: format("{0}", needs.produce.outputs.items) },
+          }),
+          run: ({ inputs }) => {
+            const text: string = inputs.text;
+            const explicit: string = inputs.explicit;
+            const sha: string = inputs.sha;
+            const computed: string = inputs.computed;
+            const property: string = inputs.property;
+            // @ts-expect-error job passthroughs retain possibly non-text contracts
+            const passthrough: string = inputs.passthrough;
+            // @ts-expect-error assertions cannot erase a context's runtime contracts
+            const assertedContext: string = inputs.assertedContext;
+            const optional: string[] | null = inputs.items;
+            // @ts-expect-error widened reference contracts may parse non-text values
+            const widened: string = inputs.widened;
+            // @ts-expect-error a mixed reference source may parse a JSON value
+            const mixed: string = inputs.mixed;
+            // @ts-expect-error optional JSON inputs require a presence proof
+            const required: string[] = inputs.items;
+            // @ts-expect-error inherited JSON inputs are not text
+            const wrong: string = inputs.items;
+            void [
+              text,
+              explicit,
+              sha,
+              computed,
+              property,
+              passthrough,
+              assertedContext,
+              optional,
+              widened,
+              mixed,
+              required,
+              wrong,
+            ];
+          },
+        }));
+  // Presence proofs and inferred JSON decoding also work without explicit contracts.
+  flow.job("guarded", ({ job, jobs }) =>
+    job.needs(jobs.produce)
+      .runsOn("ubuntu-latest").when(({ needs }) =>
+        present(needs.produce.outputs.items)
+      )
+      .task({
+        name: "Guarded",
+        inputs: ({ needs }) => ({
+          items: { from: needs.produce.outputs.at("items") },
+        }),
+        run: ({ inputs }) => {
+          const required: string[] = inputs.items;
+          void required;
+        },
+      }));
+  compositeAction("defaults/action.yml", {
+    name: "Default text",
+    description: "Default task contracts",
+  }).steps(({ step }) =>
+    step.task({
+      id: "make",
+      name: "Make",
+      if: undefined,
+      outputs: { text: { required: true } },
+      run: () => {},
+    }).task({
+      name: "Read",
+      inputs: ({ steps }) => ({ text: { from: steps.make.outputs.text } }),
+      run: ({ inputs }) => {
+        const text: string = inputs.text;
+        void text;
+      },
+    })
+  );
+  const phantomRun = (
+    _: TaskContext<{ value: { from: Expression<string> } }>,
+  ) => {};
+  workflow("phantom-default.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      // @ts-expect-error callback annotations cannot invent default-contract inputs
+      job.runsOn("ubuntu-latest").task({ name: "Phantom", run: phantomRun }),
+  );
+}
+void assertDefaultValueContracts;
 
 function assertOptionalTaskContracts(): void {
   workflow("optional.yml", { on: { push: {} } }).job(

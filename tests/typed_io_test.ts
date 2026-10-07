@@ -1,5 +1,10 @@
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
-import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert";
+import {
+  assertEquals,
+  assertStrictEquals,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert";
 import {
   compositeAction,
   fromJSON,
@@ -26,6 +31,7 @@ const names = jsonValue({
 });
 
 Deno.test("text and JSON contracts preserve wire values and reserve absence", () => {
+  assertStrictEquals(textValue(), textValue());
   assertEquals(serializeValue(names, ["dev", "stg"]), '["dev","stg"]');
   assertEquals(parseWireValue(names, "[]"), []);
   assertEquals(parseWireValue(names, ""), null);
@@ -46,6 +52,132 @@ Deno.test("text and JSON contracts preserve wire values and reserve absence", ()
       }),
     TypeError,
   );
+});
+
+Deno.test("default and explicit contracts lower identically and preserve reference identity", async () => {
+  const projects = [false, true].map((explicit) =>
+    makeProject({
+      localTaskPrepareAction: "./actions/task-prepare",
+      workflows: [
+        makeWorkflow("defaults.yml", { on: { push: {} } })
+          .job("test", ({ job }) =>
+            job.runsOn("ubuntu-latest").task({
+              id: "make",
+              name: "Make",
+              outputs: {
+                text: {
+                  ...(explicit ? { contract: textValue() } : {}),
+                  required: true,
+                },
+                items: { contract: names, required: false },
+              },
+              run: () => {},
+            }).task({
+              name: "Read",
+              inputs: ({ steps }) => ({
+                text: {
+                  ...(explicit ? { contract: textValue() } : {}),
+                  from: steps.make.outputs.text,
+                },
+                items: {
+                  ...(explicit ? { contract: names } : {}),
+                  from: steps.make.outputs.items,
+                },
+              }),
+              run: () => {},
+            })),
+      ],
+    })
+  );
+  assertEquals(
+    emitWorkflow(
+      (await lowerProject(projects[0], "./tsugiori.ts", "fixture-source"))
+        .workflows[0].workflow,
+    ),
+    emitWorkflow(
+      (await lowerProject(projects[1], "./tsugiori.ts", "fixture-source"))
+        .workflows[0].workflow,
+    ),
+  );
+  const steps = projects[0].workflows[0].jobs[0].steps;
+  const producer = steps[0];
+  const consumer = steps[1];
+  if (producer.type !== "task" || consumer.type !== "task") {
+    throw new Error("Expected tasks");
+  }
+  assertStrictEquals(producer.outputs.text.contract, textValue());
+  assertStrictEquals(consumer.inputs.text.contract, textValue());
+  assertStrictEquals(consumer.inputs.items.contract, names);
+});
+
+Deno.test("runner resolves omitted text and inherited JSON contracts before dispatch", async () => {
+  const directory = await Deno.makeTempDir();
+  try {
+    const output = resolve(directory, "github-output");
+    const core = new URL("../src/github_actions.ts", import.meta.url).href;
+    const program =
+      `import {project,workflow,runProject,jsonValue,textValue,format,fromJSON,literal} from ${
+        JSON.stringify(core)
+      };
+const widen=(source)=>source;
+const items=jsonValue({parse(value){if(!Array.isArray(value)||!value.every(item=>typeof item==="string"))throw new TypeError("Expected strings");return value;}});
+const flow=workflow("ci.yml",{on:{push:{}}}).job("source",({job})=>job.runsOn("ubuntu-latest")
+ .task({id:"source",name:"Source",outputs:{items:{contract:items,required:true},optional:{contract:items,required:false},text:{required:true}},run:()=>{}})
+ .outputs(({steps})=>({items:steps.source.outputs.items,optional:steps.source.outputs.optional,text:steps.source.outputs.text,widened:widen(steps.source.outputs.items)})))
+ .job("test",({job,jobs})=>job.needs(jobs.source).runsOn("ubuntu-latest").task({name:"Consume",inputs:({needs,github})=>({
+  items:{from:needs.source.outputs.at("items")}, widened:{from:needs.source.outputs.widened}, optional:{from:needs.source.outputs.optional},
+  text:{from:needs.source.outputs.text}, explicit:{contract:textValue(),from:needs.source.outputs.text},
+  computed:{from:format("{0}",needs.source.outputs.items)}, sha:{from:github.sha},property:{from:fromJSON(literal('{"version":"v1"}')).as().at("version")}
+ }),outputs:{result:{required:true},omitted:{required:false}},run:async({inputs,outputs})=>{
+  if(JSON.stringify(inputs.items)!=='["dev"]'||JSON.stringify(inputs.widened)!=='["dev"]'||inputs.optional!==null||inputs.text!=="hello"||inputs.explicit!=="hello"||inputs.computed!=='["dev"]'||inputs.sha!=="abc"||inputs.property!=="v1")throw new Error("Wrong parsed inputs");
+  await outputs.set("result",Deno.env.get("TEST_EMPTY")?"":"parsed");
+ }}));
+Deno.exitCode=await runProject({project:project({workflows:[flow]}),entrypointUrl:import.meta.url},["ci.yml/test/task-1"]);`;
+    for (
+      const [wire, empty, expected] of [['["dev"]', "", 0], ["{}", "", 1], [
+        '["dev"]',
+        "1",
+        1,
+      ]] as const
+    ) {
+      await Deno.writeTextFile(output, "");
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: ["eval", program],
+        env: {
+          TSUGIORI_DIAGNOSTICS: "0",
+          GITHUB_OUTPUT: output,
+          TSUGIORI_INPUT_ITEMS: wire,
+          TSUGIORI_INPUT_WIDENED: wire,
+          TSUGIORI_INPUT_OPTIONAL: "",
+          TSUGIORI_INPUT_TEXT: "hello",
+          TSUGIORI_INPUT_EXPLICIT: "hello",
+          TSUGIORI_INPUT_COMPUTED: '["dev"]',
+          TSUGIORI_INPUT_SHA: "abc",
+          TSUGIORI_INPUT_PROPERTY: "v1",
+          TEST_EMPTY: empty,
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      assertEquals(
+        result.code,
+        expected,
+        new TextDecoder().decode(result.stderr),
+      );
+      if (expected === 0) {
+        const written = await Deno.readTextFile(output);
+        assertStringIncludes(written, "parsed\n");
+        assertEquals(written.includes("omitted<<"), false);
+      } else {
+        assertStringIncludes(
+          new TextDecoder().decode(result.stderr),
+          "failed validation",
+        );
+      }
+    }
+  } finally {
+    await Deno.remove(directory, { recursive: true });
+  }
 });
 
 Deno.test("hyphenated step and needs references retain JSON contracts and presence proofs", async () => {
