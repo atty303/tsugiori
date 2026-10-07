@@ -1,0 +1,100 @@
+Task: Project task-artifact cache factory
+Anchor: 4953e72ce0d3a0eae6bf25cbaa0a8d0ec6afc7a2
+Base: c925ef77b5dc0865cf1eecf44c44ae2c996ff7a9
+Branch: main
+Commits: 4953e72ce0d3a0eae6bf25cbaa0a8d0ec6afc7a2 feat(github-actions): allow project cache preparation factory
+Guidance: user AGENTS.md; develop-repository; design-program-observability; design-review; review; git-task-evidence
+Conditions: current checkout only; no deploy, release, push or PR; minor commit approved; workspace-write Git metadata escalation
+Authority: user implementation request and decisions; current source, tests, AGENTS.md and public JSDoc
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) artifact prepareのactions/cacheの実体をdefineProjectで注入できるようにしたい。デフォルトは今の設定とする
+  - A: Opened dig skill and compared the existing task preparation path and default pinned cache.
+- U2: cacheのcontractが同一であることを仮定したくない。(path, key) => Uses のようなfactory宣言がいいのでは？
+  - A: Agreed to a factory that receives generated path and key without assuming alternate Action input names.
+- U3: Bにしても実装はほぼ変わらないのでは？
+  - A: Compared proposed API shapes and continued the design tree.
+- U4: A
+  - A: Confirmed the selected factory direction.
+- U5: B. factoryが返す内容を変えたり検証しない。advancedなカスタマイズ機能だ
+  - A: Confirmed the factory owns all returned step settings; no cache-specific rewrite or validation.
+- U6: A
+  - A: Kept ordinary generated-workflow validation.
+- U7: B. factoryにはjobも渡してjobを返すようにしてはどうか。usesに限らずstepもtaskも任意で使えていいが
+  - A: Explored a job-returning factory with native step builders.
+- U8: あーtaskはだめだね
+  - A: Excluded task execution before preparation because it depends on the artifact.
+- U9: A. Job型からuses/runだけnarrowすればシンプルに実装できるか？
+  - A: Checked whether the existing job type could be narrowed at generation time.
+- U10: usesとrunのDSLを二重実装しなければなんでもいい
+  - A: Committed to reuse the existing uses/run implementations instead of duplicating their DSL.
+- U11: A
+  - A: Limited factory changes to insertion before the first task without changing existing job settings.
+- U12: A
+  - A: Included task-backed composite Actions.
+- U13: B. たいした追加でない割に自由度があがる
+  - A: Added workflow/composite kind to the callback context.
+- U14: A
+  - A: Closed design agreement, preserving default cache and empty-return behavior.
+- U15: # 実装依頼
+    
+    ## 依頼
+    `defineProject` で task artifact のキャッシュ準備ステップを生成する factory を指定できるように実装してください。
+    
+    ## 目的
+    - 利用者が `actions/cache` 以外のキャッシュ実装と、その実装に必要な入力・準備ステップを指定できるようにする。
+    
+    ## 成功条件
+    - factory に現在生成している artifact の `path` と `key`、ステップ追加用の `job`、呼び出し元の種類 `workflow` / `composite` が渡る。
+    - factory は既存 DSL の `.uses()` と `.run()` を連結して `job` を返せる。`.task()` は factory の型から利用できない。
+    - factory が追加したステップは、通常の workflow job と task を含む composite Action の双方で、artifact prepare の直前に定義順で出力される。
+    - factory が返したステップの設定を補正せず、キャッシュ固有の検証を追加しない。生成 workflow に対する既存の共通検証は適用する。
+    - ステップを追加せず返した場合、その箇所にキャッシュステップを出力しない。
+    - factory を省略した場合、現在の `actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9` ステップとその設定を維持する。
+    - 公開 API の JSDoc、関連ドキュメント、既定動作とカスタム動作のテストを更新する。
+    
+    ## 決定事項
+    - factory は完全な `job` を変換せず、prepare 直前に `.uses()`・`.run()` でステップを追加する。
+      - 理由: 既存の job 設定とステップを保持しながら、Action ごとに異なる入力や補助処理を指定できる。
+      - 主な棄却案: `uses` の参照先だけの差し替えは `path`・`key` という Action 入力名を仮定する。job 全体の変換は変更範囲が広い。
+    - factory の `.uses()`・`.run()` は既存 DSL の実装を再利用する。
+      - 理由: ステップの型付けと生成動作を二重実装しないため。
+      - 主な棄却案: factory 専用に uses/run DSL を再実装する案。
+    - `.task()` は factory から利用できない。
+      - 理由: キャッシュ復元は artifact prepare より前に必要だが、task 自身の実行には artifact prepare が必要なため。
+      - 主な棄却案: prepare 前の task 実行を可能にする新たな起動経路。
+    - factory は `workflow` / `composite` を判別できる。
+      - 理由: 両方に適用しつつ、composite Action の `.run()` に必要な `shell` などを呼び出し元に応じて指定できる。
+      - 主な棄却案: 両方で必ず同じステップを返す API。
+    - factory が返す各ステップの `continue-on-error` を含む設定は factory 側が決める。
+      - 理由: 代替キャッシュ実装に現在の `actions/cache` と同じ動作契約を仮定しないため。
+      - 主な棄却案: 生成器が全ステップを失敗許容に上書きする案。
+    
+    ## 制約
+    - factory は先行する既存 job ステップの型付き出力参照を必要としない。
+    - 既存の task artifact の `path`・`key` 計算、`cacheVersion` を含む artifact identity、artifact prepare の順序を維持する。
+    - factory の返り値を補正・追加検証しない。ただし既存の workflow 共通検証は維持する。
+    - 生成ステップの ID 衝突を避ける際も、factory が返したステップは変更しない。
+    - deploy、release、push、PR 作成は行わない。
+    
+    ## 対象外
+    - prepare 後に置く独立したキャッシュ保存ステップ。
+    - prepare 前に task を実行するための新たな bootstrap。
+    - 既存 job の設定やステップ全体を変更する API。
+    
+    ## 未検証の前提
+    - 生成時に確定する `path`・`key` を渡しつつ、既存 uses/run builder の実装を再利用できる内部接続方法。実装前に現在の builder と materialization 境界を確認する。
+    - factory の戻り値を通常の workflow job と composite Action の生成経路に適用する際の、既存の step ID 割当てと共通検証の接続方法。実装前に確認する。
+    
+    ## 実装時の指示
+    - 公開設定名と callback 型は、`defineProject` の既存 API と型表示に馴染む簡潔な形にする。
+    - 代表的な DSL 使用例で LSP hover・signature 表示を確認する。
+    - 既定の YAML が変わらないこと、カスタム `.uses()`・`.run()` の順序、`workflow` / `composite` の分岐、空の返り値、`.task()` が型上使えないことを検証する。
+  - A: Inspected current project API, builder, source key, lowering and materialization; implemented the factory, docs and tests.
+- U16: <send_user_message_question_reply>
+    [{"questionItemId":"[\"request_user_input_async\",\"call_dIieUOb4lhqvcuR9uamF3Kpw\",0]","question":"この変更を次回リリース対象（minor）にしますか？ 公開 API の追加なので `feat` commit を提案します。実装と検証は回答を待たず進め、commit 前に判断を反映します。","answer":"はい、minor リリース対象"}]
+    </send_user_message_question_reply>
+  - A: Recorded approval for a minor feat commit and continued implementation and verification.
+- U17: なぜREADMEに追加する？ advancedな利用方法だからREADMEに書くべきでないというガイドの指示から書かないことがわかるだろ？
+  - A: Removed README addition and kept advanced usage in public JSDoc; architecture text stays high level.
+- U18: なぜAGENTSのガイドが効かずに書いてしまったのか？ どうすれば書かなかったのか？
+  - A: Explained the mistaken README placement; completed review, fixed composite constraints, ran check and 168 tests, and created local commit without push.
