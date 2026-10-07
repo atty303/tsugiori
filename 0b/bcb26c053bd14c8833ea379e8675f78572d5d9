@@ -1,0 +1,17 @@
+Task: Order run step settings before commands
+Anchor: 0bbcb26c053bd14c8833ea379e8675f78572d5d9
+Base: 11e2d5a8ac0a955d923a25c42ef101e3a220ccf1
+Branch: main
+Commits: 0bbcb26c053bd14c8833ea379e8675f78572d5d9 fix: order run step settings before commands
+Guidance: AGENTS.md; develop-repository; design-review; dig; design-program-observability; investigate-problem; Git task evidence
+Conditions: Existing checkout; clean starting tree; Git metadata writes required sandbox escalation; user approved patch release commit semantics; no remote writes
+Authority: User instructions and applicable repository guidance
+## Transcript
+- U1: [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) stepのchild keyの並び順はgeneratorが固定しているか？
+  - A: Applied dig; inspected current emitter. Step fields have generator order; env and with keys sort. Composite preparation has a separate literal builder.
+- U2: composite actionのinputsのchildは？
+  - A: Inspected metadata copying and YAML serialization. Composite input names and their metadata property order preserve authored enumeration order.
+- U3: run stepはworking-directory -> shell -> runの順序にして
+  - A: Applied develop-repository, design-review and observability applicability assessment. Requested release-impact selection while proceeding with authorized implementation.
+- U4: patch release
+  - A: User approved patch release impact. Fetched origin and notes; stayed on clean main at base. Reordered emitted run fields to working-directory, shell, run; supplied composite default shell before emitting and moved preparation shell after env. Regenerated workflows and snapshots. Investigated scalar-spacing assertion failure: terminal keep-chomp commands require whitespace to preserve trailing newlines. Updated ordinary-step spacing assertion; decoded values remain checked. mise run check and mise run test passed, 155 tests. Reviewed final diff and saved local fix commit; no push, deploy or release execution. Compared all four human messages against complete runtime session JSONL; prepared normalized task evidence.
