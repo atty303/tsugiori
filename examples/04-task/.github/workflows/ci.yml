@@ -24,8 +24,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: ${{ runner.temp }}/tsugiori-artifacts/S2KLWMSV6X6R5J3J6IFC6ODPSN2UM6H3KOA3Y9GOS8PM6SXV80D-${{ runner.os }}-${{ runner.arch }}
-          key: tsugiori-task-S2KLWMSV6X6R5J3J6IFC6ODPSN2UM6H3KOA3Y9GOS8PM6SXV80D-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/tsugiori-artifacts/S2E25L2RI85CEQVF662ARN0FJ936BSR81YBNC3NTN7EUY7O4BD8-${{ runner.os }}-${{ runner.arch }}
+          key: tsugiori-task-S2E25L2RI85CEQVF662ARN0FJ936BSR81YBNC3NTN7EUY7O4BD8-${{ runner.os }}-${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
@@ -33,8 +33,8 @@ jobs:
         with:
           project-directory: .github
           entrypoint: ./workflows.ts
-          source-key: S2KLWMSV6X6R5J3J6IFC6ODPSN2UM6H3KOA3Y9GOS8PM6SXV80D
-          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S2KLWMSV6X6R5J3J6IFC6ODPSN2UM6H3KOA3Y9GOS8PM6SXV80D-${{ runner.os }}-${{ runner.arch }}
+          source-key: S2E25L2RI85CEQVF662ARN0FJ936BSR81YBNC3NTN7EUY7O4BD8
+          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S2E25L2RI85CEQVF662ARN0FJ936BSR81YBNC3NTN7EUY7O4BD8-${{ runner.os }}-${{ runner.arch }}
 
       - name: Format commit
         id: commit

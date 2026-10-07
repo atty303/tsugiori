@@ -18,8 +18,8 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: ${{ runner.temp }}/tsugiori-artifacts/S22FDVZSQ1PT8ZZK4G2VGQYUJ655190ZYAAWTRHJIEWD72ZOKMF-${{ runner.os }}-${{ runner.arch }}
-          key: tsugiori-task-S22FDVZSQ1PT8ZZK4G2VGQYUJ655190ZYAAWTRHJIEWD72ZOKMF-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/tsugiori-artifacts/S3S44XHYD5667OXEAOYRZG2YQJZMVUMG9J9J8IMHN2CK6CBDS3K-${{ runner.os }}-${{ runner.arch }}
+          key: tsugiori-task-S3S44XHYD5667OXEAOYRZG2YQJZMVUMG9J9J8IMHN2CK6CBDS3K-${{ runner.os }}-${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
@@ -27,8 +27,8 @@ jobs:
         with:
           project-directory: .github
           entrypoint: ./workflows.ts
-          source-key: S22FDVZSQ1PT8ZZK4G2VGQYUJ655190ZYAAWTRHJIEWD72ZOKMF
-          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S22FDVZSQ1PT8ZZK4G2VGQYUJ655190ZYAAWTRHJIEWD72ZOKMF-${{ runner.os }}-${{ runner.arch }}
+          source-key: S3S44XHYD5667OXEAOYRZG2YQJZMVUMG9J9J8IMHN2CK6CBDS3K
+          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S3S44XHYD5667OXEAOYRZG2YQJZMVUMG9J9J8IMHN2CK6CBDS3K-${{ runner.os }}-${{ runner.arch }}
 
       - name: Collect TypeScript files
         id: collect
