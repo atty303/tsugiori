@@ -49,7 +49,7 @@ hovers. These representations preserve field scopes and phase-specific
 operations; consumers obtain them through inference rather than supplying type
 annotations.
 
-Authoring and task execution share an executable entrypoint. It exports a
+Authoring and task execution share an executable entrypoint. It constructs a
 project value and calls `runProject()` under `import.meta.main`, passing
 `project` and `entrypointUrl`. The URL identifies the entrypoint used as
 generated YAML provenance and as the task artifact compilation root. The

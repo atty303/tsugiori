@@ -121,7 +121,6 @@ const project = defineProject({
   workingDirectory: ".github",
   workflows: [sample],
 });
-export default project;
 
 if (import.meta.main) {
   Deno.exitCode = await runProject({
