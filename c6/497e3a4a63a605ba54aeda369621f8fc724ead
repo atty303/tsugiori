@@ -1,0 +1,194 @@
+Task: Refine Tsugiori Getting started documentation and chapter examples
+Anchor: c6497e3a4a63a605ba54aeda369621f8fc724ead
+Base: 1a69fe9bb37784347a76c45cb7dbfa865815d809
+Branch: main
+Commits: c6497e3a4a63a605ba54aeda369621f8fc724ead docs(examples): explain getting started with annotated snippets
+Guidance: AGENTS.md; develop-repository; atty303 engineering policy; user README-only, comment, and release-none directions
+Conditions: Current checkout; local commit only; no push or release; sandbox escalation for Git metadata; mise-managed Deno; mise run test passed
+## Evidence
+Standard verification: mise run test passed 163 tests, including repository checks, README/example checks, and generate --check. Wrangler log write emitted EPERM but test exit was 0.
+Generated task YAML and local Action payload were updated after comment changes to source graph keys; git diff --cached --check passed.
+Authority: Current source, README, generated examples, test results, and human user instructions in this task cycle.
+## Transcript
+- U1: ここから指示があるまでcommitを保留し、READMEの対話編集だけを行う
+  - A: 了解しました。次の指示があるまでcommitは作らず、READMEの対話編集だけを行います。
+- U2: 3. Add an existing Action
+    tsugiori actions add  の振る舞いの説明はあったほうがいい。公式type serviceがオリジナルのaction定義をTSに変換して型定義を提供する、tagはその時点のshaにredirectする、といった説明だ
+  - A: [READMEの「Add an existing Action」](/Users/a13400/src/atty303/tsugiori/README.md)に、`actions add` が公式type serviceへのimport mappingを追加し、`deno install -P` 時にAction定義から型付き契約を取得する流れを追記しました。`v7` がその時点のSHAへredirectされ、解決結果が`deno.lock`に記録されることも説明しています。 `git diff --check`は通っています。変更はREADMEだけで、指示どおりcommitは保留しています。
+- U3: - tagを書いて通常のdeno.lock運用をしてもいいし、shaを直接書いて明示してもいい意図を含める
+    - &#x20;usesの具体的なコード断片はあったほうがいい
+  - A: Received the next instruction in the same user turn before acting.
+- U4: actions add` maps `#actions/actions/checkout` to Tsugiori's official type
+    service in `deno.json`.
+    これもそのコードを抜粋したほうがいい
+  - A: [READMEのAction追加章](/Users/a13400/src/atty303/tsugiori/README.md)に、`actions add` が `deno.json` の `imports` に書くmappingを実例から抜粋して追加しました。実例の設定と一致することを確認済みです。変更はREADMEだけで、commitは保留しています。
+- U5: usual lockfile workflowの言及はeno records the redirect and module checksum in
+    `deno.lock`, fixing the resolved Action version.の直後だ
+  - A: `deno.lock`に解決結果を記録する説明の直後へ、tagを通常のlockfile運用で使う方法とSHAを直接指定する方法を移しました。`git diff --check`は通っています。変更はREADMEだけで、commitは保留しています。
+- U6: Import `checkout` from `#actions/actions/checkout` and pass the contract to
+    `uses()`:
+    コード断片にimportもかいて
+  - A: [READMEのAction追加章](/Users/a13400/src/atty303/tsugiori/README.md)のコード断片に、`checkout` のimportから`uses(checkout, …)`までを載せました。完成例との照合テストは4件とも通っています。変更はREADMEだけで、commitは保留しています。
+- U7: Run a Deno task with dax のwith daxはいらない
+  - A: 第4章の見出しを「Run a Deno task」に変更しました。READMEだけを編集し、commitは保留しています。
+- U8: Run a Deno task
+    native denoでstepを書けるのがtaskであることの説明を最初にしたほうがいい。そしてtaskの実行準備はtsugioriが行い、利用者は意識しなくていいことも
+  - A: [「Run a Deno task」](/Users/a13400/src/atty303/tsugiori/README.md)の冒頭に、taskはDeno/TypeScriptの関数で書くstepであり、実行準備用のstepはTsugioriが生成すると説明を加えました。変更はREADMEだけで、commitは保留しています。
+- U9: prepareは最適化されており、workflowが変わらない場合はcacheされてworkflowのための追加fetchが発生しないことも利点として伝えたい
+  - A: [task章](/Users/a13400/src/atty303/tsugiori/README.md)に、taskのソースが変わらずcache hitした場合、準備済みartifactを再利用し、Denoやtask依存を再取得しない利点を追記しました。artifact自体は生成された`actions/cache` stepで復元することも明記しています。READMEだけを編集し、commitは保留しています。
+- U10: Dax escapes the interpolated format as one command argument. The fixed
+    `--format=` prefix keeps it inside Git's format option.
+    これはDaxの説明になっている。Daxがシェルスクリプトのシンプルな書き心地を安全にTSに持ち込むことを説明する。
+  - A: [task章](/Users/a13400/src/atty303/tsugiori/README.md)のdax説明を、シェルの簡潔な書き心地をTypeScriptに持ち込みつつ、補間した値を安全に引数として渡せる利点が伝わる文に直しました。READMEだけを編集し、commitは保留しています。
+- U11: even a format
+    such as `%h ; printf extra` remains one argument to Git rather than running
+    another shell command.
+    daxの詳細説明すぎる。こちらの意図はDeno.Commandなど長い構文を使わなくてもシェルスクリプトなみに短く書けるから、github stepにシェルスクリプトを書くよりtaskが安全でありながら簡潔である、という主張だ。Daxはリンクにして、Dax自身の安全性の説明はしない
+  - A: [task章](/Users/a13400/src/atty303/tsugiori/README.md)からdaxの引数処理の説明を外しました。daxでシェルstep並みに短く書けることと、taskではTypeScriptの型検査と入出力契約を使えることに焦点を移しています。READMEだけを編集し、commitは保留しています。
+- U12: A later step reads `steps.commit.outputs.summary`.
+    断片があったほうがいい
+  - A: [task章](/Users/a13400/src/atty303/tsugiori/README.md)に、taskの型付き出力を後続stepの`env`で読むコード断片を追加しました。掲載コードと完成例の照合テストは4件とも通っています。READMEだけを編集し、commitは保留しています。
+- U13: textValue()の意味説明がほしい。後のjsonValueを導入するときの対比として、github nativeの生文字列を扱う契約である説明だ
+  - A: [task章](/Users/a13400/src/atty303/tsugiori/README.md)に、`textValue()` はGitHub Actionsの入出力で使う非空の生文字列の契約であり、構造化データには次章の`jsonValue()`を使うと説明を加えました。READMEだけを編集し、commitは保留しています。
+- U14: This is a separate [example]\(examples/05-typed-io/.github/workflows/src/ci.ts).
+    全部の章でexampleへリンクする文章が先頭だったり末尾だったり統一感がない。どちらかにあわせたほうがいいのでは？
+  - A: Getting startedの各章と付録で、まず内容を説明し、完成例と生成物へのリンクを章末に置く形へ揃えました。[README](/Users/a13400/src/atty303/tsugiori/README.md)の掲載コード照合テストは4件とも通っています。変更はREADMEだけで、commitは保留しています。
+- U15: Zodは強制ではなく利用者の選択であり任意のJSON serdeが使えることに言及
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)に、Zodは例での選択であり、`jsonValue()`にはJSONの形を保つ`parse(value)`を備えた任意のライブラリを使えると追記しました。JSONの入出力への変換はTsugioriが担うことも明記しています。掲載コードの照合テストは4件とも通過。READMEだけを編集し、commitは保留しています。
+- U16: The first task writes the array and a `hasFiles` flag. The second takes the
+    same contract as input, reads each file, and reports file and line counts.
+    要点だけコード例を載せる
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)に、最初のtaskが配列と`hasFiles`を書き、次のtaskが条件を確認して同じ配列契約を受け取る部分だけをコードで載せました。掲載コードの照合テストは4件とも通過。READMEだけを編集し、commitは保留しています。
+- U17: ```javascript
+    // 契約
+    const files = jsonValue(z.array(z.string()))
+    // 前のタスクで出力設定
+    await outputs.set("files", paths);
+    // 後続タスクの入力宣言
+    inputs: ({ steps }) => ({
+      files: { contract: files, from: steps.collect.outputs.files },
+    })
+    ```
+    
+    exampleのコードを抜粋する必要はない。断片とは、説明に必要なこのような最小限のコードだ。完全なコードはexampleにあるだろ
+  - A: Received the next instruction in the same user turn before acting.
+- U18: さっきの例も単一codeblockではなく分割すること
+  - A: [README](/Users/a13400/src/atty303/tsugiori/README.md)の第4章はtask本体と後続stepの参照を、第5章は契約・出力・後続taskの入力宣言を、それぞれ短いcode blockに分けました。完成した処理は各章のexampleへリンクしています。 掲載コードの照合テストは4件とも通過。READMEだけを編集し、commitは保留しています。
+- U19: await outputs.set("files", paths);
+    これはサンプルだから配列リテラルを書いたほうがわかりやすい
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)の出力例を、ファイル一覧が見える配列リテラルに替えました。READMEだけを編集し、commitは保留しています。
+- U20: The next task declares an input from the same contract:
+    この次段落で`const files: string[] = inputs.files` のように明示的なparseなしでtyped dataを利用可能であることを型まで含めて記述する
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)の入力宣言の直後に、task本体では`inputs.files`を`string[]`として使え、明示的な`parse()`は不要であることを追記しました。READMEだけを編集し、commitは保留しています。
+- U21: This chapter uses a new file-list workflow. The first task collects tracked
+    TypeScript paths. The shared `files` contract uses a [Zod](https://zod.dev/)
+    parser:
+    
+    ```ts
+    const files = jsonValue(z.array(z.string()));
+    ```
+    
+    Zod is a choice for this example, not a requirement. `jsonValue()` accepts a
+    shape-preserving `parse(value: unknown)` adapter from any JSON schema or serde
+    library; Tsugiori handles the JSON encoding used by GitHub Actions.
+    
+    この導入が現在の構成にあわない。まずjsonValueの説明をし、その具体例として file-list workflowを示す構成にする
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)を、まず`jsonValue()`の役割と任意のparserを使えることを説明し、次にZodを使ったfile-list workflowを示す順序へ直しました。READMEだけを編集し、commitは保留しています。
+- U22: The first task writes the array through that contract:
+    ここに出力契約の断片もあったほうがいい
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)に、`files`と`hasFiles`の出力契約を示す短い断片を追加しました。宣言と`outputs.set()`は別のcode blockにしています。READMEだけを編集し、commitは保留しています。
+- U23: hasFiles: { contract: textValue(), required: true },
+    },
+    これはいらない。説明に関係ないだろ
+  - A: [第5章](/Users/a13400/src/atty303/tsugiori/README.md)の出力契約の断片を`files`だけに絞りました。READMEだけを編集し、commitは保留しています。
+- U24: Test task code and workflow logic
+    実際のrunnerに依存せずworkflow logicをテスト可能であるメリットを示したい
+  - A: [testing章](/Users/a13400/src/atty303/tsugiori/README.md)に、`scenario()`でworkflowの分岐と値の受け渡しをGitHub Actions runnerなしにローカル検証できる利点を明記しました。READMEだけを編集し、commitは保留しています。
+- U25: このメリットを享受するためにtyped dslが必須で、raw expressionを利用するとscenarioは使えない。それもtyped dsl導入の動機だ
+  - A: Received the next instruction in the same user turn before acting.
+- U26: Each chapter's `.github` directory can also run
+    `deno task tsugiori generate --check` against its committed generated files.
+    この文書いらない
+  - A: [README](/Users/a13400/src/atty303/tsugiori/README.md)から、各章の`generate --check`に関する重複した一文を削除しました。あわせて第2・6章には、型付き式なら`scenario()`で条件を検証でき、`rawExpression()`は結果をoverrideできても式自体は検証できないことを明記しています。 READMEのみ編集し、commitは保留しています。
+- U27: testの目的はロジックのテストでありdeno task tsugiori generate --checkは主題ではないからcode blockから削除
+    
+  - A: [testing章](/Users/a13400/src/atty303/tsugiori/README.md)のコマンド例を`deno test -A workflows/src/`だけにしました。READMEのみ編集し、commitは保留しています。
+- U28: コメントの例外として、exampleのファイルとREADMEのコードブロックは説明のために冗長と思えるぐらい各行の前に1行の簡潔な説明コメントを付ける。tsugioriの説明でない前提知識のコメントはなくていい。
+  - A: [README](/Users/a13400/src/atty303/tsugiori/README.md)のコードブロックと各章のexampleに、Tsugiori固有の操作を行ごとに追える短いコメントを追加しました。01は`init`テンプレートとも同期し、taskのコメントで変わったsource keyを含む生成物は正規の生成コマンドで更新しています。 `mise run check`、`mise run test`（163件）、READMEと各章の型チェック・`generate --check`が通りました。**commitは保留中です。**
+- U29:   permissions: { contents: "read" },
+    }).job("hello", ({ job }) =>
+    こことか、job関数や引数の説明、job paramterの説明がないぞ
+  - A: その行では、`.job()`の役割とcallbackの`job`引数が何かを説明できていませんでした。01から07までのjob定義を見直し、READMEに載せたコードも実ソースと揃えます。
+- U30: ```php
+    // Add a native shell step to the job.
+    .run({ name: "Say hello", run: "echo 'Hello from Tsugiori!'" }));
+    ```
+    
+    name, runの説明がない。説明可能な単位にsingle lineを分割したほうがいい
+  - A: [READMEの最初の例](/Users/a13400/src/atty303/tsugiori/README.md)と`init`テンプレートで、`.job("hello", ...)`がjobを登録し、callbackの`job`がそのjobを組み立てる引数だと説明しました。`.run()`の`name`と`run`も別行に分け、各行にコメントを付けています。同様の1行設定を他のexampleでも分割し、生成物を更新しました。 READMEとexampleの照合・型チェック・`generate --check`、`mise run check`は通過しました。commitは保留中です。
+- U31: 2. Add typed jobs, steps, and conditions
+    コード例が長過ぎる。4章と同じように説明と短い抜粋の繰り返しで2章の主題を説明するようにして
+  - A: [READMEの第2章](/Users/a13400/src/atty303/tsugiori/README.md)を、job定義、step出力、`if`、job出力、`needs`をそれぞれ説明して短いコード抜粋を示す構成に直しました。完成形へのリンクは章末に残しています。 抜粋とexampleソースの一致、READMEのテスト4件、各exampleの`generate --check`を確認しました。commitは保留中です。
+- U32: he `hello` job callback receives a typed `job` builder. Calling `runsOn()`
+    chooses its runner before steps are added:
+    
+    ```ts
+    // Register the hello job; the callback receives its typed builder.
+    .job("hello", ({ job }) =>
+      // Use job to configure this job, starting with its runner.
+      job.runsOn("ubuntu-24.04")
+    この説明は01でもう終わってないか？
+  - A: はい、第1章と重複していました。[READMEの第2章](/Users/a13400/src/atty303/tsugiori/README.md)から`job`と`runsOn()`の説明を外し、新しい内容であるstep出力から始めるよう直しました。READMEのテスト4件は通過しています。commitは保留中です。
+- U33: typed GitHub expressionは異なる型の演算の結果がgithub仕様に従うことも補足として伝えたい
+  - A: [READMEの第2章](/Users/a13400/src/atty303/tsugiori/README.md)に、型付き式の`eq()`もGitHub Actionsの演算規則に従い、異なる型の等値比較ではGitHubの数値変換が適用されることを補足しました。詳細はGitHub公式仕様へリンクしています。 READMEのテスト4件は通過しました。commitは保留中です。
+- U34: Import the contract and pass it to `uses()`:
+    
+    ```ts
+    // Build a typed GitHub Actions workflow.
+    import { defineWorkflow } from "@atty303/tsugiori/github-actions";
+    // Import the generated contract for checkout.
+    import checkout from "#actions/actions/checkout";
+    
+    // Generate this workflow at workflows/ci.yml.
+    export const ci = defineWorkflow("workflows/ci.yml", {
+      // Name the workflow shown in GitHub Actions.
+      name: "CI",
+      // Allow manual runs.
+      on: { workflow_dispatch: {} },
+      // Limit the token to repository read access.
+      permissions: { contents: "read" },
+    })
+    
+    
+    このブロックおかしくないか？ usesだけみせたいのに肝心のusesがなく余分なものしかない
+  - A: その通りです。[READMEの第3章](/Users/a13400/src/atty303/tsugiori/README.md)から余分なworkflow定義を外し、contractのimportと`uses(checkout, ...)`を別々の短い抜粋で示しました。両方ともexampleソースと一致し、READMEのテスト4件は通過しています。commitは保留中です。
+- U35: In this file-list workflow, a [Zod](https://zod.dev/) schema defines the
+    shared array of TypeScript paths:
+    以前あったZodは必須ではなく任意の選択である記述がなくなってる
+  - A: [READMEの第5章](/Users/a13400/src/atty303/tsugiori/README.md)に、Zodはこの例で選んだもので、Tsugioriの必須要件ではないと明記しました。commitは保留中です。
+- U36: Inside the task body, `inputs.files` is already parsed and typed as `string[]`:
+    `const files: string[] = inputs.files;`. Tsugiori validates the JSON at the
+    task boundary, so the task does not call `parse()` itself.
+    
+    このconstのコードはinlineではなくブロック
+  - A: [READMEの第5章](/Users/a13400/src/atty303/tsugiori/README.md)で、`const files: string[] = inputs.files;`を独立したコードブロックに移しました。実際のtask入力型でこの代入を型チェックし、READMEのテスト4件も通過しています。commitは保留中です。
+- U37: 6章も適切にコード断片を挿入
+  - A: [READMEの第6章](/Users/a13400/src/atty303/tsugiori/README.md)に、DSLへの関数指定、`Deno.test`からの直接呼び出し、型付き条件式、scenarioの実行・skipを示す短い断片を追加しました。5つの断片はexampleソースと照合済みで、READMEのテスト4件も通過しています。commitは保留中です。
+- U38: A standard `Deno.test` calls the same function directly with a working
+    directory and a local output writer. It can check the files read and values
+    written without running a workflow:
+    この例はDeno.testまで含めたほうがいい
+  - A: [READMEの第6章](/Users/a13400/src/atty303/tsugiori/README.md)に、`Deno.test`の枠から`countLines`を直接呼ぶ実際のunit testを掲載しました。DSLの`run: countLines`と同じ関数を使う対応も示しています。掲載コードはexampleソースと一致し、READMEのテスト4件は通過しました。commitは保留中です。
+- U39: なんでloggerのテストに変えた？ outputsのテストで十分だろ？
+  - A: Received the next instruction in the same user turn before acting.
+- U40: 例はDeno.testを利用すればよくてテストとして完全である必要はない
+  - A: Received the next instruction in the same user turn before acting.
+- U41: 完全なtestはexampleの実ファイルの役目だ
+  - A: Received the next instruction in the same user turn before acting.
+- U42: job.step("count").fixture({}).expectRun().expectInputs({
+      files: ["one.ts"],
+    });
+    このへんも1行にまとめすぎでは？
+  - A: [READMEの第6章](/Users/a13400/src/atty303/tsugiori/README.md)で、`step`の選択、`fixture`、`expectRun`、`expectInputs`を別行に分け、各操作の役割を示しました。skip経路も同じ形に揃えています。 掲載した両scenario断片を実行して2件通過し、READMEのテスト4件も通過しました。commitは保留中です。
+- U43: commit
+  - A: Inspected staged changes, confirmed diff check and 163 passing tests, fetched notes, created local docs commit c6497e3, and prepared the task note; no push or release.
