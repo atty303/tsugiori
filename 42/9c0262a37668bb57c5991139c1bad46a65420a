@@ -1,0 +1,19 @@
+Task: Add Composite Action step separators
+Anchor: 429c0262a37668bb57c5991139c1bad46a65420a
+Base: 0bbcb26c053bd14c8833ea379e8675f78572d5d9
+Branch: main
+Commits: 429c0262a37668bb57c5991139c1bad46a65420a fix: separate composite action steps with blank lines
+Guidance: Repository AGENTS.md; develop-repository; design-review; investigate-problem; program observability applicability; Git task evidence
+Conditions: Existing checkout; clean initial main; repository mise toolchain; sandbox Git writes approved; user approved patch bump; no new commit push or release execution
+Authority: User spacing implementation request and patch bump approval; applicable repository guidance
+## Transcript
+- U1: push main/notes
+  - A: Fetched code and notes. Direct notes fetch rejected non-fast-forward into local ref; fetched to temporary ref and proved remote note ancestry. Non-force pushed main at 0bbcb26 and standard notes, verified remote object IDs match local refs and removed temporary ref.
+- U2: step間の空行がなくなっていないか？ どのcommitで回帰した？
+  - A: Used investigate-problem. Inspected emitter/history and reproduced parent/current workflow output with single-line, multiline and trailing-newline run commands. Workflow separators remain present; composite Actions have had no explicit separators since introduction 2d894a9, confirmed by source and 85ad678 spacing test. Removed owned probe files; made no repository changes.
+- U3: composite actionでも空行があるか？
+  - A: Explained Composite Action has no explicit step separators; keep-chomp run scalars may naturally contain blank lines.
+- U4: composite actionもworkflowと同じく空行を入れる
+  - A: Applied develop-repository and design-review. Fetched origin and remote notes into owned temporary ref, confirmed clean main at 0bbcb26 and no divergence. Implemented Composite spacing with Document and step spaceBefore, preserving native serializer semantics and round-trip guard. Updated existing snapshots, spacing assertion and architecture; regenerated CI source identity. Deterministic synchronous formatting needs no additional observability or independent review. mise run fix completed; snapshot update and mise run test each passed all 155 tests, including checks and generated-output guard. Reviewed diff, removed owned logs/ref. Withheld commit pending patch release selection.
+- U5: patch bump
+  - A: Accepted patch bump approval. Rechecked unchanged validated diff and saved local fix commit. Retrieved complete runtime session history and compared all five human messages in this cycle, beginning after prior completed commit task. Prepared normalized standard Git note. No push or release execution for the new commit.
