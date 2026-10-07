@@ -1,0 +1,79 @@
+Task: Prefer GitHub dot access for generated DSL references
+Anchor: ccbfba8a23f219e0f93e0442c96110dc81a44842
+Base: 5d1e54155918d4459b9814e595032a738459a7a8
+Branch: main
+Commits: ccbfba8a23f219e0f93e0442c96110dc81a44842 - renderer rule, documentation, regression tests and generated CI identity
+Guidance: repository AGENTS.md; develop-repository; design-review; design-program-observability; dig; investigate-problem for verification findings; Git task evidence
+Conditions: macOS; repository-managed mise toolchain; current checkout; no external publication; no-release refactor approved; deterministic synchronous renderer needs no new recording
+Authority: User implementation request and no-release selection; repository AGENTS.md; applicable skill references
+## Transcript
+- U1:
+        value: ${{ steps.mise.outputs.cache-hit }}
+    もともとこうしていたworkflowをDSLで書いたら
+        value: ${{ steps.mise.outputs['cache-hit'] }}
+    になったが、これはgithubとして受け入れる記法か？
+    
+  - A: Verified GitHub official context syntax: dot and string index access are both valid for cache-hit and equivalent.
+- U2:
+    githubでドットアクセスでなく添字で書かないといけないのはどういうとき？ 
+    
+  - A: Explained dot property naming requirements, bracket-only keys and computed access using the already verified official specification.
+- U3:
+    [$dig](/Users/a13400/.agents/skills/dig/SKILL.md) renderするとき可能な限りドットアクセスにする
+    
+  - A: Applied dig, read the renderer and located referencePath. Asked whether normalization covers generated references only or also raw expressions; recommended generated references only. No edits.
+- U4:
+    A
+    
+  - A: Accepted generated-reference-only scope. Confirmed GitHub naming rule, bracket/index/wildcard/raw preservation and shared contract lookup. Asked for common understanding.
+- U5:
+    A
+    
+  - A: Produced a standalone implementation prompt with agreed scope and verification requirements. No implementation yet.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の GitHub Actions 式生成を変更し、DSL が組み立てるプロパティ参照を、可能な限りドットアクセスで出力してください。
+    
+    ## 目的
+    - GitHub Actions の仕様に沿って、生成された式を読みやすくする。
+    - `steps.mise.outputs['cache-hit']` を `steps.mise.outputs.cache-hit` と出力する。
+    
+    ## 成功条件
+    - DSL が生成するすべてのプロパティ参照で、名前が `[A-Za-z_][A-Za-z0-9_-]*` に合えばドット表記になる。
+    - 条件に合わないキーの添字表記、配列添字、`.*`、raw 式の表記と意味が維持される。
+    - 参照の内部照合が生成表記と整合し、既存の参照契約が維持される。
+    - ハイフンを含む名前と、添字が必要なキーを対象にしたテストが通り、必要な既存チェックも通る。
+    
+    ## 決定事項
+    - 変換対象は DSL が組み立てる参照とする。
+      - 理由: 生成表記を改善しつつ、利用者が明示的に記述した式を保持できる。
+      - 主な棄却案: raw 式も解析して変換する案。今回の目的に不要な解析と変更を増やすため採用しない。
+    - ドット表記の判定は GitHub Actions の命名規則に合わせる。
+      - 理由: GitHub は先頭が英字または `_`、以降が英数字、`-`、`_` のプロパティ名を許容する。
+      - 主な棄却案: ハイフンを含む名前を引き続き添字表記にする案。可能な限りドット表記にする目的を満たさない。
+    
+    ## 制約
+    - 公開 API と式の評価上の意味を変えない。
+    - 現在の checkout で作業し、既存の無関係な変更を保持する。
+    - Push、PR 作成、deploy、release は行わない。
+    
+    ## 対象外
+    - raw 式の解析・正規化。
+    - 配列添字や `.*` の表記変更。
+    - 関係のない renderer や DSL の再設計。
+    
+    ## 未検証の前提
+    - なし。
+    
+    ## 実装時の指示
+    - 調査時点では `src/github_actions/expression.ts` の `referencePath()` が表記を選び、ドット表記の正規表現に `-` が含まれていない。
+    - `src/github_actions/mod.ts` でも `referencePath()` を使って `needs` と `steps` の output 参照契約を構築している。表記変更と内部照合の整合を確認する。
+    - raw ノードと明示的な式文字列は現在そのまま出力される。この挙動を保持する。
+    - 着手時に作業差分を再確認し、必要な期待値・snapshot の変更だけをレビューする。
+    
+  - A: Applied develop-repository, design-review and observability applicability check. Started from clean main at 5d1e541; fetched origin and inspected notes. Direct notes fetch rejected non-fast-forward; fetched an owned temporary ref and merge reported already up to date, preserving local notes. Proposed no-release refactor. Changed referencePath regex, JSDoc and architecture; added property/raw and typed steps/needs contract/presence tests; regenerated only CI source identity. Initial test fixture incorrectly indexed optional JSON and omitted consumer ID; corrected fixture using guarded typed task input and explicit consumer ID without type suppression. Targeted 16 tests passed, then mise run test passed all checks, 186 published examples and 155 tests. Dry-run Worker check only; no deploy. Reviewed diff and preserved current checkout.
+- U7:
+    release なし（推奨）
+  - A: Accepted no-release refactor. Final check and diff check passed. Created local commit ccbfba8 with only the five task files. Retrieved complete session JSONL and compared all seven human messages in order, excluding injected context and representing tool reply by its human selection. Prepared normalized task note; no push, PR or release.
