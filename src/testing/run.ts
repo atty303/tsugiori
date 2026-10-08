@@ -39,6 +39,13 @@ import {
 } from "./mod.ts";
 
 type Context = Record<string, unknown>;
+
+function serverContext(context: Context): Context {
+  return {
+    ...context,
+    github: { ...(context.github as object), job: null, token: null },
+  };
+}
 type CachePolicy = Readonly<{
   explicit?: CacheMode;
   settings?: Pick<JobSettings, "cacheMode" | "cacheModeSource">;
@@ -486,8 +493,9 @@ function resolvedSettings(
   location: string,
   overrides: ReadonlyMap<string, unknown>,
 ): JobSettings {
+  const server = serverContext(context);
   const scalar = (value: string, field: string) =>
-    stringValue(evaluateAt(value, context, status, location, field, overrides));
+    stringValue(evaluateAt(value, server, status, location, field, overrides));
   const labels = (values: readonly string[], field: string) =>
     values.map((v, i) =>
       scalar(v, `${field}.${i}`)
@@ -502,7 +510,7 @@ function resolvedSettings(
         ? environment.deployment
         : evaluateAt(
           environment.deployment,
-          context,
+          server,
           status,
           location,
           "environment.deployment",
@@ -518,7 +526,7 @@ function resolvedSettings(
   }
   const concurrency = resolvedConcurrency(
     job.concurrency,
-    context,
+    server,
     status,
     location,
     overrides,
@@ -585,7 +593,7 @@ function resolvedSettings(
     ...(job.continueOnError === undefined ? {} : {
       continueOnError: booleanSetting(
         job.continueOnError,
-        context,
+        server,
         status,
         location,
         "continue-on-error",
@@ -595,7 +603,7 @@ function resolvedSettings(
     ...(job.timeoutMinutes === undefined ? {} : {
       timeoutMinutes: integerSetting(
         job.timeoutMinutes,
-        context,
+        server,
         status,
         location,
         "timeout-minutes",
@@ -618,18 +626,36 @@ async function runInstance(
   observation: ScenarioObservationState = { nextId: 0 },
   executionContexts: Map<JobInstanceResult, Context> = new Map(),
   cacheSettings: CachePolicy["settings"] = undefined,
+  workflowEnv: Readonly<Record<string, unknown>> | undefined = undefined,
+  githubFixture: Readonly<Record<string, unknown>> = {},
 ): Promise<JobInstanceResult> {
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
   const steps: Record<string, StepResult> = {};
   const context: Context = {
     ...base,
+    github: {
+      ...githubFixture,
+      job: job.id,
+      ...(githubFixture.token !== undefined
+        ? { token: githubFixture.token }
+        : (base.secrets as Context | undefined)?.GITHUB_TOKEN !== undefined
+        ? { token: (base.secrets as Context).GITHUB_TOKEN }
+        : {}),
+    },
     matrix,
     steps: {},
     runner: { ...rules.runner },
   };
   context.env = {
-    ...(base.env as Record<string, unknown> ?? {}),
+    ...evaluateMap(
+      workflowEnv,
+      context,
+      { success: true, failure: false, cancelled: false },
+      workflowPath,
+      "env",
+      new Map(),
+    ),
     ...evaluateMap(
       job.env,
       context,
@@ -647,7 +673,7 @@ async function runInstance(
   };
   const tolerateFailure = booleanSetting(
     job.continueOnError,
-    context,
+    serverContext(context),
     initialStatus,
     location,
     "continue-on-error",
@@ -1345,10 +1371,11 @@ async function interpretScenario(
     }
     return { result: "skipped", jobs: {} };
   }
-  const external: Context = {
+  const githubFixture = program.external.github as Context | undefined ?? {};
+  const external: Context = serverContext({
     ...program.external,
     secrets: program.external.secrets ?? {},
-  };
+  });
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const workflow =
     lowered.workflows.find((p) => p.path === author.path)!.workflow;
@@ -1419,14 +1446,7 @@ async function interpretScenario(
     }
     const context: Context = {
       ...external,
-      env: evaluateMap(
-        author.env,
-        external,
-        { success: true, failure: false, cancelled: false },
-        author.path,
-        "env",
-        new Map(),
-      ),
+      env: {},
       needs,
       job: { status: "success" },
     };
@@ -1608,7 +1628,7 @@ async function interpretScenario(
                 typeof d.default === "string" && d.default.startsWith("${{")
                   ? evaluateAt(
                     d.default,
-                    { github: context.github, inputs, vars: context.vars },
+                    { github: external.github, inputs, vars: context.vars },
                     status,
                     `${callee.path}.on.workflow_call.inputs.${name}`,
                     "default",
@@ -1650,6 +1670,7 @@ async function interpretScenario(
               ...merged.call,
               external: {
                 ...context,
+                github: githubFixture,
                 env: undefined,
                 needs: undefined,
                 job: undefined,
@@ -1735,6 +1756,8 @@ async function interpretScenario(
           observation,
           executionContexts,
           cache.settings,
+          author.env,
+          githubFixture,
         ),
       );
     }

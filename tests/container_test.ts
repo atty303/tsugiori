@@ -3,6 +3,7 @@ import {
   always,
   failure,
   project,
+  rawExpression,
   toJSON,
   workflow,
 } from "../src/github_actions/mod.ts";
@@ -154,7 +155,10 @@ Deno.test("matrix settings and runtime service ports require only read fixture v
           id: "test",
           name: "Test",
           run: "true",
-          env: ({ job }) => ({ PORT: job.services.db.ports["5432"] }),
+          env: ({ job }) => ({
+            PORT: job.services.db.ports["5432"],
+            UPPER: rawExpression("job.services.DB.PORTS['5432']"),
+          }),
         })
         .outputs(({ job }) => ({ port: job.services.db.ports["5432"] })),
   );
@@ -169,10 +173,11 @@ Deno.test("matrix settings and runtime service ports require only read fixture v
           },
         });
         instance.containerRuntime({
-          services: { db: { ports: { "5432": "32768" } } },
+          services: { db: { ports: Object.freeze({ "5432": "32768" }) } },
         });
         instance.step("test").fixture(({ env }) => {
           assertEquals(env.PORT, "32768");
+          assertEquals(env.UPPER, "32768");
           return {};
         });
       }));
@@ -183,7 +188,12 @@ Deno.test("matrix settings and runtime service ports require only read fixture v
     () =>
       scenario(ci, (test) => {
         test.github({ event_name: "push" });
-        test.job("test", (job) => job.step("test").fixture({}));
+        test.job("test", (job) => {
+          job.containerRuntime({
+            services: { db: Object.freeze({ ports: Object.freeze({}) }) },
+          });
+          job.step("test").fixture({});
+        });
       }),
     ScenarioError,
     "job.services.db.ports",
@@ -220,7 +230,10 @@ Deno.test("unused settings require no extra contexts; disabled services use nati
           id: "test",
           name: "Test",
           run: "true",
-          env: ({ job }) => ({ PORT: job.services.db.ports["5432"] }),
+          env: ({ job }) => ({
+            PORT: job.services.db.ports["5432"],
+            UPPER: rawExpression("job.services.DB.PORTS['5432']"),
+          }),
         }),
   );
   await scenario(disabled, (test) => {
@@ -403,6 +416,7 @@ Deno.test("service-only jobs expose the runner network with no job container ID"
           run: "true",
           env: ({ job }) => ({
             NETWORK: job.container.network,
+            UPPER: rawExpression("job.container.NETWORK"),
             ID: job.container.id,
             CONTAINER: toJSON(job.container),
           }),
@@ -420,12 +434,15 @@ Deno.test("service-only jobs expose the runner network with no job container ID"
   await scenario(ci, (test) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => {
-      job.containerRuntime({ container: { network: "fixture-network" } });
+      job.containerRuntime({
+        container: Object.freeze({ network: "fixture-network" }),
+      });
       job.step("test").fixture(({ env }) => {
         assertEquals(env, {
           NETWORK: "fixture-network",
+          UPPER: "fixture-network",
           ID: "",
-          CONTAINER: '{"network":"fixture-network"}',
+          CONTAINER: '{\n  "network": "fixture-network"\n}',
         });
         return {};
       });

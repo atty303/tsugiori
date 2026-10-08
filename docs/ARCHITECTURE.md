@@ -89,7 +89,9 @@ input reference union across configured events, and emit normal caller jobs with
 uses/with/secrets. Calls specify a native `uses` reference and a callee
 definition separately; no output path is converted to a GitHub reference. The
 project contains both callers and callees; lowering checks membership,
-contracts, nesting and output references. Workflow env stays within each
+contracts, ten-level nesting, at most 50 distinct reachable local callees and
+output references. Repeated calls/matrix members share callee identity; external
+graphs are not fetched or proven complete. Workflow env stays within each
 workflow. Run defaults remain native workflow/job settings and per-step
 overrides remain explicit. Workflow defaults forbid expressions; job defaults
 retain their scoped expressions. Runner groups, structured environments and
@@ -113,7 +115,11 @@ ordinary GitHub expression rendering.
 
 Generated property references prefer GitHub-native dot syntax, including
 hyphenated names, and use brackets when required. Explicit raw expressions
-retain their authored spelling.
+retain their authored spelling. Strategy context properties use native
+hyphenated names; underscore aliases are absent. github.job/token references are
+null for server evaluation and strings for initialized runner settings, steps
+and final job outputs; scenarios derive job identity and require explicit token
+fixtures.
 
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,
@@ -306,8 +312,14 @@ Required missing values fail at the expression location, without deriving IDs,
 paths or runner assignment. Fixture values are excluded from observation
 records.
 
-Evaluated unknown expression forms and `hashFiles()` need a field-specific
-scenario value; unsupported forms never silently succeed.
+Pure expressions interpret the frozen literals, operators/conversions,
+built-ins, object filters and suffix/dynamic access on supplied values. Known
+absence on closed computed values yields native null/empty conversion; partial
+external fixtures remain strict. Status detection excludes quoted function
+names. `hashFiles()` and unknown asserted forms need a field-specific scenario
+value; unsupported forms never silently succeed. The pinned runner
+reconciliation and execution boundaries are documented in
+[the spec basis](GITHUB_ACTIONS_SPEC.md).
 
 Job container and named service declarations retain their native settings in
 YAML. Each setting uses its frozen expression scope; the service map's names

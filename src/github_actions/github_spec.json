@@ -831,7 +831,9 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "Cache-mode and snapshot are implemented from the fixed basis with supplemental dependency-caching and custom-image sources at the same revision. Background, wait, wait-all, cancel and parallel emit native steps and have fixture-based synchronization interpretation; runner scheduling and termination remain external boundaries. The fixed context table has no snapshot row; supplemental examples evidence github.ref only."
+    "Cache-mode and snapshot are implemented from the fixed basis with supplemental dependency-caching and custom-image sources at the same revision. Background, wait, wait-all, cancel and parallel emit native steps and have fixture-based synchronization interpretation; runner scheduling and termination remain external boundaries. The fixed context table has no snapshot row; supplemental examples evidence github.ref only.",
+    "The contexts article describes github.job/token as step-only. The pinned actions/runner 67f01c276e0a91d967ba499ce4cdc9a95efa0262 ExecutionContext and JobExtension initialize them before runner settings and retain them for final job outputs/environment URLs. Tsugiori uses that runner phase evidence: server fields null, initialized runner fields string; scenarios require explicit tokens.",
+    "Expression wording describes absent properties as empty strings and numbers as JSON numbers, while examples include hexadecimal. The same pinned actions/runner expression SDK evidences null for absent access (empty after string conversion), decimal/hex/octal number parsing, ordinal case-insensitive comparisons, filtered-array dereferences and lazy functions. Pure interpretation follows that SDK; fromJSON retains valid JSON parsing. See docs/GITHUB_ACTIONS_SPEC.md for immutable implementation links."
   ],
   "coverage": [
     {
@@ -2774,144 +2776,191 @@
       "domain": "context",
       "key": "github",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "All 41 frozen properties have typed references and native paths. Event typing follows declarations; job/token follow evaluation phase. Partial external fixtures are strict; GitHub owns event eligibility, runner values and token authority.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "env",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Declared workflow/job/step env and fixture environment writes are merged with native precedence and case-sensitive names. Calls isolate workflow env; known missing names evaluate as null/empty string.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "env-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "vars",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "Declared variable names have typed references and native emission. Scenario values require explicit fixtures; organization/repository/environment lookup, precedence and availability remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "vars-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "job",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "Status is computed from logical execution. Container/service context and execution identity have typed references and explicit runtime fixtures; Docker startup and assigned identity remain runner-owned.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/container_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "jobs",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Reusable workflow output callbacks expose completed local jobs and their results/outputs. Scenarios compute these values from fixtures; actions and scripts are not executed.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "jobs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "steps",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Earlier step references expose declared output names, outcome and conclusion. Logical synchronization controls availability; failure tolerance preserves outcome separately from conclusion. Values come from execution fixtures.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "steps-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_test.ts",
+        "tests/background_test.ts",
+        "tests/task_output_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "All seven frozen properties have typed native references. Per-job/per-matrix runner fixtures supply values; runner assignment, filesystem and cleanup are not inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "secrets",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "Declared secrets and standard GITHUB_TOKEN have typed references. Scenarios accept explicit values and model reusable passing/isolation; access, masking and effective token permissions belong to GitHub.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "secrets-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "strategy",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "All four native hyphenated properties emit unchanged. Scenarios compute fail-fast, zero-based index and total; max-parallel requires an explicit setting. Platform defaults, actual parallelism and fail-fast cancellation are not inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/matrix_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "matrix",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Declared scalar/object axes have typed references and native expressions. Scenarios expand static/evaluated matrices with include/exclude and the 256-member limit; expansion does not schedule runners.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "matrix-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "needs",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Only declared direct dependencies expose typed outputs/results. Scenarios compute dependency values, effective results after failure tolerance and status gates; transitive status is tracked separately.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "needs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "inputs",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Dispatch/reusable declarations determine typed native values. Scenario defaults, required inputs and payload/native consistency are checked without fetching event data.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "inputs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/triggers_test.ts",
+        "tests/reusable_workflow_test.ts",
+        "tests/trigger_types_test.ts"
       ]
     },
     {
@@ -3280,97 +3329,137 @@
     {
       "domain": "context",
       "key": "github.action",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.action reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.action_path",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.action_path reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.action_ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.action_ref reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.action_repository",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.action_repository reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.action_status",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.action_status reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.actor",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.actor reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.actor_id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.actor_id reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.api_url",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.api_url reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
@@ -3400,25 +3489,35 @@
     {
       "domain": "context",
       "key": "github.base_ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.base_ref reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.env",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.env reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
@@ -3433,6 +3532,9 @@
         "github-runtime"
       ],
       "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts",
         "tests/trigger_types_test.ts",
         "tests/language_server_completion_test.ts"
       ]
@@ -3449,6 +3551,9 @@
         "github-runtime"
       ],
       "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts",
         "tests/trigger_types_test.ts",
         "tests/language_server_completion_test.ts"
       ]
@@ -3456,337 +3561,477 @@
     {
       "domain": "context",
       "key": "github.event_path",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.event_path reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.graphql_url",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.graphql_url reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.head_ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.head_ref reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.job",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Phase-specific typed reference: server fields are null; initialized runner settings, steps and job outputs are string. Scenarios derive the current local execution job ID, including callees; no supplied global job ID leaks across instances.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.path",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.path reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.ref reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.ref_name",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.ref_name reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.ref_protected",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.ref_protected reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.ref_type",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.ref_type reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.repository",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.repository reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.repository_id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.repository_id reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.repository_owner",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.repository_owner reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.repository_owner_id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.repository_owner_id reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.repositoryUrl",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.repositoryUrl reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.retention_days",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.retention_days reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.run_id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.run_id reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.run_number",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.run_number reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.run_attempt",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.run_attempt reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.secret_source",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.secret_source reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.server_url",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.server_url reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.sha",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.sha reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.token",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Phase-specific typed reference: server fields are null; initialized runner settings, steps and job outputs are string. Runner reads require an explicit github.token or secrets.GITHUB_TOKEN fixture; authorization and token creation remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.triggering_actor",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.triggering_actor reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.workflow",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.workflow reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.workflow_ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.workflow_ref reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.workflow_sha",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.workflow_sha reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "github.workspace",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed github.workspace reference emits its native name and reads an explicit scenario github fixture; absent required external values fail at the read site. GitHub owns actual availability and value.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "env.<env_name>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed declared environment names emit native references; scenarios merge workflow/job/step values and fixture writes with case-sensitive names and native precedence.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "env-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
@@ -3888,13 +4133,18 @@
     {
       "domain": "context",
       "key": "job.status",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job.status reference is derived from logical step conclusions and initialization, including failure tolerance and cancellation; it is not an externally replaceable fixture.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/container_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
@@ -3981,121 +4231,169 @@
     {
       "domain": "context",
       "key": "steps.<step_id>.outputs",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed steps.<step_id>.outputs native reference uses earlier declared steps; scenarios derive logical outcome/conclusion and declared fixture outputs, respecting synchronization and failure tolerance.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "steps-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/background_test.ts",
+        "tests/task_output_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "steps.<step_id>.conclusion",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed steps.<step_id>.conclusion native reference uses earlier declared steps; scenarios derive logical outcome/conclusion and declared fixture outputs, respecting synchronization and failure tolerance.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "steps-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/background_test.ts",
+        "tests/task_output_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "steps.<step_id>.outcome",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed steps.<step_id>.outcome native reference uses earlier declared steps; scenarios derive logical outcome/conclusion and declared fixture outputs, respecting synchronization and failure tolerance.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "steps-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/background_test.ts",
+        "tests/task_output_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "steps.<step_id>.outputs.<output_name>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed steps.<step_id>.outputs.<output_name> native reference uses earlier declared steps; scenarios derive logical outcome/conclusion and declared fixture outputs, respecting synchronization and failure tolerance.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "steps-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/background_test.ts",
+        "tests/task_output_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.name",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.name native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.os",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.os native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.arch",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.arch native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.temp",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.temp native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.tool_cache",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.tool_cache native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "runner.debug",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed runner.debug native reference reads the explicit per-job/per-matrix runner fixture. No assignment, filesystem, runner labels or platform default is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts"
       ]
     },
     {
@@ -4125,121 +4423,176 @@
     {
       "domain": "context",
       "key": "secrets.<secret_name>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed declared secret names emit native references and read explicit scenario fixtures; undeclared/missing external secrets are not guessed. Reusable passing/isolation is modeled; GitHub access and masking remain external.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "secrets-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "strategy.fail-fast",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed strategy.fail-fast uses the native hyphenated name in generated expressions and scenarios; retired underscore aliases are absent.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_expression_test.ts",
+        "tests/matrix_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "strategy.job-index",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed strategy.job-index uses the native hyphenated name in generated expressions and scenarios; retired underscore aliases are absent.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_expression_test.ts",
+        "tests/matrix_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "strategy.job-total",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed strategy.job-total uses the native hyphenated name in generated expressions and scenarios; retired underscore aliases are absent.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_expression_test.ts",
+        "tests/matrix_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "strategy.max-parallel",
       "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "notes": "Typed strategy.max-parallel uses the native hyphenated name in generated expressions and scenarios; retired underscore aliases are absent. Explicit maxParallel settings are interpreted; GitHub default parallelism and runner availability are not inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_expression_test.ts",
+        "tests/matrix_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "matrix.<property_name>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed declared scalar/object matrix properties emit native references; scenarios provide each expanded member from static/evaluated axes and include/exclude, without scheduling.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "matrix-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "needs.<job_id>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed needs.<job_id> native reference uses declared direct dependencies. Scenarios compute effective result and output values from local execution/call fixtures; missing known output properties follow native null/empty conversion.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "needs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "needs.<job_id>.outputs",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed needs.<job_id>.outputs native reference uses declared direct dependencies. Scenarios compute effective result and output values from local execution/call fixtures; missing known output properties follow native null/empty conversion.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "needs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "needs.<job_id>.outputs.<output name>",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed needs.<job_id>.outputs.<output name> native reference uses declared direct dependencies. Scenarios compute effective result and output values from local execution/call fixtures; missing known output properties follow native null/empty conversion.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "needs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
       "domain": "context",
       "key": "needs.<job_id>.result",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed needs.<job_id>.result native reference uses declared direct dependencies. Scenarios compute effective result and output values from local execution/call fixtures; missing known output properties follow native null/empty conversion.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "needs-context",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/scenario_test.ts",
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
@@ -4254,245 +4607,333 @@
         "github-runtime"
       ],
       "evidence": [
-        "tests/trigger_types_test.ts",
-        "tests/language_server_completion_test.ts"
+        "tests/context_runtime_test.ts",
+        "tests/context_runtime_types_test.ts",
+        "tests/triggers_test.ts",
+        "tests/reusable_workflow_test.ts",
+        "tests/trigger_types_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Literals",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Null, booleans, escaped single-quoted strings, decimal/exponent, hexadecimal and native numeric literals are interpreted. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "literals",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Example of literals",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset. This reference row is not a separate public feature; consult the matching syntax/context item.",
+      "status": "implemented",
+      "notes": "Frozen literal examples, including 0xff and doubled single quotes, are verified. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "example-of-literals",
       "assessment": [
-        "reference"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Operators",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset. This reference row is not a separate public feature; consult the matching syntax/context item.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "reference"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Functions",
       "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset. This reference row is not a separate public feature; consult the matching syntax/context item.",
+      "notes": "Pure built-ins are interpreted on supplied values with native conversions and lazy arguments. hashFiles emits natively but requires a field override; no filesystem computation is performed.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "functions",
       "assessment": [
-        "reference"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "contains",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Primitive strings and array membership use native string conversion and loose equality; null converts to an empty string, objects are not searched. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "contains",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "startsWith",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Primitive operands use native case-insensitive prefix matching and null-to-empty conversion; arrays/objects do not become searchable strings. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "startswith",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "endsWith",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Primitive operands use native case-insensitive suffix matching and null-to-empty conversion; arrays/objects do not become searchable strings. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "endswith",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "format",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Brace escaping, indexed substitutions and lazy used arguments follow native conversion; invalid braces, indexes and nonempty format specifiers fail. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "format",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "join",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Arrays use native element/separator conversion; empty arrays/objects return empty strings and single elements do not evaluate unused separators. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "join",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "toJSON",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Supplied native values serialize as indented JSON; complete compound values are required and absent external fixtures are not filled in. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "tojson",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "fromJSON",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "JSON text produces closed native values supporting suffix dereferences, dynamic indexing and filters; malformed JSON fails. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "fromjson",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "hashFiles",
       "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "notes": "Native hashFiles expression emission is supported. Scenarios require an explicit field-specific value; absent fixtures fail as expression_unsupported. No filesystem, globbing or hash computation is performed.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "hashfiles",
       "assessment": [
         "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "case",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Condition/value pairs are lazy; the first truthy pair wins, otherwise the final fallback is evaluated. Invalid arity fails. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "case",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Status check functions",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Status calls are recognized as tokens, not quoted function names; conditions without a status call retain the implicit success gate. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "status-check-functions",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "success",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Computed logical success follows step conclusions or dependency success gates; values do not imply remote execution. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "success",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "always",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Returns true at evaluated conditions, including failed/cancelled logical execution; it does not guarantee remote runner execution. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "always",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "cancelled",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Computed cancellation follows explicit logical fixture outcomes and dependency cancellation; no platform cancellation or signals are simulated. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "cancelled",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "failure",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Computed logical failure uses failed steps/initialization and job dependency ancestors; quoted failure() text does not bypass the success gate. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "failure",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression",
       "key": "Object filters",
-      "status": "limited",
-      "notes": "Expression AST emits native syntax. Raw nodes and type assertions are caller assertions; scenario requires field overrides for unsupported raw forms and hashFiles. Coercion uses the local interpreter subset.",
+      "status": "implemented",
+      "notes": "Wildcard selections over arrays/objects skip known missing members and flatten subsequent filtered selections; ordering of object properties is not a scheduling contract. Verified through expression and public DSL scenario tests; external context fixtures remain strict.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "object-filters",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "boolean",
-      "status": "limited",
-      "notes": "Emitted by expression AST or property references. Scenario evaluates supported native forms; unsupported expressions require explicit field values.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
@@ -4619,145 +5060,193 @@
     {
       "domain": "expression-operator",
       "key": "( )",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "[ ]",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": ".",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "!",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "<",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "<=",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": ">",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": ">=",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "==",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "!=",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "&&",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
       "domain": "expression-operator",
       "key": "||",
-      "status": "limited",
-      "notes": "Expression AST and interpreter support native operators; coercion semantics follow the documented local subset.",
+      "status": "implemented",
+      "notes": "Native authoring emission and pure scenario evaluation are supported on supplied values, including precedence, lazy logic, native coercion and case-insensitive comparisons. Missing external fixtures remain errors.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "operators",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/scenario_expression_test.ts",
+        "tests/expression_test.ts",
+        "tests/scenario_test.ts"
       ]
     },
     {
@@ -4797,12 +5286,15 @@
       "domain": "reuse-reference",
       "key": "Limitations of reusable workflows",
       "status": "limited",
-      "notes": "GitHub.com allows ten levels and 50 unique reusable workflows. Local call validation checks ten-level nesting and config membership; it does not enforce the 50-workflow limit or inspect external graphs. Workflow env does not cross calls; variables must come from vars.",
+      "notes": "Local reachable call graphs accept 50 distinct reusable workflows and reject 51, including nested callees. The root is excluded; repeated calls and matrix members do not duplicate a workflow. Ten-level nesting and membership are validated; external references/graphs are not fetched or counted as proven complete.",
       "source": "content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md",
       "anchor": "limitations-of-reusable-workflows",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {
@@ -6561,11 +7053,15 @@
       "domain": "reuse-constraint",
       "key": "unique-workflow-count",
       "status": "limited",
-      "notes": "GitHub.com maximum 50 unique reusable workflows; not preflighted by Tsugiori.",
+      "notes": "Local reachable call graphs accept 50 distinct reusable workflows and reject 51, including nested callees. The root is excluded; repeated calls and matrix members do not duplicate a workflow. Ten-level nesting and membership are validated; external references/graphs are not fetched or counted as proven complete.",
       "source": "content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md",
       "anchor": "limitations-of-reusable-workflows",
       "assessment": [
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/reusable_workflow_test.ts"
       ]
     },
     {

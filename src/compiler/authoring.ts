@@ -716,7 +716,23 @@ function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
       );
     }
   };
-  for (const workflow of project.workflows) visit(workflow, []);
+  for (const workflow of project.workflows) {
+    const reachable = new Set<AuthoringWorkflow>();
+    const collect = (current: AuthoringWorkflow): void => {
+      for (const job of current.jobs) {
+        if (!job.callee || reachable.has(job.callee)) continue;
+        reachable.add(job.callee);
+        collect(job.callee);
+      }
+    };
+    collect(workflow);
+    if (reachable.size > 50) {
+      diagnostics.push(
+        `Reusable workflow tree at ${workflow.path} exceeds 50 unique called workflows (${reachable.size}).`,
+      );
+    }
+    visit(workflow, []);
+  }
 }
 
 function localActionReference(directory: string, path: string): string {

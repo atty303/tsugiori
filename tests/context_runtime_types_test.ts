@@ -6,6 +6,50 @@ import {
 import { scenario } from "../src/testing/mod.ts";
 
 function contextContracts(): void {
+  workflow("phase-types.yml", {
+    on: { push: {} },
+    concurrency: ({ github }) => {
+      const token: Expression<null> = github.token;
+      const id: Expression<null> = github.job;
+      void token;
+      void id;
+      return { group: github.ref, cancelInProgress: false };
+    },
+  }).job(
+    "build",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").when(({ github }) => {
+        const token: Expression<null> = github.token;
+        void token;
+        // @ts-expect-error server-side github.job is null
+        const id: Expression<string> = github.job;
+        void id;
+        return github.job.eq(null);
+      }).env(({ github }) => {
+        const token: Expression<string> = github.token;
+        void token;
+        return { ID: github.job };
+      }).run({
+        id: "check",
+        name: "Check",
+        run: "true",
+        env: ({ github, strategy }) => {
+          const token: Expression<string> = github.token;
+          const id: Expression<string> = github.job;
+          void token;
+          void id;
+          // @ts-expect-error the retired underscore context names are not aliases
+          strategy.fail_fast;
+          // @ts-expect-error the retired underscore context names are not aliases
+          strategy.job_index;
+          // @ts-expect-error the retired underscore context names are not aliases
+          strategy.job_total;
+          // @ts-expect-error the retired underscore context names are not aliases
+          strategy.max_parallel;
+          return { INDEX: toJSON(strategy["job-index"]) };
+        },
+      }).outputs(({ github }) => ({ id: github.job, token: github.token })),
+  );
   const flow = workflow("context-types.yml", { on: { push: {} } }).job(
     "build",
     ({ job }) =>

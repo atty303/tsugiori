@@ -297,6 +297,28 @@ export const githubExpressionScopes = {
 
 export type GitHubExpressionScopeKey = keyof typeof githubExpressionScopes;
 
+// JobExtension evaluates these settings on an initialized runner, including job
+// outputs in its final child context. See the pinned implementation references.
+export const runnerGitHubScopeKeys = [
+  "env",
+  "jobs.<job_id>.env",
+  "jobs.<job_id>.defaults.run",
+  "jobs.<job_id>.container",
+  "jobs.<job_id>.container.image",
+  "jobs.<job_id>.container.credentials",
+  "jobs.<job_id>.container.env.<env_id>",
+  "jobs.<job_id>.services",
+  "jobs.<job_id>.services.<service_id>.credentials",
+  "jobs.<job_id>.services.<service_id>.env.<env_id>",
+  "jobs.<job_id>.outputs.<output_id>",
+  "jobs.<job_id>.environment.url",
+  "jobs.<job_id>.snapshot.if",
+] as const satisfies readonly GitHubExpressionScopeKey[];
+
+export type RunnerGitHubScope =
+  | typeof runnerGitHubScopeKeys[number]
+  | Extract<GitHubExpressionScopeKey, `jobs.<job_id>.steps.${string}`>;
+
 export const supportedExpressionScopeKeys = [
   "jobs.<job_id>.if",
   "jobs.<job_id>.outputs.<output_id>",

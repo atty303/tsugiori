@@ -348,6 +348,57 @@ Deno.test("external workflow call uses explicit fixture", async () => {
   assertEquals(result.result, "failure");
 });
 
+Deno.test("reusable limits count unique reachable local callees, including shared nested trees and excluding invocations and unrelated workflows", () => {
+  const leaf = workflow(".github/workflows/leaf.yml", {
+    on: { workflow_call: {} },
+  }).job(
+    "run",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").run({ id: "run", name: "Run", run: "true" }),
+  );
+  const children = Array.from(
+    { length: 50 },
+    (_, index) =>
+      workflow(`.github/workflows/child-${index}.yml`, {
+        on: { workflow_call: {} },
+      }).job("leaf", ({ job }) =>
+        job.reusable().call("./.github/workflows/leaf.yml", leaf, {})),
+  );
+  const caller = (count: number) => {
+    let root = workflow(".github/workflows/root.yml", { on: { push: {} } });
+    for (let i = 0; i < count; i++) {
+      root = root.job(`call-${i}`, ({ job }) =>
+        job.reusable().call(
+          `./.github/workflows/child-${i}.yml`,
+          children[i],
+          {},
+        ));
+    }
+    return root.job(
+      "repeat",
+      ({ job }) =>
+        job.reusable().strategy({ matrix: { n: [1, 2] } }).call(
+          "./.github/workflows/child-0.yml",
+          children[0],
+          {},
+        ),
+    );
+  };
+  lowerProject(
+    project({ workflows: [caller(49), ...children, leaf] }),
+    "config.ts",
+  );
+  assertThrows(
+    () =>
+      lowerProject(
+        project({ workflows: [caller(50), ...children, leaf] }),
+        "config.ts",
+      ),
+    Error,
+    "exceeds 50 unique called workflows (51)",
+  );
+});
+
 Deno.test("host scenario observation preserves results and never exposes fixture values", async () => {
   const events: unknown[] = [];
   const p = workflow(".github/workflows/observe.yml", {

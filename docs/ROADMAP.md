@@ -25,12 +25,11 @@ documented in the [README](../README.md) and [architecture](ARCHITECTURE.md).
 The frozen [coverage inventory](../src/github_actions/github_spec.json) records
 `assessment` separately from status. Trigger declarations, payload typing,
 activity guards, fixture-based filtering and native background/parallel steps
-with logical synchronization are implemented and verified locally; remaining
-feature groups are:
-
-- Audit remaining context semantics and complete native expression
-  interpretation currently requiring explicit scenario overrides; enforce the
-  reusable unique-workflow limit where local graphs allow it.
+with logical synchronization, native context references, pure expression
+interpretation and the local reusable unique-workflow limit are implemented and
+verified locally. Remaining context values require explicit external fixtures;
+`hashFiles()` requires a field-specific value. External reusable graphs are not
+fetched, so their nesting and unique count remain GitHub validation boundaries.
 
 YAML anchors/aliases are represented by TypeScript reuse. Workflow templates,
 template metadata, distribution and marketplace are outside this product.

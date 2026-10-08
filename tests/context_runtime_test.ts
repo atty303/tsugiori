@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { project, toJSON, workflow } from "../src/github_actions/mod.ts";
+import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { parse } from "../src/deps.ts";
@@ -496,5 +497,157 @@ Deno.test("missing standard token identifies its field at workflow, job and step
     assertEquals(error.location, site);
     assert(error.message.includes("secrets.GITHUB_TOKEN"), error.message);
     assertEquals(events.at(-1)?.errorType, "fixture_missing");
+  }
+});
+
+Deno.test("server fields use null while initialized runner settings, steps and job outputs use local job identity and token fixtures", async () => {
+  const flow = workflow("phases.yml", {
+    on: { push: {} },
+    concurrency: ({ github }) => ({
+      group: toJSON(github.job),
+      cancelInProgress: github.token.ne(null),
+    }),
+    env: {
+      WORKFLOW_JOB: "${{ github.job }}",
+      WORKFLOW_TOKEN: "${{ github.token }}",
+    },
+  }).job(
+    "build",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").when(({ github }) =>
+        github.job.eq(null).and(github.token.eq(null))
+      )
+        .env(({ github }) => ({ JOB_TOKEN: github.token }))
+        .run({
+          id: "read",
+          name: "Read",
+          run: "true",
+          env: ({ github }) => ({
+            STEP_JOB: github.job,
+            STEP_TOKEN: github.token,
+          }),
+        })
+        .outputs(({ github }) => ({ job: github.job, token: github.token })),
+  );
+  const result = await scenario(flow, (test) => {
+    test.github({
+      event_name: "push",
+      job: "ignored-server-fixture",
+      token: "fixture-only-token",
+    });
+    test.expectConcurrency({ group: "null", cancelInProgress: false });
+    test.job("build", (job) => {
+      job.expectSettings({ runsOn: "ubuntu-latest" });
+      job.step("read").fixture(({ env }) => {
+        assertEquals(env, {
+          WORKFLOW_JOB: "build",
+          WORKFLOW_TOKEN: "fixture-only-token",
+          JOB_TOKEN: "fixture-only-token",
+          STEP_JOB: "build",
+          STEP_TOKEN: "fixture-only-token",
+        });
+        return {};
+      });
+    });
+  });
+  assertEquals(result.jobs.build.outputs, {
+    job: "build",
+    token: "fixture-only-token",
+  });
+  const missing = await assertRejects(() =>
+    scenario(flow, (test) => {
+      test.github({ event_name: "push" });
+      test.expectConcurrency({ group: "null", cancelInProgress: false });
+      test.job("build", (job) => job.step("read").fixture({}));
+    }), ScenarioError);
+  assertEquals(missing.kind, "fixture_missing");
+  assert(missing.location.endsWith("env.WORKFLOW_TOKEN"));
+});
+
+Deno.test("every frozen github property traverses typed authoring, native emission and scenario fixtures", async () => {
+  const fixture = {
+    action: "check",
+    action_path: "/action",
+    action_ref: "v1",
+    action_repository: "owner/action",
+    action_status: "success",
+    actor: "actor",
+    actor_id: "1",
+    api_url: "https://api.github.com",
+    artifacts: "/artifacts",
+    artifacts_list: "/list",
+    base_ref: "main",
+    env: "/env",
+    event: { ref: "refs/heads/main" },
+    event_name: "push" as const,
+    event_path: "/event.json",
+    graphql_url: "https://api.github.com/graphql",
+    head_ref: "topic",
+    job: "build",
+    path: "/path",
+    ref: "refs/heads/main",
+    ref_name: "main",
+    ref_protected: true,
+    ref_type: "branch",
+    repository: "owner/repo",
+    repository_id: "2",
+    repository_owner: "owner",
+    repository_owner_id: "3",
+    repositoryUrl: "git://owner/repo",
+    retention_days: "90",
+    run_id: "4",
+    run_number: "5",
+    run_attempt: "1",
+    secret_source: "Actions",
+    server_url: "https://github.com",
+    sha: "fixture-sha",
+    token: "synthetic-context-token",
+    triggering_actor: "actor",
+    workflow: "contexts",
+    workflow_ref: "owner/repo/.github/workflows/context.yml@main",
+    workflow_sha: "workflow-sha",
+    workspace: "/workspace",
+  };
+  const keys = Object.keys(fixture) as (keyof typeof fixture)[];
+  assertEquals(keys.length, 41);
+  const propertyRows = githubActionsSpec.coverage.filter((row) =>
+    row.domain === "context" && row.key.startsWith("github.")
+  );
+  assertEquals(
+    propertyRows.map((row) => row.key).sort(),
+    keys.map((key) => `github.${key}`).sort(),
+  );
+  for (const row of propertyRows) {
+    assertEquals(row.status, "implemented", row.key);
+    assert(!row.assessment.includes("implementation-gap"), row.key);
+  }
+  const flow = workflow("all-context.yml", { on: { push: {} } }).job(
+    "build",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").run({
+        id: "read",
+        name: "Read",
+        run: "true",
+        env: ({ github }) =>
+          Object.fromEntries(keys.map((key) => [key, toJSON(github.at(key))])),
+      }),
+  );
+  const native =
+    lowerProject(project({ workflows: [flow] }), "./workflows.ts").workflows[0]
+      .workflow;
+  const emitted = parse(emitWorkflow(native)).jobs.build.steps[0].env;
+  for (const key of keys) {
+    assertEquals(emitted[key], `\${{ toJSON(github.${key}) }}`, key);
+  }
+  const result = await scenario(flow, (t) => {
+    t.github(fixture);
+    t.job("build", (j) => j.step("read").fixture({}));
+  });
+  for (const key of keys) {
+    assertEquals(
+      result.jobs.build.instances[0].steps.read.env[key],
+      JSON.stringify(fixture[key], null, 2),
+      key,
+    );
   }
 });

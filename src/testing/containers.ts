@@ -63,17 +63,36 @@ function runtimeObject(
   path: string,
   absent: readonly string[] = [],
 ): Record<string, unknown> {
-  const target = value ?? {};
+  const target = { ...value };
+  const property = (t: Record<string, unknown>, key: string) =>
+    Object.keys(t).find((name) => name.toLowerCase() === key.toLowerCase()) ??
+      key.toLowerCase();
   return new Proxy(target, {
     has(t, key) {
+      if (typeof key === "string") key = property(t, key);
       if (typeof key === "string" && absent.includes(key)) return false;
       if (typeof key === "string" && !Object.hasOwn(t, key)) {
         throw new MissingContextError(`${path}.${key}`);
       }
       return Reflect.has(t, key);
     },
+    getOwnPropertyDescriptor(t, key) {
+      if (typeof key !== "string") {
+        return Reflect.getOwnPropertyDescriptor(t, key);
+      }
+      const actual = property(t, key);
+      if (absent.includes(actual)) return undefined;
+      const descriptor = Reflect.getOwnPropertyDescriptor(t, actual);
+      if (descriptor) return descriptor;
+      // Direct access must check only the requested fixture field. Whole-object
+      // enumeration still verifies all required fields in ownKeys.
+      return required.includes(actual) || path.endsWith(".ports")
+        ? { configurable: true, enumerable: false }
+        : undefined;
+    },
     get(t, key) {
-      if (key === "toJSON" || typeof key === "symbol" || absent.includes(key)) {
+      if (typeof key === "string") key = property(t, key);
+      if (key === "tojson" || typeof key === "symbol" || absent.includes(key)) {
         return undefined;
       }
       if (!Object.hasOwn(t, key)) {
@@ -99,6 +118,10 @@ export function containerContext(
 ): Record<string, unknown> {
   const serviceValues = new Map<string, unknown>();
   const service = (id: string): unknown => {
+    id =
+      Object.keys(job.services ?? {}).find((name) =>
+        name.toLowerCase() === id.toLowerCase()
+      ) ?? id;
     if (serviceValues.has(id)) return serviceValues.get(id);
     const definition = job.services?.[id];
     if (!definition) return null;

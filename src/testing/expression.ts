@@ -1,3 +1,5 @@
+// Fixed Docs semantics and supplemental actions/runner references are linked in
+// docs/GITHUB_ACTIONS_SPEC.md. External fixture reads remain deliberately strict.
 export class UnsupportedExpressionError extends Error {
   constructor(readonly source: string) {
     super(`Unsupported GitHub Actions expression: ${source}`);
@@ -12,15 +14,38 @@ export class MissingContextError extends Error {
   }
 }
 
-type Value = unknown;
 type Context = Readonly<Record<string, unknown>>;
-type Status = Readonly<{
-  success: boolean;
-  failure: boolean;
-  cancelled: boolean;
-}>;
-
+type Status = Readonly<
+  { success: boolean; failure: boolean; cancelled: boolean }
+>;
 type Token = Readonly<{ type: string; value: string }>;
+type Node =
+  | Readonly<{ kind: "literal"; value: unknown }>
+  | Readonly<{ kind: "context"; name: string }>
+  | Readonly<{ kind: "access"; value: Node; key: Node | "*" }>
+  | Readonly<{ kind: "unary"; value: Node }>
+  | Readonly<{ kind: "binary"; op: string; left: Node; right: Node }>
+  | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
+
+function parseNumber(source: string): number {
+  const text = source.trim();
+  if (!text) return 0;
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(text)) {
+    return Number(text);
+  }
+  if (
+    /^0(?:x[\da-f]+|o[0-7]+)$/.test(text.toLowerCase()) &&
+    text[1] === text[1].toLowerCase()
+  ) {
+    const value = Number(text);
+    return value <= 0xffffffff ? value | 0 : NaN;
+  }
+  return text === "Infinity"
+    ? Infinity
+    : text === "-Infinity"
+    ? -Infinity
+    : NaN;
+}
 
 function tokenize(source: string): Token[] {
   const tokens: Token[] = [];
@@ -51,36 +76,45 @@ function tokenize(source: string): Token[] {
       offset += cursor + 1;
       continue;
     }
+    if (/^[+\-\d]/.test(rest) || /^\.\d/.test(rest)) {
+      const text = /^[^\s!<>=&|(),\[\]*]+/.exec(rest)?.[0];
+      if (!text || Number.isNaN(parseNumber(text))) {
+        throw new UnsupportedExpressionError(source);
+      }
+      tokens.push({ type: "number", value: text });
+      offset += text.length;
+      continue;
+    }
     const operator = /^(?:&&|\|\||==|!=|<=|>=|[!<>().,\[\]*])/.exec(rest);
     if (operator) {
       tokens.push({ type: operator[0], value: operator[0] });
       offset += operator[0].length;
       continue;
     }
-    const number = /^-?(?:\d+)(?:\.\d+)?(?:[eE][+-]?\d+)?/.exec(rest);
-    if (number) {
-      tokens.push({ type: "number", value: number[0] });
-      offset += number[0].length;
-      continue;
-    }
     const identifier = /^[A-Za-z_][A-Za-z0-9_-]*/.exec(rest);
-    if (identifier) {
-      tokens.push({ type: "identifier", value: identifier[0] });
-      offset += identifier[0].length;
-      continue;
-    }
-    throw new UnsupportedExpressionError(source);
+    if (!identifier) throw new UnsupportedExpressionError(source);
+    tokens.push({ type: "identifier", value: identifier[0] });
+    offset += identifier[0].length;
   }
   tokens.push({ type: "eof", value: "" });
   return tokens;
 }
 
-type Node =
-  | Readonly<{ kind: "literal"; value: Value }>
-  | Readonly<{ kind: "path"; parts: readonly string[] }>
-  | Readonly<{ kind: "unary"; value: Node }>
-  | Readonly<{ kind: "binary"; op: string; left: Node; right: Node }>
-  | Readonly<{ kind: "call"; name: string; args: readonly Node[] }>;
+const arities: Readonly<Record<string, readonly [number, number]>> = {
+  always: [0, 0],
+  success: [0, 0],
+  failure: [0, 0],
+  cancelled: [0, 0],
+  contains: [2, 2],
+  startswith: [2, 2],
+  endswith: [2, 2],
+  fromjson: [1, 1],
+  tojson: [1, 1],
+  join: [1, 2],
+  format: [1, 255],
+  case: [3, 255],
+  hashfiles: [1, 255],
+};
 
 class Parser {
   private offset = 0;
@@ -99,230 +133,397 @@ class Parser {
     return token;
   }
   parse(): Node {
-    const result = this.parseOr();
+    const result = this.binary(0);
     this.require("eof");
     return result;
   }
-  private parseOr(): Node {
-    let left = this.parseAnd();
-    while (this.take("||")) {
-      left = { kind: "binary", op: "||", left, right: this.parseAnd() };
+  private binary(level: number): Node {
+    const operators = [["||"], ["&&"], ["==", "!="], ["<", "<=", ">", ">="]];
+    if (level === operators.length) {
+      return this.take("!")
+        ? { kind: "unary", value: this.binary(level) }
+        : this.primary();
     }
-    return left;
-  }
-  private parseAnd(): Node {
-    let left = this.parseCompare();
-    while (this.take("&&")) {
-      left = { kind: "binary", op: "&&", left, right: this.parseCompare() };
-    }
-    return left;
-  }
-  private parseCompare(): Node {
-    let left = this.parseUnary();
-    while (["==", "!=", "<", "<=", ">", ">="].includes(this.current().type)) {
+    let left = this.binary(level + 1);
+    while (operators[level].includes(this.current().type)) {
       const op = this.current().type;
       this.offset++;
-      left = { kind: "binary", op, left, right: this.parseUnary() };
+      left = { kind: "binary", op, left, right: this.binary(level + 1) };
     }
     return left;
   }
-  private parseUnary(): Node {
-    if (this.take("!")) return { kind: "unary", value: this.parseUnary() };
-    return this.parsePrimary();
-  }
-  private parsePrimary(): Node {
+  private primary(): Node {
+    let value: Node;
     if (this.take("(")) {
-      const value = this.parseOr();
+      value = this.binary(0);
       this.require(")");
-      return value;
-    }
-    if (this.current().type === "string") {
-      return { kind: "literal", value: this.require("string").value };
-    }
-    if (this.current().type === "number") {
-      return { kind: "literal", value: Number(this.require("number").value) };
-    }
-    const identifier = this.require("identifier").value;
-    if (identifier === "true") return { kind: "literal", value: true };
-    if (identifier === "false") return { kind: "literal", value: false };
-    if (identifier === "null") return { kind: "literal", value: null };
-    if (this.take("(")) {
-      const args: Node[] = [];
-      if (!this.take(")")) {
-        do args.push(this.parseOr()); while (this.take(","));
-        this.require(")");
+    } else if (this.current().type === "string") {
+      value = { kind: "literal", value: this.require("string").value };
+    } else if (this.current().type === "number") {
+      value = {
+        kind: "literal",
+        value: parseNumber(this.require("number").value),
+      };
+    } else {
+      const name = this.require("identifier").value;
+      if (this.take("(")) {
+        const args: Node[] = [];
+        if (!this.take(")")) {
+          do args.push(this.binary(0)); while (this.take(","));
+          this.require(")");
+        }
+        const range = arities[name.toLowerCase()];
+        if (!range) throw new UnsupportedExpressionError(name);
+        if (args.length < range[0] || args.length > range[1]) {
+          throw new TypeError(`Invalid argument count for ${name}.`);
+        }
+        value = { kind: "call", name, args };
+      } else {
+        const literals: Readonly<Record<string, unknown>> = {
+          true: true,
+          false: false,
+          null: null,
+          NaN: NaN,
+          Infinity: Infinity,
+        };
+        value = Object.hasOwn(literals, name)
+          ? { kind: "literal", value: literals[name] }
+          : { kind: "context", name };
       }
-      return { kind: "call", name: identifier, args };
     }
-    const parts = [identifier];
     while (true) {
       if (this.take(".")) {
-        if (this.take("*")) parts.push("*");
-        else parts.push(this.require("identifier").value);
+        const key = this.take("*") ? "*" : {
+          kind: "literal" as const,
+          value: this.require("identifier").value,
+        };
+        value = { kind: "access", value, key };
       } else if (this.take("[")) {
-        const token = this.current();
-        if (token.type !== "string" && token.type !== "number") {
-          throw new UnsupportedExpressionError(this.source);
-        }
-        this.offset++;
-        parts.push(token.value);
+        const key = this.take("*") ? "*" : this.binary(0);
         this.require("]");
+        value = { kind: "access", value, key };
       } else break;
     }
-    return { kind: "path", parts };
+    return value;
   }
 }
 
 export function truthy(value: unknown): boolean {
   return value !== null && value !== undefined && value !== false &&
-    value !== 0 && value !== "";
+    value !== 0 && value !== "" && !Number.isNaN(value);
 }
-
+function primitive(value: unknown): boolean {
+  return value === null || value === undefined || typeof value !== "object";
+}
+function fold(value: string): string {
+  return Array.from(value, (char) => {
+    const upper = char.toUpperCase();
+    return Array.from(upper).length === 1 ? upper : char;
+  }).join("");
+}
 function numberValue(value: unknown): number {
-  if (value === null) return 0;
+  if (value === null || value === undefined) return 0;
   if (typeof value === "boolean") return value ? 1 : 0;
-  if (typeof value === "number") return value;
-  if (typeof value === "string") return value.trim() === "" ? 0 : Number(value);
-  return NaN;
+  return typeof value === "number"
+    ? value
+    : typeof value === "string"
+    ? parseNumber(value)
+    : NaN;
 }
-
+function numberString(value: number): string {
+  if (!Number.isFinite(value)) return String(value);
+  if (value === 0) return "0";
+  const [digits, exponent] = value.toExponential(14).split("e");
+  const power = Number(exponent);
+  const mantissa = digits.replace(/\.?0+$/, "");
+  return power < -4 || power >= 15
+    ? `${mantissa}E${power < 0 ? "-" : "+"}${
+      String(Math.abs(power)).padStart(2, "0")
+    }`
+    : String(Number(`${mantissa}e${power}`));
+}
+function stringValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "number") return numberString(value);
+  if (Array.isArray(value)) return "Array";
+  return typeof value === "object" ? "Object" : String(value);
+}
+function coerce(left: unknown, right: unknown): readonly [unknown, unknown] {
+  if (left == null) left = null;
+  if (right == null) right = null;
+  if (typeof left === typeof right) return [left, right];
+  if (typeof left === "boolean" || left === null) {
+    return coerce(numberValue(left), right);
+  }
+  if (typeof right === "boolean" || right === null) {
+    return coerce(left, numberValue(right));
+  }
+  if (
+    typeof left === "number" && typeof right === "string" ||
+    typeof left === "string" && typeof right === "number"
+  ) {
+    return [numberValue(left), numberValue(right)];
+  }
+  return [left, right];
+}
 function equal(left: unknown, right: unknown): boolean {
+  [left, right] = coerce(left, right);
+  return typeof left === "string" && typeof right === "string"
+    ? fold(left) === fold(right)
+    : left === right;
+}
+function less(left: unknown, right: unknown): boolean {
+  [left, right] = coerce(left, right);
   if (typeof left === "string" && typeof right === "string") {
-    return left.toLowerCase() === right.toLowerCase();
+    return fold(left) < fold(right);
   }
-  if (typeof left === typeof right) return left === right;
-  return numberValue(left) === numberValue(right);
+  if (typeof left === "boolean" && typeof right === "boolean") {
+    return !left && right;
+  }
+  return typeof left === "number" && typeof right === "number" && left < right;
 }
 
-function pathValue(parts: readonly string[], context: Context): unknown {
-  function visit(current: unknown, index: number): unknown {
-    if (index === parts.length) return current;
-    const requested = parts[index];
-    const part = parts[0] === "matrix" && index > 0 && current !== null &&
-        typeof current === "object"
-      ? Object.keys(current).find((key) =>
-        key.toLowerCase() === requested.toLowerCase()
-      ) ?? requested
-      : requested;
-    if (part === "*") {
-      const values = Array.isArray(current)
-        ? current
-        : current && typeof current === "object"
-        ? Object.values(current)
-        : [];
-      return values.map((value) => visit(value, index + 1));
-    }
-    if (current === null || typeof current !== "object" || !(part in current)) {
+type Value = Readonly<
+  { value: unknown; path?: readonly string[]; filtered?: readonly Value[] }
+>;
+function knownMissing(path: readonly string[]): boolean {
+  return ["steps", "needs", "jobs", "inputs", "matrix", "env"].includes(
+    path[0],
+  ) ||
+    path[0] === "job" && ["container", "services"].includes(path[1]);
+}
+function access(
+  base: Value,
+  key: unknown,
+  wildcard: boolean,
+): Value | undefined {
+  if (base.filtered) {
+    const items = base.filtered.flatMap((item) => {
+      const selected = access(item, key, wildcard);
+      return selected?.filtered ?? (selected ? [selected] : []);
+    });
+    return { value: items.map((v) => v.value), filtered: items };
+  }
+  const value = base.value;
+  if (wildcard) {
+    const items = value !== null && typeof value === "object"
+      ? Object.entries(value).map(([name, value]) => ({
+        value,
+        ...(base.path ? { path: [...base.path, name] } : {}),
+      }))
+      : [];
+    return { value: items.map((v) => v.value), filtered: items };
+  }
+  const name = stringValue(key);
+  const path = base.path ? [...base.path, name] : undefined;
+  if (value !== null && typeof value === "object") {
+    if (Array.isArray(value)) {
+      const index = numberValue(key);
+      if (index >= 0 && Math.floor(index) < value.length) {
+        return { value: value[Math.floor(index)], path };
+      }
+      return undefined;
+    } else if (primitive(key)) {
+      const actual = Object.hasOwn(value, name) || base.path?.[0] === "env"
+        ? name
+        : Object.keys(value).find((k) => fold(k) === fold(name));
       if (
-        parts[0] === "steps" || parts[0] === "needs" || parts[0] === "jobs" ||
-        parts[0] === "job" &&
-          (parts[1] === "container" || parts[1] === "services") &&
-          (current === null || index === 2) ||
-        (parts[0] === "inputs" || parts[0] === "matrix") && index > 0
-      ) return "";
-      throw new MissingContextError(parts.slice(0, index + 1).join("."));
+        actual !== undefined && Object.hasOwn(value, actual) &&
+        (value as Context)[actual] !== undefined
+      ) {
+        return { value: (value as Context)[actual], path };
+      }
     }
-    return visit((current as Record<string, unknown>)[part], index + 1);
   }
-  return visit(context, 0);
+  if (path && !knownMissing(path) && value !== null) {
+    throw new MissingContextError(path.join("."));
+  }
+  return undefined;
 }
 
-function evalNode(node: Node, context: Context, status: Status): unknown {
+function format(
+  template: string,
+  args: readonly Node[],
+  evaluate: (node: Node) => unknown,
+): string {
+  let result = "";
+  for (let index = 0; index < template.length;) {
+    const char = template[index];
+    if (char !== "{" && char !== "}") {
+      result += char;
+      index++;
+      continue;
+    }
+    if (template[index + 1] === char) {
+      result += char;
+      index += 2;
+      continue;
+    }
+    const parameter = /^\{(\d+)(?::)?\}/.exec(template.slice(index));
+    if (
+      char !== "{" || !parameter || Number(parameter[1]) > 255 ||
+      Number(parameter[1]) >= args.length
+    ) {
+      throw new TypeError("Invalid format string or argument index.");
+    }
+    result += stringValue(evaluate(args[Number(parameter[1])]));
+    index += parameter[0].length;
+  }
+  return result;
+}
+
+function json(value: unknown, depth = 0): string {
+  if (value === null || value === undefined) return "null";
+  if (typeof value === "number") return numberString(value);
+  if (typeof value !== "object") return JSON.stringify(value);
+  const array = Array.isArray(value);
+  const entries = Object.entries(value);
+  if (!entries.length) return array ? "[]" : "{}";
+  const prefix = "  ".repeat(depth + 1);
+  const lines = entries.map(([key, value]) =>
+    `${prefix}${array ? "" : `${JSON.stringify(key)}: `}${
+      json(value, depth + 1)
+    }`
+  );
+  return `${array ? "[" : "{"}\n${lines.join(",\n")}\n${"  ".repeat(depth)}${
+    array ? "]" : "}"
+  }`;
+}
+
+function evalNode(node: Node, context: Context, status: Status): Value {
+  const evaluate = (node: Node) => evalNode(node, context, status).value;
   switch (node.kind) {
     case "literal":
-      return node.value;
-    case "path":
-      return pathValue(node.parts, context);
+      return { value: node.value };
+    case "context": {
+      const name = Object.keys(context).find((k) =>
+        fold(k) === fold(node.name)
+      );
+      if (name === undefined || context[name] === undefined) {
+        throw new MissingContextError(node.name);
+      }
+      return { value: context[name], path: [name.toLowerCase()] };
+    }
+    case "access": {
+      const base = evalNode(node.value, context, status);
+      if (base.value === null || typeof base.value !== "object") {
+        return node.key === "*" ? { value: [], filtered: [] } : { value: null };
+      }
+      return access(
+        base,
+        node.key === "*" ? null : evaluate(node.key),
+        node.key === "*",
+      ) ?? { value: null };
+    }
     case "unary":
-      return !truthy(evalNode(node.value, context, status));
+      return { value: !truthy(evaluate(node.value)) };
     case "binary": {
       const left = evalNode(node.left, context, status);
       if (node.op === "&&") {
-        return truthy(left) ? evalNode(node.right, context, status) : left;
+        return truthy(left.value)
+          ? evalNode(node.right, context, status)
+          : left;
       }
       if (node.op === "||") {
-        return truthy(left) ? left : evalNode(node.right, context, status);
+        return truthy(left.value)
+          ? left
+          : evalNode(node.right, context, status);
       }
-      const right = evalNode(node.right, context, status);
-      if (node.op === "==") return equal(left, right);
-      if (node.op === "!=") return !equal(left, right);
-      const a = numberValue(left);
-      const b = numberValue(right);
-      if (node.op === "<") return a < b;
-      if (node.op === "<=") return a <= b;
-      if (node.op === ">") return a > b;
-      if (node.op === ">=") return a >= b;
-      throw new UnsupportedExpressionError(node.op);
+      const right = evaluate(node.right);
+      const a = left.value;
+      return {
+        value: node.op === "=="
+          ? equal(a, right)
+          : node.op === "!="
+          ? !equal(a, right)
+          : node.op === "<"
+          ? less(a, right)
+          : node.op === ">"
+          ? less(right, a)
+          : node.op === "<="
+          ? equal(a, right) || less(a, right)
+          : equal(a, right) || less(right, a),
+      };
     }
     case "call": {
       const name = node.name.toLowerCase();
-      if (name === "always") return true;
-      if (name === "success") return status.success;
-      if (name === "failure") return status.failure;
-      if (name === "cancelled") return status.cancelled;
+      if (name === "always") return { value: true };
+      if (name === "success" || name === "failure" || name === "cancelled") {
+        return { value: status[name] };
+      }
       if (name === "hashfiles") {
         throw new UnsupportedExpressionError("hashFiles()");
       }
       if (name === "case") {
+        if (node.args.length % 2 !== 1) {
+          throw new TypeError(
+            "case() requires condition/value pairs and a default.",
+          );
+        }
         for (let index = 0; index < node.args.length - 1; index += 2) {
-          if (truthy(evalNode(node.args[index], context, status))) {
+          if (truthy(evaluate(node.args[index]))) {
             return evalNode(node.args[index + 1], context, status);
           }
         }
         return evalNode(node.args[node.args.length - 1], context, status);
       }
-      if (
-        ![
-          "fromjson",
-          "tojson",
-          "contains",
-          "startswith",
-          "endswith",
-          "join",
-          "format",
-        ].includes(name)
-      ) {
-        throw new UnsupportedExpressionError(node.name);
-      }
-      const args = node.args.map((arg) => evalNode(arg, context, status));
-      if (name === "fromjson") return JSON.parse(String(args[0]));
-      if (name === "tojson") return JSON.stringify(args[0]);
-      if (name === "contains") {
-        return Array.isArray(args[0])
-          ? args[0].some((value) => equal(value, args[1]))
-          : String(args[0]).toLowerCase().includes(
-            String(args[1]).toLowerCase(),
-          );
-      }
-      if (name === "startswith") {
-        return String(args[0]).toLowerCase()
-          .startsWith(String(args[1]).toLowerCase());
-      }
-      if (name === "endswith") {
-        return String(args[0]).toLowerCase()
-          .endsWith(String(args[1]).toLowerCase());
+      const first = evaluate(node.args[0]);
+      if (name === "fromjson") return { value: JSON.parse(stringValue(first)) };
+      if (name === "tojson") return { value: json(first) };
+      if (name === "format") {
+        return {
+          value: format(stringValue(first), node.args.slice(1), evaluate),
+        };
       }
       if (name === "join") {
-        return Array.isArray(args[0])
-          ? args[0].join(args[1] === undefined ? "," : String(args[1]))
-          : String(args[0]);
+        if (!Array.isArray(first)) {
+          return { value: primitive(first) ? stringValue(first) : "" };
+        }
+        const separator = first.length > 1 && node.args.length > 1
+          ? evaluate(node.args[1])
+          : ",";
+        return {
+          value: first.map(stringValue).join(
+            primitive(separator) ? stringValue(separator) : ",",
+          ),
+        };
       }
-      if (name === "format") {
-        return String(args[0]).replace(
-          /\{\{|\}\}|\{(\d+)\}/g,
-          (token, index: string | undefined) =>
-            index === undefined
-              ? token[0]
-              : String(args[Number(index) + 1] ?? ""),
-        );
+      if (
+        !primitive(first) &&
+        (name !== "contains" || !Array.isArray(first) || !first.length)
+      ) return { value: false };
+      const second = evaluate(node.args[1]);
+      if (name === "contains" && Array.isArray(first)) {
+        return { value: first.some((value) => equal(value, second)) };
       }
-      throw new UnsupportedExpressionError(node.name);
+      if (!primitive(second)) return { value: false };
+      const a = fold(stringValue(first));
+      const b = fold(stringValue(second));
+      return {
+        value: name === "contains"
+          ? a.includes(b)
+          : name === "startswith"
+          ? a.startsWith(b)
+          : a.endsWith(b),
+      };
     }
   }
 }
 
 export function hasStatusFunction(source: string): boolean {
-  return /\b(?:always|success|failure|cancelled)\s*\(/i.test(source);
+  let tokens: Token[];
+  try {
+    tokens = tokenize(source.trim().replace(/^\$\{\{|\}\}$/g, ""));
+  } catch {
+    return true;
+  }
+  return tokens.some((token, index) =>
+    token.type === "identifier" &&
+    ["always", "success", "failure", "cancelled"].includes(
+      token.value.toLowerCase(),
+    ) &&
+    tokens[index + 1]?.type === "(" && tokens[index - 1]?.type !== "."
+  );
 }
 
 export function evaluateExpression(
@@ -330,16 +531,39 @@ export function evaluateExpression(
   context: Context,
   status: Status,
 ): unknown {
-  const evaluate = (source: string) =>
-    evalNode(new Parser(source, tokenize(source)).parse(), context, status);
-  const whole = /^\$\{\{([\s\S]*?)\}\}$/.exec(value);
-  if (whole) return evaluate(whole[1]);
   if (!value.includes("${{")) return value;
-  const pattern = /\$\{\{([\s\S]*?)\}\}/g;
-  const interpolated = value.replace(
-    pattern,
-    (_match, source: string) => String(evaluate(source) ?? ""),
-  );
-  if (interpolated.includes("${{")) throw new UnsupportedExpressionError(value);
-  return interpolated;
+  const parts: (string | Node)[] = [];
+  let cursor = 0;
+  while (cursor < value.length) {
+    const start = value.indexOf("${{", cursor);
+    if (start < 0) {
+      parts.push(value.slice(cursor));
+      break;
+    }
+    if (start > cursor) parts.push(value.slice(cursor, start));
+    let end = start + 3;
+    let quoted = false;
+    for (; end < value.length; end++) {
+      if (value[end] === "'") {
+        if (quoted && value[end + 1] === "'") {
+          end++;
+          continue;
+        }
+        quoted = !quoted;
+      }
+      if (!quoted && value.slice(end, end + 2) === "}}") break;
+    }
+    if (end === value.length) throw new UnsupportedExpressionError(value);
+    const source = value.slice(start + 3, end);
+    parts.push(new Parser(source, tokenize(source)).parse());
+    cursor = end + 2;
+  }
+  if (parts.length === 1 && typeof parts[0] !== "string") {
+    return evalNode(parts[0], context, status).value;
+  }
+  return parts.map((part) =>
+    typeof part === "string"
+      ? part
+      : stringValue(evalNode(part, context, status).value)
+  ).join("");
 }

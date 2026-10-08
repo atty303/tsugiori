@@ -1017,6 +1017,47 @@ workflow("context.yml", { on: { push: {} } }).job("build", ({ job }) => job.runs
         assert(hover.includes(expected), hover);
         assert(!hover.includes("..."), hover);
       }
+      const strategyLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        430,
+        "native-strategy-context",
+        contextPrefix.replace("runner, secrets", "runner, secrets, strategy") +
+          `strategy./*completion*/; return {}; } }));`,
+      );
+      for (
+        const key of ["fail-fast", "job-index", "job-total", "max-parallel"]
+      ) assert(strategyLabels.includes(key), key);
+      for (
+        const key of ["fail_fast", "job_index", "job_total", "max_parallel"]
+      ) assert(!strategyLabels.includes(key), key);
+      for (const [index, field] of ["job", "token"].entries()) {
+        const runnerHover = await sourceHover(
+          writer,
+          stream,
+          431 + index,
+          `runner-github-${field}`,
+          contextPrefix + `github.${field}/*completion*/; return {}; } }));`,
+          true,
+        );
+        assert(
+          runnerHover.includes(`Ref<string, "github.${field}">`),
+          runnerHover,
+        );
+        const serverHover = await sourceHover(
+          writer,
+          stream,
+          433 + index,
+          `server-github-${field}`,
+          `import { workflow } from "../src/github_actions/mod.ts";
+workflow("phase.yml", { on: { push: {} }, concurrency: ({github}) => { github.${field}/*completion*/; return {group:"test",cancelInProgress:false}; } });`,
+          true,
+        );
+        assert(
+          serverHover.includes(`Ref<null, "github.${field}">`),
+          serverHover,
+        );
+      }
       const fixturePrefix =
         `import { workflow } from "../src/github_actions/mod.ts";
 import { scenario } from "../src/testing/mod.ts";

@@ -90,8 +90,56 @@ values fail at their read site. Callee job identity remains distinct from
 inherited caller github identity; standard-token fixtures propagate without
 leaking unpassed custom secrets. Artifact paths do not read or write files, and
 fixture evaluation does not establish actual runtime availability or
-authorization. Context-wide coverage remains limited where separate gaps or
-execution boundaries remain.
+authorization. Context parent rows distinguish complete local value models from
+partial external fixtures and GitHub execution boundaries. Each property has its
+own assessment and linked generation/type/scenario evidence; a typed reference
+alone does not prove a runtime value.
+
+`strategy` uses the native `fail-fast`, `job-index`, `job-total` and
+`max-parallel` names (TypeScript bracket access); the former underscore names
+are removed. Scenarios derive indices, totals and authored controls. Reading
+`max-parallel` requires an explicit setting: GitHub's default and actual runner
+parallelism are not inferred.
+
+`github.job` and `github.token` are null in server-evaluated fields such as job
+conditions, concurrency and runner selection. Initialized runner settings
+(workflow/job env, job defaults and containers), steps, environment URLs and job
+outputs expose strings. Scenarios derive the local execution job ID and require
+an explicit `github.token` or `secrets.GITHUB_TOKEN` fixture for runner reads.
+The context article's step-only wording is reconciled with initialization and
+completion in pinned
+[ExecutionContext](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Runner.Worker/ExecutionContext.cs)
+and
+[JobExtension](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Runner.Worker/JobExtension.cs).
+
+Pure expression interpretation covers frozen literals, suffix/dynamic access,
+operators, native conversions, built-ins, object filters and status calls on
+supplied values. A quoted function name does not remove the implicit success
+gate. Computed JSON values are closed: missing properties yield null, which
+converts to an empty string. Partial external fixtures remain strict, including
+nested event values; missing data is not evidence of native absence.
+`hashFiles()` continues to require a field-specific scenario value and never
+reads files. Native function argument counts and malformed JSON/format strings
+fail with a location-aware scenario error.
+
+Where prose is ambiguous (JSON numbers versus hexadecimal examples, missing
+access versus its string conversion), the supplemental pinned runner
+[expression SDK](https://github.com/actions/runner/tree/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Sdk/Expressions),
+[EvaluationResult](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Sdk/Expressions/EvaluationResult.cs),
+[Index](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Sdk/Expressions/Sdk/Operators/Index.cs)
+and
+[ExpressionUtility](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Sdk/Expressions/Sdk/ExpressionUtility.cs)
+evidence coercion, number parsing, ordinal case-insensitive comparison, filters
+and lazy built-ins. `fromJSON` accepts valid JSON; this is not a claim to
+emulate runner implementation resource limits or legacy non-JSON extensions.
+These implementation references do not advance the frozen snapshot.
+
+Local reusable graph validation accepts 50 distinct reachable callees and
+rejects 51, including nested targets and excluding the root. Workflow identity
+is the registered local definition/output path; repeated calls and matrix
+members do not increase the count. External graph resolution is an explicit
+assertion: external references are not fetched, so their unique count and
+nesting cannot be preflighted.
 
 Background, wait, wait-all, cancel and parallel use the fixed Actions NGA
 GitHub.com feature gate. Native run/uses and task-backed run steps retain
