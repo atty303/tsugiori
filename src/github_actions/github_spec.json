@@ -3376,24 +3376,24 @@
     {
       "domain": "context",
       "key": "github.artifacts",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "github.artifacts_list",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "github-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
@@ -3792,12 +3792,12 @@
     {
       "domain": "context",
       "key": "job.check_run_id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
@@ -3900,48 +3900,48 @@
     {
       "domain": "context",
       "key": "job.workflow_ref",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.workflow_sha",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.workflow_repository",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.workflow_file_path",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
@@ -4101,24 +4101,24 @@
     {
       "domain": "context",
       "key": "runner.environment",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed native reference and explicit scenario fixture evaluation are verified by context_runtime_test.ts, context_runtime_types_test.ts and actual LSP checks. GitHub owns availability and runtime values; no path, ID, runner assignment or authorization is inferred.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "runner-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "secrets.GITHUB_TOKEN",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Standard token reference requires no secret-name declaration. Scenarios propagate the explicitly supplied standard-token fixture through local reusable calls without forwarding unpassed custom secrets. Effective token permissions remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "secrets-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },

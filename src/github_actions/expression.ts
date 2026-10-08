@@ -934,6 +934,28 @@ export type GitHubContext = Readonly<{
    * ```
    */
   action_status: string;
+  /** Runner path to the current step's workflow artifact declaration file. Referencing this path does not declare or write artifacts.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Use context", run: "true",
+   *   env: ({ github }) => ({ VALUE: toJSON(github.artifacts) }),
+   * });
+   * ```
+   */
+  artifacts: string;
+  /** Runner path to the read-only JSON file of aggregated workflow artifact metadata for the current job. Referencing this path does not read the file.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({
+   *   name: "Use context", run: "true",
+   *   env: ({ github }) => ({ VALUE: toJSON(github.artifacts_list) }),
+   * });
+   * ```
+   */
+  artifacts_list: string;
   /** The username of the user that triggered the initial workflow run. If the workflow run is a re-run, this value may differ from `github.triggering_actor`. Any workflow re-runs will use the privileges of `github.actor`, even if the actor initiating the re-run (`github.triggering_actor`) has different privileges.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -1681,7 +1703,7 @@ export type ScopeValues<
    * ```
    */
   vars: Readonly<Record<Vars, string>>;
-  /** Secrets available to this workflow. An unset secret returns an empty string. Reusable workflows receive only explicitly passed or inherited secrets.
+  /** Secrets available to this workflow. An unset secret returns an empty string. GITHUB_TOKEN is available without a secret-name declaration. Reusable workflows receive this standard token and only explicitly passed or inherited custom secrets.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
    * @example
    * ```ts
@@ -1696,7 +1718,16 @@ export type ScopeValues<
    *   }));
    * ```
    */
-  secrets: Readonly<Record<Secrets, string>>;
+  secrets: Readonly<
+    Record<Secrets, string> & {
+      /** Standard workflow token, available without a custom secret declaration.
+       * Local reusable scenarios propagate its explicit fixture automatically;
+       * GitHub owns effective permissions and actual token availability.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#secrets-context
+       */
+      GITHUB_TOKEN: string;
+    }
+  >;
   /** Inputs passed to a manually dispatched or reusable workflow. Unlike github.event.inputs, this context preserves boolean values.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#inputs-context
    * @example
@@ -1763,6 +1794,61 @@ export type ScopeValues<
    */
   job: Readonly<
     {
+      /** Check run ID assigned to the current job by GitHub.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ job }) => ({ VALUE: toJSON(job.check_run_id) }),
+       * });
+       * ```
+       */
+      check_run_id: number;
+      /** Full ref of the workflow file defining this job. In a reusable workflow this identifies the callee, unlike github.workflow_ref which remains the caller.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ job }) => ({ VALUE: toJSON(job.workflow_ref) }),
+       * });
+       * ```
+       */
+      workflow_ref: string;
+      /** Commit SHA of the workflow file defining this job; reusable jobs identify their callee source.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ job }) => ({ VALUE: toJSON(job.workflow_sha) }),
+       * });
+       * ```
+       */
+      workflow_sha: string;
+      /** Owner/repository containing the workflow file defining this job, including reusable workflow jobs.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ job }) => ({ VALUE: toJSON(job.workflow_repository) }),
+       * });
+       * ```
+       */
+      workflow_repository: string;
+      /** Repository-relative path of the workflow file defining this job, including reusable workflow jobs.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ job }) => ({ VALUE: toJSON(job.workflow_file_path) }),
+       * });
+       * ```
+       */
+      workflow_file_path: string;
       /** The current job status: success, failure or cancelled.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#job-context
        * @example In a `workflow().job()` callback with `{ job }`.
@@ -1847,6 +1933,17 @@ export type ScopeValues<
    */
   runner: Readonly<
     {
+      /** Whether the assigned runner is GitHub-hosted or self-hosted. Runner request labels alone do not determine this value.
+       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
+       * @example In a `workflow().job()` callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").run({
+       *   name: "Use context", run: "true",
+       *   env: ({ runner }) => ({ VALUE: toJSON(runner.environment) }),
+       * });
+       * ```
+       */
+      environment: "github-hosted" | "self-hosted";
       /** The name of the runner executing the job. This name may not be unique in a workflow run as runners at the repository and organization levels could use the same name.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#runner-context
        * @example In a `workflow().job()` callback with `{ job }`.

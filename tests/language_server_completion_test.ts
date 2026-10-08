@@ -971,6 +971,86 @@ workflow("parallel.yml", { on: { push: {} } }).job("build", ({ job }) => job.run
       );
       assert(groupHover.includes("Parallel<"), groupHover);
       assert(!groupHover.includes("..."), groupHover);
+      const contextPrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+workflow("context.yml", { on: { push: {} } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ name: "Check", run: "true", env: ({ github, job, runner, secrets }) => { `;
+      for (
+        const [index, [namespace, fields]] of ([
+          ["github", ["artifacts", "artifacts_list"]],
+          ["job", [
+            "check_run_id",
+            "workflow_ref",
+            "workflow_sha",
+            "workflow_repository",
+            "workflow_file_path",
+          ]],
+          ["runner", ["environment"]],
+          ["secrets", ["GITHUB_TOKEN"]],
+        ] as const).entries()
+      ) {
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          410 + index,
+          `context-${namespace}`,
+          contextPrefix + `${namespace}./*completion*/; return {}; } }));`,
+        );
+        for (const field of fields) {
+          assert(labels.includes(field), `${namespace}.${field}`);
+        }
+      }
+      for (
+        const [index, [name, property, expected]] of ([
+          ["check-run-hover", "job.check_run_id", "number"],
+          ["runner-environment-hover", "runner.environment", "github-hosted"],
+          ["token-hover", "secrets.GITHUB_TOKEN", "string"],
+        ] as const).entries()
+      ) {
+        const hover = await sourceHover(
+          writer,
+          stream,
+          414 + index,
+          name,
+          contextPrefix + `${property}/*completion*/; return {}; } }));`,
+          true,
+        );
+        assert(hover.includes(expected), hover);
+        assert(!hover.includes("..."), hover);
+      }
+      const fixturePrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+import { scenario } from "../src/testing/mod.ts";
+const flow = workflow("context.yml", { on: { push: {} } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").run({ id: "check", name: "Check", run: "true" }));
+scenario(flow, test => test.job("build", job => { `;
+      for (
+        const [index, [method, type]] of ([
+          ["jobRuntime", "JobRuntime"],
+          ["runner", "RunnerRuntime"],
+        ] as const).entries()
+      ) {
+        const signature = await sourceHover(
+          writer,
+          stream,
+          417 + index,
+          `${method}-signature`,
+          fixturePrefix + `job.${method}(/*completion*/{}); }));`,
+          true,
+          "signatureHelp",
+        );
+        assert(signature.includes(type), signature);
+        assert(!signature.includes("..."), signature);
+      }
+      const stepSignature = await sourceHover(
+        writer,
+        stream,
+        419,
+        "step-github-signature",
+        fixturePrefix + `job.step("check").github(/*completion*/{}); }));`,
+        true,
+        "signatureHelp",
+      );
+      assert(stepSignature.includes("StepGitHub"), stepSignature);
+      assert(!stepSignature.includes("..."), stepSignature);
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

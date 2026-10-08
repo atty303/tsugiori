@@ -249,12 +249,14 @@ Property names conflicting with expression members use at(), such as
 matrix.at("node").version. A scenario provides referenced external contexts and
 fixtures for reached authored steps. Local calls recursively interpret callee
 workflows with separate inputs, secrets and env; external calls use explicit
-fixtures. The caller github context stays unchanged. Call results and workflow
-outputs retain their native boundaries. The interpreter builds `steps`, `needs`,
-and `matrix` contexts, evaluates supported expressions, serializes typed task
-outputs to GitHub wire values, and checks independent expectations against the
-resulting state. Generated task preparation steps default to success and support
-an explicit outcome override.
+fixtures. The caller github context stays unchanged. The explicitly supplied
+standard GITHUB_TOKEN fixture crosses calls without forwarding unpassed custom
+secrets. Callee execution jobs supply their own job identity and runner
+fixtures. Call results and workflow outputs retain their native boundaries. The
+interpreter builds `steps`, `needs`, and `matrix` contexts, evaluates supported
+expressions, serializes typed task outputs to GitHub wire values, and checks
+independent expectations against the resulting state. Generated task preparation
+steps default to success and support an explicit outcome override.
 
 The interpreter defers background fixture results, environment writes and status
 until an explicit join, a parallel group's join or the implicit end-of-job join.
@@ -292,6 +294,17 @@ job failure does not request an image. Rejected environments, failed
 initialization, failure and cancellation produce no request. This interpretation
 performs no cache operations or image generation. Without settings expectations,
 snapshot expressions require no new fixtures.
+
+Runner-owned context values are explicit test fixtures: jobRuntime() supplies
+check run and job-defining workflow identity, and runner() supplies assigned
+runner properties. Per-matrix fields override matching job-wide fields. Step
+github() overlays only runner-owned fields for that step's expression
+evaluation; caller event/source identity and computed status, steps and needs
+cannot be replaced. Step overlays do not enter later steps, job outputs or local
+calls. Container/services retain their separate containerRuntime() contract.
+Required missing values fail at the expression location, without deriving IDs,
+paths or runner assignment. Fixture values are excluded from observation
+records.
 
 Evaluated unknown expression forms and `hashFiles()` need a field-specific
 scenario value; unsupported forms never silently succeed.

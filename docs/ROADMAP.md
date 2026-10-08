@@ -28,9 +28,9 @@ activity guards, fixture-based filtering and native background/parallel steps
 with logical synchronization are implemented and verified locally; remaining
 feature groups are:
 
-- Complete context fields and native expression interpretation currently
-  requiring explicit scenario overrides; enforce the reusable unique-workflow
-  limit where local graphs allow it.
+- Audit remaining context semantics and complete native expression
+  interpretation currently requiring explicit scenario overrides; enforce the
+  reusable unique-workflow limit where local graphs allow it.
 
 YAML anchors/aliases are represented by TypeScript reuse. Workflow templates,
 template metadata, distribution and marketplace are outside this product.

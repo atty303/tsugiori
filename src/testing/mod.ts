@@ -13,6 +13,7 @@ import type {
 import type {
   Expression,
   GitHubContext,
+  ScopeValues,
 } from "../github_actions/expression.ts";
 /**
  * Interpret workflow logic with fixtures using {@link scenario}.
@@ -52,17 +53,28 @@ import type {
  * `instance.call(callee, test => { ...callee job fixtures... })`, nesting this for
  * further calls. `expectCallInputs()` and `expectCallSecrets()` check the actual
  * propagated values. Child contexts come from the call and cannot be overridden by
- * child context fixtures. External calls use `callFixture()`; local calls
+ * child workflow context fixtures. The explicit standard GITHUB_TOKEN fixture
+ * propagates automatically; custom secrets still require passing or inheritance.
+ * Callee execution jobs supply their own jobRuntime()/runner() fixtures, and
+ * step github() fixtures remain local. External calls use `callFixture()`; local calls
  * interpret their callee and reject external fixtures. Workflow env does not cross
  * a call. Results retain nested call results and workflow outputs. Optional
  * `{ observe }` sends bounded workflow and container-initialization stage events to a host-owned sink
  * without fixture values; sink errors do not change the scenario result.
+ * jobRuntime() supplies check run/workflow identity; runner() supplies assigned
+ * runner fields. Missing reads fail, and matrix instance fields override job-wide
+ * fields. Step github() overrides only runner-owned github fields for that step.
  * containerRuntime() supplies only runner fields used by reached expressions.
  * containerInitialization() models success/failure before authored steps; omission
  * assumes interpretation proceeds, without proving Docker startup.
  *
  * @module
  */
+import {
+  validateJobRuntime,
+  validateRunnerRuntime,
+  validateStepGitHub,
+} from "./contexts.ts";
 import {
   project,
   type ProjectConfig,
@@ -372,6 +384,8 @@ export type ScenarioResult = Readonly<{
 /** Mutable step expectations retained by the scenario builder. Prefer {@link StepScenario} methods; this record does not run a step.
  */
 export type StepRules = {
+  /** Step-local runner-owned github values; never recorded by observers. */
+  github?: StepGitHub;
   /** Expected effective run settings; no command execution is performed. */
   expectedRunSettings?: RunDefaults;
   /** Fixed or callback fixture for a reached step. Prefer {@link StepScenario.fixture}.
@@ -403,6 +417,10 @@ export type StepRules = {
 /** Mutable expectations for one job/matrix instance. Prefer {@link InstanceScenario} methods.
  */
 export type InstanceRules = {
+  /** Runner-owned job identity fixture; excludes computed status and containers. */
+  jobRuntime?: JobRuntime;
+  /** Assigned runner fixture for this instance; no assignment is inferred. */
+  runner?: RunnerRuntime;
   /** Explicit partial runner context fixture; never recorded by observers. */ containerRuntime?:
     ContainerRuntime;
   /** Explicit aggregate container initialization result. */ containerInitialization?:
@@ -545,6 +563,21 @@ export class StepScenario<Inputs, Outputs, Matrix> {
     this.rules.fixture = value as StepRules["fixture"];
     return this;
   }
+  /** Supply runner-owned github values for this step, overriding matching
+   * workflow fixture values only for this step's condition, env, inputs and run
+   * settings. Event/caller identity and computed contexts cannot be overridden.
+   * Invalid keys/types fail with fixture_invalid; missing referenced values fail
+   * at evaluation. No files are read or written. Observer records omit values.
+   * @example Given a typed step scenario builder `testStep`.
+   * ```ts
+   * testStep.github({ artifacts: "/fixture/step-artifacts" }).fixture({});
+   * ```
+   */
+  github(value: StepGitHub): this {
+    validateStepGitHub(value, "scenario.step.github");
+    this.rules.github = value;
+    return this;
+  }
   /** Compare only supplied input keys against resolved native input values; this expectation does not provide a fixture.
    * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
    * ```ts
@@ -675,6 +708,39 @@ export class InstanceScenario<Job> {
     child.program.workflowPath =
       project({ workflows: [workflow] }).workflows[0].path;
     this.rules.call = child.program;
+    return this;
+  }
+  /** Supply the runner-owned identity of this execution job. Job-wide values
+   * are merged with eachMatrix instance values, with the instance taking priority
+   * for matching fields. In local calls configure the callee's execution jobs;
+   * reusable caller jobs have no runner and reject this fixture. Missing reads
+   * fail at evaluation; IDs and workflow identities are never inferred. Status,
+   * container/services and other contexts cannot be overridden. Invalid keys or
+   * types fail with fixture_invalid. Observer records omit fixture values.
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.jobRuntime({ check_run_id: 42, workflow_file_path: ".github/workflows/build.yml" });
+   * ```
+   */
+  jobRuntime(value: JobRuntime): this {
+    validateJobRuntime(value, "scenario.jobRuntime");
+    this.rules.jobRuntime = value;
+    return this;
+  }
+  /** Supply assigned-runner context for this execution job or matrix instance.
+   * Instance fields override matching job-wide values. No value is inferred from
+   * runsOn, and callee execution jobs receive their own fixtures rather than the
+   * caller's runner. Reusable caller jobs reject this fixture. Referenced missing
+   * values fail at evaluation; invalid keys/types fail with fixture_invalid.
+   * Observer records omit fixture values.
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.runner({ environment: "self-hosted", os: "Linux", arch: "ARM64" });
+   * ```
+   */
+  runner(value: RunnerRuntime): this {
+    validateRunnerRuntime(value, "scenario.runner");
+    this.rules.runner = value;
     return this;
   }
   /** Supply the aggregate environment protection decision for a reached job instance. passed means every rule passed; rejected prevents all steps and produces job failure. Omission advances as before and proves nothing about GitHub protection. No pending, reviewers, timers or rule calculation is modeled. Configure per-matrix decisions with eachMatrix().
@@ -862,6 +928,64 @@ export class JobScenario<Job> extends InstanceScenario<Job> {
     };
     return this;
   }
+}
+
+type Empty = Readonly<Record<never, never>>;
+type RunnerValues = ScopeValues<Empty, Empty, Empty, never, never>["runner"];
+
+type StepGitHubValues = Pick<
+  GitHubContext,
+  | "action"
+  | "action_path"
+  | "action_ref"
+  | "action_repository"
+  | "action_status"
+  | "artifacts"
+  | "artifacts_list"
+  | "env"
+  | "event_path"
+  | "job"
+  | "path"
+  | "token"
+  | "workspace"
+>;
+
+/** Explicit runner-owned job identity. All properties are optional until read by
+ * an expression. Computed status and container/services belong to the interpreter
+ * and {@link InstanceScenario.containerRuntime}, respectively.
+ */
+export type JobRuntime = Readonly<
+  Partial<
+    Pick<
+      ScopeValues<Empty, Empty, Empty, never, never>["job"],
+      | "check_run_id"
+      | "workflow_ref"
+      | "workflow_sha"
+      | "workflow_repository"
+      | "workflow_file_path"
+    >
+  >
+>;
+
+/** Partial assigned-runner context. These are test values, not deductions from
+ * runsOn labels. Referenced missing fields fail at their expression site.
+ */
+export interface RunnerRuntime extends Partial<RunnerValues> {
+  /** Explicit assigned runner environment. Omission does not infer a value from
+   * runsOn labels; reading it requires a fixture.
+   */
+  readonly environment?: RunnerValues["environment"];
+}
+
+/** Step-local github context values supplied by the runner. Event and caller
+ * identity cannot be overridden here. Overrides apply only while this step's
+ * expressions are evaluated; later steps and job outputs use the workflow fixture.
+ */
+export interface StepGitHub extends Partial<StepGitHubValues> {
+  /** Current step's artifact declaration file path. This fixture supplies only
+   * a path; scenario neither accesses the file nor declares artifacts.
+   */
+  readonly artifacts?: GitHubContext["artifacts"];
 }
 
 /** Recursive optional fixture shape. Properties retain their source value types; missing values needed by evaluation fail at their location. */

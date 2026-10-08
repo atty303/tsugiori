@@ -1,3 +1,8 @@
+import {
+  validateJobRuntime,
+  validateRunnerRuntime,
+  validateStepGitHub,
+} from "./contexts.ts";
 import { flattenSteps } from "../github_actions/steps.ts";
 import { defaultCacheMode } from "../github_actions/cache_mode.ts";
 import type { CacheMode } from "../github_actions/mod.ts";
@@ -269,6 +274,17 @@ function validateRules(
   authorJob: AuthoringJob,
   location: string,
 ): void {
+  if (rules.jobRuntime !== undefined) {
+    validateJobRuntime(rules.jobRuntime, `${location}.jobRuntime`);
+  }
+  if (rules.runner !== undefined) {
+    validateRunnerRuntime(rules.runner, `${location}.runner`);
+  }
+  for (const [id, rule] of rules.steps) {
+    if (rule.github !== undefined) {
+      validateStepGitHub(rule.github, `${location}.${id}.github`);
+    }
+  }
   const ids = new Set(flattenSteps(authorJob.steps).map((step) => step.id));
   for (const id of rules.steps.keys()) {
     if (id !== "__job__" && !ids.has(id)) {
@@ -283,6 +299,13 @@ function validateRules(
 
 function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
   return {
+    jobRuntime:
+      base.jobRuntime === undefined && instance.jobRuntime === undefined
+        ? undefined
+        : { ...base.jobRuntime, ...instance.jobRuntime },
+    runner: base.runner === undefined && instance.runner === undefined
+      ? undefined
+      : { ...base.runner, ...instance.runner },
     steps: new Map([...base.steps, ...instance.steps]),
     internals: new Map([...base.internals, ...instance.internals]),
     expectedResult: instance.expectedResult,
@@ -599,7 +622,12 @@ async function runInstance(
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
   const steps: Record<string, StepResult> = {};
-  const context: Context = { ...base, matrix, steps: {} };
+  const context: Context = {
+    ...base,
+    matrix,
+    steps: {},
+    runner: { ...rules.runner },
+  };
   context.env = {
     ...(base.env as Record<string, unknown> ?? {}),
     ...evaluateMap(
@@ -635,7 +663,7 @@ async function runInstance(
       ),
   );
   const updateJobStatus = (status: string) => {
-    const jobContext = { status };
+    const jobContext = { ...rules.jobRuntime, status };
     Object.defineProperties(
       jobContext,
       Object.getOwnPropertyDescriptors(runtimeContext),
@@ -864,8 +892,15 @@ async function runInstance(
       updateJobStatus(
         status.failure ? "failure" : status.cancelled ? "cancelled" : "success",
       );
+      const stepContext: Context = {
+        ...context,
+        github: {
+          ...(context.github as Record<string, unknown>),
+          ...rule?.github,
+        },
+      };
       const overrides = rule?.expressions ?? new Map<string, unknown>();
-      if (!condition(step.if, context, status, stepLocation, overrides)) {
+      if (!condition(step.if, stepContext, status, stepLocation, overrides)) {
         const skipped: StepResult = {
           id,
           outcome: "skipped",
@@ -908,7 +943,7 @@ async function runInstance(
           ...(context.env as Record<string, unknown>),
           ...evaluateMap(
             step.env,
-            context,
+            stepContext,
             status,
             stepLocation,
             "env",
@@ -934,8 +969,8 @@ async function runInstance(
                 evaluateAt(
                   value!,
                   step[key as "shell" | "workingDirectory"] !== undefined
-                    ? { ...context, env }
-                    : context,
+                    ? { ...stepContext, env }
+                    : stepContext,
                   status,
                   stepLocation,
                   step[key as "shell" | "workingDirectory"] !== undefined
@@ -970,7 +1005,7 @@ async function runInstance(
         } else if (step.type === "uses") {
           inputs = evaluateMap(
             step.with,
-            context,
+            stepContext,
             status,
             stepLocation,
             "with",
@@ -1034,7 +1069,7 @@ async function runInstance(
       const conclusion = outcome === "failure" &&
           booleanSetting(
             step.continueOnError,
-            { ...context, env },
+            { ...stepContext, env },
             status,
             stepLocation,
             "continue-on-error",
@@ -1310,6 +1345,10 @@ async function interpretScenario(
     }
     return { result: "skipped", jobs: {} };
   }
+  const external: Context = {
+    ...program.external,
+    secrets: program.external.secrets ?? {},
+  };
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const workflow =
     lowered.workflows.find((p) => p.path === author.path)!.workflow;
@@ -1317,7 +1356,7 @@ async function interpretScenario(
     ? undefined
     : resolvedConcurrency(
       workflow.concurrency,
-      program.external,
+      external,
       { success: true, failure: false, cancelled: false },
       author.path,
       program.expressions ?? new Map(),
@@ -1379,10 +1418,10 @@ async function interpretScenario(
       needs[dependency] = { result: result.result, outputs: result.outputs };
     }
     const context: Context = {
-      ...program.external,
+      ...external,
       env: evaluateMap(
         author.env,
-        program.external,
+        external,
         { success: true, failure: false, cancelled: false },
         author.path,
         "env",
@@ -1449,8 +1488,10 @@ async function interpretScenario(
       };
       const specific = rules.matrixRules?.(matrix) ??
         { steps: new Map(), internals: new Map() };
-      const merged = mergedRules(rules, specific);
       const authoredJob = authoredJobs.get(job.id)!;
+      validateRules(rules, authoredJob, location);
+      validateRules(specific, authoredJob, location);
+      const merged = mergedRules(rules, specific);
       const cache = cachePolicy(
         job,
         workflow.cacheMode,
@@ -1474,13 +1515,20 @@ async function interpretScenario(
           ...cache.settings,
         };
         if (
+          merged.jobRuntime !== undefined || merged.runner !== undefined ||
           merged.containerRuntime !== undefined ||
           merged.containerInitialization !== undefined
         ) {
           throw new ScenarioError(
             "fixture_invalid",
-            `${location}.containerInitialization`,
-            "Reusable callers cannot declare containers; configure the callee instance.",
+            `${location}.${
+              merged.jobRuntime !== undefined
+                ? "jobRuntime"
+                : merged.runner !== undefined
+                ? "runner"
+                : "containerInitialization"
+            }`,
+            "Reusable callers have no execution runtime; configure job/runner/container fixtures on the callee instance.",
           );
         }
         if (merged.environmentProtection !== undefined) {
@@ -1505,16 +1553,24 @@ async function interpretScenario(
           "with",
           overrides,
         );
-        const secrets = job.callSecrets === "inherit"
-          ? { ...(context.secrets as Record<string, unknown> ?? {}) }
-          : evaluateMap(
-            job.callSecrets,
-            callContext,
-            status,
-            location,
-            "secrets",
-            overrides,
-          );
+        const standardToken =
+          (context.secrets as Record<string, unknown> | undefined)
+            ?.GITHUB_TOKEN;
+        const secrets = {
+          ...(standardToken === undefined
+            ? {}
+            : { GITHUB_TOKEN: standardToken }),
+          ...(job.callSecrets === "inherit"
+            ? { ...(context.secrets as Record<string, unknown> ?? {}) }
+            : evaluateMap(
+              job.callSecrets,
+              callContext,
+              status,
+              location,
+              "secrets",
+              overrides,
+            )),
+        };
         const callee = authoredJob.callee;
         let child: ScenarioResult;
         if (callee) {
@@ -1598,6 +1654,7 @@ async function interpretScenario(
                 needs: undefined,
                 job: undefined,
                 matrix: undefined,
+                runner: undefined,
                 inputs,
                 secrets,
               },
@@ -1749,7 +1806,7 @@ async function interpretScenario(
     outputs[name] = stringValue(
       evaluateAt(
         d.value,
-        { ...program.external, jobs: results },
+        { ...external, jobs: results },
         {
           success: result === "success",
           failure: result === "failure",

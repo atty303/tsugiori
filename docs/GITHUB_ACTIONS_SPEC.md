@@ -81,6 +81,18 @@ filesystem checks. They do not emulate GitHub's suppression of outputs that
 contain secrets. Conflicting nonempty matrix output values fail locally because
 GitHub's completion order cannot be predicted.
 
+Context authoring includes workflow artifact declaration/metadata file paths,
+job check-run and job-defining workflow identity, assigned runner environment,
+and the standard GITHUB_TOKEN secret without a secret-name declaration.
+Scenarios use explicit workflow github fixtures, job/matrix jobRuntime() and
+runner() fixtures, and runner-owned step github() overlays. Missing required
+values fail at their read site. Callee job identity remains distinct from
+inherited caller github identity; standard-token fixtures propagate without
+leaking unpassed custom secrets. Artifact paths do not read or write files, and
+fixture evaluation does not establish actual runtime availability or
+authorization. Context-wide coverage remains limited where separate gaps or
+execution boundaries remain.
+
 Background, wait, wait-all, cancel and parallel use the fixed Actions NGA
 GitHub.com feature gate. Native run/uses and task-backed run steps retain
 visible execution boundaries. Typed control references identify earlier
