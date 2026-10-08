@@ -1,0 +1,52 @@
+Task: Simplify task contract examples and repair named-handler inference
+Anchor: d9416b3ad97a91730789cb38b66682952d5bb8e3
+Base: 12c693240e8f77b949ef060d6fc6e3d145067196
+Branch: main
+Commits: c6688bfb2cbb52517e3abf2582761fad2f0fe587 fixes named task handlers; d9416b3ad97a91730789cb38b66682952d5bb8e3 completes implicit-contract examples and checkout verification; separate existing d7f1f01 preserved
+Guidance: User requests and repository AGENTS.md; investigate-problem, develop-repository, design-review, design-program-observability and independent review
+Conditions: Current checkout and managed toolchain; no new dependencies; patch classification approved for core fix, docs/test commit adds no release impact; main/notes push authorized; no manual publication/deployment; complete runtime history compared
+Authority: Current user requests and applicable AGENTS.md/skills; history is descriptive only
+## Transcript
+- U1:
+    example/readmeの明示的textValue()を省略にしてくれ
+    
+  - A: Updated task text input/output examples to omit contracts and planned standalone package pin updates from 0.11.0 to 0.12.0; preserved earlier README edits.
+- U2:
+    typed contractの引き継ぎも反映して
+    
+  - A: Changed direct JSON consumers to inherit their typed source contract. Found the testing example used manual builder type arguments that widened reference and presence information.
+- U3:
+    > `06-testing` の型検査で、既存の手動型引数が参照情報を広げ、JSON 入力に `null` が加わる箇所が見つかりました。
+    
+    これ詳しく。正しい書き方をしているのにnullが加わるならテスト追加してbuilder修正しないといけない
+    
+  - A: Confirmed a library inference failure with correct direct named handlers: run was checked against TaskContext<E,E,never> before contextual input declarations inferred. Began builder correction with focused compile-time regression tests.
+- U4:
+    { files: { contract: typeof files; from: Expression\<unknown, string> } }
+    これか、これはexampleとして不適切だ。`Fix the consumer's input shape for TypeScript inference.` tsugioriの実装ミスをexampleに漏らしている
+    
+  - A: Removed the manual input shape, Expression import, const workaround and inference workaround comment from example 06; retained run: countLines directly. Corrected declaration-first named handler inference while preserving nullable/presence rules and declaration-owned input/output refs. Independent review caught index, optional-key and correlated-union holes, all fixed and re-reviewed with no findings. Isolated core changes passed mise run check and mise run test (170 tests), 193 public JSDoc examples and actual LSP checks. Exact updated example checked against local source and all four unit/scenario tests passed. Published 0.12.0 still fails named handler inference, so standalone examples cannot finish until a patch is published. Initial signed local commit failed with a 1Password agent error; requested signing recovery and separate push/publication approval. Restored all 28 pending README/example files and regenerated example 06 YAML; no typecheck suppression or consumer wrapper.
+- U5:
+    retry
+    
+  - A: Retried the same signing operation successfully, creating the core fix commit c6688bfb2cbb52517e3abf2582761fad2f0fe587. README/example changes remain in the working tree. No push, PR, release or deployment occurred; publication approval remains pending.
+- U6:
+    push main/notes
+    
+  - A: Began remote-state checks before push, then the user interrupted the tool call. Later read-only remote observation confirmed main still at 12c693240e8f77b949ef060d6fc6e3d145067196 and notes at acd1fd0db406526dc3c0ca4cd80c69122e8822d8; no push completed.
+- U7:
+    commit漏れがないか？
+    
+  - A: Audited the current tree and commit history. The named-handler fix is committed in c6688bf, but all 28 related README/example/generated/pin/test updates remain uncommitted because public 0.12.0 lacks the fix. Also observed a separate later commit d7f1f01 (explicit task entrypoint IDs); did not change it. Public JSR metadata still reports 0.12.0. No new code commit or remote write performed during this audit.
+- U8:
+    push
+    
+  - A: Began pre-push fetch operations, then the user interrupted before any push. Subsequent observation found no temporary push-audit notes ref.
+- U9:
+    publishしないと修正できない構造に問題ないか？ 新しいversionは修正に必須なのか？
+    
+  - A: Read-only investigation confirmed examples import the public JSR package and root README integration tests run each standalone project against that released dependency, including generation and scenario checks. Root library tests use local source. Distinguished the already locally verified source correction from standalone consumption of a newly published version. Identified normal development verification being coupled to published examples as the structural obstacle; local-source verification and released-package consumer verification should have separate boundaries. No source edits or remote writes performed in this investigation.
+- U10:
+    続けて
+    
+  - A: Changed normal README/example tests to copy actual projects into disposable fixtures and resolve public exports from checkout source. Supplied the documented local preparation Action prerequisite in a type-preserving harness; example sources retain run: countLines without inference workarounds. Preserved locked JSR consumption and committed generated checks as test:examples:published. Both modes clean fixtures in finally; reused managed Deno without new dependencies. Architecture describes the verification boundaries. All seven local examples typecheck and generate; four integration tests, mise run check and mise run test (173 tests, 193 public JSDoc examples) pass. Fresh independent review of the exact 31-file patch found no issues. Published mode confirms the known 0.12.0 named-handler failure (three tests pass, one fails), so publication is not claimed. Committed remaining changes as d9416b3; working tree clean. Fetched code and notes, confirmed non-divergence, and non-force pushed main from 12c6932 to d9416b3 including separate existing d7f1f01. Initial final-note preparation failed with a syntax error; helper made no change; an intermediate notes push was dispatched before final anchor note creation and is being followed by the final note update. No manual publish/release/deploy executed.
