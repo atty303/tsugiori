@@ -1,0 +1,11 @@
+Task: Translate mandatory README editing prerequisites into English
+Anchor: 826f91d26200491b0706dbee77539b20511f5653
+Base: a8f5555243d95754c074a3890afcf4834bbc32de
+Branch: main
+Commits: 826f91d26200491b0706dbee77539b20511f5653 docs(agents): write README prerequisites in English
+Guidance: AGENTS.md, maintain-agent-guidance, develop-repository, Git task evidence and data handling
+Conditions: Current checkout; translation-only correction to previous completed guidance task; complete runtime thread read and latest cycle compared against all 18 human messages; local commit only
+Authority: Latest user correction and existing mandatory README documentation criteria
+## Transcript
+- U1: 英語で
+  - A: Translated the newly added mandatory README prerequisites into English, retaining their location, meaning, and strength. Verified mise run check AGENTS.md and git diff --check. Created a local documentation commit without push or release.
