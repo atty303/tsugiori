@@ -1,6 +1,8 @@
 import type {
+  ContainerSettings,
   JobEnvironment,
   RunDefaults,
+  ServiceSettings,
   StaticMatrix,
   WorkflowPermissions,
   WorkflowTriggers,
@@ -19,6 +21,8 @@ export type Concurrency = Readonly<
   }
 >;
 export type JobOptions = Readonly<{
+  container?: string | ContainerSettings;
+  services?: Readonly<Record<string, ServiceSettings>>;
   if?: string;
   permissions?: WorkflowPermissions;
   continueOnError?: boolean | string;

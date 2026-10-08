@@ -1,3 +1,4 @@
+import { containerProblems } from "../../github_actions/containers.ts";
 import { MatrixError, matrixRows } from "../../github_actions/matrix.ts";
 import { permissionLevels } from "../../github_actions/permissions.ts";
 import { validateTriggers } from "./triggers.ts";
@@ -12,6 +13,8 @@ export type ValidatedWorkflow = Workflow & {
 export type DiagnosticCode =
   | "workflow.native.invalid"
   | "job.call.invalid"
+  | "job.container.invalid"
+  | "job.services.invalid"
   | "step.timeout.invalid"
   | "step.shell.invalid"
   | "workflow.name.empty"
@@ -216,6 +219,49 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
           ),
         );
       }
+    }
+
+    if (job.container !== undefined) {
+      for (const field of containerProblems(job.container)) {
+        diagnostics.push(
+          diagnostic(
+            "job.container.invalid",
+            [...jobPath, "container", field],
+            "Invalid job container field.",
+          ),
+        );
+      }
+    }
+    if (job.services !== undefined) {
+      if (!isPlainRecord(job.services)) {
+        diagnostics.push(
+          diagnostic(
+            "job.services.invalid",
+            [...jobPath, "services"],
+            "Services require a named map.",
+          ),
+        );
+      } else {for (const [id, service] of Object.entries(job.services)) {
+          if (!JOB_ID_PATTERN.test(id)) {
+            diagnostics.push(
+              diagnostic(
+                "job.services.invalid",
+                [...jobPath, "services", id],
+                "Service ID must be a valid identifier.",
+              ),
+            );
+          }
+          for (const field of containerProblems(service, true)) {
+            diagnostics.push(
+              diagnostic("job.services.invalid", [
+                ...jobPath,
+                "services",
+                id,
+                field,
+              ], "Invalid service field."),
+            );
+          }
+        }}
     }
 
     validateExpressionMap(
@@ -771,6 +817,7 @@ function validTimeout(value: unknown, step = true): boolean {
 function validCallJob(job: Job): boolean {
   return job.runsOn === undefined && job.steps.length === 0 &&
     job.env === undefined && job.defaults === undefined &&
+    job.container === undefined && job.services === undefined &&
     job.environment === undefined && job.timeoutMinutes === undefined &&
     job.continueOnError === undefined &&
     job.outputs === undefined && typeof job.uses === "string" &&

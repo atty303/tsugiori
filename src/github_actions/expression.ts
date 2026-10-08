@@ -1518,6 +1518,7 @@ export type ScopeValues<
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
+  Services extends string = string,
 > = {
   /** Information about the workflow run and the event that triggered it. Some properties are available only within runner steps.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
@@ -1811,6 +1812,26 @@ export type ScopeValues<
          */
         network: string;
       }>;
+      /** Runtime services keyed by declared service IDs. A disabled service has no
+       * runtime entry. Ports are runner-assigned strings, not declared host guesses.
+       * @example In a job callback with `{ job }`.
+       * ```ts
+       * job.runsOn("ubuntu-latest").services({ db: { image: "postgres:17", ports: [5432] } })
+       *   .run({ name: "Test", run: "true", env: ({ job }) => ({ PORT: job.services.db.ports["5432"] }) });
+       * ```
+       */
+      services: Readonly<
+        Record<
+          Services,
+          Readonly<{
+            /** Docker container ID assigned by the runner. */ id: string;
+            /** Network shared with the job and other service containers. */ network:
+              string;
+            /** Container port to published host port mapping assigned by Docker. */ ports:
+              Readonly<Record<string, string>>;
+          }>
+        >
+      >;
     }
   >;
   /** Information about the runner executing this job.
@@ -1931,6 +1952,7 @@ export type Scope<
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
+  Services extends string = string,
 > =
   & {
     readonly [K in ContextKeys<S>]: Ref<
@@ -1941,7 +1963,8 @@ export type Scope<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >[
         & K
         & keyof ScopeValues<
@@ -1951,7 +1974,8 @@ export type Scope<
           Vars,
           Secrets,
           InputValues,
-          Proof
+          Proof,
+          Services
         >
       ],
       K & string
@@ -1967,10 +1991,11 @@ export function scope<
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
+  Services extends string = string,
 >(
   key: S,
   contracts?: ReadonlyMap<string, ReferenceBinding>,
-): Scope<S, Needs, Steps, Matrix, Vars, Secrets, InputValues, Proof> {
+): Scope<S, Needs, Steps, Matrix, Vars, Secrets, InputValues, Proof, Services> {
   const definitions = githubExpressionScopes[key];
   const result: Record<string, unknown> = {};
   for (const context of definitions.contexts) {
@@ -1992,7 +2017,8 @@ export function scope<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
 }
 

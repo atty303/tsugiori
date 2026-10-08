@@ -103,6 +103,8 @@ function emitJob(job: Job): Record<string, unknown> {
     ...(job.defaults === undefined
       ? {}
       : { defaults: emitDefaults(job.defaults) }),
+    ...(job.container === undefined ? {} : { container: job.container }),
+    ...(job.services === undefined ? {} : { services: job.services }),
     ...(job.with === undefined ? {} : { with: job.with }),
     ...(job.callSecrets === undefined ? {} : {
       secrets: job.callSecrets,

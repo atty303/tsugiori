@@ -257,6 +257,28 @@ reviewer eligibility, timers and protection-rule calculation are not modeled.
 Evaluated unknown expression forms and `hashFiles()` need a field-specific
 scenario value; unsupported forms never silently succeed.
 
+Job container and named service declarations retain their native settings in
+YAML. Each setting uses its frozen expression scope; the service map's names
+flow into later step references. Container env is separate from job/step env.
+The runner owns Docker, image compatibility, registry access, network creation,
+health checks and port assignment. Task preparation retains its existing Bash
+and GNU-compatible Linux runtime requirements; container declarations do not
+install dependencies or expand supported task platforms.
+
+Scenarios interpret requested container/service settings through
+expectSettings(). containerRuntime() supplies partial per-instance runtime
+identities and ports; only reached reads require values, and whole-object reads
+require the complete object. Service-only jobs expose the shared network through
+job.container.network without a container ID. Image expressions resolving to an
+empty string disable service startup and leave no service context.
+containerInitialization() supplies the aggregate initialization pre-step result.
+Failure closes the ordinary success gate while failure()/always() steps remain
+eligible; job failure tolerance changes effective results without erasing
+execution failure. Partial startup context must be explicitly supplied. No
+Docker lifecycle, retry or elapsed time is simulated. The existing host-owned
+observer receives a privacy-safe initialization stage without image,
+credentials, environment or runtime fixture values.
+
 ### Trigger and payload contracts
 
 The fixed Actions snapshot owns event names, activities and trigger settings.

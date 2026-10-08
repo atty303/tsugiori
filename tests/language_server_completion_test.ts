@@ -788,6 +788,68 @@ const ci = workflow("matrix.yml", { on: { push: {} } });
         "vars",
         "inputs",
       ]);
+      const servicesPrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+const ci = workflow("containers.yml", { on: { push: {} } });
+`;
+      const serviceBody = servicesPrefix + `ci.job("test", ({ job }) => {
+const state = job.runsOn("ubuntu-latest").services({ db: { image: "postgres:17", ports: [5432] }, cache: { image: "redis:7" } });
+BODY
+return state.run({ name: "Test", run: "true", env: ({ job }) => { EXPRESSION return {}; } });
+});`;
+      const serviceLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        370,
+        "declared-services",
+        serviceBody.replace("BODY", "").replace(
+          "EXPRESSION",
+          "job.services./*completion*/;",
+        ),
+      );
+      assertRelevantExactly(serviceLabels, ["db", "cache"], [
+        "db",
+        "cache",
+        "missing",
+      ]);
+      const containerHover = await sourceHover(
+        writer,
+        stream,
+        371,
+        "container-services-state",
+        serviceBody.replace("BODY", "state/*completion*/;").replace(
+          "EXPRESSION",
+          "",
+        ),
+      );
+      assert(
+        /services: "(?:db" \| "cache|cache" \| "db)"/.test(containerHover),
+        containerHover,
+      );
+      assert(!containerHover.includes("..."), containerHover);
+      const serviceSignature = await sourceHover(
+        writer,
+        stream,
+        372,
+        "services-signature",
+        servicesPrefix +
+          `ci.job("test", ({ job }) => job.runsOn("ubuntu-latest").services(/*completion*/{ db: { image: "postgres:17" } }).run({ name: "Test", run: "true" }));`,
+        false,
+        "signatureHelp",
+      );
+      assert(serviceSignature.includes("ServiceDefinition"), serviceSignature);
+      assert(!serviceSignature.includes("..."), serviceSignature);
+      const servicePortHover = await sourceHover(
+        writer,
+        stream,
+        373,
+        "service-port-hover",
+        serviceBody.replace("BODY", "").replace(
+          "EXPRESSION",
+          'const port = job.services.db.ports["5432"]; port/*completion*/;',
+        ),
+      );
+      assert(servicePortHover.includes("string"), servicePortHover);
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

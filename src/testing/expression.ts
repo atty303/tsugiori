@@ -215,6 +215,9 @@ function pathValue(parts: readonly string[], context: Context): unknown {
     if (current === null || typeof current !== "object" || !(part in current)) {
       if (
         parts[0] === "steps" || parts[0] === "needs" || parts[0] === "jobs" ||
+        parts[0] === "job" &&
+          (parts[1] === "container" || parts[1] === "services") &&
+          (current === null || index === 2) ||
         (parts[0] === "inputs" || parts[0] === "matrix") && index > 0
       ) return "";
       throw new MissingContextError(parts.slice(0, index + 1).join("."));

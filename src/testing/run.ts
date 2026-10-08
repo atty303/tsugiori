@@ -1,3 +1,4 @@
+import { containerContext, validateContainerRuntime } from "./containers.ts";
 import { MatrixError, matrixRows } from "../github_actions/matrix.ts";
 import { triggered as matchesTrigger } from "./triggers.ts";
 import type { AuthoringJob, ProjectConfig } from "../github_actions/mod.ts";
@@ -91,6 +92,14 @@ function evaluateAt(
   try {
     return evaluateExpression(value, context, status);
   } catch (error) {
+    if (error instanceof ScenarioError) {
+      throw new ScenarioError(
+        error.kind,
+        `${location}.${field}`,
+        error.message,
+        { cause: error },
+      );
+    }
     if (error instanceof MissingContextError) {
       throw new ScenarioError(
         "fixture_missing",
@@ -235,6 +244,9 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
     steps: new Map([...base.steps, ...instance.steps]),
     internals: new Map([...base.internals, ...instance.internals]),
     expectedResult: instance.expectedResult,
+    containerInitialization: instance.containerInitialization ??
+      base.containerInitialization,
+    containerRuntime: instance.containerRuntime ?? base.containerRuntime,
     environmentProtection: instance.environmentProtection ??
       base.environmentProtection,
     expectedSettings: instance.expectedSettings ?? base.expectedSettings,
@@ -257,12 +269,13 @@ function internalKind(
 
 function stepStatus(
   steps: Readonly<Record<string, StepResult>>,
+  initializationFailed = false,
 ): Status {
   const conclusions = Object.values(steps).map((step) => step.conclusion);
   return {
-    success: !conclusions.includes("failure") &&
+    success: !initializationFailed && !conclusions.includes("failure") &&
       !conclusions.includes("cancelled"),
-    failure: conclusions.includes("failure"),
+    failure: initializationFailed || conclusions.includes("failure"),
     cancelled: conclusions.includes("cancelled"),
   };
 }
@@ -356,6 +369,51 @@ function resolvedConcurrency(
     ...(value.queue === undefined ? {} : { queue: value.queue }),
   };
 }
+function resolvedContainerSettings(
+  value: unknown,
+  context: Context,
+  status: Status,
+  location: string,
+  field: string,
+  overrides: ReadonlyMap<string, unknown>,
+): unknown {
+  if (typeof value === "string") {
+    return stringValue(
+      evaluateAt(value, context, status, location, field, overrides),
+    );
+  }
+  if (Array.isArray(value)) {
+    return value.map((v, i) =>
+      resolvedContainerSettings(
+        v,
+        context,
+        status,
+        location,
+        `${field}.${i}`,
+        overrides,
+      )
+    );
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map((
+        [k, v],
+      ) => [
+        k,
+        resolvedContainerSettings(
+          v,
+          context,
+          status,
+          location,
+          `${field}.${k}`,
+          overrides,
+        ),
+      ]),
+    );
+  }
+  return value;
+}
+
 function resolvedSettings(
   job: Job,
   context: Context,
@@ -401,6 +459,26 @@ function resolvedSettings(
     overrides,
   );
   return {
+    ...(job.container === undefined ? {} : {
+      container: resolvedContainerSettings(
+        job.container,
+        context,
+        status,
+        location,
+        "container",
+        overrides,
+      ) as JobSettings["container"],
+    }),
+    ...(job.services === undefined ? {} : {
+      services: resolvedContainerSettings(
+        job.services,
+        context,
+        status,
+        location,
+        "services",
+        overrides,
+      ) as JobSettings["services"],
+    }),
     ...(selection === undefined ? {} : {
       runsOn: selection.type === "group"
         ? {
@@ -470,7 +548,10 @@ async function runInstance(
   rules: InstanceRules,
   workflowPath: string,
   defaultResult?: Result,
-  workflowDefaults?: import("../github_actions/mod.ts").RunDefaults,
+  workflowDefaults: import("../github_actions/mod.ts").RunDefaults | undefined =
+    undefined,
+  observation: ScenarioObservationState = { nextId: 0 },
+  executionContexts: Map<JobInstanceResult, Context> = new Map(),
 ): Promise<JobInstanceResult> {
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
@@ -501,6 +582,35 @@ async function runInstance(
     "continue-on-error",
     jobOverrides,
   );
+  validateContainerRuntime(job, rules.containerRuntime, location);
+  const runtimeContext = containerContext(
+    job,
+    rules.containerRuntime,
+    (v, field) =>
+      stringValue(
+        evaluateAt(v, context, initialStatus, location, field, jobOverrides),
+      ),
+  );
+  const updateJobStatus = (status: string) => {
+    const jobContext = { status };
+    Object.defineProperties(
+      jobContext,
+      Object.getOwnPropertyDescriptors(runtimeContext),
+    );
+    context.job = jobContext;
+  };
+  updateJobStatus("success");
+  if (
+    rules.containerInitialization !== undefined &&
+    (!["success", "failure"].includes(rules.containerInitialization) ||
+      job.container === undefined && !Object.keys(job.services ?? {}).length)
+  ) {
+    throw new ScenarioError(
+      "fixture_invalid",
+      `${location}.containerInitialization`,
+      "Initialization fixture requires container/services declarations and success/failure.",
+    );
+  }
   let settings = rules.expectedSettings === undefined
     ? undefined
     : resolvedSettings(
@@ -565,6 +675,25 @@ async function runInstance(
       outputs: {},
     };
   }
+  const initializationFailed = rules.containerInitialization === "failure";
+  if (job.container !== undefined || Object.keys(job.services ?? {}).length) {
+    const operationId = ++observation.nextId;
+    const emit = (status: "start" | "success" | "failure") => {
+      try {
+        observation.observer?.({
+          operationId,
+          parentId: observation.parentId,
+          stage: "container-initialization",
+          status,
+          ...(status === "failure"
+            ? { errorType: "initialization_failed" }
+            : {}),
+        });
+      } catch { /* Host-owned recording is non-interfering. */ }
+    };
+    emit("start");
+    emit(initializationFailed ? "failure" : "success");
+  }
   const defaults = { ...workflowDefaults, ...job.defaults };
   const source = new Map(
     authorJob.steps.filter((step) => step.id !== undefined).map((
@@ -577,14 +706,10 @@ async function runInstance(
     const authorStep = step.id === undefined ? undefined : source.get(step.id);
     const isInternal = !authorStep && step.id !== undefined;
     const rule = rules.steps.get(id);
-    const status = stepStatus(steps);
-    context.job = {
-      status: status.failure
-        ? "failure"
-        : status.cancelled
-        ? "cancelled"
-        : "success",
-    };
+    const status = stepStatus(steps, initializationFailed);
+    updateJobStatus(
+      status.failure ? "failure" : status.cancelled ? "cancelled" : "success",
+    );
     const overrides = rule?.expressions ?? new Map<string, unknown>();
     if (!condition(step.if, context, status, stepLocation, overrides)) {
       const skipped: StepResult = {
@@ -766,7 +891,7 @@ async function runInstance(
       `${location}.stepOrder`,
     );
   }
-  const status = stepStatus(steps);
+  const status = stepStatus(steps, initializationFailed);
   const outcome: Result = status.failure
     ? "failure"
     : status.cancelled
@@ -776,7 +901,7 @@ async function runInstance(
   if (rules.expectedResult !== undefined) {
     expectValue(result, rules.expectedResult, `${location}.result`);
   }
-  context.job = { status: outcome };
+  updateJobStatus(outcome);
   if (
     settings !== undefined && typeof job.environment === "object" &&
     job.environment.url !== undefined
@@ -801,9 +926,12 @@ async function runInstance(
   if (rules.expectedSettings) {
     expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
   }
-  return {
+  const instance: JobInstanceResult = {
     matrix,
     result,
+    ...(rules.containerInitialization === undefined
+      ? {}
+      : { containerInitialization: rules.containerInitialization }),
     ...(job.continueOnError === undefined ? {} : { outcome }),
     steps,
     ...(settings === undefined ? {} : { settings }),
@@ -811,6 +939,8 @@ async function runInstance(
       ? {}
       : { environmentProtection: rules.environmentProtection }),
   };
+  executionContexts.set(instance, context);
+  return instance;
 }
 
 function fixtureOutputs(
@@ -1002,6 +1132,7 @@ async function interpretScenario(
       );
     }
   }
+  const executionContexts = new Map<JobInstanceResult, Context>();
   const results: Record<string, JobResult> = {};
   const ancestorStatus = new Map<string, Status>();
   for (const job of workflow.jobs) {
@@ -1109,6 +1240,16 @@ async function interpretScenario(
             location,
             callOverrides,
           );
+        if (
+          merged.containerRuntime !== undefined ||
+          merged.containerInitialization !== undefined
+        ) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            `${location}.containerInitialization`,
+            "Reusable callers cannot declare containers; configure the callee instance.",
+          );
+        }
         if (merged.environmentProtection !== undefined) {
           throw new ScenarioError(
             "fixture_invalid",
@@ -1300,6 +1441,8 @@ async function interpretScenario(
           author.path,
           program.defaultResult,
           workflow.defaults,
+          observation,
+          executionContexts,
         ),
       );
     }
@@ -1312,10 +1455,12 @@ async function interpretScenario(
       if (instance.environmentProtection === "rejected") continue;
       const jobContext = {
         ...context,
+        ...executionContexts.get(instance),
         matrix: instance.matrix,
         strategy: { ...(context.strategy as object), "job-index": matrixIndex },
         steps: instance.steps,
-        job: { status: instance.outcome ?? instance.result },
+        job: executionContexts.get(instance)?.job ??
+          { status: instance.outcome ?? instance.result },
       };
       for (
         const [name, expression] of Object.entries(

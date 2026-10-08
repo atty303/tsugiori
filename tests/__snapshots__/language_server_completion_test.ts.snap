@@ -29,7 +29,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>>;
 }, E, string, never, {
     readonly who: string;
-}, never, C, K> & (HasTaskInputs<I, K> extends true ? Readonly<{
+}, never, C, K, string> & (HasTaskInputs<I, K> extends true ? Readonly<{
     inputs: object;
 }> : unknown) & (keyof O extends never ? unknown : Readonly<{
     outputs: object;
@@ -102,7 +102,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     readonly os: "ubuntu-latest" | "macos-latest";
 }, string, string, WorkflowInputs<{
     readonly push: {};
-}>>',
+}>, never, string>',
   "job-callback": '(parameter) job: Job<"ci.yml", "test", {
     readonly build: JR<"ci.yml", "build", JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
@@ -155,7 +155,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>;
 }>',
   "simple-step-signature": 'run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, { readonly inputs: WorkflowInputs<{ readonly push: {}; }>; }>',
-  "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 5 more ..., never>.run<D>(definition: AvailableStepDefinition<D, {
+  "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 6 more ..., string>.run<D>(definition: AvailableStepDefinition<D, {
     readonly test: NS<"test", readonly []>;
     readonly report: NS<"report", readonly []>;
 }>): Step<"ci.yml", "test", AddStepReference<D, {

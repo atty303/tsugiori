@@ -81,6 +81,19 @@ filesystem checks. They do not emulate GitHub's suppression of outputs that
 contain secrets. Conflicting nonempty matrix output values fail locally because
 GitHub's completion order cannot be predicted.
 
+Container/services use the frozen syntax and context scopes, including service
+command/entrypoint. Scenarios interpret requests and explicitly supplied runtime
+context; empty service images have no runtime entry. Aggregate initialization
+failure precedes authored steps and follows native status gates. Docker startup,
+health checks, network/port assignment and image compatibility remain
+runner-owned. The scenario pre-step model is also grounded in
+[actions/runner ContainerOperationProvider](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Runner.Worker/ContainerOperationProvider.cs),
+[JobExtension](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Runner.Worker/JobExtension.cs)
+and
+[StepsRunner](https://github.com/actions/runner/blob/67f01c276e0a91d967ba499ce4cdc9a95efa0262/src/Runner.Worker/StepsRunner.cs).
+This additional implementation reference does not change the frozen Actions
+specification revision or verification date.
+
 Use the repository's
 [specification update skill](../.agents/skills/update-github-actions-spec/SKILL.md)
 only for an explicit specification refresh. It fixes the new sources before

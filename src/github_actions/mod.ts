@@ -131,12 +131,29 @@
  * `.name()`, all token permission declarations, workflow/job run defaults,
  * runner groups, structured environments and expression-valued concurrency are supported.
  * Set a URL referencing step outputs through `.environment()` after those steps.
+ * Declare job containers and named services before adding steps, using
+ * `.container()` and `.services()`. Service names carry into typed job.services
+ * references; Docker owns startup, runtime identities and dynamic ports.
  * Scenarios interpret requested settings and accept aggregate environment protection
- * fixtures; they do not calculate authorization, protection rules or scheduling.
+ * and container initialization fixtures; they do not calculate authorization,
+ * protection rules, Docker lifecycle or scheduling.
  *
  * {@link githubActionsSpec} exposes the frozen specification basis and capability coverage. Generation, validation and scenarios do not fetch specifications. Coverage does not prove hosted GitHub execution or authorization.
  * @module
  */
+import { renderContainer } from "./containers.ts";
+import type {
+  ContainerDefinition,
+  ContainerSettings,
+  ServiceDefinition,
+  ServiceSettings,
+} from "./containers.ts";
+export type {
+  ContainerDefinition,
+  ContainerSettings,
+  ServiceDefinition,
+  ServiceSettings,
+} from "./containers.ts";
 import { posix } from "node:path";
 import { permissionLevels } from "./permissions.ts";
 import type { ActionContract, ActionContractInput } from "./action_contract.ts";
@@ -1190,6 +1207,11 @@ export type Concurrency = Readonly<{
   queue?: "single" | "max";
 }>;
 type JobOptions = Readonly<{
+  /** Native job container. Author with Exec.container(). */ container?:
+    | string
+    | ContainerSettings;
+  /** Native named services. Author with Exec.services(). */ services?:
+    Readonly<Record<string, ServiceSettings>>;
   /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    */
@@ -1788,6 +1810,7 @@ type StateDefaults = {
   proof: never;
   call: E;
   outputKeys: never;
+  services: string;
 };
 // Conditional resolution materializes the small context instead of retaining
 // the source parameter bag as a second alias in LSP displays.
@@ -1808,6 +1831,8 @@ type Setting<C, K extends PropertyKey, Bound, Default extends Bound> = C extends
  * Inferred states supply this context automatically; consumers need no annotation.
  */
 export interface StateEnv {
+  /** Declared service IDs available in step expression contexts. */ readonly services?:
+    string;
   /** Declared dependency output names. */ readonly needs?: Record<
     string,
     readonly string[]
@@ -2077,10 +2102,21 @@ type Field<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
+  Services extends string = string,
 > =
   | ExpressionInput
   | ((
-    context: Scope<S, Needs, Steps, Matrix, Vars, Secrets, InputValues>,
+    context: Scope<
+      S,
+      Needs,
+      Steps,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues,
+      never,
+      Services
+    >,
   ) => ExpressionInput);
 type ConditionProof<C> = C extends Expression<boolean, infer P> ? P
   : C extends (...args: never[]) => Expression<boolean, infer P> ? P
@@ -2093,7 +2129,17 @@ type StepField<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
-> = Field<S, Needs, OutputMap<Steps>, Matrix, Vars, Secrets, InputValues>;
+  Services extends string = string,
+> = Field<
+  S,
+  Needs,
+  OutputMap<Steps>,
+  Matrix,
+  Vars,
+  Secrets,
+  InputValues,
+  Services
+>;
 type TaskInputDefinitions = Readonly<
   Record<
     string,
@@ -2172,6 +2218,7 @@ type StepEnv<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
+  Services extends string = string,
 > = AuthoringValue<
   Readonly<Record<string, string | Expression<unknown>>>,
   Scope<
@@ -2181,7 +2228,9 @@ type StepEnv<
     Matrix,
     Vars,
     Secrets,
-    InputValues
+    InputValues,
+    never,
+    Services
   >
 >;
 type JobEnv<
@@ -2209,6 +2258,7 @@ type StepCommon<
   Vars extends string,
   Secrets extends string,
   InputValues extends object = Readonly<Record<string, string>>,
+  Services extends string = string,
 > = Readonly<{
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
@@ -2248,7 +2298,8 @@ type StepCommon<
     Matrix,
     Vars,
     Secrets,
-    InputValues
+    InputValues,
+    Services
   >;
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * A callback constructs a boolean expression once during authoring in the step
@@ -2274,7 +2325,9 @@ type StepCommon<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      never,
+      Services
     >
   >;
   /** The maximum execution time in whole minutes before GitHub cancels the step. A step has no separate timeout when omitted; the job timeout still applies.
@@ -2298,7 +2351,8 @@ type StepCommon<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >;
   /** Environment variables supplied as a static map or one authoring callback returning the complete map in the step env scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
@@ -2311,7 +2365,7 @@ type StepCommon<
    * });
    * ```
    */
-  env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets, InputValues>;
+  env?: StepEnv<Needs, Steps, Matrix, Vars, Secrets, InputValues, Services>;
 }>;
 /** A uses step runs an action with named inputs. GitHub evaluates conditions and input expressions at runtime.
  * Tsugiori scenarios use fixtures rather than executing actions.
@@ -2333,8 +2387,12 @@ type ObjectUsesStepOptions<
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
+  Services extends string = string,
 > =
-  & Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "name">
+  & Omit<
+    StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues, Services>,
+    "name"
+  >
   & Readonly<{
     /** Optional display name; references use id instead. */
     name?: string;
@@ -2495,7 +2553,9 @@ export interface RunStepDefinition<
   Vars extends string = string,
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
-> extends StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues> {
+  Services extends string = string,
+> extends
+  StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues, Services> {
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -2593,7 +2653,8 @@ export type TaskStepDefinition<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >
     | undefined = undefined,
   Accepted extends Record<string, unknown> =
@@ -2601,6 +2662,7 @@ export type TaskStepDefinition<
       Inputs,
       Proof | ConditionProof<Condition>
     >,
+  Services extends string = string,
 > =
   & TaskOptions<
     Id,
@@ -2614,7 +2676,8 @@ export type TaskStepDefinition<
     InputValues,
     Proof,
     Condition,
-    Accepted
+    Accepted,
+    Services
   >
   & TaskContracts<Inputs, Outputs, Accepted>;
 interface TaskOptions<
@@ -2636,7 +2699,8 @@ interface TaskOptions<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >
     | undefined = undefined,
   Accepted extends Record<string, unknown> =
@@ -2644,8 +2708,12 @@ interface TaskOptions<
       Inputs,
       Proof | ConditionProof<Condition>
     >,
+  Services extends string = string,
 > extends
-  Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if"> {
+  Omit<
+    StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues, Services>,
+    "if"
+  > {
   /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
    */
   readonly workingDirectory?: string;
@@ -2706,7 +2774,8 @@ interface TaskOptions<
       Vars,
       Secrets,
       InputValues,
-      Proof | ConditionProof<Condition>
+      Proof | ConditionProof<Condition>,
+      Services
     >
   >;
   /** Declares outputs and whether each write is required. Each omitted contract defaults to textValue(); jsonValue() opts into JSON validation and encoding. Omission is equivalent to an empty map; run still receives an output writer with no declared names.
@@ -2958,7 +3027,8 @@ export type Exec<
   Setting<CEnv, "vars", string, string>,
   Setting<CEnv, "secrets", string, string>,
   Setting<CEnv, "inputs", object, E>,
-  Setting<CEnv, "proof", string, never>
+  Setting<CEnv, "proof", string, never>,
+  Setting<CEnv, "services", string, string>
 >;
 type ExecOf<
   WorkflowPath extends string,
@@ -2969,6 +3039,7 @@ type ExecOf<
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
+  Services extends string = string,
 > = Compact<{
   needs: Needs;
   matrix: Matrix;
@@ -2976,6 +3047,7 @@ type ExecOf<
   secrets: Secrets;
   inputs: InputValues;
   proof: Proof;
+  services: Services;
 }> extends infer Context extends StateEnv ? Exec<WorkflowPath, JobId, Context>
   : never;
 /** Method surface of {@link Exec}; its context is inferred by the DSL. */
@@ -2988,7 +3060,78 @@ interface ExecBase<
   Secrets extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
   Proof extends string = never,
+  Services extends string = string,
 > {
+  /** Run this job's ordinary steps inside a container. Use an image shorthand or
+   * settings object; callbacks run during authoring, expressions on GitHub.
+   * Configure matrix first and container/services before appending steps.
+   * Requires a Linux runner with Docker. The native default run shell is sh.
+   * Task steps remain supported subject to the existing preparation requirements:
+   * Bash, a GNU-compatible Linux environment for the compiled Deno binary, and
+   * curl/unzip when fallback Deno installation is needed. Image names do not prove
+   * compatibility; this method does not install tools or extend task platforms.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").container("node:22").run({ name: "Test", run: "node --version" });
+   * ```
+   * @see ContainerDefinition
+   */
+  container(
+    value:
+      | string
+      | Field<
+        "jobs.<job_id>.container",
+        Needs,
+        E,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues
+      >
+      | ContainerDefinition<Needs, Matrix, Vars, Secrets, InputValues>,
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Services
+  >;
+  /** Replace the complete named service map before appending steps. Names infer
+   * the later job.services context; image expressions may disable a service at
+   * runtime without removing its declared name from the type. Each field uses
+   * its native scope; credentials and env include secrets; image does not.
+   * Docker owns startup, networking and dynamic host ports. Scenarios use
+   * explicit runtime fixtures and can model aggregate initialization failure.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").services({ db: { image: "postgres:17", env: { POSTGRES_PASSWORD: "test" }, ports: [5432] } })
+   *   .run({ name: "Test", run: "true", env: ({ job }) => ({ PORT: job.services.db.ports["5432"] }) });
+   * ```
+   * @see ServiceDefinition
+   */
+  services<const Names extends string>(
+    value: Readonly<
+      Record<
+        Names,
+        ServiceDefinition<Needs, Matrix, Vars, Secrets, InputValues>
+      >
+    >,
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Names
+  >;
+
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
    * Configure strategy before selecting a matrix-dependent runner. A group request requires an accessible runner in that group matching every supplied label; scenarios interpret the request without assigning runners.
@@ -3012,7 +3155,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
@@ -3031,7 +3175,8 @@ interface ExecBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        Services
       >,
   ): ExecOf<
     WorkflowPath,
@@ -3041,7 +3186,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Job env overrides workflow env; values within one map cannot depend on one another. Accepts a static map or one authoring callback returning the complete map.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenv
@@ -3060,7 +3206,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Run defaults apply to run steps; explicit step shell/directory wins. A static object or authoring callback returns shell and workingDirectory together in the defaults scope.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
@@ -3107,7 +3254,9 @@ interface ExecBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        never,
+        Services
       >
     >,
   ): ExecOf<
@@ -3118,7 +3267,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Adds a condition deciding whether this job runs. Repeated calls are conjunctive. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
@@ -3137,7 +3287,8 @@ interface ExecBase<
       E,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >,
   >(
     condition: C,
@@ -3149,7 +3300,8 @@ interface ExecBase<
     Vars,
     Secrets,
     NarrowEvents<InputValues, ConditionProof<C>>,
-    Proof | ConditionProof<C>
+    Proof | ConditionProof<C>,
+    Services
   >;
   /** Uses a whole-matrix expression whose concrete row shape is the caller's
    * assertion, unless inferred from a task contract. The host callback builds
@@ -3176,7 +3328,8 @@ interface ExecBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >
     >,
   ): ExecOf<
@@ -3187,7 +3340,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Uses a whole-matrix expression with an explicitly asserted row type.
    * This overload preserves explicit type arguments; inference uses the expression
@@ -3212,7 +3366,8 @@ interface ExecBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >
     >,
   ): ExecOf<
@@ -3223,7 +3378,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Uses an explicit raw whole-matrix expression without inferred row fields.
    * The caller asserts expression validity; GitHub validates its actual shape.
@@ -3249,10 +3405,21 @@ interface ExecBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >
     >,
-  ): ExecOf<WorkflowPath, JobId, Needs, E, Vars, Secrets, InputValues, Proof>;
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    E,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Services
+  >;
   /** Defines native matrix combinations and control settings before fields
    * consuming matrix. Static rows are inferred conservatively, including missing
    * include fields; object axes expose nested references. See {@link Strategy}
@@ -3278,7 +3445,8 @@ interface ExecBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >
     >,
   ): ExecOf<
@@ -3289,7 +3457,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Tolerates this job's failure in dependency/workflow results, without changing
    * failed step conclusions, job.status or the default success gate for later
@@ -3317,7 +3486,8 @@ interface ExecBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >
     >,
   ): ExecOf<
@@ -3328,7 +3498,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
    * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation may be a boolean expression evaluated by GitHub. The queue max cannot use literal true; expression-valued cancellation is checked by GitHub; scenarios do not schedule.
@@ -3391,7 +3562,9 @@ interface ExecBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        never,
+        Services
       >
     >,
   ): ExecOf<
@@ -3402,7 +3575,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Accepts every permission in the fixed GitHub.com specification, an empty map, read-all or write-all; scenarios do not calculate effective authorization.
@@ -3422,7 +3596,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
    * Literal job values must be positive integers; expression values pass through. Explicit scenario expectSettings() timeout expectations validate requested values without measuring time.
@@ -3442,7 +3617,8 @@ interface ExecBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        Services
       >,
   ): ExecOf<
     WorkflowPath,
@@ -3452,7 +3628,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
    * Accepts a name or structured settings with independently scoped name/URL callbacks. Set a step-dependent URL after its named step with Step.environment(). Scenarios can supply the aggregate protection decision; no protection rules are calculated.
@@ -3472,7 +3649,8 @@ interface ExecBase<
     Vars,
     Secrets,
     InputValues,
-    Proof
+    Proof,
+    Services
   >;
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
@@ -3501,7 +3679,8 @@ interface ExecBase<
             Matrix,
             Vars,
             Secrets,
-            InputValues
+            InputValues,
+            Services
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
@@ -3524,7 +3703,8 @@ interface ExecBase<
             Matrix,
             Vars,
             Secrets,
-            InputValues
+            InputValues,
+            Services
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
@@ -3547,7 +3727,8 @@ interface ExecBase<
     Secrets,
     InputValues,
     readonly [],
-    Proof
+    Proof,
+    Services
   >;
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
@@ -3577,7 +3758,8 @@ interface ExecBase<
           Matrix,
           Vars,
           Secrets,
-          InputValues
+          InputValues,
+          Services
         >,
         "with"
       >
@@ -3597,7 +3779,9 @@ interface ExecBase<
               Matrix,
               Vars,
               Secrets,
-              InputValues
+              InputValues,
+              never,
+              Services
             >,
           ) => R;
         }
@@ -3613,7 +3797,8 @@ interface ExecBase<
     Secrets,
     InputValues,
     readonly [],
-    Proof
+    Proof,
+    Services
   >;
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori preserves the script through YAML emission; scenarios do not execute it.
@@ -3638,7 +3823,8 @@ interface ExecBase<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >,
   >(
     definition: D,
@@ -3652,7 +3838,8 @@ interface ExecBase<
     Secrets,
     InputValues,
     readonly [],
-    Proof
+    Proof,
+    Services
   >;
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
@@ -3683,7 +3870,8 @@ interface ExecBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        Services
       >
       | undefined =
         | StepField<
@@ -3693,7 +3881,8 @@ interface ExecBase<
           Matrix,
           Vars,
           Secrets,
-          InputValues
+          InputValues,
+          Services
         >
         | undefined,
     const F extends boolean | Expression<boolean> | RawExpression | undefined =
@@ -3716,7 +3905,8 @@ interface ExecBase<
         InputValues,
         Proof,
         C,
-        K
+        K,
+        Services
       >
       & Readonly<{
         /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
@@ -3736,7 +3926,9 @@ interface ExecBase<
               Matrix,
               Vars,
               Secrets,
-              InputValues
+              InputValues,
+              never,
+              Services
             >,
           ) => F);
       }>,
@@ -3750,7 +3942,8 @@ interface ExecBase<
     Secrets,
     InputValues,
     readonly [],
-    Proof
+    Proof,
+    Services
   >;
 }
 /** Immutable composite sequence after its first step. Append steps before
@@ -4460,7 +4653,8 @@ export type Step<
   Setting<CEnv, "secrets", string, string>,
   Setting<CEnv, "inputs", object, E>,
   Setting<CEnv, "outputs", readonly string[], readonly []>,
-  Setting<CEnv, "proof", string, never>
+  Setting<CEnv, "proof", string, never>,
+  Setting<CEnv, "services", string, string>
 >;
 type StepOf<
   WorkflowPath extends string,
@@ -4473,6 +4667,7 @@ type StepOf<
   InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
+  Services extends string = string,
 > = Compact<{
   needs: Needs;
   matrix: Matrix;
@@ -4481,6 +4676,7 @@ type StepOf<
   inputs: InputValues;
   outputs: Outputs;
   proof: Proof;
+  services: Services;
 }> extends infer Context extends StateEnv
   ? Step<WorkflowPath, JobId, Steps, Context>
   : never;
@@ -4496,6 +4692,7 @@ interface StepBase<
   InputValues extends object = Readonly<Record<string, string>>,
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
+  Services extends string = string,
 > extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
   /** Sets the environment while retaining earlier step references. Name callbacks exclude steps; URL callbacks include named outputs. URL is evaluated after steps, and protection is checked before any step.
    * @example In a job callback with `{ job }`.
@@ -4523,7 +4720,8 @@ interface StepBase<
     Secrets,
     InputValues,
     Outputs,
-    Proof
+    Proof,
+    Services
   >;
   /** References to earlier named steps in this immutable job.
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -4560,7 +4758,8 @@ interface StepBase<
           Matrix,
           Vars,
           Secrets,
-          InputValues
+          InputValues,
+          Services
         >
       >
     >,
@@ -4574,7 +4773,8 @@ interface StepBase<
         Vars,
         Secrets,
         InputValues,
-        Proof
+        Proof,
+        Services
       >,
     ) => Names,
   ): JobDone<
@@ -4611,7 +4811,8 @@ interface StepBase<
             Matrix,
             Vars,
             Secrets,
-            InputValues
+            InputValues,
+            Services
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
@@ -4634,7 +4835,8 @@ interface StepBase<
             Matrix,
             Vars,
             Secrets,
-            InputValues
+            InputValues,
+            Services
           >
           & Readonly<{
             /** Action input values, or a callback receiving field-scoped expression references and returning the input map. Values must be strings or string expressions; use toJSON() for number/boolean expressions.
@@ -4657,7 +4859,8 @@ interface StepBase<
     Secrets,
     InputValues,
     Outputs,
-    Proof
+    Proof,
+    Services
   >;
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
@@ -4687,7 +4890,8 @@ interface StepBase<
           Matrix,
           Vars,
           Secrets,
-          InputValues
+          InputValues,
+          Services
         >,
         "with"
       >
@@ -4707,7 +4911,9 @@ interface StepBase<
               Matrix,
               Vars,
               Secrets,
-              InputValues
+              InputValues,
+              never,
+              Services
             >,
           ) => R;
         }
@@ -4723,7 +4929,8 @@ interface StepBase<
     Secrets,
     InputValues,
     Outputs,
-    Proof
+    Proof,
+    Services
   >;
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori preserves the script through YAML emission; scenarios do not execute it.
@@ -4748,7 +4955,8 @@ interface StepBase<
       Matrix,
       Vars,
       Secrets,
-      InputValues
+      InputValues,
+      Services
     >,
   >(
     definition: AvailableStepDefinition<D, Steps>,
@@ -4762,7 +4970,8 @@ interface StepBase<
     Secrets,
     InputValues,
     Outputs,
-    Proof
+    Proof,
+    Services
   >;
   /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
@@ -4807,7 +5016,8 @@ interface StepBase<
         Matrix,
         Vars,
         Secrets,
-        InputValues
+        InputValues,
+        Services
       >
       | undefined =
         | StepField<
@@ -4817,7 +5027,8 @@ interface StepBase<
           Matrix,
           Vars,
           Secrets,
-          InputValues
+          InputValues,
+          Services
         >
         | undefined,
     const F extends boolean | Expression<boolean> | RawExpression | undefined =
@@ -4840,7 +5051,8 @@ interface StepBase<
         InputValues,
         Proof,
         C,
-        K
+        K,
+        Services
       >
       & Readonly<
         {
@@ -4879,7 +5091,9 @@ interface StepBase<
                 Matrix,
                 Vars,
                 Secrets,
-                InputValues
+                InputValues,
+                never,
+                Services
               >,
             ) => F);
           /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is also the task runtime entrypoint suffix and is separate from the display name.
@@ -4911,7 +5125,8 @@ interface StepBase<
     Secrets,
     InputValues,
     Outputs,
-    Proof
+    Proof,
+    Services
   >;
 }
 /** Native caller jobs contain uses/with/secrets, never runs-on or steps.
@@ -6885,6 +7100,27 @@ function createExecutionJobFacade(
     & Readonly<{ runsOn: RunnerRequest }>,
 ): ExecOf<string, string> {
   return Object.freeze({
+    container: (value: unknown) =>
+      createExecutionJobFacade({
+        ...draft,
+        options: { ...draft.options, container: renderContainer(value) },
+      }),
+    services: (value: Readonly<Record<string, unknown>>) => {
+      assertPlainRecord(value, "Services");
+      return createExecutionJobFacade({
+        ...draft,
+        options: {
+          ...draft.options,
+          services: Object.freeze(
+            Object.fromEntries(
+              Object.entries(value).map((
+                [id, settings],
+              ) => [id, renderContainer(settings, true) as ServiceSettings]),
+            ),
+          ),
+        },
+      });
+    },
     runsOn: (v: unknown) =>
       createExecutionJobFacade({ ...draft, runsOn: renderRunner(v) }),
     name: (v: unknown) =>

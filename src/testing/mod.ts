@@ -55,8 +55,11 @@ import type {
  * child context fixtures. External calls use `callFixture()`; local calls
  * interpret their callee and reject external fixtures. Workflow env does not cross
  * a call. Results retain nested call results and workflow outputs. Optional
- * `{ observe }` sends bounded per-workflow stage events to a host-owned sink
+ * `{ observe }` sends bounded workflow and container-initialization stage events to a host-owned sink
  * without fixture values; sink errors do not change the scenario result.
+ * containerRuntime() supplies only runner fields used by reached expressions.
+ * containerInitialization() models success/failure before authored steps; omission
+ * assumes interpretation proceeds, without proving Docker startup.
  *
  * @module
  */
@@ -83,9 +86,9 @@ export type ScenarioObservation = Readonly<
     /** Parent workflow operation ID for a nested reusable call, when present.
      */
     parentId?: number;
-    /** Recorded stage, currently workflow.
+    /** Workflow interpretation or modeled container initialization stage.
      */
-    stage: "workflow";
+    stage: "workflow" | "container-initialization";
     /** Stage start, success or failure; no fixture values are included.
      */
     status: "start" | "success" | "failure";
@@ -189,6 +192,13 @@ export type ResolvedConcurrency = Readonly<{
 }>;
 /** Settings resolved for a reached concrete job, not a live runner assignment or deployment observation. */
 export type JobSettings = Readonly<{
+  /** Resolved job container request; runner compatibility is not checked. */ container?:
+    | string
+    | import("../github_actions/mod.ts").ContainerSettings;
+  /** Resolved service requests, including empty images that disable startup. */ services?:
+    Readonly<
+      Record<string, import("../github_actions/mod.ts").ServiceSettings>
+    >;
   /** Requested runner labels/group; a group's supplied labels are normalized to an array. Availability and assignment are not simulated. */
   runsOn?: RunnerRequest;
   /** Environment name and deployment flag before steps, optional URL after steps. */
@@ -212,6 +222,39 @@ export type JobSettings = Readonly<{
   /** Explicit job timeout in minutes; no elapsed time is simulated. */
   timeoutMinutes?: number;
 }>;
+/** Partial runner-owned container context. Supply only fields used by reached
+ * expressions; omitted fields are not invented. Set per-instance values through
+ * eachMatrix(). Disabled services cannot have runtime fixtures. No Docker is run.
+ * @example Given a typed job/instance scenario builder `testJob`.
+ * ```ts
+ * testJob.containerRuntime({ services: { db: { ports: { "5432": "32768" } } } });
+ * ```
+ */
+export type ContainerRuntime = Readonly<{
+  /** Job container identity and shared Docker network. A service-only job can provide network, but has no container ID. */
+  container?: Readonly<{
+    /** Runner-assigned container ID. */ id?: string;
+    /** Runner-assigned network ID. */ network?: string;
+  }>;
+  /** Runtime values for declared, active service names; each entry may be partial. */
+  services?: Readonly<
+    Record<
+      string,
+      Readonly<{
+        /** Runner-assigned service container ID. */ id?: string;
+        /** Shared Docker network ID. */ network?: string;
+        /** Container port to runner-assigned host port strings. */ ports?:
+          Readonly<Record<string, string>>;
+      }>
+    >
+  >;
+}>;
+/** Aggregate outcome of the runner's container initialization pre-step. Failure
+ * keeps the job failed while later steps follow their native status conditions.
+ * Omission in a scenario assumes initialization proceeds, without proving startup.
+ */
+export type ContainerInitialization = "success" | "failure";
+
 /** Aggregate protection decision supplied by a fixture. passed means all rules passed, not one review approval. pending and rule calculation are outside the scenario contract. */
 export type EnvironmentProtection = "passed" | "rejected";
 /** Observed scenario step result. Outcome precedes continue-on-error; conclusion follows it. Inputs are native parsed values, outputs are serialized strings, and env is the interpreted step environment.
@@ -241,6 +284,8 @@ export type StepResult = Readonly<{
 /** Result of one concrete matrix instance, retaining step results and an optional nested reusable workflow result. See {@link JobResult}.
  */
 export type JobInstanceResult = Readonly<{
+  /** Explicit initialization fixture; omission does not prove runner startup. */ containerInitialization?:
+    ContainerInitialization;
   /** Concrete matrix row for this instance; fixtures may branch on its fields.
    */
   matrix: Readonly<Record<string, unknown>>;
@@ -326,6 +371,10 @@ export type StepRules = {
 /** Mutable expectations for one job/matrix instance. Prefer {@link InstanceScenario} methods.
  */
 export type InstanceRules = {
+  /** Explicit partial runner context fixture; never recorded by observers. */ containerRuntime?:
+    ContainerRuntime;
+  /** Explicit aggregate container initialization result. */ containerInitialization?:
+    ContainerInitialization;
   /** Aggregate environment gate fixture; omit to retain previous behavior. */
   environmentProtection?: EnvironmentProtection;
   /** Requested runner/environment/concurrency expectations. */
@@ -606,7 +655,35 @@ export class InstanceScenario<Job> {
     this.rules.environmentProtection = value;
     return this;
   }
-  /** Enable interpretation and compare resolved runner/environment/concurrency requests. Runner assignment, protection rules and concurrency scheduling are not simulated. Environment URLs resolve after steps. Pass {} to expose resolved settings on the result without comparing properties. Without this call, existing scenarios do not evaluate these settings or require their contexts.
+  /** Supply partial job/service container context for this instance. Only runtime
+   * fields read by reached expressions are required; missing values fail at their
+   * evaluation site. No ID, network or host port is generated from declarations.
+   * Configure matrix-specific fixtures with eachMatrix().
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.containerRuntime({ services: { db: { ports: { "5432": "32768" } } } });
+   * ```
+   */
+  containerRuntime(value: ContainerRuntime): this {
+    this.rules.containerRuntime = value;
+    return this;
+  }
+  /** Supply the aggregate container initialization pre-step outcome. Failure
+   * closes the implicit success gate; failure()/always() steps may still be reached.
+   * Their commands are not executed and may themselves need fixtures. Job failure
+   * tolerance affects the dependency/workflow result, not failure() or job.status.
+   * Requires container/services declarations. No Docker health check, retry or
+   * partial startup is inferred; supply any required partial context separately.
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.containerInitialization("failure").expectResult("failure");
+   * ```
+   */
+  containerInitialization(value: ContainerInitialization): this {
+    this.rules.containerInitialization = value;
+    return this;
+  }
+  /** Enable interpretation and compare resolved runner/environment/concurrency and container/service requests. Runner assignment, protection rules and concurrency scheduling are not simulated. Environment URLs resolve after steps. Pass {} to expose resolved settings on the result without comparing properties. Without this call, existing scenarios do not evaluate these settings or require their contexts.
    * @example Given a typed job/instance scenario builder `testJob`.
    * ```ts
    * testJob.expectSettings({ environment: { name: "production" }, runsOn: { group: "deploy", labels: ["linux"] } });

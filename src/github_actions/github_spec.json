@@ -799,7 +799,7 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "No new GitHub-only fields such as cache-mode, snapshot, background/wait/parallel, services command or entrypoint were implemented. They are inventoried as unsupported."
+    "No new GitHub-only fields such as cache-mode, snapshot, background/wait/parallel were implemented. They are inventoried as unsupported."
   ],
   "coverage": [
     {
@@ -1861,177 +1861,177 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainer",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.image",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainerimage",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.credentials",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainercredentials",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.env",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainerenv",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.ports",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainerports",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.volumes",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontainervolumes",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.container.options",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontaineroptions",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservices",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.image",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idimage",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.credentials",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idcredentials",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.env",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idenv",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.ports",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idports",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.volumes",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idvolumes",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.options",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idoptions",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.command",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_idcommand",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.services.<service_id>.entrypoint",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Typed native container/service settings with field-scoped expressions and standard YAML emission. Scenarios resolve requested settings and explicit runtime fixtures; GitHub owns Docker startup, registry access and networking.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idservicesservice_identrypoint",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
@@ -3734,84 +3734,84 @@
     {
       "domain": "context",
       "key": "job.container",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.container.id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.container.network",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.services",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.services.<service_id>.id",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.services.<service_id>.network",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },
     {
       "domain": "context",
       "key": "job.services.<service_id>.ports",
-      "status": "limited",
-      "notes": "Typed context subset and caller-supplied scenario values; absent typed properties require raw expressions. GitHub controls actual availability and values.",
+      "status": "implemented",
+      "notes": "Typed job container and declared service references. Scenarios require only runtime fixture fields read by reached expressions; disabled services have native missing-property semantics. IDs, networks and host ports are assigned by the runner.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "job-context",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
       ]
     },

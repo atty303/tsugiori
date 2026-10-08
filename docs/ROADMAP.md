@@ -27,9 +27,8 @@ The frozen [coverage inventory](../src/github_actions/github_spec.json) records
 activity guards and fixture-based filtering are implemented and verified; the
 next feature groups are:
 
-- Add container/services contracts, snapshot/cache-mode and the native
-  background/parallel step family where applicable to the frozen GitHub.com
-  basis.
+- Add snapshot/cache-mode and the native background/parallel step family where
+  applicable to the frozen GitHub.com basis.
 - Complete context fields and native expression interpretation currently
   requiring explicit scenario overrides; enforce the reusable unique-workflow
   limit where local graphs allow it.

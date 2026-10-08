@@ -56,6 +56,8 @@ type _ExecutionSurface = Expect<
     | "name"
     | "env"
     | "defaultsRun"
+    | "container"
+    | "services"
     | "when"
     | "strategy"
     | "concurrency"

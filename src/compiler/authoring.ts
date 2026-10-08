@@ -338,6 +338,8 @@ export function lowerProject(
         name: job.name,
         env: job.env,
         defaults: job.defaults,
+        container: job.container,
+        services: job.services,
         needs: job.needs,
         ...(job.if === undefined ? {} : { if: job.if }),
         ...(job.permissions === undefined
