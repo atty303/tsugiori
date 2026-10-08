@@ -1,0 +1,87 @@
+Task: Native GitHub Actions matrix and failure controls
+Anchor: 5f623438924235c0b2339a1b40b6d3faa2df416e
+Base: d91ebbd036f421b25a4f91983e72173ead7f50ae
+Branch: main (current checkout)
+Commits: 5f623438924235c0b2339a1b40b6d3faa2df416e feat(github-actions): support native matrix and failure controls
+Guidance: repository AGENTS.md; dig; develop-repository; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: macOS; repository-managed mise/Deno; sandbox Git metadata writes required escalation; no deploy, release, push or PR; fixed docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 and verifiedOn 2026-10-02 unchanged
+## Evidence
+- Final mise run check passed; mise run test passed with 203 tests and zero failures (1m59s); published JSDoc checker validated 212 distinct TypeScript examples across six entrypoints; actual LSP hover/signature/completion passed.
+- Fresh independent reviewer found explicit strategy type-argument compatibility and per-member strategy context in outputs; both were fixed, regression tested and delta reviewed with no remaining actionable findings. Final source matched reviewed snapshot d7074e6c5134edc181a5de792eaa1d1d092474fdecf73679593d7dcfb75c54fc.
+- Existing reusable scenario fixtures initially failed because timeouts were eagerly evaluated; evaluation was limited to explicit settings assertions, preserving fixture compatibility. One full run loaded pre-final LSP source and failed; fresh LSP and final standard full validation passed.
+- Complete stored thread 01a11ab0-2781-7723-a8ff-de5eee4533c1 was read and compared: seven human messages, first dig request, four A selections, implementation request, and final feat/minor approval. Auto-injected AGENTS/environment/skill text excluded. Human text contains no credentials or confidential content requiring redaction.
+Authority: user implementation request and feat/minor approval; current repository AGENTS.md; fixed github_spec.json; applicable skills; current source and tests
+## Transcript
+- U1: $dig 次のgithub spec対応は？
+  - A: Applied dig, examined current roadmap and fixed spec, and offered matrix/job controls, container/services, or context/expression coverage; recommended matrix/job controls.
+- U2: A
+  - A: Confirmed matrix/job scope and asked whether object-valued axes and nested references should be included; recommended inclusion.
+- U3: A
+  - A: Confirmed object axes and asked whether step continue-on-error expressions should also be included; recommended inclusion.
+- U4: A
+  - A: Proposed the complete scope including static matrix, job/step expressions, numeric checks, scenario logical outcomes, native GitHub boundaries, backward compatibility and unchanged spec baseline.
+- U5: A
+  - A: Produced the implementation request with decisions, constraints, exclusions and unverified premises.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の現在の checkout で、固定 GitHub Actions 仕様に対する matrix・job 制御の未対応部分と、step の continue-on-error 式対応を実装してください。
+    
+    ## 目的
+    - 静的 matrix と実行制御を、GitHub Actions の native semantics に沿って型付きで定義できるようにする。
+    - オブジェクト軸の属性を runner 選択や失敗許容の設定から参照できるようにする。
+    - 対応する設定と結果をローカル scenario で検証できるようにする。
+    
+    ## 成功条件
+    - scalar 軸とオブジェクト軸、軸＋include/exclude、include-only を定義・生成できる。
+    - include による追加・上書き・欠落を考慮し、matrix のネストした参照を安全に型推論できる。
+    - max-parallel、job の continue-on-error、fail-fast の仕様上許される式に対応する。
+    - step の continue-on-error が boolean と式に対応し、式評価後の outcome/conclusion を scenario で検証できる。
+    - matrix 展開、制御設定の式、job の失敗許容が workflow 結果へ及ぼす影響を scenario で検証できる。
+    - matrix 件数などの判定可能な数値制約を検証する。job timeout の一律 360 分上限を固定仕様に合わせて修正し、step timeout の 360 分上限は維持する。
+    - compiler・validation・scenario・型検査と、実際の LSP hover/signature/completion で対応を確認する。
+    - 公開 JSDoc の実コード例、coverage inventory、仕様説明、architecture、roadmap が実装と整合し、必要な標準検証が通る。
+    
+    ## 決定事項
+    - 静的 matrix の対応にはオブジェクト軸とネストした型付き参照を含める。
+      - 理由: 静的 matrix の型設計をまとめて整え、実験対象などの属性を制御設定に利用できるようにする。
+      - 主な棄却案: scalar 軸＋include/exclude のみに限定する案。オブジェクト軸の不足と後続の型設計変更が残るため。
+    - step の continue-on-error 式対応も含める。
+      - 理由: 同じ matrix 属性を job・step の両方の失敗許容に利用できるようにする。
+      - 主な棄却案: job 側だけ追加する案。step 側に関連する制約が残るため。
+    - scenario は設定式と論理的な結果を解釈する。
+      - 理由: 新しい設定の意味を検証しつつ、GitHub の実行基盤との責任境界を維持する。
+      - 主な棄却案: YAML 出力だけ対応する案。失敗許容と matrix 展開の検証が不足するため。
+    - 既存 API を保ちながら拡張し、現在の固定仕様基準を使う。
+      - 理由: 既存利用者の互換性を維持し、仕様更新と機能対応を分ける。
+      - 主な棄却案: API 再設計または仕様基準更新を同時に行う案。今回の目的に不要な変更範囲が増えるため。
+    
+    ## 制約
+    - 基準は src/github_actions/github_spec.json の現在の固定 snapshot。合意時点では verifiedOn が 2026-10-02、docsRevision が 0b8c768bf0d5a13560ec82fd3daa414137e2e436。
+    - GitHub の native job・step・strategy として読みやすい YAML を生成する。
+    - host authoring callback と GitHub runtime expression を区別する。
+    - runner 固有の実行時間上限など、ローカルで証明できない制約を検証済みと扱わない。
+    
+    ## 対象外
+    - 仕様 snapshot の revision・検証日の更新。
+    - container/services、snapshot/cache-mode、background/parallel step。
+    - 関係のない context・expression 機能の網羅的対応、reusable workflow の unique-workflow 上限対応。
+    - 実際の並列スケジューリング、fail-fast キャンセル、経過時間や runner 環境のエミュレーション。
+    - deploy、release、push、PR 作成。
+    
+    ## 未検証の前提
+    - 固定出典にあるオブジェクト軸、include/exclude、式の許可範囲、数値制約の詳細は、実装前に該当テンプレートを含めて確認する必要がある。
+    - job の continue-on-error に関する job 結果、needs.result、status 関数、workflow 集約結果の関係は、一次資料と必要な検証で確認する必要がある。step の outcome/conclusion と同一視しない。
+    
+    ## 実装時の指示
+    - 現在の実装を再確認して、既存処理を拡張する。合意時点では src/github_actions/mod.ts に scalar 軸・include-only・whole-matrix expression の API があり、src/testing/run.ts に include/exclude 展開処理がある。
+    - 静的定義と expression matrix の双方について、判定可能な時点で検証する。GitHub runtime でしか値が確定しない式を生成時の値として扱わない。
+    - include/exclude とオブジェクト軸の比較・展開は固定仕様に合わせ、既存の scenario 処理が正しいという前提を置かない。
+    - continue-on-error が式の場合、式オブジェクトや文字列の truthiness で判定せず、対応する context で評価する。
+    - 失敗許容が条件評価・依存 job・outputs・workflow 集約へ与える影響を検証し、既存 scenario の互換性を維持する。
+    - matrix 推論では、include によって一部の行にだけ存在する属性の欠落可能性を隠さない。readonly 情報とコンパクトな LSP 表示も維持する。
+    - 実装した項目だけ coverage を更新し、GitHub 所有の実行上の限界は説明に残す。
+  - A: Implemented shared static matrix validation/expansion, conservative readonly nested inference, native strategy controls, job and step boolean expressions, scenario failure tolerance/dependency/output/workflow results, timeout validation, and aligned documentation/coverage. Read fixed primary sources; fetched code/notes without remote writes; used observability applicability checks and independent review. Repaired two review findings and fixture compatibility, completed final check/test/LSP/JSDoc verification and removed owned temporary artifacts. Reported completed implementation with local commit held pending feat/minor approval.
+- U7: feat / minor
+  - A: Acknowledged explicit feat/minor approval; rechecked Git state and diff, verified complete thread and classified note content, staged only the 20 task files and created local commit 5f623438924235c0b2339a1b40b6d3faa2df416e. No remote writes. Prepared normalized task note with compare-and-swap expectation absent.
