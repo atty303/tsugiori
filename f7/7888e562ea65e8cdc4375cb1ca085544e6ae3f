@@ -1,0 +1,137 @@
+Task: Complete frozen GitHub Actions triggers with typed payloads and scenarios
+Anchor: f77888e562ea65e8cdc4375cb1ca085544e6ae3f
+Base: d9416b3ad97a91730789cb38b66682952d5bb8e3
+Branch: main
+Commits: f77888e562ea65e8cdc4375cb1ca085544e6ae3f feat(github-actions): complete frozen trigger contracts
+Guidance: AGENTS.md; develop-repository and atty303 profile; design-program-observability; design-review; review; investigate-problem for observed LSP/check failures
+Conditions: Current checkout, Deno 2.9.7 via mise; approved breaking consistency changes and feat/minor on 0.x; no push/release/deploy; fixed GitHub.com docs basis retained; no schema-generation fallback authorized
+## Evidence
+Complete runtime thread JSONL read and compared: 15 human messages, first dig request and last release-impact approval; auto-injected skill/AGENTS/environment messages excluded. Both original specification request and short selections retained below. Runtime source thread: 01a11958-9189-7022-a648-31a6b1e75c5f.
+Authority: User implementation request/decisions and release-impact approval; current AGENTS.md and living source/docs; GitHub owns delivery/execution.
+## Transcript
+- U1: $dig github specの未実装をなくしていく
+  - A: Applied dig; inspected fixed inventory (442 rows, 148 unsupported and 203 limited); asked whether completion means typed native authoring/generation while GitHub owns execution.
+- U2: A
+  - A: Accepted whole-inventory audit and native boundary; asked whether scenario semantics must ship alongside each feature.
+- U3: A
+  - A: Accepted simultaneous scenario coverage; asked whether TypeScript sharing satisfies anchors and templates remain outside product.
+- U4: A
+  - A: Accepted semantic equivalence and product exclusions; asked compatibility policy for consistent APIs.
+- U5: B
+  - A: Accepted necessary breaking changes with migration; asked first implementation unit.
+- U6: B
+  - A: Accepted trigger-only first unit; asked whether changed file lists are supplied by fixtures.
+- U7: A
+  - A: Accepted explicit diff fixtures and missing-value errors; asked payload typing scope.
+- U8: B
+  - A: Accepted full payload typing; inspected Expression propagation and asked fixed external type dependency versus local generation.
+- U9: A. その型でtsugioriのメリットが維持できるなら依存していい。不足するならBも考える
+  - A: Accepted conditional external type adoption; asked safe runtime DSL narrowing for multiple events.
+- U10: A
+  - A: Accepted single-event inference and runtime guard proofs; asked partial versus complete payload fixtures.
+- U11: A
+  - A: Accepted typed partial fixtures; asked fallback authority if the package fails adoption criteria.
+- U12: B
+  - A: Accepted user confirmation before schema generation; proposed final trigger-wide contract with all constraints.
+- U13: A
+  - A: Produced the complete implementation request reflecting decisions; no code edits during dig.
+- U14:
+    # 実装依頼
+    
+    ## 依頼
+    TsugioriのGitHub Actions仕様対応を進める最初の段階として、固定仕様snapshotに含まれるtrigger全体を実装してください。イベントpayloadの型付け、イベント条件と連動した型の絞り込み、scenario対応まで含めて完成させてください。
+    
+    対象repositoryは `/Users/a13400/src/atty303/tsugiori` です。
+    
+    ## 目的
+    - GitHub標準のtriggerを、型付きのTypeScriptで記述して標準workflow YAMLへ生成できるようにする。
+    - イベントpayloadの補完と誤参照の検出を維持し、triggerの判定をscenarioで検証できるようにする。
+    - 今後の仕様対応に向けて、実装不足と製品の対象外を正確に区別する。
+    
+    ## 成功条件
+    - 固定snapshotのGitHub.com対象triggerについて、全イベント、activity types、branches／tags／pathsとignore形式、schedule、workflow_dispatchの全input型、workflow_callのtrigger宣言に対応している。
+    - 各機能について、公開API、型推論、compiler／YAML生成、静的検証、公開JSDoc、必要なscenario対応が整合している。
+    - 全対象イベントのpayloadが型付きで参照できる。単一イベントのworkflowでは型が自動推論され、複数イベントではDSLのイベント条件が適用される範囲でpayload型が安全に絞られる。
+    - イベント固有のpropertyへの誤参照、誤ったactivity type、誤ったfixtureのproperty名や値の型を型検査で検出できる。
+    - 代表的な単一・複数イベントのDSLについて、実際のLSP hover、signature、補完を確認し、複雑な上流型が利用者の理解を妨げていない。
+    - scenarioはイベントごとの型付き部分fixtureと変更ファイル一覧を扱い、trigger判定や式評価に必要な値の欠落を、評価箇所が分かるエラーとして報告する。
+    - 固定仕様に記載されたフィルタの組み合わせ、順序、否定、既定値、制限が検証されている。
+    - 破壊的変更の影響を記録し、repository内の利用箇所、公開例、ドキュメントが移行されている。
+    - 対応表全体を棚卸しし、実装不足、代替表現で対応済み、製品の対象外、GitHub実行時にのみ確認できる事項を区別している。triggerの対応状況は実装と検証の証拠に一致している。
+    - repositoryの標準検証が通り、trigger以外の残作業は既存の対応表・ROADMAPから把握できる。
+    
+    ## 決定事項
+    - 今回はtrigger全体を一つの実装単位とする。
+      - 理由: 記述、型保証、生成、scenarioを同じ機能群で完成させるため。
+      - 主な棄却案: 全未対応機能を今回まとめて実装する案。permissions、matrix、container／servicesなどは後続とする。
+    
+    - 現在の固定GitHub.com仕様snapshotを基準とする。
+      - 理由: 仕様更新と実装対応を混在させず、完了範囲を固定するため。
+      - 主な棄却案: 最新仕様への更新を同時に行う案。
+    
+    - workflowの意味を型付きで表現・生成できることを対応の目標とする。
+      - 理由: GitHub機能を利用できない制限を解消するため。
+      - 主な棄却案: YAML構文やworkflow配布の仕組みまで全面的に再現する案。anchors／aliasesはTypeScriptでの共有で満たし、workflow templatesなどは製品の対象外とする。
+    
+    - 新しい機能の完了に、現在のscenarioの責任範囲に入る意味の対応を含める。
+      - 理由: 記述できる機能とテストできる機能の差を増やさないため。
+      - 主な棄却案: APIと生成を先に完成させ、scenarioを後回しにする案。
+    
+    - 一貫したAPIのために必要な破壊的変更を許容する。
+      - 理由: 不完全な既存APIを維持するための複雑さを避けるため。
+      - 主な棄却案: すべてを既存APIへの追加だけで対応する案。
+    
+    - 全対象イベントのpayload型と、安全なイベント条件による型の絞り込みを実装する。
+      - 理由: payloadの補完、型推論、誤参照の検出というTsugioriのメリットを維持するため。
+      - 主な棄却案: payload型を後続に回す案、複数イベントの型指定を利用者のassertionに任せる案。
+    
+    - payload型は、採用基準を満たす固定versionの外部型パッケージを優先する。
+      - 理由: 大きなpayload定義の重複管理を避けるため。
+      - 主な棄却案: 最初から固定schemaから型を生成する案、全定義を手書きする案。
+      - 採用基準: 全対象イベントの網羅性、Actions固有差分の補完、安全な型の絞り込み、実際のLSPでの読みやすさと補完、Deno／JSRでの利用が成立すること。
+      - 不足する場合: 根拠、影響、固定schemaからの生成案と保守コストを報告し、切り替えの確認を受ける。自動では切り替えない。
+    
+    - scenarioには変更ファイル一覧をfixtureで渡す。
+      - 理由: pathsの意味をGit履歴やcheckout状態に依存せず検証するため。
+      - 主な棄却案: scenarioがcommit情報とGit履歴から差分を再構成する案。
+    
+    - scenarioのpayload fixtureは、イベントごとの型付き部分指定を許す。
+      - 理由: テストに関係する値だけで読みやすく記述するため。
+      - 主な棄却案: fixtureに完全なpayloadを要求する案。
+      - 必要な値の欠落を黙って補わない。仕様上の既定値・欠落時の意味とは区別する。
+    
+    ## 制約
+    - GitHub Actionsが実行を担う境界を維持する。イベント配信、実時間、スケジューリング、権限、runner動作をscenarioで再現する範囲には広げない。
+    - scheduleは設定と、配信されたイベントfixtureの意味を扱い、時計からイベント発生を再現するschedulerを追加しない。
+    - GitHub側の差分取得条件・制限・失敗など、起動判定に影響する外部事実は必要なfixture契約として明示する。
+    - GitHub runtimeのイベント条件を、authoring時のTypeScript条件として扱わない。型の絞り込みは生成されるイベント条件と整合させる。
+    - 外部型の取り込みによって型保証を弱めたり、広いanyや利用者のcastで不足を隠したりしない。
+    - 外部型依存が採用基準を満たさない場合、schema生成方式への変更にはユーザーの確認が必要。
+    - trigger対応に必要な変更へ実装範囲を限定する。
+    
+    ## 対象外
+    - trigger以外の未対応機能の実装。
+    - GitHub仕様snapshot自体の更新。
+    - YAML anchors／aliasesのネイティブ出力、workflow templates、marketplace。
+    - GitHubイベントの実配信やhosted runnerでの実行保証。
+    - Git履歴からの変更ファイル一覧の再構成。
+    - payload型付けに直接必要でないcontext全体の対応。
+    
+    ## 未検証の前提
+    - 基準は `src/github_actions/github_spec.json`。調査時点のverifiedOnは `2026-10-02`、docsRevisionは `0b8c768bf0d5a13560ec82fd3daa414137e2e436`。実装開始時に現在のcheckoutで確認する。
+    - Octokit系の外部payload型パッケージが候補になるが、採用するpackage／version、全対象イベントの網羅性、Actions payloadとの差分、固定仕様との整合、Deno／JSRでの利用は未検証。
+    - 現在の `github.event` はunknownであり、イベント条件と連動した型の絞り込みにはExpression APIとcontextの型伝播の確認が必要。
+    - 対応表には章見出しや代替を案内する項目も含まれる。GitHub.com向けの有効な機能と対象外を、固定出典で照合する。
+    
+    ## 実装時の指示
+    - 最初に対応表全体を棚卸しし、今回のtrigger対応項目と後続項目を明確にする。既存の対応表・文書を更新し、歴史記録を新設しない。
+    - payload型依存と安全な絞り込みを代表例で先に検証する。全体実装前に、単一イベント、複数イベント、activity条件、workflow_dispatch inputs、workflow_callのcontextが成立することを確認する。
+    - 上流Webhook型をActions payloadへ無条件に流用しない。Actions固有イベント、payloadの差分、入力宣言に依存する型、optional／nullable情報を照合する。
+    - 固定snapshotの出典と、追加するpayload型の出典・固定versionを区別して記録する。生成・scenario実行時に仕様を取得しない。
+    - フィルタ、イベントごとの既定activity、dispatch inputs、再利用workflowのtrigger契約について、正常系だけでなく非起動・不正設定・不足fixtureを検証する。
+    - `src/github_actions/mod.ts`、`src/github_actions/expression.ts`、`src/compiler/github_actions/`、`src/testing/` と関連テストを起点に、型から生成・scenarioまでの伝播を確認する。
+    - 固定仕様が許す設定を不必要に拒否しない。ローカルで保証できる検証と、GitHub側でのみ確認できる条件をドキュメントで区別する。
+    - 完了報告では、対応したtrigger、API変更、型依存の採用根拠、検証結果、GitHub側に残る保証限界、次の機能群の残作業を示す。
+  - A: Applied develop-repository, design-program-observability and design-review; confirmed clean main/base and frozen spec identity; fetched code/notes (HTTPS fallback for SSH agent failure), inspected release policy and proposed feat/minor on 0.x; began approved local implementation.
+- U15: feat・minor相当で承認
+  - A: Implemented all frozen triggers with exact-version type-only Octokit dependency and Actions adapters; native event proofs and compact payload references passed actual LSP checks. Typed partial fixtures, changedFiles/image facts, native input values and inherited caller dispatch wire inputs covered. Complete inventory classified and living docs/ROADMAP updated without refreshing the spec revision. Investigated missing import-map/LSP type expansion and unified validation diagnostics; corrected source/type propagation and migrated affected tests. Independent full review found one reachable escaped-atom repetition rejection; reproduced and fixed it, with focused typed/trigger/call tests (22 passed), 194 actual published examples and a clean delta review. Earlier standard suite passed 183 tests; final standard suite passed 185 tests with no failures (1m54s), including actual LSP; standard check and all 194 published samples passed. Reviewed candidate SHA-256: 20b2a28ef4da3005e14e0b5f6e8811a5b8e4bbe14c7452734297326c7092c3a1. Commit signing succeeded. JSR publish dry-run passed, with no hosted execution claim. Local commit and standard Git note checkpoint recorded; no remote writes or schema-generation fallback.
