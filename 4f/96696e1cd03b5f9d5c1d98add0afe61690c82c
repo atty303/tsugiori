@@ -1,0 +1,110 @@
+Task: Audit and fix native GitHub Actions contexts, pure scenario expressions, local reusable limits and coverage inventory
+Anchor: 4f96696e1cd03b5f9d5c1d98add0afe61690c82c
+Base: 73c47a696b96aca647c4be835616232a1d625c75
+Branch: main; current checkout retained throughout
+Commits: 4f96696e1cd03b5f9d5c1d98add0afe61690c82c fix(github-actions): align native contexts and scenario expressions; approved patch impact on0.x
+Guidance: User implementation request and AGENTS.md; develop-repository with atty303 profile; dig, design-review, investigate-problem, design-program-observability, independent review and git-task-evidence references
+Conditions: macOS/JST2026-10-08/09; clean initial checkout; managed Deno2.9.7 toolchain; code and notes fetched; .git writes required sandbox escalation; first configured1Password signing attempt failed and explicit retry succeeded; fixed Docs2026-10-02 revision0b8c768bf0d5a13560ec82fd3daa414137e2e436 retained; no external writes
+## Evidence
+- Baseline standard suite237passed0failed despite public reproductions: null string conversion, quoted status detection,0xff,function-result dereference, underscore strategy names and51local callees. Fixed primary frozen sources matched their retained SHA-256 digests.
+- Supplemental immutable actions/runner67f01c276e0a91d967ba499ce4cdc9a95efa0262 initializes github.job/token before runner settings and retains them for completion outputs/environment URLs; expression SDK resolves ambiguities in coercion, indexing and lazy functions. Frozen source/date unchanged; no spec network acquisition in generation/validation/scenarios.
+- Independent initial and delta reviews fixed noncollection eager key evaluation, public property JSDoc, container direct-read diagnostics and frozen Proxy target invariant. Final reviewer found no actionable issues. Complete review candidate and staged bytes matched before commit.
+- Final mise run fix and check successful; mise run test243passed0failed in5m20s, including248distinct published JSDoc examples, real LSP completion/hover, generated-output checks and runtime E2E. Hosted execution, external reusable graphs, effective permissions and hashFiles filesystem behavior remain unverified explicit boundaries.
+Authority: User-approved implementation scope, API changes and patch impact; current AGENTS.md, repository source/tests/living docs, fixed GitHub Docs and pinned runner reconciliation; skills govern execution and evidence, memory is descriptive only
+## Transcript
+- U1: $dig 次のgithub spec対応は？
+  - A: Used dig and live source/roadmap inspection to identify context semantics, pure scenario expressions and local reusable uniqueness as remaining candidates; read native-semantics memory and proposed the reusable limit first.
+- U2: まずspecの対応度を実装から監査
+  - A: Audited inventory against implementation, fixed GitHub docs sources and public scenario reproductions. GitHubContext has 41 matching property names (corrected preliminary count40). Observed null conversion, quoted status names, hex/suffix and strategy discrepancies. Baseline standard validation237 passed0 failed.
+- U3: まず実装からinventoryへの更新もれを直したい
+  - A: Identified53 property inventory omissions and separate strategy/phase/interpreter/50-workflow gaps; asked whether to include confirmed implementation fixes together with inventory.
+- U4: B
+  - A: Accepted combined implementation/inventory scope; presented strategy naming alternatives.
+- U5: B
+  - A: Accepted native hyphenated strategy names with no aliases; presented phase-specific versus universally nullable github.job/token.
+- U6: A
+  - A: Accepted phase-specific null/server and string/runner types; presented full pure-interpreter audit versus known reproductions only.
+- U7: A
+  - A: Accepted full frozen pure-expression audit with strict external/hashFiles fixtures; consolidated scope and proposed patch release impact under0.x repository policy.
+- U8: A
+  - A: Accepted full scope and patch impact; produced the implementation request including constraints, excluded runtime/external graph work and unverified phase/count assumptions.
+- U9:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、GitHub Actions の固定仕様に対する実装不足と、実装から coverage inventory への更新もれを修正してください。
+    
+    対象は context、式 interpreter、ローカル reusable workflow の種類数制限です。実装・inventory・関連する既存文書・検証を整合させてください。
+    
+    ## 目的
+    - 利用者が GitHub の意味に沿った型付き参照を使い、scenario で式と条件を検証できるようにする。
+    - inventory から、実装済みの機能、実装不足、GitHub 実行環境に依存する範囲を正確に判断できるようにする。
+    
+    ## 成功条件
+    - context の各行を公開 authoring、生成式、scenario の実装と突き合わせ、更新もれを修正している。
+    - `strategy` の4プロパティは `fail-fast`、`job-index`、`job-total`、`max-parallel` を公開し、生成式と scenario が同じ名前を扱う。旧 `_` 名は公開 API から廃止している。
+    - `github.job`／`github.token` の型と scenario の値が、固定仕様の評価段階に一致している。step 内では不要な nullable 型を要求しない。
+    - 固定仕様のうち、供給された context 値だけで評価できるリテラル、参照、演算子、型変換、関数、object filter、status 判定を一通り監査し、確認された意味差を修正している。
+    - ローカルで把握できる reusable 呼び出しグラフについて、50種類を受け付け、51種類を拒否する。ネスト先も含め、同じ workflow の反復呼び出しを重複計数しない。
+    - inventory の `status`、`assessment`、`notes`、検証根拠が修正後の実装を表している。親 context 行も個別に評価し、一括置換で対応済みにしない。
+    - 変更経路の回帰検証と repository の標準検証が通る。生成物と公開 JSDoc の実際の例も整合している。
+    
+    ## 決定事項
+    - inventory の更新と、監査で確認した実装不足の修正を同じ対象に含める。
+      - 理由: 対応度の記述を、実際に正しく動く範囲に合わせるため。
+      - 主な棄却案: inventory だけを更新する案。確認された意味差が残るため。
+    - `strategy` の公開プロパティ名を GitHub と同じ `-` 名へ変更し、旧 `_` 名を廃止する。
+      - 理由: native context の名前と公開 API を一致させるため。
+      - 主な棄却案: `_` 名を生成時に変換する案、および両方を公開する案。既存名の維持や互換 alias は採用しない。
+    - `github.job`／`github.token` は評価段階に応じた型にする。
+      - 理由: step 外の null と step 内の string を正確に表すため。
+      - 主な棄却案: 全フィールドで `string | null` とする案。step 内にも不要な null 処理を要求するため。
+    - 純粋な式 interpreter を固定仕様全体と照合する。
+      - 理由: 個別の再現例だけでは、同じ interpreter の他の意味差を見落とすため。
+      - 主な棄却案: 確認済みの数例だけを修正する案。
+    - `hashFiles()` の明示 fixture と、不足 fixture をエラーにする方針を維持する。
+      - 理由: scenario が未観測のファイルや runtime 値を推測して検証成功と扱わないため。
+      - 主な棄却案: 実ファイルを読んで計算する案、fixture の不足を一律に空文字へ変換する案。
+    - この task の commit による release 影響は patch とする。
+      - 理由: 現在の 0.x に対する不具合修正として合意済み。
+      - 主な棄却案: release なしとする案。
+    
+    ## 制約
+    - 固定仕様の revision／検証日は変更しない。現時点の snapshot は検証日 `2026-10-02`、github/docs revision `0b8c768bf0d5a13560ec82fd3daa414137e2e436`。
+    - GitHub の意味は固定出典から確認する。曖昧な箇所は、追加の公式実装根拠との関係を明示し、推測で決めない。
+    - generation、validation、scenario に仕様取得のネットワーク処理を追加しない。
+    - 外部 reusable workflow のグラフは取得しない。把握できない部分の制限を inventory と関連文書に明記する。
+    - 公開 API の互換性変更の承認は、上記の strategy 名と context の評価段階に応じた型変更に限定する。
+    - 実際の release 実行、push、PR 作成、deploy はこの依頼に含めない。
+    
+    ## 対象外
+    - GitHub 仕様 snapshot の最新版への更新。
+    - Actions、shell、task body の scenario 内での実行。
+    - runner、イベント配送、実効権限、実時間、実スケジューリングの再現。
+    - `hashFiles()` のファイルシステム実装。
+    - 外部 workflow の取得・解決。
+    - 新しい provider や CI 実行基盤。
+    
+    ## 未検証の前提
+    - 実装開始時の checkout が監査時と同じか確認する。監査時は working tree が clean だった。
+    - `github.job`／`github.token` の各公開フィールドでの評価段階、特に job outputs 等の境界を固定出典・必要な公式実装から確認する。
+    - reusable workflow の同一性と計数単位を固定仕様から確認する。呼び出し回数、matrix 展開数、workflow 種類数を混同しない。
+    - context の53プロパティ行は更新候補であり、自動的に昇格できる確定リストではない。各行の意味と検証根拠を確認する。
+    
+    ## 実装時の指示
+    - 主な対象は `src/github_actions/github_spec.json`、`src/github_actions/expression.ts`、`src/testing/expression.ts`、`src/testing/run.ts`、`src/compiler/authoring.ts` と、それぞれの関連テスト。
+    - 監査では GitHubContext の41プロパティ名が固定出典とすべて一致した。一方、context inventory の71行には一律の `implementation-gap` と「不足する型には raw expression が必要」という説明がある。型の存在、意味の実装、scenario の fixture 境界を分けて再評価する。
+    - 更新候補53行の内訳は `github.*` 35、`env.*` 1、`job.status` 1、`steps.*` 4、`runner.*` 6、`secrets.*` 1、`matrix.*` 1、`needs.*` 4。
+    - 確認済みの再現例を回帰検証の出発点にする。
+      - `contains(null, 'null')` と `startsWith(null, 'n')` が true になる。固定仕様では null の文字列変換は空文字。
+      - 先行 step が失敗していても、`contains('failure()', 'failure')` の step が実行される。文字列中の関数名を status 関数の呼び出しと誤認している。
+      - `0xff` が `UnsupportedExpressionError` になる。
+      - 公開 DSL の `fromJSON(literal('{"version":22}')).as<{ version: number }>().at("version")` は式を生成するが、scenario は `expression_unsupported` になる。
+      - `strategy.fail_fast` は `${{ strategy.fail_fast }}` を生成し、scenario は `fixture_missing` になる。仕様名は `strategy.fail-fast`。
+      - ローカル callee 50種類と51種類の両方を `lowerProject()` が受け付ける。
+    - 不足 fixture と、既知の値に対する native な不存在プロパティを区別する。厳格な fixture 検証を維持しながら、純粋な値操作の意味を合わせる。
+    - inventory テストの既存の自己整合チェックだけを完了根拠にしない。公開 DSL から生成・解釈までの実際の経路を検証する。
+    - 監査時の `mise run test` は237 passed、0 failedだったが、上記の意味差は既存テストを通過していた。
+  - A: Implementation in current main checkout after clean HEAD verification and code/notes fetch. Read develop-repository, design-review, investigate-problem, observability and review guidance; existing ScenarioError/host observations suffice for deterministic paths. Audited immutable GitHub docs and pinned runner phase/expression evidence. Changed phase-specific public context types, native strategy names, pure interpreter/parser/coercion/functions/filters/status detection and local unique call count; updated item-specific inventory and living docs. Added generation-to-scenario regression tests including all41 github properties,50/51 nested dedup and native/retired type checks. Standard fix/check and30focused tests passed; independent frozen review and full validation in progress. Independent review found noncollection key eagerness and missing public property JSDoc; fixed and delta-approved. Full verification then found container missing-field reporting and compact-JSON expectations; fixed direct read descriptors, case-insensitive runtime fields and native pretty expectation. Further review found frozen Proxy target invariant; fixed by copying targets and added frozen container/ports/missing fixture tests; reviewer accepted. Final standard mise run test243passed0failed in5m20s; fix/check,248published JSDoc examples, actual LSP and generated output verified. Staged bytes match final reviewed snapshot. git commit failed before object creation because configured1Password SSH signer returned an error; signature configuration/identity unchanged.
+- U10: retry
+  - A: Retried the existing configured1Password signed local commit as explicitly requested; succeeded with anchor 4f96696e1cd03b5f9d5c1d98add0afe61690c82c. Working tree clean. Complete runtime history comparison confirmed all10human messages, retaining short selections and excluding injected guidance/environment. No secrets or confidential content in preserved messages. Preparing normalized refs/notes/commits evidence under compare-and-swap; no push, PR, release or deploy.
