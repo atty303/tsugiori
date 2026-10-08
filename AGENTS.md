@@ -2,15 +2,18 @@
 
 ## Mandatory prerequisite for README edits
 
-**READMEの編集前にAGENTS.mdの基準を守る。これは例外のない必須条件。**
+**Before editing README.md, comply with the criteria in this AGENTS.md.
+This is a mandatory prerequisite with no exceptions.**
 
-- READMEを編集する前に、必ず本ファイルの
-  [Public API documentation](#public-api-documentation) を読み直し、変更案が
-  READMEの読者・目的・情報量の基準を満たすことを確認する。
-- READMEの入門に詳細な仕様、制限、advancedな利用方法を追加しない。
-  詳細は公開JSDocまたは設計文書に置く。
-- 基準を満たさない変更はREADMEへ適用しない。機能追加に伴う文書更新や
-  検証の通過を、この必須条件を省略する理由にしてはならない。
+- Before editing README.md, reread
+  [Public API documentation](#public-api-documentation) and confirm that the
+  proposed changes meet its criteria for the README's audience, purpose, and
+  level of detail.
+- Do not add detailed specifications, limitations, or advanced usage to the
+  README introduction. Put those details in public JSDoc or design documentation.
+- Do not apply changes to README.md that fail these criteria. Documentation
+  updates accompanying new features and passing validation do not justify
+  skipping this prerequisite.
 
 ## Project boundary
 
