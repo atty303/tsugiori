@@ -178,6 +178,8 @@ export {
   caseOf,
   contains,
   endsWith,
+  eventIs,
+  type EventRef,
   failure,
   format,
   fromJSON,
@@ -192,24 +194,16 @@ export {
 } from "./expression.ts";
 export type { Expression, RawExpression, Scope } from "./expression.ts";
 
-/** Events determine when a workflow runs. Multiple events are alternatives; each matching event can start a separate run.
- * Use one of the supported event names in this union; see githubActionsSpec for the fixed specification basis.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows
- * @example
- * ```ts
- * workflow(".github/workflows/ci.yml", {
- *   on: { push: {}, pull_request: {} },
- * });
- * ```
- */
-export type WorkflowEvent =
-  | "pull_request"
-  | "pull_request_target"
-  | "push"
-  | "workflow_dispatch"
-  | "workflow_call";
-/** Manual workflow dispatch accepts named inputs and displays them in the run form. choice inputs use a single selection and return a string. GitHub allows at most 10 top-level inputs with a total payload of 65,535 characters.
- * Tsugiori supports string and choice inputs; other GitHub dispatch input types are not implemented.
+export type {
+  Activity,
+  EventPayload,
+  Schedule,
+  WorkflowEvent,
+  WorkflowTriggers,
+} from "./events.ts";
+import type { NarrowEvents, WithEvents, WorkflowTriggers } from "./events.ts";
+/** Manual workflow dispatch accepts named inputs and displays them in the run form. choice inputs use a single selection and return a string. GitHub allows at most 25 top-level inputs with a total payload of 65,535 characters.
+ * Boolean, number and environment inputs retain their native values; github.event.inputs uses strings.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
  * @example
  * ```ts
@@ -256,7 +250,7 @@ export type WorkflowDispatchInput =
   & (
     | Readonly<{
       /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
-       * Tsugiori does not support boolean, number or environment dispatch inputs.
+       * Boolean, number and environment are also supported.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
        * @example
        * ```ts
@@ -281,7 +275,7 @@ export type WorkflowDispatchInput =
     }>
     | Readonly<{
       /** The input value type. choice displays a single-selection list and produces a string; string accepts text.
-       * Tsugiori does not support boolean, number or environment dispatch inputs.
+       * Boolean, number and environment are also supported.
        * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputsinput_idtype
        * @example
        * ```ts
@@ -323,6 +317,19 @@ export type WorkflowDispatchInput =
        * ```
        */
       default?: string;
+    }>
+    | Readonly<{
+      /** Boolean input, preserved as a boolean in inputs. */ type: "boolean";
+      /** Value when omitted by the dispatcher. */ default?: boolean;
+    }>
+    | Readonly<{
+      /** Numeric input, preserved as a number in inputs. */ type: "number";
+      /** Value when omitted by the dispatcher. */ default?: number;
+    }>
+    | Readonly<{
+      /** Selects a repository environment; existence and authorization belong to GitHub. */ type:
+        "environment";
+      /** Initial environment name. */ default?: string;
     }>
   );
 /** For each GITHUB_TOKEN permission, read grants read-only access, write grants read and write access, and none disables access. Once any permission is specified, unspecified permissions become none.
@@ -391,6 +398,21 @@ export type WorkflowPermissions = Readonly<{
    */
   actions?: PermissionLevel;
 }>;
+/** Reusable input default: a native value, typed expression or one field-scoped authoring callback.
+ * The callback runs once when workflow() is authored. GitHub evaluates its expression in the callee's github/inputs/vars context.
+ * Raw expressions are explicit caller assertions. scenarios evaluate defaults for omitted local call inputs.
+ * @example
+ * ```ts
+ * workflow("reuse.yml", {on:{workflow_call:{inputs:{revision:{type:"string",default:({github})=>github.sha}}}}});
+ * ```
+ */
+export type CallDefault<T extends string | number | boolean> =
+  | T
+  | Expression<T>
+  | RawExpression
+  | ((
+    context: Scope<"on.workflow_call.inputs.<inputs_id>.default">,
+  ) => T | Expression<T>);
 /** Reusable input defaults are literals; GitHub supplies false, 0 or an empty string when omitted.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_callinputs
  * @example
@@ -449,7 +471,7 @@ export type WorkflowCallInput =
        * const value = { type: "string", default: "latest" } satisfies WorkflowCallInput;
        * ```
        */
-      default?: string;
+      default?: CallDefault<string>;
     }>
     | Readonly<{
       /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
@@ -467,7 +489,7 @@ export type WorkflowCallInput =
        * const value = { type: "boolean", default: false } satisfies WorkflowCallInput;
        * ```
        */
-      default?: boolean;
+      default?: CallDefault<boolean>;
     }>
     | Readonly<{
       /** The primitive type required for this reusable input: string, boolean or number. The caller must supply a value of the same type.
@@ -485,7 +507,7 @@ export type WorkflowCallInput =
        * const value = { type: "number", default: 1 } satisfies WorkflowCallInput;
        * ```
        */
-      default?: number;
+      default?: CallDefault<number>;
     }>
   );
 /** A reusable workflow declares inputs and secrets accepted from its caller. Required secrets must be supplied; declaring a secret does not grant access to it.
@@ -604,202 +626,17 @@ export type WorkflowCallOutputs = Readonly<
     }>
   >
 >;
-/** Supported native trigger settings; use an object even for an event without settings.
- * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#on
- * @example
- * ```ts
- * workflow(".github/workflows/ci.yml", {
- *   on: {
- *     push: { branches: ["main"], tags: ["v*"] },
- *     pull_request: { types: ["opened", "synchronize"] },
- *     pull_request_target: { types: ["labeled"] },
- *   },
- * });
- * ```
- */
-export type WorkflowTriggers = Readonly<{
-  /** Push trigger settings. Use an empty object for every push.
-   * @example
-   * ```ts
-   * workflow(".github/workflows/ci.yml", {
-   *   on: { push: {} },
-   * });
-   * ```
-   */
-  push?: Readonly<{
-    /** Branch-name patterns that allow push runs, for example main or releases/**. Patterns can contain ! exclusions; order matters. If only branches are configured, tag pushes do not trigger the workflow.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-     * @example
-     * ```ts
-     * workflow(".github/workflows/ci.yml", {
-     *   on: {
-     *     push: { branches: ["main"], tags: ["v*"] },
-     *     pull_request: { types: ["opened", "synchronize"] },
-     *     pull_request_target: { types: ["labeled"] },
-     *   },
-     * });
-     * ```
-     */
-    branches?: readonly string[];
-    /** Tag-name patterns that allow push runs, for example v*. Patterns can contain glob syntax and ! exclusions; order matters. If only tags are configured, branch pushes do not trigger the workflow.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
-     * @example
-     * ```ts
-     * workflow(".github/workflows/ci.yml", {
-     *   on: {
-     *     push: { branches: ["main"], tags: ["v*"] },
-     *     pull_request: { types: ["opened", "synchronize"] },
-     *     pull_request_target: { types: ["labeled"] },
-     *   },
-     * });
-     * ```
-     */
-    tags?: readonly string[];
-  }>;
-  /** Pull request trigger settings.
-   * @example
-   * ```ts
-   * workflow(".github/workflows/ci.yml", {
-   *   on: { pull_request: { types: ["opened", "synchronize"] } },
-   * });
-   * ```
-   */
-  pull_request?: Readonly<{
-    /** Pull request activities that trigger runs, such as opened, synchronize or labeled. When omitted, GitHub uses opened, synchronize and reopened. Code executes in the pull request merge context.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-     * @example
-     * ```ts
-     * workflow(".github/workflows/ci.yml", {
-     *   on: {
-     *     push: { branches: ["main"], tags: ["v*"] },
-     *     pull_request: { types: ["opened", "synchronize"] },
-     *     pull_request_target: { types: ["labeled"] },
-     *   },
-     * });
-     * ```
-     */
-    types?: readonly string[];
-  }>;
-  /** Pull request trigger in the base-repository context.
-   * @example
-   * ```ts
-   * workflow(".github/workflows/ci.yml", {
-   *   on: { pull_request_target: { types: ["labeled"] } },
-   * });
-   * ```
-   */
-  pull_request_target?: Readonly<{
-    /** Pull request activities that trigger runs in the base-repository context. When omitted, GitHub uses opened, synchronize and reopened. This context may expose base-repository secrets and a write token: do not execute untrusted pull request code.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onevent_nametypes
-     * @example
-     * ```ts
-     * workflow(".github/workflows/ci.yml", {
-     *   on: {
-     *     push: { branches: ["main"], tags: ["v*"] },
-     *     pull_request: { types: ["opened", "synchronize"] },
-     *     pull_request_target: { types: ["labeled"] },
-     *   },
-     * });
-     * ```
-     */
-    types?: readonly string[];
-  }>;
-  /** Manual trigger with typed input declarations.
-   * @example
-   * ```ts
-   * workflow(".github/workflows/ci.yml", {
-   *   on: {
-   *     workflow_dispatch: {
-   *       inputs: { stage: { type: "choice", options: ["dev", "prd"] } },
-   *     },
-   *   },
-   * });
-   * ```
-   */
-  workflow_dispatch?: Readonly<{
-    /** Named inputs shown on the manual-run form and accepted by workflow dispatch. Values are available in inputs and github.event.inputs. The workflow must exist on the default branch to receive this event.
-     * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_dispatchinputs
-     * @example
-     * ```ts
-     * workflow(".github/workflows/ci.yml", {
-     *   on: {
-     *     workflow_dispatch: {
-     *       inputs: {
-     *         stage: { type: "choice", options: ["dev", "prd"], default: "dev" },
-     *       },
-     *     },
-     *   },
-     * });
-     * ```
-     */
-    inputs?: Readonly<Record<string, WorkflowDispatchInput>>;
-  }>;
-  /** Reusable workflow trigger and caller contract.
-   * @example
-   * ```ts
-   * const reusable = workflow(".github/workflows/release.yml", {
-   *   on: {
-   *     workflow_call: {
-   *       inputs: {
-   *         version: { type: "string", required: true },
-   *       },
-   *     },
-   *   },
-   * }).job("build", ({ job }) =>
-   *   job.runsOn("ubuntu-latest").run({
-   *     id: "build",
-   *     name: "Build",
-   *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-   *     outputs: ["version"],
-   *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
-   *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-   * ```
-   */
-  workflow_call?:
-    & WorkflowCall
-    & Readonly<{
-      /** Workflow outputs returned to the caller. Map each output to a job output from this workflow; the caller reads needs.<caller_job>.outputs.<name>.
-       * workflowOutputs() provides typed job references as an alternative to raw expression strings.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onworkflow_calloutputs
-       * @example
-       * ```ts
-       * const reusable = workflow(".github/workflows/release.yml", {
-       *   on: {
-       *     workflow_call: {
-       *       inputs: {
-       *         version: { type: "string", required: true },
-       *       },
-       *     },
-       *   },
-       * }).job("build", ({ job }) =>
-       *   job.runsOn("ubuntu-latest").run({
-       *     id: "build",
-       *     name: "Build",
-       *     run: 'echo "version=1.0.0" >> "$GITHUB_OUTPUT"',
-       *     outputs: ["version"],
-       *   }).outputs(({ steps }) => ({ version: steps.build.outputs.version })))
-       *   .workflowOutputs(({ jobs }) => ({ version: jobs.build.outputs.version }));
-       * ```
-       */
-      outputs?: WorkflowCallOutputs;
-    }>;
-}>;
 type ExactTriggers<On extends WorkflowTriggers> = On extends readonly unknown[]
   ? never
   : {
     [E in keyof On]: E extends keyof WorkflowTriggers ?
         & On[E]
-        & Record<
+        & (E extends "schedule" ? unknown : Record<
           Exclude<keyof On[E], keyof NonNullable<WorkflowTriggers[E]>>,
           never
-        >
+        >)
       : never;
   };
-type NonEmptyTriggers = {
-  [K in keyof WorkflowTriggers]-?:
-    & WorkflowTriggers
-    & Required<Pick<WorkflowTriggers, K>>;
-}[keyof WorkflowTriggers];
 type TriggerInputs<T> = T extends { inputs?: infer I } ? NonNullable<I>
   : E;
 type EventInputs<On, E extends keyof On> = TriggerInputs<On[E]>;
@@ -823,14 +660,10 @@ export type WorkflowInputValues<On extends WorkflowTriggers> = {
     [E in keyof On]-?: EventInputValue<EventInputs<On, E>, K>;
   }[keyof On];
 };
-type WorkflowInputs<On extends WorkflowTriggers> =
-  keyof WorkflowInputValues<On> extends never ? E
-    : [On] extends [unknown] ? {
-        readonly [K in keyof WorkflowInputValues<On>]: WorkflowInputValues<
-          On
-        >[K];
-      }
-    : never;
+type WorkflowInputs<On extends WorkflowTriggers> = WithEvents<
+  WorkflowInputValues<On>,
+  On
+>;
 type CallContractOf<On> = On extends
   { workflow_call: infer C extends WorkflowCall } ? C : E;
 type WorkflowOutputNames<On> = On extends
@@ -1624,7 +1457,7 @@ export type TaskArtifactCacheFactory = (
  * ```
  */
 export type WorkflowOptions<
-  On extends WorkflowTriggers = NonEmptyTriggers,
+  On extends WorkflowTriggers = WorkflowTriggers,
   Vars extends readonly string[] | undefined = undefined,
   Secrets extends readonly string[] | undefined = undefined,
 > = Readonly<{
@@ -1651,7 +1484,7 @@ export type WorkflowOptions<
    */
   on:
     & On
-    & NonEmptyTriggers
+    & (keyof On extends never ? never : unknown)
     & ExactTriggers<On>
     & Readonly<Record<string, unknown>>;
   /** Repository, organization or environment configuration variables are read through vars.<name>. Unset variables evaluate to an empty string.
@@ -3035,7 +2868,7 @@ interface ExecBase<
     InputValues,
     Proof
   >;
-  /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
+  /** Adds a condition deciding whether this job runs. Repeated calls are conjunctive. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -3063,8 +2896,8 @@ interface ExecBase<
     Matrix,
     Vars,
     Secrets,
-    InputValues,
-    ConditionProof<C>
+    NarrowEvents<InputValues, ConditionProof<C>>,
+    Proof | ConditionProof<C>
   >;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
@@ -4925,15 +4758,15 @@ interface CallJobBase<
   S extends string = string,
   InputValues extends object = Readonly<Record<string, string>>,
 > {
-  /** Sets the condition deciding whether this job runs. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
+  /** Adds a condition deciding whether this job runs. Repeated calls are conjunctive. GitHub evaluates it before matrix expansion. A success() check is implicit unless the expression contains a status-check function.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idif
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.reusable().when(({ github }) => github.ref.eq("refs/heads/main"));
    * ```
    */
-  when(
-    value: Field<
+  when<
+    const C extends Field<
       "jobs.<job_id>.if",
       N,
       E,
@@ -4942,7 +4775,9 @@ interface CallJobBase<
       S,
       InputValues
     >,
-  ): CallJobOf<P, J, N, M, V, S, InputValues>;
+  >(
+    value: C,
+  ): CallJobOf<P, J, N, M, V, S, NarrowEvents<InputValues, ConditionProof<C>>>;
   /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
    * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
@@ -6341,7 +6176,7 @@ export function workflow<
   const draft: WorkflowDraft = Object.freeze({
     path,
     name: options.name ?? path,
-    on: copyNative(options.on),
+    on: materializeTriggers(options.on),
     runName: options.runName,
     env: options.env && Object.freeze({ ...options.env }),
     ...(options.concurrency === undefined ? {} : {
@@ -6523,7 +6358,7 @@ function createWorkflowFacade(
 function createWorkflowFacade(
   draft: WorkflowDraft,
   finalized: boolean,
-): WorkflowStartOf<string> | WorkflowOf<string, JobReferences> {
+): unknown {
   const facade = {
     inputs: scope("jobs.<job_id>.with.<with_id>").inputs,
     [workflowContract]: Object.freeze({
@@ -6804,7 +6639,14 @@ function createReusableJobFacade(
     });
   };
   return Object.freeze({
-    when: (v: unknown) => update("if", evaluateField("jobs.<job_id>.if", v)),
+    when: (v: unknown) =>
+      update(
+        "if",
+        combineConditions(
+          draft.options?.if,
+          evaluateField("jobs.<job_id>.if", v),
+        ),
+      ),
     strategy: (v: unknown) => update("strategy", renderStrategy(v)),
     name: (v: unknown) =>
       update("name", evaluateScalar("jobs.<job_id>.name", v)),
@@ -6922,8 +6764,14 @@ function createExecutionJobFacade(
       const condition = evaluateCondition("jobs.<job_id>.if", value);
       return createExecutionJobFacade(Object.freeze({
         ...draft,
-        proofPaths: condition.proofPaths,
-        options: { ...draft.options, if: condition.rendered },
+        proofPaths: new Set([
+          ...draft.proofPaths ?? [],
+          ...condition.proofPaths,
+        ]),
+        options: {
+          ...draft.options,
+          if: combineConditions(draft.options?.if, condition.rendered),
+        },
       }));
     },
     strategy: (value: unknown) =>
@@ -7627,4 +7475,32 @@ function validateCallExpressionInputs(values: RawCallInputs | undefined): void {
   for (const value of Object.values(values ?? {})) {
     if (value instanceof Expression) visit(value.node);
   }
+}
+
+function combineConditions(previous: string | undefined, next: string): string {
+  if (!previous) return next;
+  const unwrap = (s: string) => s.replace(/^\$\{\{\s*|\s*\}\}$/g, "");
+  return `\${{ (${unwrap(previous)}) && (${unwrap(next)}) }}`;
+}
+
+function materializeTriggers(on: WorkflowTriggers): WorkflowTriggers {
+  const inputs = on.workflow_call?.inputs;
+  if (!inputs) return copyNative(on);
+  const definitions = Object.fromEntries(
+    Object.entries(inputs).map(([name, d]) => {
+      if (d.default === undefined) return [name, d];
+      const value = resolveAuthoringValue<unknown>(
+        "on.workflow_call.inputs.<inputs_id>.default",
+        d.default,
+      );
+      return [name, {
+        ...d,
+        default: value instanceof Expression ? emitExpression(value) : value,
+      }];
+    }),
+  );
+  return copyNative({
+    ...on,
+    workflow_call: { ...on.workflow_call, inputs: definitions },
+  }) as WorkflowTriggers;
 }

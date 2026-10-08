@@ -4,8 +4,17 @@ import {
   type GitHubExpressionScopeKey,
   githubExpressionScopes,
 } from "./expression_scope.ts";
+import type {
+  Activity,
+  NarrowEvents,
+  PayloadFor,
+  SelectedEvents,
+  WorkflowEvent,
+} from "./events.ts";
 import type { ValueContract } from "../task/mod.ts";
 
+declare const eventReference: unique symbol;
+const referencePathType = Symbol("tsugiori.reference-path");
 const expressionBrand = Symbol("tsugiori.expression");
 const referenceContractType = Symbol("tsugiori.reference-contract-type");
 const referenceScopeType = Symbol("tsugiori.reference-scope-type");
@@ -60,8 +69,10 @@ export type TypedMarker<
 > = Readonly<{
   [typedReference]: { value: T; contract: C; required: Required };
 }>;
-type AsReference<T, Path extends string> = T extends
-  TypedMarker<infer V, infer C, infer R> ? TypedReference<V, C, Path, R>
+type AsReference<T, Path extends string> = [T] extends [
+  TypedMarker<infer V, infer C, infer R>,
+] ? TypedReference<V, C, Path, R>
+  : [T] extends [{ readonly [eventReference]: true }] ? T
   : Ref<T, Path>;
 export type ReferenceBinding = Readonly<{
   contract: ValueContract<unknown>;
@@ -363,17 +374,22 @@ type Element<T> = T extends readonly (infer U)[] ? U
   : unknown;
 
 export type Ref<T, Path extends string = string> =
-  & (T extends object ? {
+  & {
+    /** Type-level context path provenance; obtained from field callbacks, not fabricated literals. */ readonly [
+      referencePathType
+    ]: Path;
+  }
+  & ([NonNullable<T>] extends [object] ? {
       /** Selects a context property and retains its task contract and path.
        * @example
        * ```ts
        * job.runsOn("ubuntu-latest").task({ name: "Read", inputs: ({ github }) => ({ value: { from: github.at("sha") } }), run: () => {} });
        * ```
        */
-      at<K extends keyof T>(
+      at<K extends keyof NonNullable<T>>(
         key: K,
       ): AsReference<
-        T[K],
+        NonNullable<T>[K],
         K extends number ? `${Path}[${K}]` : `${Path}.${K & string}`
       >;
     }
@@ -384,18 +400,116 @@ export type Ref<T, Path extends string = string> =
     undefined,
     unknown extends T ? boolean : T extends object ? true : false
   >
-  & (T extends readonly (infer U)[]
+  & (NonNullable<T> extends readonly (infer U)[]
     ? Readonly<{ [index: number]: Ref<U, `${Path}[${number}]`> }>
-    : T extends object ? Readonly<
+    : [NonNullable<T>] extends [object] ? Readonly<
         {
-          [K in keyof T as K extends keyof Expression<T> ? never : K]:
-            AsReference<
-              T[K],
-              `${Path}.${K & string}`
-            >;
+          [
+            K in keyof NonNullable<T> as K extends keyof Expression<T> ? never
+              : K
+          ]-?: AsReference<
+            NonNullable<T>[K],
+            `${Path}.${K & string}`
+          >;
         }
       >
     : Record<never, never>);
+
+/** Typed native event reference inferred from the workflow's triggers and runtime guards.
+ * Its fields are expressions, including nested optional/nullable payload fields.
+ * Use eventIs() in when()/task if to select one event in a multiple-event workflow.
+ */
+export type EventRef<I, Keys extends readonly PropertyKey[] = []> =
+  & {
+    /** Retains the inferred event reference through context projection. */
+    readonly [eventReference]: true;
+  }
+  & Expression<
+    EventValue<I, Keys>,
+    never,
+    undefined,
+    [NonNullable<EventValue<I, Keys>>] extends [object] ? true : false
+  >
+  & ([NonNullable<EventValue<I, Keys>>] extends [object] ? {
+      /** Select an event payload property using a key; the reference is evaluated by GitHub.
+       * @example In a workflow job field callback with github.
+       * ```ts
+       * workflow("ci.yml", {on:{push:{}}}).job("check", ({job}) => job.runsOn("ubuntu-latest").run({name:"Check",run:"true",env:({github})=>({REF:github.event.at("ref")})}));
+       * ```
+       */
+      at<K extends keyof NonNullable<EventValue<I, Keys>>>(
+        key: K,
+      ): EventRef<I, [...Keys, K]>;
+    }
+    : Record<never, never>)
+  & ([NonNullable<EventValue<I, Keys>>] extends [readonly (infer _V)[]]
+    ? Readonly<{ [index: number]: EventRef<I, [...Keys, number]> }>
+    : [NonNullable<EventValue<I, Keys>>] extends [object] ? Readonly<
+        {
+          [
+            K in keyof NonNullable<EventValue<I, Keys>> as K extends
+              keyof Expression<unknown> ? never : K
+          ]-?: EventRef<I, [...Keys, K]>;
+        }
+      >
+    : Record<never, never>);
+type EventValue<I, Keys extends readonly PropertyKey[]> = EventAt<
+  PayloadFor<I>,
+  Keys
+>;
+type EventAt<T, Keys extends readonly PropertyKey[]> = Keys extends readonly [
+  infer K extends keyof NonNullable<T>,
+  ...infer Rest extends readonly PropertyKey[],
+] ? EventAt<NonNullable<T>[K], Rest>
+  : T;
+
+/** Tests the runtime event name, optionally its activity. Use with a job's when()
+ * or a task's if to narrow subsequent field callbacks; this never reads a host value.
+ * Proofs survive conjunction, but not disjunction, negation or an assertion.
+ * @example
+ * ```ts
+ * workflow(".github/workflows/ci.yml", { on: { push: {}, issues: {} } })
+ *   .job("report", ({ job }) => job.runsOn("ubuntu-latest")
+ *     .when(({ github }) => eventIs(github, "issues"))
+ *     .run({ name: "Issue", run: "true", env: ({ github }) => ({ ACTION: github.event.action }) }));
+ * ```
+ */
+export function eventIs<
+  N extends Exclude<WorkflowEvent, "workflow_call">,
+  E extends N,
+  A extends Activity<E> | undefined = undefined,
+>(
+  github: {
+    /** Native event name reference from the field callback. */
+    readonly event_name: Ref<N, "github.event_name">;
+  },
+  event: E,
+  activity?: A,
+): Expression<
+  boolean,
+  `event:${E}` | (A extends string ? `activity:${A}` : never),
+  undefined,
+  false
+> {
+  if (
+    github.event_name.node.kind !== "path" ||
+    github.event_name.node.value !== "github.event_name"
+  ) {
+    throw new TypeError(
+      "eventIs requires the native github.event_name reference.",
+    );
+  }
+  const test = github.event_name.eq(event);
+  const result = activity === undefined
+    ? test
+    : test.and(rawNode<string>("github.event.action").eq(activity));
+  return result as Expression<
+    boolean,
+    `event:${E}` | (A extends string ? `activity:${A}` : never),
+    undefined,
+    false
+  >;
+}
 
 function nodeOf(value: unknown): Node {
   if (value instanceof Expression) return value.node;
@@ -748,7 +862,7 @@ export const hashFiles = (
 ): Expression<string, never, undefined, false> => call("hashFiles", ...paths);
 
 /** Information about the workflow run and its triggering event. Some properties exist only within runner steps or particular event types.
- * Tsugiori exposes a supported subset; the string-shaped catalog does not model every event-dependent null value. event remains an unknown payload.
+ * Tsugiori exposes a supported subset. Workflow field callbacks infer event payloads from on and narrow them with eventIs(); the standalone catalog has no selected workflow and retains unknown event data.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#github-context
  * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts
@@ -1416,7 +1530,10 @@ export type ScopeValues<
    * });
    * ```
    */
-  github: GitHubContext;
+  github: Omit<GitHubContext, "event" | "event_name"> & {
+    readonly event: EventRef<NarrowEvents<InputValues, Proof>>;
+    readonly event_name: SelectedEvents<NarrowEvents<InputValues, Proof>>;
+  };
   /** Results and outputs of this job's direct dependencies, not every transitive dependency. Only jobs named in needs are included.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#needs-context
    * @example

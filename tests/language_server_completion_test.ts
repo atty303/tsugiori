@@ -1,3 +1,4 @@
+import { activities } from "../src/github_actions/events.ts";
 import { generateV1 } from "../services/type-service/src/github/actions/v1.ts";
 import { yaml } from "../services/type-service/tests/fixtures.ts";
 import { assert, assertEquals } from "@std/assert";
@@ -239,13 +240,7 @@ workflow(".github/workflows/ci.yml", { on: { push: {  } },})
         "vars",
       ]);
 
-      const triggerNames = [
-        "push",
-        "pull_request",
-        "pull_request_target",
-        "workflow_dispatch",
-        "workflow_call",
-      ];
+      const triggerNames = Object.keys(activities);
       const importWorkflow =
         'import { workflow } from "../src/github_actions/mod.ts";';
       for (
@@ -258,12 +253,25 @@ workflow(".github/workflows/ci.yml", { on: { push: {  } },})
           [
             "push-settings",
             `workflow("ci.yml", { on: { push: { /*completion*/ } } });`,
-            ["branches", "tags"],
+            [
+              "branches",
+              '"branches-ignore"',
+              "tags",
+              '"tags-ignore"',
+              "paths",
+              '"paths-ignore"',
+            ],
           ],
           [
             "pr-settings",
             `workflow("ci.yml", { on: { pull_request: { /*completion*/ } } });`,
-            ["types"],
+            [
+              "types",
+              "branches",
+              '"branches-ignore"',
+              "paths",
+              '"paths-ignore"',
+            ],
           ],
           [
             "dispatch-settings",
@@ -324,9 +332,9 @@ const flow = workflow("ci.yml", { on: {
       }
       for (
         const [index, [key, expected]] of [
-          ["shared", ["string", "false", "true"]],
+          ["shared", ["string | boolean"]],
           ["dispatchOnly", ["string"]],
-          ["callOnly", ['""', "number"]],
+          ["callOnly", ['number | ""']],
         ].entries()
       ) {
         const hover = await sourceHover(
@@ -342,6 +350,101 @@ const flow = workflow("ci.yml", { on: {
           hover,
         );
       }
+
+      const singleEventSource = `${importWorkflow}
+workflow("ci.yml", {on:{push:{}}}).job("check",({job})=>job.runsOn("ubuntu-latest").run({name:"Check",run:"true",env:({github})=>{const payload=github.event; /*probe*/ return {REF:payload.ref};}}));`;
+      const singleHover = await sourceHover(
+        writer,
+        stream,
+        155,
+        "single-event-payload",
+        singleEventSource.replace("/*probe*/", "payload/*completion*/;"),
+      );
+      assert(
+        singleHover.includes("EventRef<") && singleHover.length < 200 &&
+          !singleHover.includes("..."),
+        singleHover,
+      );
+      const singleLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        156,
+        "single-event-completion",
+        singleEventSource.replace("/*probe*/", "payload./*completion*/"),
+      );
+      assert(
+        singleLabels.includes("ref") && singleLabels.includes("commits") &&
+          !singleLabels.includes("issue"),
+      );
+      const eventSource = `${
+        importWorkflow.replace("workflow }", "workflow, eventIs }")
+      }
+workflow("ci.yml", { on: {push: {}, issues: {}} }).job("report", ({job}) => job.runsOn("ubuntu-latest")
+  .when(({github}) => eventIs(github,"issues"))
+  .run({id:"report", name:"Report", run:"true", env: ({github}) => {
+    const issue = github.event.issue;
+    /*probe*/
+    return { TITLE: issue.title };
+  } }));`;
+      const eventCompletion = await sourceCompletionLabels(
+        writer,
+        stream,
+        150,
+        "event-payload",
+        eventSource.replace("/*probe*/", "issue./*completion*/"),
+      );
+      assert(eventCompletion.includes("title"));
+      assert(!eventCompletion.includes("ref"));
+      const eventHover = await sourceHover(
+        writer,
+        stream,
+        151,
+        "event-payload-hover",
+        eventSource.replace("/*probe*/", "issue.title/*completion*/;"),
+      );
+      const payloadHover = await sourceHover(
+        writer,
+        stream,
+        153,
+        "principal-payload-hover",
+        eventSource.replace("/*probe*/", "github.event/*completion*/;"),
+      );
+      assert(
+        payloadHover.length < 400 && payloadHover.includes("EventRef<") &&
+          !payloadHover.includes("..."),
+        payloadHover,
+      );
+      const issueHover = await sourceHover(
+        writer,
+        stream,
+        154,
+        "nested-payload-hover",
+        eventSource.replace("/*probe*/", "issue/*completion*/;"),
+      );
+      assert(
+        issueHover.length < 400 && !issueHover.includes("..."),
+        issueHover,
+      );
+      assert(
+        eventHover.includes("EventRef<") && eventHover.includes("title"),
+        eventHover,
+      );
+      assert(!eventHover.includes("any"), eventHover);
+      const guardSignature = await sourceHover(
+        writer,
+        stream,
+        152,
+        "event-guard-signature",
+        `${importWorkflow.replace("workflow }", "workflow, eventIs }")}
+workflow("ci.yml", {on:{push:{},issues:{}}}).job("report",({job})=>job.runsOn("ubuntu-latest").when(({github})=>eventIs(github,/*completion*/)).run({name:"Report",run:"true"}));`,
+        false,
+        "signatureHelp",
+      );
+      assert(
+        guardSignature.includes("push") && guardSignature.includes("issues"),
+        guardSignature,
+      );
+      assert(!guardSignature.includes("..."), guardSignature);
 
       const metadataUri =
         new URL("./__action_metadata.ts", import.meta.url).href;

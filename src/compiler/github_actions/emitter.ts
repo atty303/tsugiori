@@ -4,46 +4,23 @@ import type { ValidatedWorkflow } from "./validation.ts";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
   const events = Object.fromEntries(
-    Object.keys(workflow.on)
-      .map((
+    Object.entries(workflow.on).map(([event, settings]) => {
+      if (event === "schedule") return [event, settings];
+      const value = settings as Readonly<Record<string, unknown>>;
+      return [
         event,
-      ) => [
-        event,
-        event === "push"
-          ? {
-            ...(workflow.on.push?.branches === undefined
-              ? {}
-              : { branches: [...workflow.on.push?.branches] }),
-            ...(workflow.on.push?.tags === undefined
-              ? {}
-              : { tags: [...workflow.on.push?.tags] }),
-          }
-          : event === "pull_request"
-          ? (workflow.on.pull_request?.types
-            ? { types: workflow.on.pull_request?.types }
-            : {})
-          : event === "pull_request_target"
-          ? (workflow.on.pull_request_target?.types
-            ? { types: workflow.on.pull_request_target?.types }
-            : {})
-          : event === "workflow_dispatch"
-          ? (workflow.on.workflow_dispatch?.inputs
-            ? { inputs: emitDefinitions(workflow.on.workflow_dispatch?.inputs) }
-            : {})
-          : event === "workflow_call"
-          ? {
-            ...(workflow.on.workflow_call?.inputs === undefined
-              ? {}
-              : { inputs: emitDefinitions(workflow.on.workflow_call.inputs) }),
-            ...(workflow.on.workflow_call?.secrets === undefined ? {} : {
-              secrets: emitDefinitions(workflow.on.workflow_call.secrets),
-            }),
-            ...(workflow.on.workflow_call?.outputs
-              ? { outputs: emitDefinitions(workflow.on.workflow_call?.outputs) }
-              : {}),
-          }
-          : {},
-      ]),
+        Object.fromEntries(
+          Object.entries(value).map((
+            [key, data],
+          ) => [
+            key,
+            ["inputs", "secrets", "outputs"].includes(key)
+              ? emitDefinitions(data as Readonly<Record<string, object>>)
+              : data,
+          ]),
+        ),
+      ];
+    }),
   );
   const jobs = Object.fromEntries(
     workflow.jobs.map((job) => [job.id, emitJob(job)]),

@@ -1,3 +1,4 @@
+import { triggered as matchesTrigger } from "./triggers.ts";
 import type { AuthoringJob, ProjectConfig } from "../github_actions/mod.ts";
 import { lowerProject } from "../compiler/authoring.ts";
 import type { Job, Step } from "../compiler/github_actions/ast.ts";
@@ -617,123 +618,7 @@ function triggered(config: ProjectConfig, program: Program): boolean {
   const workflow =
     config.workflows.find((p) => p.path === program.workflowPath) ??
       config.workflows[0];
-  const github = program.external.github;
-  if (!github || typeof github !== "object") {
-    throw new ScenarioError(
-      "fixture_missing",
-      workflow.path,
-      "github fixture is required.",
-    );
-  }
-  const values = github as Record<string, unknown>;
-  const event = values.event_name;
-  if (typeof event !== "string") {
-    throw new ScenarioError(
-      "fixture_missing",
-      workflow.path,
-      "github.event_name is required.",
-    );
-  }
-  if (!Object.hasOwn(workflow.on, event)) {
-    return false;
-  }
-  if (event === "pull_request" || event === "pull_request_target") {
-    const types = event === "pull_request"
-      ? workflow.on.pull_request?.types
-      : workflow.on.pull_request_target?.types;
-    const action =
-      (values.event as Record<string, unknown> | undefined)?.action ??
-        (types ? undefined : "opened");
-    const allowed = types ?? ["opened", "synchronize", "reopened"];
-    if (typeof action !== "string") {
-      throw new ScenarioError(
-        "fixture_missing",
-        workflow.path,
-        "github.event.action is required for PR activity filters.",
-      );
-    }
-    if (!allowed.includes(action)) return false;
-  }
-  if (
-    event === "push" && (workflow.on.push?.branches || workflow.on.push?.tags)
-  ) {
-    if (typeof values.ref !== "string") {
-      throw new ScenarioError(
-        "fixture_missing",
-        workflow.path,
-        "github.ref is required for push filters.",
-      );
-    }
-    const tag = values.ref.startsWith("refs/tags/");
-    const filters = tag ? workflow.on.push?.tags : workflow.on.push?.branches;
-    if (!filters) return false;
-    const name = values.ref.replace(/^refs\/(heads|tags)\//, "");
-    let included = false;
-    for (const rule of filters) {
-      const negative = rule.startsWith("!");
-      if (
-        branchPattern(negative ? rule.slice(1) : rule, workflow.path).test(name)
-      ) included = !negative;
-    }
-    if (!included) return false;
-  }
-  if (event === "workflow_dispatch") {
-    for (
-      const [name, input] of Object.entries(
-        workflow.on.workflow_dispatch?.inputs ?? {},
-      )
-    ) {
-      const supplied = program.external.inputs as
-        | Record<string, unknown>
-        | undefined;
-      if (supplied?.[name] === undefined && input.default !== undefined) {
-        program.external.inputs = { ...supplied, [name]: input.default };
-      } else if (supplied?.[name] === undefined && input.required) {
-        throw new ScenarioError(
-          "fixture_missing",
-          workflow.path,
-          `Required dispatch input ${name} is missing.`,
-        );
-      }
-    }
-  }
-  return true;
-}
-
-function branchPattern(pattern: string, workflowPath: string): RegExp {
-  let source = "^";
-  for (let index = 0; index < pattern.length; index++) {
-    const char = pattern[index];
-    if (char === "*" && pattern[index + 1] === "*") {
-      source += ".*";
-      index++;
-    } else if (char === "*") source += "[^/]*";
-    else if (char === "+" || char === "?") {
-      if (index === 0) {
-        throw new ScenarioError(
-          "expression_unsupported",
-          `${workflowPath}.on.push.branches`,
-          "Branch filter starts with a repetition operator.",
-        );
-      }
-      source += char;
-    } else if (char === "[") {
-      const end = pattern.indexOf("]", index + 1);
-      const contents = pattern.slice(index + 1, end);
-      if (end < 0 || !/^[A-Za-z0-9-]+$/.test(contents)) {
-        throw new ScenarioError(
-          "expression_unsupported",
-          `${workflowPath}.on.push.branches`,
-          "Branch filter has an unsupported character class.",
-        );
-      }
-      source += `[${contents}]`;
-      index = end;
-    } else if (char === "\\" && index + 1 < pattern.length) {
-      source += pattern[++index].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    } else source += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
-  return new RegExp(`${source}$`);
+  return matchesTrigger(workflow.on, program, workflow.path);
 }
 
 async function interpretScenario(
@@ -895,8 +780,22 @@ async function interpretScenario(
                   `Required call input ${name} is missing.`,
                 );
               }
-              inputs[name] = d.default ??
-                (d.type === "boolean" ? false : d.type === "number" ? 0 : "");
+              inputs[name] =
+                typeof d.default === "string" && d.default.startsWith("${{")
+                  ? evaluateAt(
+                    d.default,
+                    { github: context.github, inputs, vars: context.vars },
+                    status,
+                    `${callee.path}.on.workflow_call.inputs.${name}`,
+                    "default",
+                    new Map(),
+                  )
+                  : d.default ??
+                    (d.type === "boolean"
+                      ? false
+                      : d.type === "number"
+                      ? 0
+                      : "");
             }
             const actualType = typeof inputs[name];
             if (actualType !== d.type) {

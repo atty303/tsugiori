@@ -1,3 +1,4 @@
+import { activities } from "../src/github_actions/events.ts";
 import { assert, assertEquals } from "@std/assert";
 import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
 import { githubExpressionScopes } from "../src/github_actions/expression_scope.ts";
@@ -92,4 +93,28 @@ Deno.test("fixed spec identity, coverage and source manifest are internally cons
       "||",
     ]
   ) assert(entries.has(`expression-operator:${operator}`));
+});
+
+Deno.test("trigger coverage agrees with the supported frozen event and activity catalog", () => {
+  const items = githubActionsSpec.coverage;
+  for (const [event, types] of Object.entries(activities)) {
+    assert(
+      items.some((item) =>
+        item.domain === "event" && item.key === event &&
+        item.status === "implemented"
+      ),
+      event,
+    );
+    for (const activity of types) {
+      assert(
+        items.some((item) =>
+          item.domain === "event-activity" &&
+          item.key === `${event}.${activity}` && item.status === "implemented"
+        ),
+        `${event}.${activity}`,
+      );
+    }
+  }
+  for (const item of items) assert(item.assessment.length > 0, item.key);
+  assertEquals(githubActionsSpec.payloadTypes.version, "12.2.0");
 });

@@ -1,3 +1,4 @@
+import { validateTriggers } from "./triggers.ts";
 import type { Job, RunnerSelection, Workflow } from "./ast.ts";
 
 const validatedWorkflowBrand: unique symbol = Symbol("ValidatedWorkflow");
@@ -13,8 +14,6 @@ export type DiagnosticCode =
   | "step.shell.invalid"
   | "workflow.name.empty"
   | "workflow.on.invalid"
-  | "workflow.push-branches.invalid"
-  | "workflow.dispatch-inputs.invalid"
   | "workflow.concurrency.invalid"
   | "workflow.permissions.invalid"
   | "workflow.permissions.key.unsupported"
@@ -79,87 +78,13 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     ));
   }
 
-  if (
-    !isPlainRecord(workflow.on) || Object.keys(workflow.on).length === 0 ||
-    Object.entries(workflow.on).some(([key, value]) =>
-      ![
-        "push",
-        "pull_request",
-        "pull_request_target",
-        "workflow_dispatch",
-        "workflow_call",
-      ].includes(key) ||
-      !isPlainRecord(value) || Object.keys(value).some((field) =>
-        !(key === "push"
-          ? ["branches", "tags"]
-          : key === "pull_request" || key === "pull_request_target"
-          ? ["types"]
-          : key === "workflow_dispatch"
-          ? ["inputs"]
-          : ["inputs", "secrets", "outputs"]).includes(field)
-      )
-    )
-  ) {
+  const triggerIssues = validateTriggers(workflow.on);
+  for (const issue of triggerIssues) {
     diagnostics.push(
-      diagnostic(
-        "workflow.on.invalid",
-        ["on"],
-        "Workflow must declare a nonempty object of supported event settings.",
-      ),
-    );
-    return { ok: false, diagnostics };
-  }
-
-  if (
-    workflow.on.push?.branches !== undefined &&
-    (!Array.isArray(workflow.on.push?.branches) ||
-      workflow.on.push?.branches.length === 0 ||
-      workflow.on.push?.branches.some((branch) =>
-        typeof branch !== "string" || isBlank(branch)
-      ) ||
-      new Set(workflow.on.push?.branches).size !==
-        workflow.on.push?.branches.length)
-  ) {
-    diagnostics.push(
-      diagnostic(
-        "workflow.push-branches.invalid",
-        ["on", "push", "branches"],
-        "Push branches require a push event and nonempty unique branch names.",
-      ),
+      diagnostic("workflow.on.invalid", issue.path, issue.message),
     );
   }
-  if (workflow.on.workflow_dispatch?.inputs !== undefined) {
-    const inputs = workflow.on.workflow_dispatch?.inputs;
-    if (
-      !inputs || typeof inputs !== "object" || Array.isArray(inputs) ||
-      Object.keys(inputs).length > 25 ||
-      Object.entries(inputs).some(([name, input]) =>
-        !/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name) ||
-        !input || typeof input !== "object" || Array.isArray(input) ||
-        Object.keys(input).some((key) =>
-          !["description", "required", "type", "default", "options"].includes(
-            key,
-          )
-        ) ||
-        !["string", "choice"].includes(input.type) ||
-        (input.type === "choice" &&
-          (!Array.isArray(input.options) || input.options.length === 0 ||
-            input.options.some((v) => typeof v !== "string") ||
-            input.default !== undefined &&
-              !input.options.includes(input.default))) ||
-        (input.description !== undefined &&
-          typeof input.description !== "string") ||
-        (input.required !== undefined && typeof input.required !== "boolean") ||
-        (input.default !== undefined && typeof input.default !== "string")
-      )
-    ) {
-      diagnostics.push(diagnostic(
-        "workflow.dispatch-inputs.invalid",
-        ["on", "workflow_dispatch", "inputs"],
-        "Workflow dispatch inputs require workflow_dispatch and valid string input definitions.",
-      ));
-    }
-  }
+  if (!isPlainRecord(workflow.on)) return { ok: false, diagnostics };
   validateNativeFields(workflow, diagnostics);
   validateConcurrency(
     workflow.concurrency,
@@ -817,58 +742,9 @@ function validateNativeFields(
     diagnostics.push(
       diagnostic("workflow.native.invalid", field.split("."), message),
     );
-  for (
-    const [field, values] of [
-      ["on.push.tags", workflow.on.push?.tags],
-      ["on.pull_request.types", workflow.on.pull_request?.types],
-      ["on.pull_request_target.types", workflow.on.pull_request_target?.types],
-    ] as const
-  ) {
-    if (
-      values !== undefined &&
-      (!Array.isArray(values) ||
-        !values.length || values.some((v) =>
-          typeof v !== "string" || !v.trim()
-        ))
-    ) {
-      invalid(
-        field,
-        "Event filter requires its event and nonempty string values.",
-      );
-    }
-  }
   if (
     workflow.on.workflow_call !== undefined
   ) {
-    for (
-      const [name, d] of Object.entries(workflow.on.workflow_call?.inputs ?? {})
-    ) {
-      if (
-        !JOB_ID_PATTERN.test(name) || !d ||
-        !["string", "boolean", "number"].includes(d.type) ||
-        d.default !== undefined && typeof d.default !== d.type
-      ) {
-        invalid(
-          "on.workflow_call.inputs",
-          "Reusable input name, type or default is invalid.",
-        );
-      }
-    }
-    for (
-      const [name, d] of Object.entries(
-        workflow.on.workflow_call?.secrets ?? {},
-      )
-    ) {
-      if (
-        !JOB_ID_PATTERN.test(name) || !d ||
-        d.required !== undefined && typeof d.required !== "boolean"
-      ) {
-        invalid(
-          "on.workflow_call.secrets",
-          "Reusable secret declaration is invalid.",
-        );
-      }
-    }
     for (
       const [name, d] of Object.entries(
         workflow.on.workflow_call?.outputs ?? {},

@@ -45,11 +45,11 @@ testing. `github-actions/authoring`, `github-actions/run`, and
 contracts. These entrypoints share a responsibility-based `src/` tree. A future
 provider can have its own entrypoint and import graph without changing the
 GitHub Actions entrypoint. The authoring API uses immutable facades:
-`workflow()` groups trigger settings under a native `on` object; job
-methods become available as the definition advances, and only a workflow with a
-completed, non-empty job can reach `project()`. Jobs are authored in
-dependency order, so a new job can reference completed jobs. Action steps take a
-metadata contract or an implementation reference directly through
+`workflow()` groups trigger settings under a native `on` object; job methods
+become available as the definition advances, and only a workflow with a
+completed, non-empty job can reach `project()`. Jobs are authored in dependency
+order, so a new job can reference completed jobs. Action steps take a metadata
+contract or an implementation reference directly through
 `job.uses(contractOrUses, options?)`. Contracts declare input names,
 requiredness and string outputs; a string reference provides no declared output
 names. Action values are strings or string expressions, while reusable workflow
@@ -80,8 +80,9 @@ fetching and lockfile updates remain Deno's responsibility; the addition command
 has no network boundary. Top-level code constructs the workflow definition; task
 callbacks run only through the prepared task artifact.
 
-The public API supports push, PR, PR-target, dispatch and reusable-workflow
-triggers and the native fields listed in the
+The public API supports all 33 events at the frozen GitHub.com basis, including
+their activities, ref/file filters, schedules, all dispatch input types and
+reusable-workflow declarations, alongside the native fields listed in the
 [specification coverage](GITHUB_ACTIONS_SPEC.md). Local reusable references
 retain the `on.workflow_call` input/secret/output contract separately from the
 input reference union across configured events, and emit normal caller jobs with
@@ -118,9 +119,9 @@ contract to a GitHub expression source. Contracts are optional: outputs default
 to the shared `textValue()` contract; inputs inherit a direct typed reference
 contract or default to text when the source carries no contract. Explicit input
 contracts must match the source contract object. The compiler creates its step
-`env` entry and rejects collisions with authored `env`. Task output writes validate
-and serialize native values before appending GitHub's multiline format to
-`GITHUB_OUTPUT`; the runner parses and validates input wire values before
+`env` entry and rejects collisions with authored `env`. Task output writes
+validate and serialize native values before appending GitHub's multiline format
+to `GITHUB_OUTPUT`; the runner parses and validates input wire values before
 calling `run`.
 
 Text and JSON are distinct task I/O variants. JSON accepts a consumer-owned
@@ -232,6 +233,46 @@ runner behavior, permissions, environment approvals, timeouts, concurrency, or
 actual parallel execution. Unknown expression forms and `hashFiles()` need a
 field-specific scenario value; unsupported forms never silently succeed.
 
+### Trigger and payload contracts
+
+The fixed Actions snapshot owns event names, activities and trigger settings.
+The separately pinned, type-only `@octokit/openapi-webhooks-types@12.2.0` owns
+webhook shapes. Actions adapters remove push commit file lists, retain optional
+PR bodies, model dispatch payload inputs as strings, provide delivered schedule
+identifiers, and inherit the caller's event for reusable workflows. No
+undocumented image payload properties are invented; image filter facts have a
+separate scenario fixture. Generation and scenarios do not fetch either source.
+
+Workflow input metadata carries event selection through field scopes.
+`eventIs(github, name, activity?)` emits a native runtime condition and supplies
+proofs to subsequent job fields and conditionally executed task fields.
+Conjunction retains proofs; disjunction, negation and assertions do not. The
+ordinary TypeScript `if` statement only runs during authoring and cannot narrow
+a future GitHub event. Named `EventRef` projections keep root and nested payload
+hovers compact without erasing optional, nullable or activity-specific fields.
+
+Scenarios consume delivered event fixtures, not event sources. They require
+activity values instead of inventing a PR action. Branch/path filters combine;
+ordered negation can exclude and reinclude matches. `changedFiles()` supplies
+GitHub's considered file list (first 300) or an explicit
+timeout/over-1,000-commit bypass. The fixture supplier owns diff provenance: PR
+three-dot, existing push two-dot, and new-branch comparisons. `imageVersion()`
+supplies image name and version for that event's filters. Missing required reads
+identify the trigger or expression site and the missing property. Default input
+values are declaration semantics, not arbitrary payload completion. Schedule
+fixtures select a configured cron; they do not advance a clock.
+
+### Authoring migration
+
+Ref exclusion keys use GitHub's literal `"branches-ignore"`, `"tags-ignore"` and
+`"paths-ignore"`. Repeated job `when()` calls now combine with AND, including
+reusable caller jobs, so earlier event proofs remain valid. Combine alternatives
+explicitly with `or()` in one condition. Use `eventIs()` for payload selection;
+a raw event-name comparison still emits normally but carries no narrowing proof.
+Provide an explicit action fixture for activity events, use caller events in
+reusable scenarios, and put path facts in `changedFiles()`. Existing input and
+job-output contracts continue to propagate through these event scopes.
+
 ## Task artifact lifecycle
 
 Compiler lowering records inline task functions in a registry. A task-backed
@@ -240,17 +281,16 @@ step gets an entrypoint of the form `<workflow-path>/<job-id>/<task-id>` (or
 Otherwise, ID-less tasks receive available `task-N` IDs in appearance order
 within the job or composite Action, skipping explicit task IDs.
 
-Each task-backed job contains a pinned `actions/cache` step by default,
-followed by a normal composite preparation Action distributed from
-`actions/task-prepare/`. A project-level cache factory can provide native
-`uses` and `run` steps before preparation, including inside task-backed
-composite Actions. The factory receives the transport path and key; it owns
-its steps' inputs and failure policy. The backend embeds a generate-time
-source key in YAML and combines it with GitHub's runner OS and architecture
-for cache delivery. Composite Actions use the relocated payload's source key
-before the factory runs. Generation and fallback builds share the `deno info`
-local-source identity calculation. `generate --check` guards source-key
-changes as well as structure.
+Each task-backed job contains a pinned `actions/cache` step by default, followed
+by a normal composite preparation Action distributed from
+`actions/task-prepare/`. A project-level cache factory can provide native `uses`
+and `run` steps before preparation, including inside task-backed composite
+Actions. The factory receives the transport path and key; it owns its steps'
+inputs and failure policy. The backend embeds a generate-time source key in YAML
+and combines it with GitHub's runner OS and architecture for cache delivery.
+Composite Actions use the relocated payload's source key before the factory
+runs. Generation and fallback builds share the `deno info` local-source identity
+calculation. `generate --check` guards source-key changes as well as structure.
 
 The compiled artifact owns hit validation and immutable runtime publication.
 Build-time metadata is embedded using a preload module, calculated before that

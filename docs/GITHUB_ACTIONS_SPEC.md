@@ -19,6 +19,39 @@ Tsugiori targets. `publishedSources` records the corresponding published pages.
 The reconciliation field records differences in wording between official sources
 and Tsugiori's retained limits.
 
+`assessment` distinguishes `supported`, `implementation-gap`, `alternative`,
+`outside-product`, `github-runtime` and `reference`; an item can have more than
+one assessment. `status` retains the existing capability summary. Headings,
+deprecated `pull_request_comment` guidance, templates and YAML sharing are
+classified explicitly instead of being counted as missing trigger events.
+Trigger rows link their compiler, type/scenario and actual LSP evidence.
+
+## Payload type basis
+
+The snapshot's `payloadTypes` records a separate source:
+[`@octokit/openapi-webhooks-types@12.2.0`](https://github.com/octokit/openapi-webhooks).
+It is an exact-version, MIT, type-only npm dependency generated from GitHub's
+OpenAPI webhooks. It is not the revision or verification date of the Actions
+snapshot and supplies no runtime schema/network lookup. Every frozen event and
+activity is checked against it. Tsugiori owns Actions differences: removed push
+commit file attributes, optional PR bodies, string dispatch payload inputs,
+declaration-dependent native input values, schedule identifiers, inherited
+reusable event context and image filters without undocumented payload fields.
+Deno typechecking, actual LSP completion/hover/signatures and JSR publish
+dry-run verify the dependency boundary; hosted delivery is not verified by those
+checks.
+
+Scenarios take partial payloads and explicit changed-file/image facts. They
+model configuration applied to an already supplied event. The fixture supplier
+must provide a GitHub-eligible event: default-branch restrictions, check-suite
+recursion, PR merge conflicts/forks, draft release suppression, push batch
+limits and workflow_run access/nesting eligibility are GitHub-owned external
+facts. Path filter fixtures reflect GitHub's diff construction and first-300
+limit or explicit timeout/over-1,000-commit bypass. Delivery timing, cron
+frequency enforcement and DST belong to GitHub. Input defaults and
+payload/native input consistency are checked locally; environment existence is
+not.
+
 An implemented syntax field means Tsugiori can emit native YAML. It does not
 mean GitHub authorization, runner availability or remote execution has been
 validated. Expression context availability is owned by

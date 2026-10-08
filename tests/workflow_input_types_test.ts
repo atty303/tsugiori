@@ -189,7 +189,6 @@ function assertInputTypes(): void {
     on: {
       workflow_dispatch: {
         inputs: {
-          // @ts-expect-error dispatch boolean is outside current coverage
           flag: { type: "boolean" },
         },
       },

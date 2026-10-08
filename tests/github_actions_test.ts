@@ -467,7 +467,7 @@ Deno.test("rejects invalid deployment-specific native fields", () => {
   } as unknown as Workflow);
   assert(!result.ok);
   assertEquals(result.diagnostics.map(({ code }) => code), [
-    "workflow.push-branches.invalid",
+    "workflow.on.invalid",
     "workflow.concurrency.invalid",
     "job.if.empty",
     "job.timeout.invalid",
@@ -512,7 +512,8 @@ Deno.test("rejects dispatch inputs without dispatch event or valid definitions",
   } as unknown as Workflow);
   assert(!invalid.ok);
   assertEquals(invalid.diagnostics.map(({ code }) => code), [
-    "workflow.dispatch-inputs.invalid",
+    "workflow.on.invalid",
+    "workflow.on.invalid",
   ]);
   const tooMany = validateWorkflow({
     ...base,
@@ -529,7 +530,7 @@ Deno.test("rejects dispatch inputs without dispatch event or valid definitions",
   });
   assert(!tooMany.ok);
   assertEquals(tooMany.diagnostics.map(({ code }) => code), [
-    "workflow.dispatch-inputs.invalid",
+    "workflow.on.invalid",
   ]);
 });
 

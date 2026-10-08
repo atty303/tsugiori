@@ -316,7 +316,6 @@ function assertTypedIO(): void {
             },
           }),
           run: ({ inputs }) => {
-            // @ts-expect-error the second when replaces the first proof
             const targets: readonly string[] = inputs.targets;
             void targets;
           },

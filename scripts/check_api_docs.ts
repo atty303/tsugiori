@@ -155,7 +155,7 @@ const optionalWorkflow = workflow(".github/workflows/optional.yml", { on: { push
   .job("prepare", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "plan", name: "Plan", inputs: {}, outputs: { stages: { contract: stagesContract, required: false } }, run: async ({ outputs }) => { await outputs.set("stages", ["dev", "prd"]); } }).outputs(({ steps }) => ({ stages: steps.plan.outputs.stages })));
 const ci = sampleWorkflow;
 const config = project({ workflows: [sampleWorkflow] });
-function configureScenario(test: WorkflowScenario<TestJobsOf<typeof sampleWorkflow>>) {
+function configureScenario(test: WorkflowScenario<TestJobsOf<typeof sampleWorkflow>, { push: {} }>) {
   test.github({ event_name: "push", ref: "refs/heads/main", sha: "abc", event: {} });
   test.job("build", (job) => { job.eachMatrix(({ stage }, instance) => { instance.step("build").fixture({ outputs: { version: stage } }); }); });
   test.job("deploy", (job) => { job.step("deploy").fixture({}); });

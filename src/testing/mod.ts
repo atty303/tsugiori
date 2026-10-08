@@ -1,3 +1,14 @@
+import type { WorkflowInputValues } from "../github_actions/mod.ts";
+import type {
+  EventPayload,
+  EventsOf,
+  RuntimeEvents,
+  WorkflowTriggers,
+} from "../github_actions/events.ts";
+import type {
+  Expression,
+  GitHubContext,
+} from "../github_actions/expression.ts";
 /**
  * Interpret workflow logic with fixtures using {@link scenario}.
  *
@@ -313,6 +324,15 @@ export type JobRules = InstanceRules & {
 /** Mutable scenario definition retained by {@link WorkflowScenario}. Prefer its methods to setting maps directly; interpretation begins in {@link scenario}.
  */
 export type Program = {
+  /** Ordered files considered by GitHub, or its diff bypass reason. */
+  changedFiles?: readonly string[] | "timeout" | "over-1000-commits";
+  /** Delivered image identity, independent of undocumented payload fields. */
+  imageVersion?: Readonly<{
+    /** Delivered image name. */
+    name: string;
+    /** Delivered image version. */
+    version: string;
+  }>;
   /** Supplied github, inputs, vars and secrets test contexts.
    */
   external: Record<string, unknown>;
@@ -494,9 +514,9 @@ export class InstanceScenario<Job> {
    */
   call<const P extends TestableWorkflow>(
     workflow: P,
-    define: (test: WorkflowScenario<TestJobsOf<P>>) => void,
+    define: (test: WorkflowScenario<TestJobsOf<P>, TestEventsOf<P>>) => void,
   ): this {
-    const child = new WorkflowScenario<TestJobsOf<P>>();
+    const child = new WorkflowScenario<TestJobsOf<P>, TestEventsOf<P>>();
     define(child);
     child.program.workflowPath =
       project({ workflows: [workflow] }).workflows[0].path;
@@ -641,9 +661,33 @@ export class JobScenario<Job> extends InstanceScenario<Job> {
   }
 }
 
+/** Recursive optional fixture shape. Properties retain their source value types; missing values needed by evaluation fail at their location. */
+export type EventFixture<T> = T extends readonly (infer V)[]
+  ? readonly EventFixture<V>[]
+  : T extends object ? keyof T extends never ? Readonly<Record<string, never>>
+    : { readonly [K in keyof T]?: EventFixture<T[K]> }
+  : T;
+/** Correlated event name and partial payload; the event must be declared by the workflow, or inherited by workflow_call. */
+export type GitHubFixture<On extends WorkflowTriggers> = {
+  [E in RuntimeEvents<On>]:
+    & EventFixture<Omit<GitHubContext, "event" | "event_name">>
+    & {
+      /** Delivered event, correlated with its payload. */
+      readonly event_name: E;
+      /** Only values relevant to this scenario; required reads report missing fixtures. */
+      readonly event?: EventFixture<EventPayload<E, On>>;
+    };
+}[RuntimeEvents<On>];
+type TestEventsOf<W> = W extends { readonly inputs: Expression<infer I> }
+  ? EventsOf<I>
+  : WorkflowTriggers;
+
 /** Builder for external contexts, fixtures and expectations. The callback passed to {@link scenario} receives this builder; constructing one alone does not interpret a workflow.
  */
-export class WorkflowScenario<Jobs> {
+export class WorkflowScenario<
+  Jobs,
+  On extends WorkflowTriggers = WorkflowTriggers,
+> {
   /** Mutable scenario definition populated by builder methods. Interpretation starts in {@link scenario}.
    */
   readonly program: Program = {
@@ -657,17 +701,58 @@ export class WorkflowScenario<Jobs> {
    * test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
    * ```
    */
-  github(value: Readonly<Record<string, unknown>>): this {
+  github(value: GitHubFixture<On>): this {
     this.program.external.github = value;
     return this;
   }
-  /** Supply external workflow input context values. Local child calls receive propagated call arguments instead.
-   * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
+  /** Supply the ordered file list GitHub considered, or a GitHub diff bypass reason.
+   * Files are truncated to GitHub's first 300. A timeout or over 1,000 commits bypasses path filters.
+   * Omission is an error when a path filter needs this fact; no Git lookup occurs.
+   * @example Given a workflow scenario builder `test`.
    * ```ts
-   * test.inputs({ stage: "dev" });
+   * test.changedFiles(["src/main.ts"]);
    * ```
    */
-  inputs(value: Readonly<Record<string, unknown>>): this {
+  changedFiles(
+    value: readonly string[] | "timeout" | "over-1000-commits",
+  ): this {
+    this.program.changedFiles = value;
+    return this;
+  }
+  /** Supply delivered custom image identity; the fixed source does not specify image_version payload fields.
+   * @example Given a workflow scenario builder `test`.
+   * ```ts
+   * test.imageVersion({ name: "MyImage", version: "1.0.0" });
+   * ```
+   */
+  imageVersion(
+    value: Readonly<{
+      /** Delivered image name. */
+      name: string;
+      /** Delivered image version. */
+      version: string;
+    }>,
+  ): this {
+    this.program.imageVersion = value;
+    return this;
+  }
+  /** Supply native values for inputs declared by this workflow; undeclared names and wrong native types fail typechecking. Omitted values use declaration defaults; required omitted values fail interpretation. Local child calls receive propagated call arguments instead.
+   * @example
+   * ```ts
+   * const manual = workflow("manual.yml", {on:{workflow_dispatch:{inputs:{stage:{type:"string"}}}}})
+   *   .job("check", ({job})=>job.runsOn("ubuntu-latest").run({id:"check",name:"Check",run:"true"}));
+   * await scenario(manual, test => {
+   *   test.github({event_name:"workflow_dispatch"});
+   *   test.inputs({stage:"dev"});
+   *   test.job("check", job => job.step("check").fixture({}));
+   * });
+   * ```
+   */
+  inputs(
+    value: keyof WorkflowInputValues<On> extends never
+      ? Readonly<Record<string, never>>
+      : Partial<WorkflowInputValues<On>>,
+  ): this {
     this.program.external.inputs = value;
     return this;
   }
@@ -761,7 +846,9 @@ export async function scenario<
   const Workflow extends TestableWorkflow,
 >(
   workflow: Workflow,
-  define: (test: WorkflowScenario<TestJobsOf<Workflow>>) => void,
+  define: (
+    test: WorkflowScenario<TestJobsOf<Workflow>, TestEventsOf<Workflow>>,
+  ) => void,
   options: Readonly<{
     /** Project containing the primary workflow and all local reusable callees. */
     config?: ProjectConfig;
@@ -774,7 +861,10 @@ export async function scenario<
     observe?: ScenarioObserver;
   }> = {},
 ): Promise<ScenarioResult> {
-  const builder = new WorkflowScenario<TestJobsOf<Workflow>>();
+  const builder = new WorkflowScenario<
+    TestJobsOf<Workflow>,
+    TestEventsOf<Workflow>
+  >();
   define(builder);
   const primary = project({ workflows: [workflow] }).workflows[0];
   const config = options.config ?? project({ workflows: [workflow] });

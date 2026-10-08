@@ -88,26 +88,40 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     readonly report: NS<"report", readonly []>;
 }>, {
     readonly os: "ubuntu-latest" | "macos-latest";
-}, string, string, E>',
+}, string, string, WorkflowInputs<{
+    readonly push: {};
+}>>',
   "job-callback": '(parameter) job: Job<"ci.yml", "test", {
     readonly build: JR<"ci.yml", "build", JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
     }>, TJ<{
         readonly build: NS<"build", readonly ["version"]>;
     }, E>>;
-}, E>',
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
   "job-needs": 'const dependent: DepJob<"ci.yml", "test", {
     readonly build: JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
     }>;
-}, E>',
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
   "job-scope": '(parameter) context: JobScope<"ci.yml", "scope", {
     readonly build: JR<"ci.yml", "build", JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
     }>, TJ<{
         readonly build: NS<"build", readonly ["version"]>;
     }, E>>;
-}, E>',
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
   "presence-proof": 'const state: Step<"ci.yml", "read", {
     readonly read: TR<"read", {
         readonly value: string;
@@ -118,10 +132,17 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
             readonly value: TypedReference<string, ValueContract<string, "text">, "steps.emit.outputs.value", false>;
         }>;
     };
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
     readonly proof: "needs.source.outputs.value";
 }>',
-  "reusable-job": 'const caller: CallJob<"ci.yml", "caller", E>',
-  "simple-step-signature": 'run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, E>',
+  "reusable-job": 'const caller: CallJob<"ci.yml", "caller", {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
+  "simple-step-signature": 'run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, { readonly inputs: WorkflowInputs<{ readonly push: {}; }>; }>',
   "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 5 more ..., never>.run<D>(definition: AvailableStepDefinition<D, {
     readonly test: NS<"test", readonly []>;
     readonly report: NS<"report", readonly []>;
@@ -137,8 +158,11 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     readonly matrix: {
         readonly os: "ubuntu-latest" | "macos-latest";
     };
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
 }>',
-  "step-signature": 'run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; }>',
+  "step-signature": 'run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; readonly inputs: WorkflowInputs<...>; }>',
   "task-cache-job": "(parameter) job: TaskArtifactCacheJob",
   "task-cache-run-signature": "run(definition: RunStepDefinition): TaskArtifactCacheJob",
   "task-callback": '(parameter) context: TaskContext<{
@@ -158,9 +182,17 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
             readonly required: true;
         };
     }>>;
-}, E>',
-  "workflow-draft": 'const draft: WorkflowStart<"ci.yml", E>',
-  "workflow-method": '(method) WorkflowBase<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, ... 4 more ..., E>.job<JobId, Result>(id: AvailableJobId<JobId, {
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
+  "workflow-draft": 'const draft: WorkflowStart<"ci.yml", {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
+  "workflow-method": '(method) WorkflowBase<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, ... 4 more ..., WorkflowInputs<...>>.job<JobId, Result>(id: AvailableJobId<JobId, {
     readonly build: JR<"ci.yml", "build", JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
     }>, TJ<{
@@ -172,14 +204,22 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>, TJ<{
         readonly build: NS<"build", readonly ["version"]>;
     }, E>>;
-}, E>) => Result): Workflow<"ci.yml", AddJobReference<"ci.yml", JobId, {
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>) => Result): Workflow<"ci.yml", AddJobReference<"ci.yml", JobId, {
     readonly build: JR<"ci.yml", "build", JobOutputNames<{
         readonly version: Ref<string, "steps.build.outputs.version">;
     }>, TJ<{
         readonly build: NS<"build", readonly ["version"]>;
     }, E>>;
-}, Result>, E>',
-  "workflow-signature": 'job(id: "next", define: (scope: JobScope<"ci.yml", "next", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, E>) => Step<...>): Workflow<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly ["version"]>; }, E>>; readonly next: JR<...>; }, E>',
+}, Result>, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
+  "workflow-signature": 'job(id: "next", define: (scope: JobScope<"ci.yml", "next", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly [...]>; }, E>>; }, { ...; }>) => Step<...>): Workflow<"ci.yml", { readonly build: JR<"ci.yml", "build", JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>, TJ<{ readonly build: NS<"build", readonly ["version"]>; }, E>>; readonly next: JR<...>; }, { ...; }>',
   composite: 'const action: Composite<{
     readonly name: "Greet";
     readonly description: "Greeting";
@@ -204,6 +244,9 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     readonly matrix: {
         readonly os: "ubuntu-latest" | "macos-latest";
     };
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
 }>',
   steps: 'const state: Step<"ci.yml", "test", {
     readonly test: NS<"test", readonly []>;
@@ -217,6 +260,9 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     readonly matrix: {
         readonly os: "ubuntu-latest" | "macos-latest";
     };
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
 }>',
   workflow: 'const flow: Workflow<"ci.yml", {
     readonly test: JR<"ci.yml", "test", readonly [], TJ<{
@@ -227,6 +273,10 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>, TJ<{
         readonly build: NS<"build", readonly ["version"]>;
     }, E>>;
-}, E>',
+}, {
+    readonly inputs: WorkflowInputs<{
+        readonly push: {};
+    }>;
+}>',
 }
 `;

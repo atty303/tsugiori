@@ -244,6 +244,18 @@ env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),
 These typed expressions can also be evaluated by `scenario()` without a
 runner in Chapter 6.
 
+The frozen GitHub.com trigger set includes all standard events, their activity
+types, branch/tag/path filters and ignore forms, schedules, and all five manual
+input types. A single event infers `github.event` automatically. For multiple
+events, use `eventIs(github, "issues")` in a job's `when()` (or a task's `if`)
+to select its payload safely in subsequent callbacks. The condition is emitted
+for GitHub to evaluate. Scenarios accept typed partial payloads and explicit
+`changedFiles()` fixtures for file filters. See the detailed
+[trigger and payload contracts](docs/ARCHITECTURE.md#trigger-and-payload-contracts)
+and
+[API reference](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring)
+for declarations and local examples.
+
 The DSL rejects invalid references while TypeScript checks the source. For
 example, `hello` exports `message`, so reading `greeting` in `follow-up` fails:
 
