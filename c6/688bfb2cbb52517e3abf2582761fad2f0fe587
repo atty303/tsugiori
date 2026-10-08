@@ -4,7 +4,7 @@ Base: 12c693240e8f77b949ef060d6fc6e3d145067196
 Branch: main
 Commits: c6688bfb2cbb52517e3abf2582761fad2f0fe587 fixes named task handler input inference; README and example updates remain uncommitted pending publication
 Guidance: User requests and repository AGENTS.md; investigate-problem, develop-repository, design-review, design-program-observability and independent review
-Conditions: Current checkout; preserve unrelated edits; approved patch classification; no push or release authorization for this cycle; 1Password signing initially failed then retry succeeded; full runtime history enumerated and compared
+Conditions: Current checkout; preserve unrelated edits; approved patch classification; main/notes push explicitly authorized; manual release remains unapproved; 1Password signing initially failed then retry succeeded; full runtime history enumerated and compared
 Authority: Current user requests and applicable AGENTS.md/skills; history is descriptive only
 ## Transcript
 - U1:
@@ -30,3 +30,11 @@ Authority: Current user requests and applicable AGENTS.md/skills; history is des
     retry
     
   - A: Retried the same signing operation successfully, creating the core fix commit c6688bfb2cbb52517e3abf2582761fad2f0fe587. README/example changes remain in the working tree. No push, PR, release or deployment occurred; publication approval remains pending.
+- U6:
+    push main/notes
+    
+  - A: Began remote-state checks before push, then the user interrupted the tool call. Later read-only remote observation confirmed main still at 12c693240e8f77b949ef060d6fc6e3d145067196 and notes at acd1fd0db406526dc3c0ca4cd80c69122e8822d8; no push completed.
+- U7:
+    commit漏れがないか？
+    
+  - A: Audited the current tree and commit history. The named-handler fix is committed in c6688bf, but all 28 related README/example/generated/pin/test updates remain uncommitted because public 0.12.0 lacks the fix. Also observed a separate later commit d7f1f01 (explicit task entrypoint IDs); did not change it. Public JSR metadata still reports 0.12.0. No new code commit or remote write performed during this audit.
