@@ -1,0 +1,53 @@
+Task: Implement explicit task runtime entrypoint IDs with sparse generated fallback
+Anchor: d7f1f014bb4d927b97a5f14749b96d71db2e9f32
+Base: c6688bfb2cbb52517e3abf2582761fad2f0fe587
+Branch: main
+Commits: d7f1f014bb4d927b97a5f14749b96d71db2e9f32 implements shared workflow and composite task ID allocation, tests, docs, and generated CI
+Guidance: User implementation request and repository AGENTS.md; develop-repository, design-review, design-program-observability, independent review
+Conditions: Existing unrelated uncommitted README and example edits preserved; minor release impact approved; no push or release; code fetch succeeded, notes fetch found local notes ahead of remote and was inspected without overwrite; sandbox blocked optional mise and Wrangler log writes; full suite had one remaining pre-existing 06-testing example typecheck failure; full thread history enumerated
+Authority: Current user request, applicable AGENTS.md, and invoked skills; prior history and memory are descriptive only
+## Transcript
+- U1:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の task runtime 識別子を、`task({ id })` があればその ID を使い、なければ決定的に生成するよう変更してください。
+    
+    ## 目的
+    - 明示 ID を持つ task の runtime 識別子を、task の追加や並べ替えで変わらないようにする。
+    
+    ## 成功条件
+    - workflow 内と composite Action 内の task の両方で、明示 ID が runtime 識別子の末尾にそのまま使われる。
+    - 各 job または composite Action 内で、ID なしの task に `task-1` から出現順に空いている番号が割り当てられる。明示 ID と重なる番号は飛ばす。
+    - 生成された呼び出し先、runtime の task 探索、artifact の entrypoint 一覧が同じ識別子を使う。
+    - 関連するテストと現行ドキュメントが新しい規則を反映する。
+    
+    ## 決定事項
+    - 明示された `task({ id })` を runtime 識別子の末尾にそのまま使う。
+      - 理由: 明示 ID を task の安定した識別子にするため。
+      - 主な棄却案: 明示 ID があっても従来の `task-N` を使う案。task の追加や並べ替えで識別子が変わる。
+    - ID なしの task だけを出現順に採番し、同じ範囲の明示 ID と重なる `task-N` は飛ばす。
+      - 理由: 小さく決定的な実装で、明示 ID の task を追加しても衝突しない限り既存の自動 ID を維持できる。
+      - 主な棄却案: 全 task の通し番号、`name` 由来の ID、内容のハッシュ。順序や表示名、内容の変更で識別子が変わりやすい。
+    - workflow と composite Action に同じ規則を適用する。
+      - 理由: どちらの `task({ id })` も同じ意味にするため。
+      - 主な棄却案: workflow のみに適用する案。定義場所によって ID の意味が異なる。
+    
+    ## 制約
+    - `id` の既存の GitHub Actions step ID としての役割を維持する。
+    - 既存の未コミット変更を保護する。
+    
+    ## 対象外
+    - 新しい公開 API や ID の構文変更。
+    - deploy、release、push、PR 作成。
+    
+    ## 未検証の前提
+    - なし。
+    
+    ## 実装時の指示
+    - 生成側と実行時の探索側で識別子の割り当て規則が一致することを検証する。
+    - 明示 ID と自動 ID の衝突、明示 ID の task の追加、workflow と composite Action の両方をテストする。
+  - A: Confirmed current generated ordinal IDs and existing uncommitted changes, proposed minor release impact, and proceeded with shared compiler and runner allocation design.
+- U2:
+    はい、minor として進める
+  - A: Implemented explicit suffixes and collision-skipping task-N allocation in workflow and composite scopes; updated manifest and runtime tests, public JSDoc, architecture, and generated CI; targeted 40 tests, typed I/O 11 tests, and mise run check passed; full suite passed 171 tests before a typed I/O snapshot fix, then that targeted test passed, with a separate pre-existing 06-testing published-version typecheck failure remaining; fresh independent review found no actionable issues; committed only task files locally and did not push.
