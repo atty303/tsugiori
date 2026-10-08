@@ -719,6 +719,75 @@ built/*completion*/;`,
         environmentSignature.includes("EnvironmentValue<"),
         environmentSignature,
       );
+      const matrixPrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+const ci = workflow("matrix.yml", { on: { push: {} } });
+`;
+      const matrixSource = matrixPrefix +
+        `ci.job("test", ({ job }) => job.runsOn("ubuntu-latest")
+.strategy({ matrix: { target: [{ version: 20 }, { version: 22, experimental: true }], os: ["ubuntu-latest"], include: [{ target: { version: 24 } }] }, maxParallel: 2 })
+.continueOnError(({ matrix }) => matrix.target.experimental.or(false))
+.run({ name: "Test", run: "true", env: ({ matrix }) => { BODY return {}; } }));`;
+      const matrixLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        350,
+        "object-matrix",
+        matrixSource.replace("BODY", "matrix.target./*completion*/;"),
+      );
+      assert(matrixLabels.includes("version"), JSON.stringify(matrixLabels));
+      assert(
+        matrixLabels.includes("experimental"),
+        JSON.stringify(matrixLabels),
+      );
+      for (
+        const [index, [field, value]] of [["version", "20 | 22 | 24"], [
+          "experimental",
+          "undefined",
+        ]].entries()
+      ) {
+        const hover = await sourceHover(
+          writer,
+          stream,
+          351 + index,
+          `matrix-${field}`,
+          matrixSource.replace(
+            "BODY",
+            `const value = matrix.target.${field}; value/*completion*/;`,
+          ),
+          true,
+        );
+        assert(hover.includes(value), hover);
+        assert(!hover.includes("..."), hover);
+      }
+      const matrixSignature = await sourceHover(
+        writer,
+        stream,
+        353,
+        "matrix-strategy-signature",
+        matrixPrefix +
+          `ci.job("test", ({ job }) => job.runsOn("ubuntu-latest").strategy(/*completion*/{ matrix: { target: [{ version: 22 }] }, maxParallel: 2 }).run({ name: "Test", run: "true" }));`,
+        true,
+        "signatureHelp",
+      );
+      assert(matrixSignature.includes("Strategy<"), matrixSignature);
+      assert(!matrixSignature.includes("..."), matrixSignature);
+      const toleranceLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        354,
+        "job-tolerance",
+        matrixPrefix +
+          `ci.job("test", ({ job }) => job.runsOn("ubuntu-latest").continueOnError(context => context./*completion*/).run({ name: "Test", run: "true" }));`,
+      );
+      assertIncludesExactly(toleranceLabels, [
+        "github",
+        "needs",
+        "strategy",
+        "matrix",
+        "vars",
+        "inputs",
+      ]);
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

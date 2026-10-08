@@ -60,6 +60,7 @@ type _ExecutionSurface = Expect<
     | "strategy"
     | "concurrency"
     | "permissions"
+    | "continueOnError"
     | "timeoutMinutes"
     | "environment"
     | "uses"

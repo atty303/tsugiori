@@ -1,3 +1,4 @@
+import { MatrixError, matrixRows } from "../github_actions/matrix.ts";
 import { triggered as matchesTrigger } from "./triggers.ts";
 import type { AuthoringJob, ProjectConfig } from "../github_actions/mod.ts";
 import { lowerProject } from "../compiler/authoring.ts";
@@ -191,67 +192,17 @@ function expandMatrix(
       "strategy.matrix",
       overrides,
     );
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
+  try {
+    return matrixRows(value)!;
+  } catch (error) {
+    if (!(error instanceof MatrixError)) throw error;
     throw new ScenarioError(
       "fixture_invalid",
-      location,
-      "Matrix must evaluate to an object.",
+      `${location}.strategy.matrix${error.field ? `.${error.field}` : ""}`,
+      error.message,
+      { cause: error },
     );
   }
-  const axes = Object.entries(value as Record<string, unknown>);
-  let rows: Record<string, unknown>[] =
-    axes.some(([name]) => name !== "include" && name !== "exclude") ? [{}] : [];
-  for (const [name, axis] of axes) {
-    if (name === "include" || name === "exclude") continue;
-    if (!Array.isArray(axis)) {
-      throw new ScenarioError(
-        "fixture_invalid",
-        `${location}.strategy.matrix.${name}`,
-        "Matrix axis must be an array.",
-      );
-    }
-    rows = rows.flatMap((row) =>
-      axis.map((item) => ({ ...row, [name]: item }))
-    );
-  }
-  const excluded = (value as Record<string, unknown>).exclude;
-  if (Array.isArray(excluded)) {
-    rows = rows.filter((row) =>
-      !excluded.some((item) =>
-        item && typeof item === "object" &&
-        Object.entries(item).every(([key, expected]) =>
-          same(row[key], expected)
-        )
-      )
-    );
-  }
-  const included = (value as Record<string, unknown>).include;
-  if (Array.isArray(included)) {
-    const original = rows.map((row) => ({ ...row }));
-    for (const item of included) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) {
-        throw new ScenarioError(
-          "fixture_invalid",
-          `${location}.strategy.matrix.include`,
-          "Matrix include entry must be an object.",
-        );
-      }
-      const entry = item as Record<string, unknown>;
-      let matched = false;
-      for (const [index, row] of original.entries()) {
-        if (
-          Object.entries(entry).every(([key, expected]) =>
-            !(key in row) || same(row[key], expected)
-          )
-        ) {
-          Object.assign(rows[index], entry);
-          matched = true;
-        }
-      }
-      if (!matched) rows.push({ ...entry });
-    }
-  }
-  return rows;
 }
 
 function aggregate(instances: readonly JobInstanceResult[]): Result {
@@ -316,6 +267,52 @@ function stepStatus(
   };
 }
 
+function booleanSetting(
+  value: boolean | string | undefined,
+  context: Context,
+  status: Status,
+  location: string,
+  field: string,
+  overrides: ReadonlyMap<string, unknown>,
+  fallback = false,
+): boolean {
+  if (value === undefined) return fallback;
+  const resolved = typeof value === "boolean"
+    ? value
+    : evaluateAt(value, context, status, location, field, overrides);
+  if (typeof resolved !== "boolean") {
+    throw new ScenarioError(
+      "expression_error",
+      `${location}.${field}`,
+      "Setting must resolve to boolean.",
+    );
+  }
+  return resolved;
+}
+function integerSetting(
+  value: number | string,
+  context: Context,
+  status: Status,
+  location: string,
+  field: string,
+  overrides: ReadonlyMap<string, unknown>,
+  maximum = Infinity,
+): number {
+  const resolved = typeof value === "number"
+    ? value
+    : evaluateAt(value, context, status, location, field, overrides);
+  if (
+    typeof resolved !== "number" || !Number.isInteger(resolved) ||
+    resolved < 1 || resolved > maximum
+  ) {
+    throw new ScenarioError(
+      "expression_error",
+      `${location}.${field}`,
+      "Setting must resolve to a positive integer within its limit.",
+    );
+  }
+  return resolved;
+}
 function resolvedConcurrency(
   value: Job["concurrency"],
   context: Context,
@@ -428,6 +425,40 @@ function resolvedSettings(
           : { deployment: deployment as boolean }),
       },
     }),
+    ...(job.strategy === undefined ? {} : {
+      strategy: {
+        ...(job.strategy.failFast === undefined ? {} : {
+          failFast: (context.strategy as Record<string, unknown>)[
+            "fail-fast"
+          ] as boolean,
+        }),
+        ...(job.strategy.maxParallel === undefined ? {} : {
+          maxParallel: (context.strategy as Record<string, unknown>)[
+            "max-parallel"
+          ] as number,
+        }),
+      },
+    }),
+    ...(job.continueOnError === undefined ? {} : {
+      continueOnError: booleanSetting(
+        job.continueOnError,
+        context,
+        status,
+        location,
+        "continue-on-error",
+        overrides,
+      ),
+    }),
+    ...(job.timeoutMinutes === undefined ? {} : {
+      timeoutMinutes: integerSetting(
+        job.timeoutMinutes,
+        context,
+        status,
+        location,
+        "timeout-minutes",
+        overrides,
+      ),
+    }),
     ...(concurrency === undefined ? {} : { concurrency }),
   };
 }
@@ -462,6 +493,14 @@ async function runInstance(
     failure: false,
     cancelled: false,
   };
+  const tolerateFailure = booleanSetting(
+    job.continueOnError,
+    context,
+    initialStatus,
+    location,
+    "continue-on-error",
+    jobOverrides,
+  );
   let settings = rules.expectedSettings === undefined
     ? undefined
     : resolvedSettings(
@@ -505,14 +544,21 @@ async function runInstance(
       expectValue([], rules.expectedStepOrder, `${location}.stepOrder`);
     }
     if (rules.expectedResult !== undefined) {
-      expectValue("failure", rules.expectedResult, `${location}.result`);
+      expectValue(
+        tolerateFailure ? "success" : "failure",
+        rules.expectedResult,
+        `${location}.result`,
+      );
     }
     if (rules.expectedSettings) {
       expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
     }
     return {
       matrix,
-      result: "failure",
+      result: tolerateFailure ? "success" : "failure",
+      ...(job.continueOnError === undefined
+        ? {}
+        : { outcome: "failure" as const }),
       steps: {},
       ...(settings === undefined ? {} : { settings }),
       environmentProtection: "rejected",
@@ -686,7 +732,15 @@ async function runInstance(
       }
       outputs = fixtureOutputs(provided, authorStep, stepLocation, outcome);
     }
-    const conclusion = outcome === "failure" && step.continueOnError
+    const conclusion = outcome === "failure" &&
+        booleanSetting(
+          step.continueOnError,
+          { ...context, env },
+          status,
+          stepLocation,
+          "continue-on-error",
+          overrides,
+        )
       ? "success"
       : outcome;
     const result: StepResult = {
@@ -713,15 +767,16 @@ async function runInstance(
     );
   }
   const status = stepStatus(steps);
-  const result: Result = status.failure
+  const outcome: Result = status.failure
     ? "failure"
     : status.cancelled
     ? "cancelled"
     : "success";
+  const result = outcome === "failure" && tolerateFailure ? "success" : outcome;
   if (rules.expectedResult !== undefined) {
     expectValue(result, rules.expectedResult, `${location}.result`);
   }
-  context.job = { status: result };
+  context.job = { status: outcome };
   if (
     settings !== undefined && typeof job.environment === "object" &&
     job.environment.url !== undefined
@@ -749,6 +804,7 @@ async function runInstance(
   return {
     matrix,
     result,
+    ...(job.continueOnError === undefined ? {} : { outcome }),
     steps,
     ...(settings === undefined ? {} : { settings }),
     ...(rules.environmentProtection === undefined
@@ -999,12 +1055,42 @@ async function interpretScenario(
       }
       continue;
     }
+    const failFast = booleanSetting(
+      job.strategy?.failFast,
+      context,
+      status,
+      location,
+      "strategy.fail-fast",
+      overrides,
+      true,
+    );
+    const maxParallel = job.strategy?.maxParallel === undefined
+      ? undefined
+      : integerSetting(
+        job.strategy.maxParallel,
+        context,
+        status,
+        location,
+        "strategy.max-parallel",
+        overrides,
+      );
     const matrices = expandMatrix(job, context, status, location, overrides);
+    context.strategy = {
+      ...(context.strategy as object ?? {}),
+      "fail-fast": failFast,
+      "job-total": matrices.length,
+      ...(maxParallel === undefined ? {} : { "max-parallel": maxParallel }),
+    };
+
     if (rules.expectedMatrix !== undefined) {
       expectValue(matrices, rules.expectedMatrix, `${location}.matrix`);
     }
     const instances: JobInstanceResult[] = [];
-    for (const matrix of matrices) {
+    for (const [matrixIndex, matrix] of matrices.entries()) {
+      context.strategy = {
+        ...(context.strategy as object),
+        "job-index": matrixIndex,
+      };
       const specific = rules.matrixRules?.(matrix) ??
         { steps: new Map(), internals: new Map() };
       const merged = mergedRules(rules, specific);
@@ -1222,12 +1308,14 @@ async function interpretScenario(
       expectValue(result, rules.expectedResult, `${location}.result`);
     }
     const outputs: Record<string, string> = {};
-    for (const instance of instances) {
+    for (const [matrixIndex, instance] of instances.entries()) {
       if (instance.environmentProtection === "rejected") continue;
       const jobContext = {
         ...context,
         matrix: instance.matrix,
+        strategy: { ...(context.strategy as object), "job-index": matrixIndex },
         steps: instance.steps,
+        job: { status: instance.outcome ?? instance.result },
       };
       for (
         const [name, expression] of Object.entries(
@@ -1239,9 +1327,9 @@ async function interpretScenario(
             expression,
             jobContext,
             {
-              success: instance.result === "success",
-              failure: instance.result === "failure",
-              cancelled: instance.result === "cancelled",
+              success: (instance.outcome ?? instance.result) === "success",
+              failure: (instance.outcome ?? instance.result) === "failure",
+              cancelled: (instance.outcome ?? instance.result) === "cancelled",
             },
             `${location}[${JSON.stringify(instance.matrix)}]`,
             `outputs.${name}`,

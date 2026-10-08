@@ -38,7 +38,19 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     workingDirectory?: string;
     outputs?: O | undefined;
     if?: C | undefined;
-    continueOnError?: F | undefined;
+    continueOnError?: F | ((context: Scope<"jobs.<job_id>.steps.continue-on-error", E, OutputMap<{
+        readonly one: NS<"one", readonly ["value"]>;
+        readonly two: TR<"two", {
+            readonly who: string;
+        }, SkippableOutputs<{
+            readonly value: {
+                readonly contract: ValueContract<string, "text">;
+                readonly required: true;
+            };
+        }>>;
+    }>, E, string, never, {
+        readonly who: string;
+    }>) => F) | undefined;
     id?: Exclude<Id, "one" | "two"> | undefined;
 }>): CStep<"actions/greet/action.yml", "composite", AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, {
     readonly one: NS<"one", readonly ["value"]>;

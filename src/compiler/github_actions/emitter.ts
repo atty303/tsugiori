@@ -115,6 +115,9 @@ function emitJob(job: Job): Record<string, unknown> {
   if (job.permissions !== undefined) {
     emitted.permissions = job.permissions;
   }
+  if (job.continueOnError !== undefined) {
+    emitted["continue-on-error"] = job.continueOnError;
+  }
   if (job.timeoutMinutes !== undefined) {
     emitted["timeout-minutes"] = job.timeoutMinutes;
   }
@@ -125,6 +128,9 @@ function emitJob(job: Job): Record<string, unknown> {
       ...(job.strategy.failFast === undefined
         ? {}
         : { "fail-fast": job.strategy.failFast }),
+      ...(job.strategy.maxParallel === undefined
+        ? {}
+        : { "max-parallel": job.strategy.maxParallel }),
       matrix: job.strategy.matrix,
     };
   }

@@ -343,6 +343,9 @@ export function lowerProject(
         ...(job.permissions === undefined
           ? {}
           : { permissions: job.permissions }),
+        ...(job.continueOnError === undefined
+          ? {}
+          : { continueOnError: job.continueOnError }),
         ...(job.timeoutMinutes === undefined
           ? {}
           : { timeoutMinutes: job.timeoutMinutes }),

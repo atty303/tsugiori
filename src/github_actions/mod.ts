@@ -968,32 +968,138 @@ export type JobEnvironment = Readonly<{
    */
   deployment?: boolean | string;
 }>;
-/** Primitive values in a static matrix.
+/** A scalar or nested object in a static matrix. Objects retain readonly fields.
+ * @example
+ * ```ts
+ * const value = { version: 22, experimental: false } satisfies MatrixValue;
+ * ```
+ */
+export type MatrixValue = string | number | boolean | {
+  readonly [key: string]: MatrixValue;
+};
+/** Static GitHub matrix axes and include/exclude entries. Axis order controls
+ * combination order. include augments compatible original combinations without
+ * replacing their axis values, or appends a new row; appended rows are not
+ * augmented by later entries. exclude removes matching original combinations
+ * before include. An include-only matrix runs one job per entry.
  * @example
  * ```ts
  * const value = {
  *   os: ["ubuntu-latest", "macos-latest"],
- *   node: [20, 22],
+ *   node: [{ version: 22, experimental: false }],
+ *   exclude: [{ os: "macos-latest" }],
+ *   include: [{ os: "ubuntu-latest", report: true }],
  * } satisfies StaticMatrix;
  * ```
  */
-export type MatrixValue = string | number | boolean;
-/** Static GitHub matrix axes or include rows.
+export type StaticMatrix =
+  & Readonly<Record<string, string | readonly MatrixValue[]>>
+  & Readonly<{
+    /** Entries merged with compatible original rows or appended as new rows. See {@link StaticMatrix}. */
+    include?: readonly Readonly<Record<string, MatrixValue>>[];
+    /** Partial row matches removed before include; include may reintroduce a row. See {@link StaticMatrix}. */
+    exclude?: readonly Readonly<Record<string, MatrixValue>>[];
+  }>;
+/** A typed matrix with static or runtime axes. Whole-matrix expressions use the
+ * strategy overload whose asserted shape is the concrete row, not the axes.
+ * Use matrix.at("node") for axis names colliding with expression members.
+ * Static include/exclude retain their object entries; runtime axes are evaluated
+ * by GitHub, or from supplied scenario contexts. See {@link StaticMatrix}.
  * @example
  * ```ts
- * const value = {
- *   include: [{ os: "ubuntu-latest", node: 22 }],
- * } satisfies StaticMatrix;
+ * const matrix = { node: [{ version: 22 }] } satisfies MatrixDefinition;
  * ```
  */
-export type StaticMatrix = Readonly<
-  Record<
-    string,
-    | string
-    | readonly MatrixValue[]
-    | readonly Readonly<Record<string, MatrixValue>>[]
+export type MatrixDefinition =
+  & Readonly<
+    Record<
+      string,
+      | readonly MatrixValue[]
+      | Expression<readonly MatrixValue[]>
+      | RawExpression
+    >
   >
+  & Readonly<{
+    /** Static entries applied after exclude. See {@link StaticMatrix.include}. */
+    include?: readonly Readonly<Record<string, MatrixValue>>[];
+    /** Static partial rows removed before include. See {@link StaticMatrix.exclude}. */
+    exclude?: readonly Readonly<Record<string, MatrixValue>>[];
+  }>;
+type AxisValue<A> = A extends readonly (infer V)[] ? V
+  : A extends Expression<infer V> ? V extends readonly (infer X)[] ? X : string
+  : string;
+type AxisRow<M> = {
+  readonly [K in Exclude<keyof M, "include" | "exclude">]: AxisValue<M[K]>;
+};
+interface ExpressionStrategy<Shape extends object>
+  extends Strategy<Expression<Shape>> {}
+
+type ExpressionRow<X> = X extends Expression<infer Shape>
+  ? Shape extends object ? Shape : E
+  : E;
+type Included<M> = M extends { readonly include: readonly (infer R)[] } ? R
+  : never;
+type UnionKeys<U> = U extends unknown ? keyof U : never;
+type UnionValue<U, K extends PropertyKey> = U extends unknown
+  ? K extends keyof U ? U[K] : undefined
+  : never;
+type MergeRows<U> = [U] extends [object] ? {
+    readonly [K in UnionKeys<U>]: MergeValue<UnionValue<U, K>>;
+  }
+  : E;
+type MergeValue<V> = [NonNullable<V>] extends [object]
+  ? MergeRows<NonNullable<V>> | Extract<V, undefined>
+  : V;
+/** Conservative concrete row inferred from static axes and include entries.
+ * Include may append rows omitting axis fields or override previous added fields;
+ * missing properties remain undefined. exclude does not narrow the inferred row.
+ * @example
+ * ```ts
+ * type Row = MatrixRow<{ node: readonly [{ readonly version: 22 }] }>;
+ * ```
+ */
+export type MatrixRow<M> = MergeRows<
+  | (Exclude<keyof M, "include" | "exclude"> extends never ? never : AxisRow<M>)
+  | (Included<M> extends infer R
+    ? R extends object ? R | (R & Omit<AxisRow<M>, keyof R>) : never
+    : never)
 >;
+/** Strategy settings evaluated before matrix expansion. The authoring callback
+ * builds settings once; GitHub resolves expressions in the strategy scope.
+ * Scenarios expand up to 256 rows and interpret requested settings, without
+ * scheduling, cancellation or runner assignment.
+ * @example
+ * ```ts
+ * const settings = { matrix: { node: [20, 22] }, maxParallel: 2 } satisfies Strategy<MatrixDefinition>;
+ * ```
+ */
+export interface Strategy<M> {
+  /** Matrix axes, static include/exclude, or a whole-matrix expression. See {@link MatrixDefinition}.
+   * @example
+   * ```ts
+   * const settings = { matrix: { node: [20, 22] } } satisfies Strategy<MatrixDefinition>;
+   * ```
+   */
+  readonly matrix: M;
+  /** Cancels queued/running matrix members on a non-tolerated failure. Defaults
+   * to true; a boolean expression resolves before expansion, without matrix or
+   * secrets. Scenarios validate the setting but do not cancel members.
+   * @example
+   * ```ts
+   * const settings = { matrix: { node: [22] }, failFast: literal(false) } satisfies Strategy<MatrixDefinition>;
+   * ```
+   */
+  readonly failFast?: boolean | Expression<boolean> | RawExpression;
+  /** Requested maximum simultaneous matrix members, a positive integer or
+   * number expression in the strategy scope. Omission leaves parallelism to
+   * GitHub's runner availability. Scenarios validate values without scheduling.
+   * @example
+   * ```ts
+   * const settings = { matrix: { node: [20, 22] }, maxParallel: literal(2) } satisfies Strategy<MatrixDefinition>;
+   * ```
+   */
+  readonly maxParallel?: number | Expression<number> | RawExpression;
+}
 /** A primitive action input or a GitHub runtime expression.
  * @example
  * ```ts
@@ -1092,10 +1198,16 @@ type JobOptions = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    */
   permissions?: WorkflowPermissions;
-  /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
-   * Literal values must be integers from 1 to 360; scenarios do not measure time.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
+  /** Whether GitHub tolerates this job's failure for dependency/workflow results.
+   * Step conditions and job.status still see execution failure; defaults to false.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").continueOnError(true).run({ name: "Test", run: "deno test" });
+   * ```
    */
+  continueOnError?: boolean | string;
+  /** Maximum job runtime in whole minutes; defaults to 360. Positive integers
+   * above 360 are allowed, but GitHub enforces runner/token limits. */
   timeoutMinutes?: number | string;
   /** The deployment environment whose protection rules, approvals and secrets apply to this job. Protection rules must pass before the job is sent to a runner.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
@@ -1125,7 +1237,9 @@ type JobOptions = Readonly<{
      * Tsugiori scenarios do not simulate cancellation or scheduling.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
      */
-    failFast?: boolean;
+    failFast?: boolean | string;
+    /** Positive maximum simultaneous matrix members; runtime expression values are checked by GitHub. */
+    maxParallel?: number | string;
     /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
      */
@@ -1193,7 +1307,7 @@ export type AuthoringUsesStep = Readonly<{
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
    */
-  continueOnError?: boolean;
+  continueOnError?: boolean | string;
   /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
    * Literal values must be integers from 1 to 360; scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
@@ -1230,7 +1344,7 @@ export type AuthoringRunStep = Readonly<{
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
    */
-  continueOnError?: boolean;
+  continueOnError?: boolean | string;
   /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
    * Literal values must be integers from 1 to 360; scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
@@ -1309,7 +1423,7 @@ export type AuthoringTaskStep = Readonly<{
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
    */
-  continueOnError?: boolean;
+  continueOnError?: boolean | string;
   /** The maximum job runtime in whole minutes before cancellation. GitHub defaults to 360 minutes; runner and token limits can further constrain execution.
    * Literal values must be integers from 1 to 360; scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
@@ -2137,17 +2251,32 @@ type StepCommon<
     InputValues
   >;
   /** Allows the job to continue successfully even if this step fails. Defaults to false. The failed step retains a failure outcome but has a success conclusion.
+   * A callback constructs a boolean expression once during authoring in the step
+   * continue-on-error scope. GitHub evaluates it only when the step fails;
+   * scenarios require a boolean result. Task output references remain optional
+   * when this policy can tolerate failure.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepscontinue-on-error
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").run({
    *   name: "Build",
    *   run: "deno test",
-   *   continueOnError: true,
+   *   continueOnError: ({ github }) => github.ref.ne("refs/heads/main"),
    * });
    * ```
    */
-  continueOnError?: boolean;
+  continueOnError?: AuthoringValue<
+    boolean | Expression<boolean> | RawExpression,
+    Scope<
+      "jobs.<job_id>.steps.continue-on-error",
+      Needs,
+      OutputMap<Steps>,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >
+  >;
   /** The maximum execution time in whole minutes before GitHub cancels the step. A step has no separate timeout when omitted; the job timeout still applies.
    * Literal values must be integers from 1 to 360; expression results are checked by GitHub. Scenarios do not measure time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepstimeout-minutes
@@ -2799,8 +2928,9 @@ type SkippableOutputs<O extends OutputDefinitions> = {
 type EffectiveOutputs<
   O extends OutputDefinitions,
   C,
-  F extends boolean | undefined,
-> = [C] extends [undefined] ? true extends F ? SkippableOutputs<O> : O
+  F,
+> = [C] extends [undefined]
+  ? [F] extends [false | undefined] ? O : SkippableOutputs<O>
   : SkippableOutputs<O>;
 /** A job selects a runner and executes steps. Matrix expansion creates job variants with their own runtime matrix values.
  * Configure strategy before fields that reference its inferred matrix.
@@ -3021,83 +3151,24 @@ interface ExecBase<
     NarrowEvents<InputValues, ConditionProof<C>>,
     Proof | ConditionProof<C>
   >;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
+  /** Uses a whole-matrix expression whose concrete row shape is the caller's
+   * assertion, unless inferred from a task contract. The host callback builds
+   * the expression once; GitHub expands it later in the strategy scope. Configure
+   * strategy before fields using matrix. See {@link Strategy} for controls and
+   * scenario limits.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest")
-   *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
-   *   .runsOn(({ matrix }) => matrix.os)
-   *   .run({ name: "Test", run: "deno test" });
+   * job.runsOn("ubuntu-latest").strategy(() => ({
+   *   matrix: fromJSON(literal('{"node":[{"version":22}]}')).as<{ node: { version: number } }>(),
+   *   maxParallel: 2,
+   * }));
    * ```
    */
-  strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
-    definition: Readonly<
-      {
-        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        matrix: Readonly<{
-          /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
-           * @example In a `workflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.runsOn("ubuntu-latest")
-           *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
-           *   .runsOn(({ matrix }) => matrix.os)
-           *   .run({ name: "Test", run: "deno test" });
-           * ```
-           */
-          include: Rows;
-        }>;
-        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-         * Tsugiori scenarios do not simulate cancellation or scheduling.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        failFast?: boolean;
-      }
-    >,
-  ): ExecOf<
-    WorkflowPath,
-    JobId,
-    Needs,
-    Rows[number],
-    Vars,
-    Secrets,
-    InputValues,
-    Proof
-  >;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `workflow().job()` callback with `{ job }`.
-   * ```ts
-   * job.runsOn("ubuntu-latest")
-   *   .strategy(() => ({
-   *     matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
-   *   }))
-   *   .runsOn(({ matrix }) => matrix.os)
-   *   .run({ name: "Test", run: "deno test" });
-   * ```
-   */
-  strategy<const Shape extends object>(
-    definition: (
-      context: Scope<
+  strategy<const X extends Expression<object>>(
+    definition: AuthoringValue<
+      Strategy<X>,
+      Scope<
         "jobs.<job_id>.strategy",
         Needs,
         E,
@@ -3106,32 +3177,44 @@ interface ExecBase<
         Secrets,
         InputValues,
         Proof
-      >,
-    ) => Readonly<{
-      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest")
-       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
-       *   .runsOn(({ matrix }) => matrix.os)
-       *   .run({ name: "Test", run: "deno test" });
-       * ```
-       */
-      matrix: Expression<Shape>;
-      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-       * Tsugiori scenarios do not simulate cancellation or scheduling.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest")
-       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }))
-       *   .runsOn(({ matrix }) => matrix.os)
-       *   .run({ name: "Test", run: "deno test" });
-       * ```
-       */
-      failFast?: boolean;
-    }>,
+      >
+    >,
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    ExpressionRow<X>,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof
+  >;
+  /** Uses a whole-matrix expression with an explicitly asserted row type.
+   * This overload preserves explicit type arguments; inference uses the expression
+   * overload above. Configure strategy before fields consuming matrix. The host
+   * callback runs during authoring; GitHub expands the expression at runtime.
+   * See {@link Strategy} for control settings and validation limits.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").strategy<{ os: string }>(() => ({
+   *   matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
+   * }));
+   * ```
+   */
+  strategy<const Shape extends object>(
+    definition: AuthoringValue<
+      ExpressionStrategy<Shape>,
+      Scope<
+        "jobs.<job_id>.strategy",
+        Needs,
+        E,
+        E,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof
+      >
+    >,
   ): ExecOf<
     WorkflowPath,
     JobId,
@@ -3142,21 +3225,23 @@ interface ExecBase<
     InputValues,
     Proof
   >;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
+  /** Uses an explicit raw whole-matrix expression without inferred row fields.
+   * The caller asserts expression validity; GitHub validates its actual shape.
+   * Scenarios evaluate supported forms or require a field-specific override.
+   * Configure strategy before dependent fields; see {@link Strategy} for controls.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
-   * job.runsOn("ubuntu-latest")
-   *   .strategy(() => ({
-   *     matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')'),
-   *   }))
-   *   .run({ name: "Test", run: "deno test" });
+   * job.runsOn("ubuntu-latest").strategy(() => ({
+   *   matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')'),
+   *   failFast: false,
+   * }));
    * ```
    */
   strategy(
-    definition: (
-      context: Scope<
+    definition: AuthoringValue<
+      Strategy<RawExpression>,
+      Scope<
         "jobs.<job_id>.strategy",
         Needs,
         E,
@@ -3165,136 +3250,81 @@ interface ExecBase<
         Secrets,
         InputValues,
         Proof
-      >,
-    ) => Readonly<{
-      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest")
-       *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
-       *   .run({ name: "Test", run: "deno test" });
-       * ```
-       */
-      matrix: RawExpression;
-      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-       * Tsugiori scenarios do not simulate cancellation or scheduling.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.runsOn("ubuntu-latest")
-       *   .strategy(() => ({ matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')') }))
-       *   .run({ name: "Test", run: "deno test" });
-       * ```
-       */
-      failFast?: boolean;
-    }>,
+      >
+    >,
+  ): ExecOf<WorkflowPath, JobId, Needs, E, Vars, Secrets, InputValues, Proof>;
+  /** Defines native matrix combinations and control settings before fields
+   * consuming matrix. Static rows are inferred conservatively, including missing
+   * include fields; object axes expose nested references. See {@link Strategy}
+   * and {@link StaticMatrix} for expansion and validation boundaries.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").strategy({
+   *   matrix: { node: [{ version: 22 }], os: ["ubuntu-latest"] },
+   *   maxParallel: 2,
+   *   failFast: false,
+   * });
+   * ```
+   */
+  strategy<const M extends MatrixDefinition>(
+    definition: AuthoringValue<
+      Strategy<M>,
+      Scope<
+        "jobs.<job_id>.strategy",
+        Needs,
+        E,
+        E,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof
+      >
+    >,
   ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
-    E,
+    MatrixRow<M>,
     Vars,
     Secrets,
     InputValues,
     Proof
   >;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
+  /** Tolerates this job's failure in dependency/workflow results, without changing
+   * failed step conclusions, job.status or the default success gate for later
+   * steps. Configure after strategy to use its matrix. Defaults to false.
+   * The callback runs once during authoring in the job continue-on-error scope;
+   * GitHub evaluates its boolean result per matrix member. Scenarios retain the
+   * execution outcome separately from the effective result; they do not cancel.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idcontinue-on-error
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest")
-   *   .strategy({
-   *     matrix: { os: ["ubuntu-latest", "macos-latest"] },
-   *     failFast: false,
-   *   })
-   *   .runsOn(({ matrix }) => matrix.os)
+   *   .strategy({ matrix: { node: [{ version: 22, experimental: false }] } })
+   *   .continueOnError(({ matrix }) => matrix.at("node").experimental)
    *   .run({ name: "Test", run: "deno test" });
    * ```
    */
-  strategy<
-    const Axes extends Readonly<
-      Record<
-        string,
-        | readonly MatrixValue[]
-        | Expression<readonly MatrixValue[]>
-        | RawExpression
+  continueOnError(
+    value: AuthoringValue<
+      boolean | Expression<boolean> | RawExpression,
+      Scope<
+        "jobs.<job_id>.continue-on-error",
+        Needs,
+        E,
+        Matrix,
+        Vars,
+        Secrets,
+        InputValues,
+        Proof
       >
     >,
-  >(
-    definition:
-      | Readonly<{
-        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        matrix: Axes;
-        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-         * Tsugiori scenarios do not simulate cancellation or scheduling.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        failFast?: boolean;
-      }>
-      | ((
-        context: Scope<
-          "jobs.<job_id>.strategy",
-          Needs,
-          E,
-          E,
-          Vars,
-          Secrets,
-          InputValues,
-          Proof
-        >,
-      ) => Readonly<{
-        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        matrix: Axes;
-        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-         * Tsugiori scenarios do not simulate cancellation or scheduling.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.runsOn("ubuntu-latest")
-         *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false })
-         *   .runsOn(({ matrix }) => matrix.os)
-         *   .run({ name: "Test", run: "deno test" });
-         * ```
-         */
-        failFast?: boolean;
-      }>),
   ): ExecOf<
     WorkflowPath,
     JobId,
     Needs,
-    {
-      readonly [K in keyof Axes]: Axes[K] extends readonly (infer V)[] ? V
-        : Axes[K] extends Expression<infer Values>
-          ? Values extends readonly (infer V)[] ? V : string
-        : string;
-    },
+    Matrix,
     Vars,
     Secrets,
     InputValues,
@@ -3395,7 +3425,7 @@ interface ExecBase<
     Proof
   >;
   /** Sets the maximum job execution time in whole minutes before GitHub cancels it. The default is 360 minutes; runner limits and token lifetime can impose additional limits.
-   * Literal values retain a 1–360 integer limit; expression values pass through. Scenarios do not measure time.
+   * Literal job values must be positive integers; expression values pass through. Explicit scenario expectSettings() timeout expectations validate requested values without measuring time.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idtimeout-minutes
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -3666,7 +3696,8 @@ interface ExecBase<
           InputValues
         >
         | undefined,
-    const F extends boolean | undefined = undefined,
+    const F extends boolean | Expression<boolean> | RawExpression | undefined =
+      undefined,
     K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
       I,
       Proof | ConditionProof<C>
@@ -3695,7 +3726,19 @@ interface ExecBase<
         if?: C;
         /** Allows a failed step to have a successful conclusion. Task output references become optional because execution may fail before writing them.
          */
-        continueOnError?: F;
+        continueOnError?:
+          | F
+          | ((
+            context: Scope<
+              "jobs.<job_id>.steps.continue-on-error",
+              Needs,
+              OutputMap<E>,
+              Matrix,
+              Vars,
+              Secrets,
+              InputValues
+            >,
+          ) => F);
       }>,
   ): StepOf<
     WorkflowPath,
@@ -4031,7 +4074,8 @@ interface CStepBase<
           InputValues
         >
         | undefined,
-    const F extends boolean | undefined = undefined,
+    const F extends boolean | Expression<boolean> | RawExpression | undefined =
+      undefined,
     K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
       I,
       Proof | ConditionProof<C>
@@ -4070,7 +4114,19 @@ interface CStepBase<
 
           /** Allows a failed step to have a successful conclusion. Task output references become optional because execution may fail before writing them.
            */
-          continueOnError?: F;
+          continueOnError?:
+            | F
+            | ((
+              context: Scope<
+                "jobs.<job_id>.steps.continue-on-error",
+                Needs,
+                OutputMap<Steps>,
+                Matrix,
+                Vars,
+                Secrets,
+                InputValues
+              >,
+            ) => F);
 
           /** Unique step ID exposing declared outputs to later steps. It is also the task runtime entrypoint suffix. IDs are distinct from display names.
            */
@@ -4764,7 +4820,8 @@ interface StepBase<
           InputValues
         >
         | undefined,
-    const F extends boolean | undefined = undefined,
+    const F extends boolean | Expression<boolean> | RawExpression | undefined =
+      undefined,
     K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
       I,
       Proof | ConditionProof<C>
@@ -4812,7 +4869,19 @@ interface StepBase<
            * });
            * ```
            */
-          continueOnError?: F;
+          continueOnError?:
+            | F
+            | ((
+              context: Scope<
+                "jobs.<job_id>.steps.continue-on-error",
+                Needs,
+                OutputMap<Steps>,
+                Matrix,
+                Vars,
+                Secrets,
+                InputValues
+              >,
+            ) => F);
           /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is also the task runtime entrypoint suffix and is separate from the display name.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
            * @example In a `workflow().job()` callback with `{ job }`.
@@ -4928,194 +4997,83 @@ interface CallJobBase<
   >(
     value: C,
   ): CallJobOf<P, J, N, M, V, S, NarrowEvents<InputValues, ConditionProof<C>>>;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
+  /** Uses a whole-matrix expression whose concrete row shape is the caller's
+   * assertion, unless inferred from a task contract. The host callback builds
+   * the expression once; GitHub expands it later in the strategy scope. Configure
+   * strategy before fields using matrix. See {@link Strategy} for controls and
+   * scenario limits.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
-   * job.reusable()
-   *   .strategy(() => ({
-   *     matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
-   *   }));
+   * job.reusable().strategy(() => ({
+   *   matrix: fromJSON(literal('{"node":[{"version":22}]}')).as<{ node: { version: number } }>(),
+   *   maxParallel: 2,
+   * }));
+   * ```
+   */
+  strategy<const X extends Expression<object>>(
+    definition: AuthoringValue<
+      Strategy<X>,
+      Scope<"jobs.<job_id>.strategy", N, E, E, V, S, InputValues>
+    >,
+  ): CallJobOf<P, J, N, ExpressionRow<X>, V, S, InputValues>;
+  /** Uses a whole-matrix expression with an explicitly asserted row type.
+   * This overload preserves explicit type arguments; inference uses the expression
+   * overload above. Configure strategy before fields consuming matrix. The host
+   * callback runs during authoring; GitHub expands the expression at runtime.
+   * See {@link Strategy} for control settings and validation limits.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.reusable().strategy<{ os: string }>(() => ({
+   *   matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>(),
+   * }));
    * ```
    */
   strategy<const Shape extends object>(
-    value: (
-      context: Scope<
-        "jobs.<job_id>.strategy",
-        N,
-        E,
-        E,
-        V,
-        S,
-        InputValues
-      >,
-    ) => Readonly<{
-      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
-       * ```
-       */
-      matrix: Expression<Shape>;
-      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-       * Tsugiori scenarios do not simulate cancellation or scheduling.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy(() => ({ matrix: fromJSON(literal('{"os":["ubuntu-latest"]}')).as<{ os: string }>() }));
-       * ```
-       */
-      failFast?: boolean;
-    }>,
+    definition: AuthoringValue<
+      ExpressionStrategy<Shape>,
+      Scope<"jobs.<job_id>.strategy", N, E, E, V, S, InputValues>
+    >,
   ): CallJobOf<P, J, N, Shape, V, S, InputValues>;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
+  /** Uses an explicit raw whole-matrix expression without inferred row fields.
+   * The caller asserts expression validity; GitHub validates its actual shape.
+   * Scenarios evaluate supported forms or require a field-specific override.
+   * Configure strategy before dependent fields; see {@link Strategy} for controls.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
-   * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
+   * job.reusable().strategy(() => ({
+   *   matrix: rawExpression('fromJSON(\'{"os":["ubuntu-latest"]}\')'),
+   *   failFast: false,
+   * }));
    * ```
    */
-  strategy<
-    const Axes extends Readonly<
-      Record<
-        string,
-        readonly string[] | Expression<readonly string[]> | RawExpression
-      >
+  strategy(
+    definition: AuthoringValue<
+      Strategy<RawExpression>,
+      Scope<"jobs.<job_id>.strategy", N, E, E, V, S, InputValues>
     >,
-  >(
-    value: (
-      context: Scope<
-        "jobs.<job_id>.strategy",
-        N,
-        E,
-        E,
-        V,
-        S,
-        InputValues
-      >,
-    ) => Readonly<{
-      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
-       * ```
-       */
-      matrix: Axes;
-      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-       * Tsugiori scenarios do not simulate cancellation or scheduling.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
-       * ```
-       */
-      failFast?: boolean;
-    }>,
-  ): CallJobOf<
-    P,
-    J,
-    N,
-    {
-      readonly [K in keyof Axes]: Axes[K] extends readonly (infer X)[] ? X
-        : Axes[K] extends Expression<infer A>
-          ? A extends readonly (infer X)[] ? X : string
-        : string;
-    },
-    V,
-    S,
-    InputValues
-  >;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
+  ): CallJobOf<P, J, N, E, V, S, InputValues>;
+  /** Defines native matrix combinations and control settings before fields
+   * consuming matrix. Static rows are inferred conservatively, including missing
+   * include fields; object axes expose nested references. See {@link Strategy}
+   * and {@link StaticMatrix} for expansion and validation boundaries.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
-   * job.reusable()
-   *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
+   * job.reusable().strategy({
+   *   matrix: { node: [{ version: 22 }], os: ["ubuntu-latest"] },
+   *   maxParallel: 2,
+   *   failFast: false,
+   * });
    * ```
    */
-  strategy<const Rows extends readonly Readonly<Record<string, MatrixValue>>[]>(
-    value: Readonly<
-      {
-        /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.reusable()
-         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
-         * ```
-         */
-        matrix: Readonly<{
-          /** Objects added to the matrix. With no other axes, each object defines one complete job combination; fields become matrix.<field> runtime values.
-           * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrixinclude
-           * @example In a `workflow().job()` callback with `{ job }`.
-           * ```ts
-           * job.reusable()
-           *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
-           * ```
-           */
-          include: Rows;
-        }>;
-        /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-         * Tsugiori scenarios do not simulate cancellation or scheduling.
-         * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-         * @example In a `workflow().job()` callback with `{ job }`.
-         * ```ts
-         * job.reusable()
-         *   .strategy({ matrix: { include: [{ os: "ubuntu-latest", version: 22 }] } });
-         * ```
-         */
-        failFast?: boolean;
-      }
+  strategy<const M extends MatrixDefinition>(
+    definition: AuthoringValue<
+      Strategy<M>,
+      Scope<"jobs.<job_id>.strategy", N, E, E, V, S, InputValues>
     >,
-  ): CallJobOf<P, J, N, Rows[number], V, S, InputValues>;
-  /** Creates job variants from combinations of matrix values, available as matrix.<key>. An include-only matrix creates one job per object. failFast defaults to true and cancels remaining members on failure; GitHub allows at most 256 jobs.
-   * Tsugiori supports static axes/include and expression matrices; scenarios do not simulate scheduling or fail-fast cancellation.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
-   * @example In a `workflow().job()` callback with `{ job }`.
-   * ```ts
-   * job.reusable().strategy({ matrix: { stage: ["dev", "prd"] } });
-   * ```
-   */
-  strategy<const Axes extends Readonly<Record<string, readonly string[]>>>(
-    value: Readonly<{
-      /** Creates a job for each combination of axis values. include can add values to compatible combinations or add new combinations; an include-only matrix runs one job per object. GitHub allows at most 256 jobs per matrix.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategymatrix
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
-       * ```
-       */
-      matrix: Axes;
-      /** Whether failure of a matrix member cancels the other queued or running members. Defaults to true. This applies to the whole matrix.
-       * Tsugiori scenarios do not simulate cancellation or scheduling.
-       * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategyfail-fast
-       * @example In a `workflow().job()` callback with `{ job }`.
-       * ```ts
-       * job.reusable()
-       *   .strategy({ matrix: { os: ["ubuntu-latest", "macos-latest"] }, failFast: false });
-       * ```
-       */
-      failFast?: boolean;
-    }>,
-  ): CallJobOf<
-    P,
-    J,
-    N,
-    { readonly [K in keyof Axes]: Axes[K][number] },
-    V,
-    S,
-    InputValues
-  >;
+  ): CallJobOf<P, J, N, MatrixRow<M>, V, S, InputValues>;
   /** Sets the job display name shown in the run UI. Expressions can distinguish matrix members; omission uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -6909,9 +6867,16 @@ function renderStrategy(value: unknown): NonNullable<JobOptions["strategy"]> {
     matrix: typeof matrix === "string"
       ? matrix
       : copyNative(matrix as StaticMatrix),
-    ...(definition.failFast === undefined
-      ? {}
-      : { failFast: definition.failFast }),
+    ...(definition.failFast === undefined ? {} : {
+      failFast: typeof definition.failFast === "boolean"
+        ? definition.failFast
+        : renderAuthoringScalar(definition.failFast),
+    }),
+    ...(definition.maxParallel === undefined ? {} : {
+      maxParallel: typeof definition.maxParallel === "number"
+        ? definition.maxParallel
+        : renderAuthoringScalar(definition.maxParallel),
+    }),
   });
 }
 function createExecutionJobFacade(
@@ -6994,6 +6959,16 @@ function createExecutionJobFacade(
           options: { ...draft.options, permissions: copyPermissions(value) },
         }),
       ),
+    continueOnError: (value: unknown) =>
+      createExecutionJobFacade({
+        ...draft,
+        options: {
+          ...draft.options,
+          continueOnError: typeof value === "boolean"
+            ? value
+            : evaluateField("jobs.<job_id>.continue-on-error", value),
+        },
+      }),
     timeoutMinutes: (value: number | ExpressionInput) =>
       createExecutionJobFacade(
         Object.freeze({
@@ -7130,7 +7105,8 @@ function createExecutionJobFacade(
             {
               contract: output.contract,
               required: output.required && definition.if === undefined &&
-                definition.continueOnError !== true,
+                  definition.continueOnError === undefined ||
+                definition.continueOnError === false,
             },
           ]),
         ),
@@ -7233,13 +7209,13 @@ function stepFields(
   definition: {
     if?: unknown;
     env?: unknown;
-    continueOnError?: boolean;
+    continueOnError?: unknown;
     timeoutMinutes?: unknown;
   },
 ): {
   if?: string;
   env?: EnvironmentVariables;
-  continueOnError?: boolean;
+  continueOnError?: boolean | string;
   timeoutMinutes?: number | string;
 } {
   return {
@@ -7257,9 +7233,14 @@ function stepFields(
     ...(definition.env === undefined
       ? {}
       : { env: evaluateEnv(definition.env) }),
-    ...(definition.continueOnError === undefined
-      ? {}
-      : { continueOnError: definition.continueOnError }),
+    ...(definition.continueOnError === undefined ? {} : {
+      continueOnError: typeof definition.continueOnError === "boolean"
+        ? definition.continueOnError
+        : evaluateField(
+          "jobs.<job_id>.steps.continue-on-error",
+          definition.continueOnError,
+        ),
+    }),
   };
 }
 function usesStep(

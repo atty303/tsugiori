@@ -27,9 +27,6 @@ The frozen [coverage inventory](../src/github_actions/github_spec.json) records
 activity guards and fixture-based filtering are implemented and verified; the
 next feature groups are:
 
-- Complete static matrix combinations/exclude, max-parallel, job
-  continue-on-error and remaining integer limits. Whole-matrix expressions
-  already represent combinations/exclude and are classified as alternatives.
 - Add container/services contracts, snapshot/cache-mode and the native
   background/parallel step family where applicable to the frozen GitHub.com
   basis.

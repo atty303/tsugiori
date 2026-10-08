@@ -799,7 +799,6 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "Existing job timeout validation remains narrower than the source (1\u2013360 vs runner-dependent job limits); this is a Tsugiori limitation, not a GitHub guarantee.",
     "No new GitHub-only fields such as cache-mode, snapshot, background/wait/parallel, services command or entrypoint were implemented. They are inventoried as unsupported."
   ],
   "coverage": [
@@ -1652,13 +1651,17 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].continue-on-error",
-      "status": "limited",
-      "notes": "Boolean only; expression form is unsupported.",
+      "status": "implemented",
+      "notes": "Boolean or scoped boolean expression. Scenarios preserve outcome and evaluate tolerance before setting conclusion.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepscontinue-on-error",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1730,95 +1733,129 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.timeout-minutes",
-      "status": "limited",
-      "notes": "Tsugiori retains its 1\u2013360 integer validation limit, narrower than GitHub job time limits; expressions are passed through. Scenario does not enforce elapsed time.",
+      "status": "implemented",
+      "notes": "Positive integer or scoped number expression. Runner/token limits remain GitHub-owned; explicit scenario timeout expectations validate the request without measuring time.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idtimeout-minutes",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy",
-      "status": "limited",
-      "notes": "Static scalar axes/include or expression matrices; fail-fast boolean only. No max-parallel or scheduling simulation.",
+      "status": "implemented",
+      "notes": "Static scalar/object axes and include/exclude or expression matrices. Local expansion enforces 256 members. Strategy controls allow scoped expressions; scheduling and cancellation remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategy",
       "assessment": [
-        "implementation-gap",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy.matrix",
-      "status": "limited",
-      "notes": "Static scalar axes and object include; dynamic shape is caller asserted unless derived from a task contract. Scenarios do not enforce GitHub scheduling or matrix job-count limits.",
+      "status": "implemented",
+      "notes": "Static scalar/object axes and include/exclude or expression matrices. Local expansion enforces 256 members. Strategy controls allow scoped expressions; scheduling and cancellation remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategymatrix",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy.matrix.include",
-      "status": "limited",
-      "notes": "Typed include-only object rows; combinations/exclude can use dynamic matrix expressions. Scenario implements include expansion.",
+      "status": "implemented",
+      "notes": "Include-only or combined axes/include. Compatible original rows are augmented, incompatible rows appended; missing/nested properties retain conservative types.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategymatrixinclude",
       "assessment": [
-        "alternative",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy.matrix.exclude",
-      "status": "limited",
-      "notes": "No direct public exclude authoring; supported through a whole matrix expression in scenario.",
+      "status": "implemented",
+      "notes": "Static partial-row exclusions before include. Available with axes and whole-matrix expressions; exclude does not narrow inferred rows.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategymatrixexclude",
       "assessment": [
-        "alternative",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy.fail-fast",
-      "status": "limited",
-      "notes": "Emitted boolean; scenario does not emulate parallel cancellation.",
+      "status": "implemented",
+      "notes": "Boolean or scoped boolean expression; scenarios interpret the setting without cancellation.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategyfail-fast",
       "assessment": [
-        "supported",
-        "github-runtime"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.strategy.max-parallel",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Positive integer or scoped number expression. Scenarios validate the request without assigning runners or scheduling parallel members.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstrategymax-parallel",
       "assessment": [
-        "implementation-gap"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.continue-on-error",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Boolean or scoped boolean expression per execution job instance. Scenarios retain execution outcome and failed step status while dependencies/workflow aggregation use the effective result. Not available on reusable caller jobs.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcontinue-on-error",
       "assessment": [
-        "implementation-gap"
+        "supported"
+      ],
+      "evidence": [
+        "tests/matrix_test.ts",
+        "tests/matrix_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {

@@ -1,3 +1,4 @@
+import { MatrixError, matrixRows } from "../../github_actions/matrix.ts";
 import { permissionLevels } from "../../github_actions/permissions.ts";
 import { validateTriggers } from "./triggers.ts";
 import type { Job, RunnerSelection, Workflow } from "./ast.ts";
@@ -36,6 +37,7 @@ export type DiagnosticCode =
   | "job.permissions.key.unsupported"
   | "job.permissions.value.invalid"
   | "job.timeout.invalid"
+  | "job.continue-on-error.invalid"
   | "job.environment.empty"
   | "job.environment.invalid"
   | "workflow.defaults.invalid"
@@ -166,14 +168,24 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       );
     }
     if (
+      job.continueOnError !== undefined && !validBoolean(job.continueOnError)
+    ) {
+      diagnostics.push(
+        diagnostic("job.continue-on-error.invalid", [
+          ...jobPath,
+          "continueOnError",
+        ], "Job continue-on-error must be a boolean or expression."),
+      );
+    }
+    if (
       job.timeoutMinutes !== undefined &&
-      !validTimeout(job.timeoutMinutes)
+      !validTimeout(job.timeoutMinutes, false)
     ) {
       diagnostics.push(
         diagnostic(
           "job.timeout.invalid",
           [...jobPath, "timeoutMinutes"],
-          "Job timeout must be an integer from 1 to 360 minutes.",
+          "Job timeout must be a positive integer or an expression.",
         ),
       );
     }
@@ -304,12 +316,12 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
       }
       if (
         step.continueOnError !== undefined &&
-        typeof step.continueOnError !== "boolean"
+        !validBoolean(step.continueOnError)
       ) {
         diagnostics.push(diagnostic(
           "step.continue-on-error.invalid",
           [...stepPath, "continueOnError"],
-          "Step continue-on-error must be a boolean when provided.",
+          "Step continue-on-error must be a boolean or expression.",
         ));
       }
       if (step.type === "uses" && isBlank(step.uses)) {
@@ -489,27 +501,29 @@ function validateStrategy(
   if (value === undefined) return;
   if (
     !isPlainRecord(value) ||
-    (value.failFast !== undefined && typeof value.failFast !== "boolean") ||
-    !(typeof value.matrix === "string" && !isBlank(value.matrix)) &&
-      !isPlainRecord(value.matrix) ||
-    typeof value.matrix !== "string" && isPlainRecord(value.matrix) &&
-      Object.entries(value.matrix).some(([key, entry]) =>
-        isBlank(key) || !(typeof entry === "string" && !isBlank(entry) ||
-          Array.isArray(entry) && entry.length > 0 &&
-            entry.every((item) =>
-              (key === "include" || key === "exclude")
-                ? isPlainRecord(item) &&
-                  Object.values(item).every(isActionInput)
-                : isActionInput(item)
-            ))
-      )
+    value.failFast !== undefined && !validBoolean(value.failFast) ||
+    value.maxParallel !== undefined && !validTimeout(value.maxParallel, false)
   ) {
     diagnostics.push(
       diagnostic(
         "job.strategy.invalid",
         path,
-        "Strategy matrix requires nonempty axes with expression or string-list values.",
+        "Strategy controls require a boolean fail-fast and positive integer max-parallel, or expressions.",
       ),
+    );
+    return;
+  }
+  if (isExpression(value.matrix)) return;
+  try {
+    matrixRows(value.matrix, true);
+  } catch (error) {
+    if (!(error instanceof MatrixError)) throw error;
+    diagnostics.push(
+      diagnostic("job.strategy.invalid", [
+        ...path,
+        "matrix",
+        ...(error.field ? [error.field] : []),
+      ], error.message),
     );
   }
 }
@@ -745,15 +759,20 @@ function runnerLabelKey(label: string): string {
   return label.toLowerCase();
 }
 
-function validTimeout(value: number | string): boolean {
-  return typeof value === "string"
-    ? /^\$\{\{.+\}\}$/s.test(value)
-    : Number.isInteger(value) && value >= 1 && value <= 360;
+function validBoolean(value: unknown): boolean {
+  return typeof value === "boolean" || isExpression(value);
 }
+function validTimeout(value: unknown, step = true): boolean {
+  return isExpression(value) ||
+    typeof value === "number" && Number.isInteger(value) && value >= 1 &&
+      (!step || value <= 360);
+}
+
 function validCallJob(job: Job): boolean {
   return job.runsOn === undefined && job.steps.length === 0 &&
     job.env === undefined && job.defaults === undefined &&
     job.environment === undefined && job.timeoutMinutes === undefined &&
+    job.continueOnError === undefined &&
     job.outputs === undefined && typeof job.uses === "string" &&
     (/^\.\/\.github\/workflows\/[^/]+\.ya?ml$/.test(job.uses) ||
       /^[^/]+\/[^/]+\/\.github\/workflows\/[^/]+\.ya?ml@[^\s]+$/.test(

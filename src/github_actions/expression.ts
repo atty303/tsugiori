@@ -389,7 +389,7 @@ export type Ref<T, Path extends string = string> =
       at<K extends keyof NonNullable<T>>(
         key: K,
       ): AsReference<
-        NonNullable<T>[K],
+        NonNullable<T>[K] | Extract<T, undefined>,
         K extends number ? `${Path}[${K}]` : `${Path}.${K & string}`
       >;
     }
@@ -408,7 +408,7 @@ export type Ref<T, Path extends string = string> =
             K in keyof NonNullable<T> as K extends keyof Expression<T> ? never
               : K
           ]-?: AsReference<
-            NonNullable<T>[K],
+            NonNullable<T>[K] | Extract<T, undefined>,
             `${Path}.${K & string}`
           >;
         }

@@ -197,7 +197,13 @@ function equal(left: unknown, right: unknown): boolean {
 function pathValue(parts: readonly string[], context: Context): unknown {
   function visit(current: unknown, index: number): unknown {
     if (index === parts.length) return current;
-    const part = parts[index];
+    const requested = parts[index];
+    const part = parts[0] === "matrix" && index > 0 && current !== null &&
+        typeof current === "object"
+      ? Object.keys(current).find((key) =>
+        key.toLowerCase() === requested.toLowerCase()
+      ) ?? requested
+      : requested;
     if (part === "*") {
       const values = Array.isArray(current)
         ? current
@@ -209,7 +215,7 @@ function pathValue(parts: readonly string[], context: Context): unknown {
     if (current === null || typeof current !== "object" || !(part in current)) {
       if (
         parts[0] === "steps" || parts[0] === "needs" || parts[0] === "jobs" ||
-        parts[0] === "inputs" && index > 0
+        (parts[0] === "inputs" || parts[0] === "matrix") && index > 0
       ) return "";
       throw new MissingContextError(parts.slice(0, index + 1).join("."));
     }

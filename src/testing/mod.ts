@@ -200,6 +200,17 @@ export type JobSettings = Readonly<{
     }>;
   /** Requested concurrency policy. */
   concurrency?: ResolvedConcurrency;
+  /** Explicit strategy controls resolved before expansion; no scheduling or cancellation is simulated. */
+  strategy?: Readonly<{
+    /** Explicit fail-fast value. */
+    failFast?: boolean;
+    /** Explicit positive maximum parallel member count. */
+    maxParallel?: number;
+  }>;
+  /** Per-instance failure tolerance; steps retain their actual conclusions. */
+  continueOnError?: boolean;
+  /** Explicit job timeout in minutes; no elapsed time is simulated. */
+  timeoutMinutes?: number;
 }>;
 /** Aggregate protection decision supplied by a fixture. passed means all rules passed, not one review approval. pending and rule calculation are outside the scenario contract. */
 export type EnvironmentProtection = "passed" | "rejected";
@@ -236,6 +247,8 @@ export type JobInstanceResult = Readonly<{
   /** Aggregate interpreted result; not a live GitHub execution observation.
    */
   result: Result;
+  /** Execution result before job failure tolerance, retained when continueOnError is explicitly set. result is the effective dependency/workflow result; this outcome does not change step conclusions or job.status. */
+  outcome?: Result;
   /** Observed named steps or retained per-step rules for this instance.
    */
   steps: Readonly<Record<string, StepResult>>;

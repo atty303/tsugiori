@@ -221,33 +221,41 @@ include every configured payload file. The checked-in
 The testing API lowers a workflow with the same compiler path used for YAML
 generation and interprets the validated GitHub Actions workflow AST. Its
 scenario builder preserves the workflow's job IDs, step IDs, task contracts, and
-matrix types for editor completion. A scenario provides referenced external
-contexts and fixtures for reached authored steps. Local calls recursively
-interpret callee workflows with separate inputs, secrets and env; external calls
-use explicit fixtures. The caller github context stays unchanged. Call results
-and workflow outputs retain their native boundaries. The interpreter builds
-`steps`, `needs`, and `matrix` contexts, evaluates supported expressions,
-serializes typed task outputs to GitHub wire values, and checks independent
-expectations against the resulting state. Generated task preparation steps
-default to success and support an explicit outcome override.
+matrix types for editor completion. Static matrix rows conservatively retain
+include-added fields and missing properties, including nested object axes.
+Property names conflicting with expression members use at(), such as
+matrix.at("node").version. A scenario provides referenced external contexts and
+fixtures for reached authored steps. Local calls recursively interpret callee
+workflows with separate inputs, secrets and env; external calls use explicit
+fixtures. The caller github context stays unchanged. Call results and workflow
+outputs retain their native boundaries. The interpreter builds `steps`, `needs`,
+and `matrix` contexts, evaluates supported expressions, serializes typed task
+outputs to GitHub wire values, and checks independent expectations against the
+resulting state. Generated task preparation steps default to success and support
+an explicit outcome override.
 
 The interpreter checks trigger filters, conditions, step order, matrix
 expansion, job dependencies, status and `continue-on-error`, and value
-propagation. It does not call authored step or task bodies. It does not model
-runner behavior, effective permissions, protection-rule decisions, timeouts,
-concurrency effects, or actual parallel execution. Explicit expectSettings(),
-expectConcurrency() and expectRunSettings() calls enable interpretation of
-runner requests, concurrency expressions and effective run settings from
-explicit workflow/job/step values; platform shell defaults and filesystem
-existence are not inferred. Environment name resolves before steps and URL after
-steps. An optional per-instance environment protection fixture supplies the
-aggregate passed/rejected result. Rejection runs no steps, produces job failure
-and omits step-derived job outputs; failure flows through dependencies and local
-reusable calls. Omission retains ungated interpretation and does not prove
-actual approval. Pending, reviewer eligibility, timers and protection-rule
-calculation are not modeled. Evaluated unknown expression forms and
-`hashFiles()` need a field-specific scenario value; unsupported forms never
-silently succeed.
+propagation. Compiler validation and scenarios share native include/exclude
+expansion and the 256-member limit. Strategy controls and per-instance failure
+tolerance resolve without scheduling; job execution outcomes and step
+conclusions remain separate from the effective dependency/workflow result.
+Positive integer job timeouts retain runner-owned execution limits, while step
+timeouts cannot exceed 360 minutes. It does not call authored step or task
+bodies. It does not model runner behavior, effective permissions,
+protection-rule decisions, timeouts, concurrency effects, or actual parallel
+execution. Explicit expectSettings(), expectConcurrency() and
+expectRunSettings() calls enable interpretation of runner requests, concurrency
+expressions and effective run settings from explicit workflow/job/step values;
+platform shell defaults and filesystem existence are not inferred. Environment
+name resolves before steps and URL after steps. An optional per-instance
+environment protection fixture supplies the aggregate passed/rejected result.
+Rejection runs no steps, produces job failure and omits step-derived job
+outputs; failure flows through dependencies and local reusable calls. Omission
+retains ungated interpretation and does not prove actual approval. Pending,
+reviewer eligibility, timers and protection-rule calculation are not modeled.
+Evaluated unknown expression forms and `hashFiles()` need a field-specific
+scenario value; unsupported forms never silently succeed.
 
 ### Trigger and payload contracts
 

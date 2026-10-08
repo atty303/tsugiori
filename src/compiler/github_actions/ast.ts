@@ -21,6 +21,7 @@ export type Concurrency = Readonly<
 export type JobOptions = Readonly<{
   if?: string;
   permissions?: WorkflowPermissions;
+  continueOnError?: boolean | string;
   timeoutMinutes?: number | string;
   environment?: string | JobEnvironment;
   name?: string;
@@ -28,7 +29,8 @@ export type JobOptions = Readonly<{
   defaults?: RunDefaults;
   outputs?: Readonly<Record<string, string>>;
   strategy?: Readonly<{
-    failFast?: boolean;
+    failFast?: boolean | string;
+    maxParallel?: number | string;
     matrix: string | StaticMatrix;
   }>;
   concurrency?: Concurrency;
@@ -41,7 +43,7 @@ export type ActionInputs = Readonly<Record<string, ActionInput>>;
 export type StepMetadata = Readonly<{
   id?: string;
   if?: string;
-  continueOnError?: boolean;
+  continueOnError?: boolean | string;
   timeoutMinutes?: number | string;
   env?: EnvironmentVariables;
 }>;
