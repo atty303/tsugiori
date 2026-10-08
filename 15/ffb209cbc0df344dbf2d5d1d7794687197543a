@@ -1,0 +1,100 @@
+Task: GitHub Actions container/services support
+Anchor: 15ffb209cbc0df344dbf2d5d1d7794687197543a
+Base: 5f623438924235c0b2339a1b40b6d3faa2df416e
+Branch: main (current checkout)
+Commits: 15ffb209cbc0df344dbf2d5d1d7794687197543a implements U10, with minor impact authorized by U11
+Guidance: user implementation request; AGENTS.md; develop-repository; design-program-observability; design-review; dig; investigate-problem; review; git-task-evidence and data-handling
+Conditions: repository-managed mise/Deno toolchain; frozen Actions revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 verifiedOn 2026-10-02 unchanged; runner reference 67f01c276e0a91d967ba499ce4cdc9a95efa0262; local Git metadata/cache escalation; no push, release, deployment, PR or Docker execution
+Authority: user agreed implementation scope and minor release approval; current AGENTS.md, source and fixed specification; supplementary immutable runner implementation
+## Transcript
+- U1: $dig 次のgithub spec対応は？
+  - A: Applied dig and checked current source, roadmap and frozen specification; recommended container/services and asked Q1 scope.
+- U2: A
+  - A: Accepted container/services; asked Q2 whether settings, typed contexts and scenario fixtures belong in the same implementation.
+- U3: A
+  - A: Accepted integrated scenario support; asked Q3 map-based services API versus sequential service declarations.
+- U4: A
+  - A: Accepted container(image/object) and services(map); asked Q4 whether to expand task/container runtime compatibility.
+- U5: A
+  - A: Kept existing task runtime requirements with no blanket prohibition; asked Q5 whether initialization failure belongs in scope.
+- U6: 起動失敗はrunnerで実際にありえる状態か？
+  - A: Checked runner primary implementation, corrected the blanket step-skip assumption, and asked Q6 about failure/always and dependent result propagation.
+- U7: A
+  - A: Accepted aggregate initialization failure support; asked Q7 about requiring only reached per-matrix runtime fixture values.
+- U8: A
+  - A: Accepted lazy fixture requirements with no fabricated values; asked Q8 to confirm the agreed closed implementation scope.
+- U9: A
+  - A: Produced the complete implementation request with decisions, constraints, acceptance criteria and remaining source checks.
+- U10:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori の現在の checkout で、GitHub Actions の container/services 対応を実装してください。型付き DSL、検証、標準 YAML 生成、関連 context、scenario、公開 JSDoc と検証を一貫して整備してください。
+    
+    ## 目的
+    - job container と service containers を GitHub 標準の構造で宣言できるようにする。
+    - 宣言した service の実行時値を型付きで参照し、設定と初期化失敗後の workflow の振る舞いをローカルで検証できるようにする。
+    
+    ## 成功条件
+    - `.container(image または設定 object)` と `.services({ service名: 設定 })` を使用できる。
+    - 現在の固定仕様に含まれる container/services の各フィールドを対応する。services の `command`・`entrypoint` も含む。
+    - 宣言した service 名が後続 step の `job.services.<id>` の補完へ引き継がれる。
+    - 各フィールドの式は固定仕様の context availability に従い、標準 GitHub Actions YAML として生成される。
+    - scenario で matrix instance ごとの設定値と実行時 context を検証できる。
+    - 必要な実行時 fixture が不足した場合、評価箇所を示して失敗する。
+    - 初期化失敗 fixture により、後続 step の条件、job の失敗制御、依存 job と workflow への結果伝播を検証できる。
+    - compiler、型、scenario、実際の LSP 補完・hover・signature、公開コード例の検証が通る。
+    - coverage inventory、JSDoc、現在の設計 documentation と Roadmap が実装に整合する。
+    
+    ## 決定事項
+    - API は `.container(image または設定 object)` と `.services({ service名: 設定 })` にする。
+      - 理由: GitHub YAML の構造に沿い、service 名全体を型へ反映できる。
+      - 主な棄却案: `.service(id, 設定)` による逐次追加。宣言順や重複追加の状態管理を増やすため採用しない。
+    - 宣言・型・YAML 生成と同じ変更で、scenario の設定検証と関連 context を対応する。
+      - 理由: service の宣言から実行時値を使う step まで、一つの workflow として検証できる。
+      - 主な棄却案: YAML 生成だけ先に対応する案。関連 context と scenario に未対応範囲が残る。
+    - runner が決める container ID、network ID、service port などは、評価に必要になった値だけ matrix instance ごとの fixture を要求する。
+      - 理由: 設定だけの検証は簡潔に保ち、実行時値を使う検証では前提を明示できる。
+      - 主な棄却案: 全実行時値の必須指定、および架空値の自動生成。不要な fixture 負担や runner 値との混同を避ける。
+    - container/service 初期化失敗を scenario fixture で表現する。
+      - 理由: 実際の runner に存在する失敗分岐と、その後の workflow の振る舞いを検証するため。
+      - 主な棄却案: 起動済み環境だけを前提にする案。今回は失敗経路も対応する。
+    - 初期化失敗後に全 authored step を無条件でスキップしない。
+      - 理由: runner は初期化を内部の前処理 step として実行し、後続 step は条件に従う。`failure()` や `always()` の扱いを保持する必要がある。
+      - 主な棄却案: 初期化失敗時に全 step を停止する単純化。GitHub の条件評価を失う。
+    - task runtime の container 互換性は拡張せず、container と task の併用は禁止しない。
+      - 理由: 今回は GitHub の宣言・式・scenario 対応に範囲を絞る。
+      - 主な棄却案: runtime の対応環境拡張、image 名による互換性判定、併用の一律禁止。
+    
+    ## 制約
+    - 仕様基準は `src/github_actions/github_spec.json` の既存 snapshot とする。確認時の revision は `0b8c768bf0d5a13560ec82fd3daa414137e2e436`、verifiedOn は `2026-10-02`。この依頼は仕様基準の更新を含まない。
+    - Docker の実行、実際の起動・health check・network 作成・port 割り当ては GitHub runner が担う。scenario は fixture に基づく解釈と検証に限定する。
+    - ローカル検証を hosted runner 上の成功や任意の container image での task 互換性の証明として扱わない。
+    - deploy、release、push、remote ref 更新、PR 作成は含まない。
+    
+    ## 対象外
+    - snapshot/cache-mode、background/wait/cancel/parallel の対応。
+    - container/services に関係しない context・式の全面補完。
+    - task runtime の musl 対応、依存ツールの自動導入、対応環境の拡張。
+    - Docker lifecycle、起動失敗原因、health check retry、時間経過のシミュレーション。
+    
+    ## 未検証の前提
+    - 実装開始時の source と固定仕様で、各フィールドの受け付ける値、式 scope、空 image による service 無効化、欠落 context の意味を確認する。
+    - runner の初期化失敗について、job container と service container の差、後続条件評価、job の `continue-on-error`、outputs と結果伝播の詳細を一次実装から確認する。
+    - 現在の task 準備は Bash と Linux GNU 向け Deno binary を利用している。JSDoc に記載する正確な実行要件は現行 source から確認する。
+    
+    ## 実装時の指示
+    - 既存の `expectSettings()` を使う設定検証と整合する形で container/services を追加する。
+    - 初期化結果と実行時 context の fixture は matrix instance ごとに指定できるようにする。API 名と内部設計は、既存の scenario API に沿う最小構成を選ぶ。
+    - 初期化失敗後も、実際に到達した式の評価に必要な実行時値だけ要求する。部分的な初期化結果を自動で捏造しない。
+    - service 名の補完は宣言した名前を保持する。式で image が空になる場合の実行時不在と、宣言上の名前の型情報を区別する。
+    - 既存の `job.container` 型を確認し、`job.services` の追加と scenario の context 解釈を整合させる。
+    - task と container の併用要件は詳細な公開 JSDoc に記載し、image 名だけで可否を決めない。
+    - 初期化失敗の確認に使った一次実装:
+      - https://github.com/actions/runner/blob/main/src/Runner.Worker/ContainerOperationProvider.cs
+      - https://github.com/actions/runner/blob/main/src/Runner.Worker/JobExtension.cs
+      - https://github.com/actions/runner/blob/main/src/Runner.Worker/StepsRunner.cs
+    - 必要な runner 実装を確認した際は参照 revision を特定し、固定 Actions 仕様と追加の実装根拠を区別する。
+  - A: Applied repository development, observability and design review skills. Implemented typed declarations, native YAML, validation, scenario contexts and initialization failures. Identified immutable runner revision, documented task prerequisites and requested minor release-impact approval.
+- U11: minor 相当でよい
+  - A: Accepted minor impact. Verified source, tests and public examples. Independent review found and then cleared service-only network context and expanded LSP signature; corrected both and checked actual LSP. mise run check and mise run test succeeded with 211 tests and 234 published TypeScript examples; committed locally as 15ffb209cbc0df344dbf2d5d1d7794687197543a; no remote writes or Docker execution.
