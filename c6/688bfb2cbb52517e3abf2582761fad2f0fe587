@@ -38,3 +38,11 @@ Authority: Current user requests and applicable AGENTS.md/skills; history is des
     commit漏れがないか？
     
   - A: Audited the current tree and commit history. The named-handler fix is committed in c6688bf, but all 28 related README/example/generated/pin/test updates remain uncommitted because public 0.12.0 lacks the fix. Also observed a separate later commit d7f1f01 (explicit task entrypoint IDs); did not change it. Public JSR metadata still reports 0.12.0. No new code commit or remote write performed during this audit.
+- U8:
+    push
+    
+  - A: Began pre-push fetch operations, then the user interrupted before any push. Subsequent observation found no temporary push-audit notes ref.
+- U9:
+    publishしないと修正できない構造に問題ないか？ 新しいversionは修正に必須なのか？
+    
+  - A: Read-only investigation confirmed examples import the public JSR package and root README integration tests run each standalone project against that released dependency, including generation and scenario checks. Root library tests use local source. Distinguished the already locally verified source correction from standalone consumption of a newly published version. Identified normal development verification being coupled to published examples as the structural obstacle; local-source verification and released-package consumer verification should have separate boundaries. No source edits or remote writes performed in this investigation.
