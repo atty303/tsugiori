@@ -94,6 +94,23 @@ and
 This additional implementation reference does not change the frozen Actions
 specification revision or verification date.
 
+Cache-mode and snapshot use supplemental dependency-caching and custom-image
+sources at the same frozen revision, including their transitive templates. Cache
+modes are restore/save capabilities, with job declarations overriding workflow
+settings and explicit caller settings capping local reusable graphs. Trigger
+fallbacks remain distinct from explicit limits. Scenarios interpret requested
+access without executing cache actions or proving token enforcement. PR caches
+use merge-ref scope, outside the default-branch low-trust restriction.
+
+Snapshot's string and mapping forms preserve image name, optional version and
+condition. The fixed context table has no snapshot row; the custom-image example
+evidences github.ref, so typed condition callbacks expose github only. Other
+contexts require explicit raw assertions. Nonempty settings and literal numeric
+patch versions are checked locally; remaining image/version formats are GitHub
+validation boundaries. Opt-in settings interpretation exposes a generation
+request after execution success and a truthy condition, without generating an
+image or proving runner eligibility.
+
 Use the repository's
 [specification update skill](../.agents/skills/update-github-actions-spec/SKILL.md)
 only for an explicit specification refresh. It fixes the new sources before

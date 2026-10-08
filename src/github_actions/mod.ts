@@ -29,6 +29,11 @@
  *  [Scenario API](https://jsr.io/@atty303/tsugiori/doc/github-actions/testing) verifies
  * modeled wiring with fixtures; it does not execute a runner.
  *
+ * WorkflowOptions.cacheMode, Exec.cacheMode() and CallJob.cacheMode() declare
+ * native cache access. See CacheMode for capability ceilings and trigger defaults.
+ * Exec.snapshot() declares custom-image generation; SnapshotDefinition separates
+ * its authoring condition from GitHub image creation and scenario requests.
+ *
  * ## Inferred state types
  *
  * Builders infer their states without consumer annotations. {@link WorkflowStart}
@@ -1206,7 +1211,74 @@ export type Concurrency = Readonly<{
    */
   queue?: "single" | "max";
 }>;
+/** Native cache access granted to a job token, separate from action inputs and
+ * artifact identity. read restores only; write restores and saves; write-only
+ * saves only; none permits neither. Job declarations override workflow settings.
+ * Omission uses GitHub's trigger-dependent default. Explicit write/write-only
+ * can override low-trust read-only defaults; authors own that trust decision.
+ * Disallowed cache operations are skipped without failing the job. Local reusable
+ * calls cannot request capabilities beyond an explicit caller limit; external
+ * graphs and token enforcement remain GitHub-owned.
+ * @see https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/reference/workflows-and-actions/dependency-caching.md#controlling-cache-access-with-cache-mode
+ */
+export type CacheMode = "read" | "write" | "write-only" | "none";
+
+/** Native custom-image generation settings. Use Exec.snapshot() before steps.
+ * Successful execution, an eligible image-generation runner and a satisfied
+ * condition are required. Each job creates its own image version; image lookup,
+ * numbering, provisioning and availability belong to GitHub.
+ * @see https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md#generating-a-custom-image
+ */
+export type SnapshotSettings = Readonly<{
+  /** Name of the image to create or version. GitHub owns name validity and lookup. */
+  imageName: string;
+  /** Requested major version, for example 2.*; GitHub increments its minor
+   * version. Omission uses GitHub's automatic versioning. Patch versions are
+   * unsupported; Tsugiori rejects literal three-component numeric versions,
+   * without claiming to validate every GitHub version format. */
+  version?: string;
+  /** Additional native condition. Author with SnapshotDefinition.if; this
+   * materialized form retains the expression string rather than executing it.
+   * @example
+   * ```ts
+   * const settings = { imageName: "ci-image", if: rawExpression("!startsWith(github.ref, 'refs/tags/')") } satisfies SnapshotSettings;
+   * ```
+   */
+  if?: boolean | string;
+}>;
+/** Snapshot mapping authored with literal image/version settings and a condition.
+ * The callback runs once during authoring. Only github is evidenced for snapshot
+ * conditions in the frozen documentation; other contexts require an explicit
+ * rawExpression assertion. The frozen context-availability table has no snapshot
+ * row. Scenario interpretation occurs after authored steps, only when requested.
+ */
+export interface SnapshotDefinition {
+  /** Image name, emitted as image-name. See SnapshotSettings.imageName. */
+  readonly imageName: string;
+  /** Optional major version request. See SnapshotSettings.version. */
+  readonly version?: string;
+  /** Additional condition evaluated by GitHub after successful job execution.
+   * The callback receives github expression references, not runtime values.
+   * @example
+   * ```ts
+   * const settings = { imageName: "ci-image", if: ({ github }) => startsWith(github.ref, "refs/tags/").not() } satisfies SnapshotDefinition;
+   * ```
+   */
+  readonly if?:
+    | boolean
+    | RawExpression
+    | Expression<boolean>
+    | ((
+      context: Scope<"jobs.<job_id>.snapshot.if">,
+    ) => Expression<boolean> | RawExpression);
+}
+
 type JobOptions = Readonly<{
+  /** Native cache access. Author with Exec.cacheMode() or CallJob.cacheMode(). */ cacheMode?:
+    CacheMode;
+  /** Custom-image generation request. Author with Exec.snapshot(). */ snapshot?:
+    | string
+    | SnapshotSettings;
   /** Native job container. Author with Exec.container(). */ container?:
     | string
     | ContainerSettings;
@@ -1537,6 +1609,11 @@ export type AuthoringWorkflow = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    */
   permissions?: WorkflowPermissions;
+  /** Workflow cache access inherited by jobs unless they override it. See
+   * CacheMode for defaults, skipped operations and trust implications. Explicit
+   * access also caps local reusable calls; omission does not impose such a cap.
+   */
+  cacheMode?: CacheMode;
   /** Workflow run defaults; expressions are forbidden at this scope. */
   defaults?: RunDefaults;
   /** Completed jobs in dependency order. */
@@ -1754,6 +1831,14 @@ export type WorkflowOptions<
    * ```
    */
   permissions?: WorkflowPermissions;
+  /** Cache access inherited by jobs unless they override it. See CacheMode for
+   * trigger defaults and trust implications; this is not an actions/cache input.
+   * @example
+   * ```ts
+   * workflow(".github/workflows/ci.yml", { on: { push: {} }, cacheMode: "read" });
+   * ```
+   */
+  cacheMode?: CacheMode;
   /** Workflow defaults for run steps. Job and step settings override each property independently. Expressions and contexts are not allowed at workflow scope.
    * @example
    * ```ts
@@ -3062,6 +3147,57 @@ interface ExecBase<
   Proof extends string = never,
   Services extends string = string,
 > {
+  /** Set this job's native cache access before appending steps. Overrides the
+   * workflow declaration, subject to any explicit reusable caller ceiling.
+   * Omission retains workflow/caller settings or the trigger default. CacheMode
+   * describes operation skips and low-trust write implications. This method
+   * neither changes cache identity nor performs cache operations.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").cacheMode("none").run({ name: "Build", run: "deno task build" });
+   * ```
+   */
+  cacheMode(
+    value: CacheMode,
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Services
+  >;
+  /** Request custom-image generation after successful execution of this job.
+   * Set before steps, using an image-name shorthand or SnapshotDefinition.
+   * Requires an eligible image-generation runner; Tsugiori does not assign or
+   * verify it. Mapping conditions build expressions once during authoring.
+   * Scenarios expose a generation request after successful step conclusions and
+   * a truthy condition, only with expectSettings(); no image is generated.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("my-image-generation-runner").snapshot("ci-image").run({ name: "Prepare", run: "true" });
+   * ```
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("my-image-generation-runner").snapshot({ imageName: "ci-image", version: "2.*", if: ({ github }) => startsWith(github.ref, "refs/tags/").not() }).run({ name: "Prepare", run: "true" });
+   * ```
+   */
+  snapshot(
+    value: string | SnapshotDefinition,
+  ): ExecOf<
+    WorkflowPath,
+    JobId,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Proof,
+    Services
+  >;
   /** Run this job's ordinary steps inside a container. Use an image shorthand or
    * settings object; callbacks run during authoring, expressions on GitHub.
    * Configure matrix first and container/services before appending steps.
@@ -5309,6 +5445,16 @@ interface CallJobBase<
         InputValues
       >,
   ): CallJobOf<P, J, N, M, V, S, InputValues>;
+  /** Cap the cache access requested by the called workflow. Overrides this
+   * caller workflow's setting, within any inherited explicit ceiling. Local
+   * graphs are checked during generation; external graphs remain GitHub-owned.
+   * read and write-only grant distinct capabilities, not ordered levels.
+   * @example In a job callback with `{ job }`, given a local callee `reusable`.
+   * ```ts
+   * job.reusable().cacheMode("read").call("./.github/workflows/reusable.yml", reusable, {});
+   * ```
+   */
+  cacheMode(value: CacheMode): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
    * Accepts every permission in the fixed GitHub.com specification, an empty map, read-all or write-all; scenarios do not calculate effective authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
@@ -6395,6 +6541,11 @@ type WorkflowDraft = Readonly<{
   env?: EnvironmentVariables;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
+  /** Workflow cache access inherited by jobs unless they override it. See
+   * CacheMode for defaults, skipped operations and trust implications. Explicit
+   * access also caps local reusable calls; omission does not impose such a cap.
+   */
+  cacheMode?: CacheMode;
   defaults?: RunDefaults;
   jobs: readonly AuthoringJob[];
   references: JobReferences;
@@ -6510,6 +6661,7 @@ export function workflow<
     name: options.name ?? path,
     on: materializeTriggers(options.on),
     runName: options.runName,
+    cacheMode: options.cacheMode,
     env: options.env && Object.freeze({ ...options.env }),
     defaults: options.defaults && Object.freeze({ ...options.defaults }),
     ...(options.concurrency === undefined ? {} : {
@@ -6985,6 +7137,7 @@ function createReusableJobFacade(
     strategy: (v: unknown) => update("strategy", renderStrategy(v)),
     name: (v: unknown) =>
       update("name", evaluateScalar("jobs.<job_id>.name", v)),
+    cacheMode: (v: CacheMode) => update("cacheMode", v),
     permissions: (v: WorkflowPermissions) =>
       update("permissions", copyPermissions(v)),
     concurrency: (value: unknown) =>
@@ -7094,12 +7247,37 @@ function renderStrategy(value: unknown): NonNullable<JobOptions["strategy"]> {
     }),
   });
 }
+function renderSnapshot(
+  value: string | SnapshotDefinition,
+): string | SnapshotSettings {
+  if (typeof value === "string") return value;
+  assertPlainRecord(value, "Snapshot");
+  return Object.freeze({
+    imageName: value.imageName,
+    ...(value.version === undefined ? {} : { version: value.version }),
+    ...(value.if === undefined ? {} : {
+      if: typeof value.if === "boolean"
+        ? value.if
+        : evaluateScalar("jobs.<job_id>.snapshot.if", value.if),
+    }),
+  });
+}
 function createExecutionJobFacade(
   draft:
     & JobDraft
     & Readonly<{ runsOn: RunnerRequest }>,
 ): ExecOf<string, string> {
   return Object.freeze({
+    cacheMode: (value: CacheMode) =>
+      createExecutionJobFacade({
+        ...draft,
+        options: { ...draft.options, cacheMode: value },
+      }),
+    snapshot: (value: string | SnapshotDefinition) =>
+      createExecutionJobFacade({
+        ...draft,
+        options: { ...draft.options, snapshot: renderSnapshot(value) },
+      }),
     container: (value: unknown) =>
       createExecutionJobFacade({
         ...draft,
@@ -7655,6 +7833,7 @@ function materializeWorkflow(draft: WorkflowDraft): AuthoringWorkflow {
     name: draft.name,
     on: draft.on,
     runName: draft.runName,
+    cacheMode: draft.cacheMode,
     env: draft.env,
     defaults: draft.defaults,
     ...(draft.concurrency === undefined

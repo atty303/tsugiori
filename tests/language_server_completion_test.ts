@@ -850,6 +850,64 @@ return state.run({ name: "Test", run: "true", env: ({ job }) => { EXPRESSION ret
         ),
       );
       assert(servicePortHover.includes("string"), servicePortHover);
+      const snapshotPrefix =
+        `import { workflow, startsWith } from "../src/github_actions/mod.ts";
+const ci = workflow("ci.yml", { on: { push: {} } });
+`;
+      const cacheLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        374,
+        "cache-mode-enum",
+        snapshotPrefix +
+          `ci.job("image", ({ job }) => job.runsOn("image-generation").cacheMode(/*completion*/).run({ name: "Build", run: "true" }));`,
+      );
+      for (const mode of ["read", "write", "write-only", "none"]) {
+        assert(cacheLabels.includes(`"${mode}"`), cacheLabels.join(","));
+      }
+      const snapshotLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        375,
+        "snapshot-context",
+        snapshotPrefix +
+          `ci.job("image", ({ job }) => job.runsOn("image-generation").snapshot({ imageName: "ci", if: context => { context./*completion*/; return startsWith(context.github.ref, "refs/heads/"); } }).run({ name: "Build", run: "true" }));`,
+      );
+      assertRelevantExactly(snapshotLabels, ["github"], [
+        "github",
+        "secrets",
+        "steps",
+        "matrix",
+        "needs",
+        "runner",
+        "vars",
+        "inputs",
+      ]);
+      const snapshotSignature = await sourceHover(
+        writer,
+        stream,
+        376,
+        "snapshot-signature",
+        snapshotPrefix +
+          `ci.job("image", ({ job }) => job.runsOn("image-generation").snapshot(/*completion*/{ imageName: "ci" }).run({ name: "Build", run: "true" }));`,
+        false,
+        "signatureHelp",
+      );
+      assert(
+        snapshotSignature.includes("SnapshotDefinition"),
+        snapshotSignature,
+      );
+      assert(!snapshotSignature.includes("..."), snapshotSignature);
+      const cacheHover = await sourceHover(
+        writer,
+        stream,
+        377,
+        "cache-mode-hover",
+        snapshotPrefix +
+          `ci.job("image", ({ job }) => job.runsOn("image-generation").cacheMode/*completion*/("read").run({ name: "Build", run: "true" }));`,
+      );
+      assert(cacheHover.includes("CacheMode"), cacheHover);
+      assert(!cacheHover.includes("..."), cacheHover);
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

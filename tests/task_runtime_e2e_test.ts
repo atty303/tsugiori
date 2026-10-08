@@ -37,7 +37,7 @@ Deno.test({
 import { project as makeProject, workflow, runProject } from "./src/github_actions.ts";
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
-if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} } })
+if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} }, cacheMode: "none" })
   .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
     outputs: { result: { required: true } },
     run: async (ctx) => {
@@ -99,6 +99,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
         resolve(fixture, "workflows/ci.yml"),
       );
       assert(!yaml.includes("Resolve task artifact"));
+      assertStringIncludes(yaml, "cache-mode: none");
       assertStringIncludes(yaml, "runner.os");
       assertStringIncludes(yaml, "runner.arch");
       const actionPath = resolve(Deno.cwd(), "actions/task-prepare");
@@ -137,7 +138,8 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
           ...extra,
         });
       };
-      const first = await prepare();
+      // No remote restore/save is available; preparation must still build locally.
+      const first = await prepare({ ACTIONS_CACHE_MODE: "none" });
       assertEquals(first.code, 0, first.stderr);
       const invocations = await Deno.readTextFile(invocationLog);
       for (

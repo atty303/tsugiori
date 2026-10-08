@@ -1,3 +1,5 @@
+import { cacheModeWithin, isCacheMode } from "../github_actions/cache_mode.ts";
+import type { CacheMode } from "../github_actions/mod.ts";
 import { collectCompositeActions } from "./composite.ts";
 import { cacheStepsFor } from "../github_actions/cache_factory_registry.ts";
 import type {
@@ -150,6 +152,7 @@ export function lowerProject(
           strategy: job.strategy,
           concurrency: job.concurrency,
           permissions: job.permissions,
+          cacheMode: job.cacheMode,
           steps: [],
         });
         continue;
@@ -338,6 +341,8 @@ export function lowerProject(
         name: job.name,
         env: job.env,
         defaults: job.defaults,
+        cacheMode: job.cacheMode,
+        snapshot: job.snapshot,
         container: job.container,
         services: job.services,
         needs: job.needs,
@@ -367,6 +372,7 @@ export function lowerProject(
       name: workflow.name,
       on: workflow.on,
       runName: workflow.runName,
+      cacheMode: workflow.cacheMode,
       env: workflow.env,
       defaults: workflow.defaults,
       ...(workflow.concurrency === undefined
@@ -541,6 +547,7 @@ function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
   const visit = (
     workflow: AuthoringWorkflow,
     ancestors: readonly AuthoringWorkflow[],
+    inheritedLimit?: CacheMode,
   ): void => {
     if (ancestors.includes(workflow)) {
       diagnostics.push(`Reusable workflow cycle at ${workflow.path}.`);
@@ -552,7 +559,19 @@ function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
       );
       return;
     }
+    const checkMode = (mode: unknown, location: string) => {
+      if (
+        isCacheMode(mode) && inheritedLimit !== undefined &&
+        !cacheModeWithin(mode, inheritedLimit)
+      ) {
+        diagnostics.push(
+          `${location}: cache-mode ${mode} exceeds explicit caller limit ${inheritedLimit}.`,
+        );
+      }
+    };
+    checkMode(workflow.cacheMode, workflow.path);
     for (const job of workflow.jobs) {
+      checkMode(job.cacheMode, `${workflow.path}.${job.id}`);
       const target = job.callee;
       if (!target) continue;
       const location = `${workflow.path}.${job.id}`;
@@ -610,7 +629,12 @@ function validateCalls(project: ProjectConfig, diagnostics: string[]): void {
           true,
         );
       }
-      visit(target, [...ancestors, workflow]);
+      const requested = job.cacheMode ?? workflow.cacheMode ?? inheritedLimit;
+      visit(
+        target,
+        [...ancestors, workflow],
+        isCacheMode(requested) ? requested : inheritedLimit,
+      );
     }
   };
   for (const workflow of project.workflows) visit(workflow, []);

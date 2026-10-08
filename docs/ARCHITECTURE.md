@@ -216,6 +216,20 @@ include every configured payload file. The checked-in
 [CI entrypoint](../.github/workflows.ts) emits the
 [CI workflow](../.github/workflows/ci.yml); CI runs `tsugiori generate --check`.
 
+Cache access remains a native workflow/job setting, including reusable caller
+jobs. Local call validation propagates explicit restore/save capability ceilings
+through each call path. Trigger defaults are not explicit ceilings, and workflow
+or job declarations in a callee cannot exceed an inherited explicit ceiling.
+External call graphs and scoped token enforcement remain GitHub-owned. Generated
+task cache steps keep their existing identity and preparation lifecycle; native
+restrictions may turn restore into a miss or skip save without skipping
+preparation.
+
+Snapshot declarations emit native image-name shorthand or mappings. Image
+creation, runner eligibility and version allocation belong to GitHub. The frozen
+context table has no snapshot row; supplemental custom-image examples evidence
+only github for typed snapshot conditions. Other contexts remain raw assertions.
+
 ## Scenario interpretation
 
 The testing API lowers a workflow with the same compiler path used for YAML
@@ -254,6 +268,15 @@ Rejection runs no steps, produces job failure and omits step-derived job
 outputs; failure flows through dependencies and local reusable calls. Omission
 retains ungated interpretation and does not prove actual approval. Pending,
 reviewer eligibility, timers and protection-rule calculation are not modeled.
+Opt-in settings also expose effective cache access and its
+job/workflow/caller/trigger source, keeping explicit caller ceilings separate
+from trigger defaults through nested local calls. Snapshot generation requests
+are exposed after actual job execution success and a truthy condition; tolerated
+job failure does not request an image. Rejected environments, failed
+initialization, failure and cancellation produce no request. This interpretation
+performs no cache operations or image generation. Without settings expectations,
+snapshot expressions require no new fixtures.
+
 Evaluated unknown expression forms and `hashFiles()` need a field-specific
 scenario value; unsupported forms never silently succeed.
 

@@ -1,3 +1,4 @@
+import { isCacheMode } from "../../github_actions/cache_mode.ts";
 import { containerProblems } from "../../github_actions/containers.ts";
 import { MatrixError, matrixRows } from "../../github_actions/matrix.ts";
 import { permissionLevels } from "../../github_actions/permissions.ts";
@@ -11,6 +12,8 @@ export type ValidatedWorkflow = Workflow & {
 };
 
 export type DiagnosticCode =
+  | "cache-mode.invalid"
+  | "job.snapshot.invalid"
   | "workflow.native.invalid"
   | "job.call.invalid"
   | "job.container.invalid"
@@ -76,6 +79,48 @@ export type ValidationResult =
 const JOB_ID_PATTERN = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const STEP_ID_PATTERN = JOB_ID_PATTERN;
 
+function validateCacheMode(
+  value: unknown,
+  path: DiagnosticPath,
+  diagnostics: Diagnostic[],
+): void {
+  if (value !== undefined && !isCacheMode(value)) {
+    diagnostics.push(diagnostic(
+      "cache-mode.invalid",
+      path,
+      "Cache mode must be read, write, write-only or none.",
+    ));
+  }
+}
+function validateSnapshot(
+  value: unknown,
+  path: DiagnosticPath,
+  diagnostics: Diagnostic[],
+): void {
+  if (value === undefined) return;
+  const nonempty = (v: unknown) => typeof v === "string" && v.trim().length > 0;
+  if (nonempty(value)) return;
+  if (
+    !isPlainRecord(value) || !nonempty(value.imageName) ||
+    Object.keys(value).some((k) =>
+      !["imageName", "version", "if"].includes(k)
+    ) ||
+    (value.version !== undefined &&
+      (!nonempty(value.version) ||
+        /^\d+\.\d+\.\d+$/.test(String(value.version)))) ||
+    (value.if !== undefined && typeof value.if !== "boolean" &&
+      !nonempty(value.if))
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "job.snapshot.invalid",
+        path,
+        "Snapshot requires a nonempty image name, optional version without a numeric patch component, and boolean/native condition. GitHub validates remaining image/version formats.",
+      ),
+    );
+  }
+}
+
 export function validateWorkflow(workflow: Workflow): ValidationResult {
   const diagnostics: Diagnostic[] = [];
 
@@ -94,6 +139,7 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     );
   }
   if (!isPlainRecord(workflow.on)) return { ok: false, diagnostics };
+  validateCacheMode(workflow.cacheMode, ["cacheMode"], diagnostics);
   validateNativeFields(workflow, diagnostics);
   validateConcurrency(
     workflow.concurrency,
@@ -120,6 +166,8 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
   const jobsById = new Map<string, { job: Job; index: number }>();
   workflow.jobs.forEach((job, jobIndex) => {
     const jobPath = ["jobs", jobIndex] as const;
+    validateCacheMode(job.cacheMode, [...jobPath, "cacheMode"], diagnostics);
+    validateSnapshot(job.snapshot, [...jobPath, "snapshot"], diagnostics);
 
     if (!JOB_ID_PATTERN.test(job.id)) {
       diagnostics.push(diagnostic(
@@ -818,6 +866,7 @@ function validCallJob(job: Job): boolean {
   return job.runsOn === undefined && job.steps.length === 0 &&
     job.env === undefined && job.defaults === undefined &&
     job.container === undefined && job.services === undefined &&
+    job.snapshot === undefined &&
     job.environment === undefined && job.timeoutMinutes === undefined &&
     job.continueOnError === undefined &&
     job.outputs === undefined && typeof job.uses === "string" &&

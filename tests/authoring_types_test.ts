@@ -58,6 +58,8 @@ type _ExecutionSurface = Expect<
     | "defaultsRun"
     | "container"
     | "services"
+    | "cacheMode"
+    | "snapshot"
     | "when"
     | "strategy"
     | "concurrency"

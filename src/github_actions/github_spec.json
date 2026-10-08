@@ -39,6 +39,10 @@
       "sha256": "858811a0e9cb6d65b1df0badc0eb27cfbb289128e80593c672d148eb5f844d08",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments.md"
     },
+    "content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md": {
+      "sha256": "fdb8d3dccc45c4963eb5547113062b3441cf762e324da3efa43e8479d0aed10a",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md"
+    },
     "content/actions/how-tos/reuse-automations/reuse-workflows.md": {
       "sha256": "3583c6522f2b5ed08f73fb17742d1a9cf45ee16bd6f9f484dceebd0aff00534f",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/reuse-automations/reuse-workflows.md"
@@ -46,6 +50,10 @@
     "content/actions/reference/workflows-and-actions/contexts.md": {
       "sha256": "cdcfe7575683bd13e1942a085bc853e8907495386de5a2715be96b2270f35396",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/reference/workflows-and-actions/contexts.md"
+    },
+    "content/actions/reference/workflows-and-actions/dependency-caching.md": {
+      "sha256": "a8d4fbdd6d1d899803cb31688522296056bed26bde40815dad25a2eb67f6e6e3",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/reference/workflows-and-actions/dependency-caching.md"
     },
     "content/actions/reference/workflows-and-actions/events-that-trigger-workflows.md": {
       "sha256": "69e251c1510f84d7b0a05ff8a4146456e657f175133081213805e02b0a655f50",
@@ -214,6 +222,14 @@
     "data/reusables/actions/branch-requirement.md": {
       "sha256": "9d9cf3bee392fee3b0d0e611519878521f2eaa0995b51aa4d97c748d86f74ad6",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/branch-requirement.md"
+    },
+    "data/reusables/actions/cache-eviction-policy.md": {
+      "sha256": "20b8706cb8ebf3af769912565e74c5df55b578daf0ec0d9c531e090796b5c756",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/cache-eviction-policy.md"
+    },
+    "data/reusables/actions/cache-eviction-process.md": {
+      "sha256": "44bcb5479e561a30f672c53ceebd33bedb59f70a7dd5d863e51abc2ccc17cdd8",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/cache-eviction-process.md"
     },
     "data/reusables/actions/cd-templates-actions.md": {
       "sha256": "6ef57fac8c6761145827130b75257a8e5634d1d784b5e80a7364c7f7988b7c27",
@@ -583,6 +599,10 @@
       "sha256": "52d5badac42629fcaa6d7d880f5d36a0287dd99c2b31e4396f5045c95caaabd4",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/self-hosted-runner-labels-runs-on.md"
     },
+    "data/reusables/actions/settings-ui/settings-actions-custom-images.md": {
+      "sha256": "da50bff750adfe6520d120bf61fcbf4591a9faf4f9c894245031f17742a4250a",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/settings-ui/settings-actions-custom-images.md"
+    },
     "data/reusables/actions/single-cpu-runners.md": {
       "sha256": "015322bd4e42dce0aec3f61079b78f170787efb9728960761f88f411f9c76874",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/single-cpu-runners.md"
@@ -747,6 +767,18 @@
       "sha256": "51cbf209ab4ddb2251ac8a8a48bbf13377ec170676b91639f9550712824141b3",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/gated-features/environments.md"
     },
+    "data/reusables/organizations/navigate-to-org.md": {
+      "sha256": "60e49bbb63a10d6cc4aea8e625d91c9502e347d13c5b514426b15bed8fa058bd",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/organizations/navigate-to-org.md"
+    },
+    "data/reusables/organizations/org_settings.md": {
+      "sha256": "35997cee38f17fc074d643a661827093122bb6f604bdc54e7a2eb9904dc9824d",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/organizations/org_settings.md"
+    },
+    "data/reusables/organizations/settings-sidebar-actions-custom-images.md": {
+      "sha256": "659587c738f13fc2e8b810a8e7c30f051173973faf359f65dd0dc968e493ae06",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/organizations/settings-sidebar-actions-custom-images.md"
+    },
     "data/reusables/pull_requests/path-filtering-required-workflows.md": {
       "sha256": "c6e62dacda695e578bae48e956372ef541fd097a6dfc4d14fbe61a0869c47c5d",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/pull_requests/path-filtering-required-workflows.md"
@@ -799,7 +831,7 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "No new GitHub-only fields such as cache-mode, snapshot, background/wait/parallel were implemented. They are inventoried as unsupported."
+    "Cache-mode and snapshot are implemented from the fixed basis with supplemental dependency-caching and custom-image sources at the same revision. Background/wait/parallel remain unsupported. The fixed context table has no snapshot row; supplemental examples evidence github.ref only."
   ],
   "coverage": [
     {
@@ -1282,12 +1314,13 @@
     {
       "domain": "syntax",
       "key": "cache-mode",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native enum declarations and YAML emission; opt-in scenarios resolve job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "cache-mode",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
       ]
     },
     {
@@ -1382,12 +1415,13 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.snapshot",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native string/mapping declarations with image-name, version and if. Opt-in scenarios expose requests only after execution success and a truthy condition; no image or runner eligibility is simulated. Fixed custom-image documentation evidences github for typed conditions; other contexts require raw assertions. Literal numeric patch versions are rejected; remaining GitHub formats are not exhaustively validated.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idsnapshot",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
       ]
     },
     {
@@ -1427,12 +1461,13 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.cache-mode",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native enum declarations and YAML emission; opt-in scenarios resolve job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcache-mode",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
       ]
     },
     {
@@ -6535,7 +6570,7 @@
       "domain": "reuse-constraint",
       "key": "caller-keywords",
       "status": "implemented",
-      "notes": "Supported caller keyword subset is validated; no steps/runs-on in caller jobs.",
+      "notes": "Supported caller keyword subset is validated; no steps/runs-on in caller jobs. cache-mode is supported and limits local callees by restore/save capabilities.",
       "source": "content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md",
       "anchor": "supported-keywords-for-jobs-that-call-a-reusable-workflow",
       "assessment": [
@@ -6976,6 +7011,18 @@
       ],
       "evidence": [
         "tests/triggers_test.ts"
+      ]
+    },
+    {
+      "domain": "syntax",
+      "key": "jobs.<job_id>.snapshot.if",
+      "status": "limited",
+      "notes": "Supplemental fixed custom-image documentation evidences github.ref; the frozen context table has no snapshot row. Typed callbacks expose only github; additional context availability is a raw-expression assertion. Conditions are interpreted after successful steps with opt-in settings.",
+      "source": "content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md",
+      "anchor": "conditionals",
+      "assessment": [
+        "supported",
+        "github-runtime"
       ]
     }
   ],

@@ -168,6 +168,12 @@ export const githubExpressionScopes = {
     contexts: ["github", "needs", "vars", "inputs"],
     functions: ["always", "cancelled", "success", "failure"],
   },
+  // Supplemental fixed custom-image documentation evidences github.ref here;
+  // the frozen context table has no snapshot row. Do not infer other scopes.
+  "jobs.<job_id>.snapshot.if": {
+    contexts: ["github"],
+    functions: noFunctions,
+  },
   "jobs.<job_id>.name": {
     contexts: jobMatrixContexts,
     functions: noFunctions,

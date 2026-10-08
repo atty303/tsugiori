@@ -1,3 +1,5 @@
+import { defaultCacheMode } from "../github_actions/cache_mode.ts";
+import type { CacheMode } from "../github_actions/mod.ts";
 import { containerContext, validateContainerRuntime } from "./containers.ts";
 import { MatrixError, matrixRows } from "../github_actions/matrix.ts";
 import { triggered as matchesTrigger } from "./triggers.ts";
@@ -31,6 +33,45 @@ import {
 } from "./mod.ts";
 
 type Context = Record<string, unknown>;
+type CachePolicy = Readonly<{
+  explicit?: CacheMode;
+  settings?: Pick<JobSettings, "cacheMode" | "cacheModeSource">;
+}>;
+function cachePolicy(
+  job: Job,
+  workflowMode: CacheMode | undefined,
+  callerMode: CacheMode | undefined,
+  context: Context,
+  interpret: boolean,
+): CachePolicy {
+  const explicit = job.cacheMode ?? workflowMode ?? callerMode;
+  if (!interpret) return { explicit };
+  const event = (context.github as Record<string, unknown> | undefined)
+    ?.event_name;
+  if (
+    explicit === undefined &&
+    (typeof event !== "string" || event === "workflow_call")
+  ) {
+    throw new ScenarioError(
+      "fixture_missing",
+      `${job.id}.cache-mode`,
+      "Trigger-dependent cache defaults require the original github.event_name fixture.",
+    );
+  }
+  return {
+    explicit,
+    settings: {
+      cacheMode: explicit ?? defaultCacheMode(event as string),
+      cacheModeSource: job.cacheMode !== undefined
+        ? "job"
+        : workflowMode !== undefined
+        ? "workflow"
+        : callerMode !== undefined
+        ? "caller"
+        : "trigger",
+    },
+  };
+}
 type Status = Readonly<{
   success: boolean;
   failure: boolean;
@@ -552,6 +593,7 @@ async function runInstance(
     undefined,
   observation: ScenarioObservationState = { nextId: 0 },
   executionContexts: Map<JobInstanceResult, Context> = new Map(),
+  cacheSettings: CachePolicy["settings"] = undefined,
 ): Promise<JobInstanceResult> {
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
@@ -620,6 +662,7 @@ async function runInstance(
       location,
       jobOverrides,
     );
+  if (settings !== undefined) settings = { ...settings, ...cacheSettings };
   if (
     rules.environmentProtection !== undefined &&
     (!job.environment ||
@@ -903,6 +946,39 @@ async function runInstance(
   }
   updateJobStatus(outcome);
   if (
+    settings !== undefined && job.snapshot !== undefined &&
+    outcome === "success"
+  ) {
+    const snapshot = typeof job.snapshot === "string"
+      ? { imageName: job.snapshot }
+      : job.snapshot;
+    const allowed = snapshot.if === undefined
+      ? true
+      : typeof snapshot.if === "boolean"
+      ? snapshot.if
+      : truthy(
+        evaluateAt(
+          snapshot.if,
+          context,
+          status,
+          location,
+          "snapshot.if",
+          jobOverrides,
+        ),
+      );
+    if (allowed) {
+      settings = {
+        ...settings,
+        snapshot: {
+          imageName: snapshot.imageName,
+          ...(snapshot.version === undefined
+            ? {}
+            : { version: snapshot.version }),
+        },
+      };
+    }
+  }
+  if (
     settings !== undefined && typeof job.environment === "object" &&
     job.environment.url !== undefined
   ) {
@@ -1075,6 +1151,7 @@ async function interpretScenario(
   program: Program,
   called: boolean,
   observation: ScenarioObservationState,
+  callerCacheMode?: CacheMode,
 ): Promise<ScenarioResult> {
   const author =
     config.workflows.find((p) => p.path === program.workflowPath) ??
@@ -1226,20 +1303,28 @@ async function interpretScenario(
         { steps: new Map(), internals: new Map() };
       const merged = mergedRules(rules, specific);
       const authoredJob = authoredJobs.get(job.id)!;
+      const cache = cachePolicy(
+        job,
+        workflow.cacheMode,
+        callerCacheMode,
+        context,
+        merged.expectedSettings !== undefined,
+      );
       if (job.uses !== undefined) {
         const location = `${author.path}.${job.id}[${JSON.stringify(matrix)}]`;
         const callContext = { ...context, matrix };
         const callOverrides = merged.steps.get("__job__")?.expressions ??
           new Map<string, unknown>();
-        const settings = merged.expectedSettings === undefined
-          ? undefined
-          : resolvedSettings(
+        const settings = merged.expectedSettings === undefined ? undefined : {
+          ...resolvedSettings(
             job,
             callContext,
             status,
             location,
             callOverrides,
-          );
+          ),
+          ...cache.settings,
+        };
         if (
           merged.containerRuntime !== undefined ||
           merged.containerInitialization !== undefined
@@ -1372,6 +1457,7 @@ async function interpretScenario(
             },
             true,
             observation,
+            cache.explicit,
           );
         } else {
           if (!merged.callFixture || merged.call) {
@@ -1443,6 +1529,7 @@ async function interpretScenario(
           workflow.defaults,
           observation,
           executionContexts,
+          cache.settings,
         ),
       );
     }
@@ -1539,6 +1626,7 @@ export async function runScenario(
   program: Program,
   called = false,
   observation: ScenarioObservationState = { nextId: 0 },
+  callerCacheMode?: CacheMode,
 ): Promise<ScenarioResult> {
   const operationId = ++observation.nextId;
   const parentId = observation.parentId;
@@ -1564,6 +1652,7 @@ export async function runScenario(
       program,
       called,
       observation,
+      callerCacheMode,
     );
     emit("success");
     return result;

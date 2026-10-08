@@ -43,6 +43,9 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
       ...(workflow.concurrency === undefined ? {} : {
         concurrency: emitConcurrency(workflow.concurrency),
       }),
+      ...(workflow.cacheMode === undefined
+        ? {}
+        : { "cache-mode": workflow.cacheMode }),
       jobs,
     },
     {
@@ -114,6 +117,16 @@ function emitJob(job: Job): Record<string, unknown> {
     emitted.needs = [...job.needs];
   }
   if (job.if !== undefined) emitted.if = job.if;
+  if (job.cacheMode !== undefined) emitted["cache-mode"] = job.cacheMode;
+  if (job.snapshot !== undefined) {
+    emitted.snapshot = typeof job.snapshot === "string" ? job.snapshot : {
+      "image-name": job.snapshot.imageName,
+      ...(job.snapshot.version === undefined
+        ? {}
+        : { version: job.snapshot.version }),
+      ...(job.snapshot.if === undefined ? {} : { if: job.snapshot.if }),
+    };
+  }
   if (job.permissions !== undefined) {
     emitted.permissions = job.permissions;
   }

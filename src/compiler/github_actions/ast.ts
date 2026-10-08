@@ -1,8 +1,10 @@
 import type {
+  CacheMode,
   ContainerSettings,
   JobEnvironment,
   RunDefaults,
   ServiceSettings,
+  SnapshotSettings,
   StaticMatrix,
   WorkflowPermissions,
   WorkflowTriggers,
@@ -21,6 +23,8 @@ export type Concurrency = Readonly<
   }
 >;
 export type JobOptions = Readonly<{
+  cacheMode?: CacheMode;
+  snapshot?: string | SnapshotSettings;
   container?: string | ContainerSettings;
   services?: Readonly<Record<string, ServiceSettings>>;
   if?: string;
@@ -109,6 +113,7 @@ export type Workflow = Readonly<{
   env?: EnvironmentVariables;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
+  cacheMode?: CacheMode;
   defaults?: RunDefaults;
   jobs: readonly Job[];
 }>;

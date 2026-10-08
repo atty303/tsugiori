@@ -192,6 +192,20 @@ export type ResolvedConcurrency = Readonly<{
 }>;
 /** Settings resolved for a reached concrete job, not a live runner assignment or deployment observation. */
 export type JobSettings = Readonly<{
+  /** Effective requested cache access, without actual cache operations or token
+   * enforcement. Enabled with expectSettings(). */
+  cacheMode?: import("../github_actions/mod.ts").CacheMode;
+  /** Nearest explicit declaration, inherited explicit caller limit, or native
+   * trigger default supplying cacheMode. A trigger default is not a reusable cap. */
+  cacheModeSource?: "job" | "workflow" | "caller" | "trigger";
+  /** Image generation requested after successful execution and a truthy snapshot
+   * condition. Absent on failure/cancellation/rejection or a false condition.
+   * This is not proof of image creation or runner eligibility. */
+  snapshot?: Readonly<{
+    /** Requested image name. */ imageName: string;
+    /** Optional requested major version; no generated version is invented. */ version?:
+      string;
+  }>;
   /** Resolved job container request; runner compatibility is not checked. */ container?:
     | string
     | import("../github_actions/mod.ts").ContainerSettings;
@@ -683,7 +697,7 @@ export class InstanceScenario<Job> {
     this.rules.containerInitialization = value;
     return this;
   }
-  /** Enable interpretation and compare resolved runner/environment/concurrency and container/service requests. Runner assignment, protection rules and concurrency scheduling are not simulated. Environment URLs resolve after steps. Pass {} to expose resolved settings on the result without comparing properties. Without this call, existing scenarios do not evaluate these settings or require their contexts.
+  /** Enable interpretation and compare resolved cache access, snapshot generation requests, runner/environment/concurrency and container/service requests. Snapshot conditions resolve after successful execution; image generation and cache operations are not simulated. Runner assignment, protection rules and concurrency scheduling are not simulated. Environment URLs resolve after steps. Pass {} to expose resolved settings on the result without comparing properties. Without this call, existing scenarios do not evaluate these settings or require their contexts.
    * @example Given a typed job/instance scenario builder `testJob`.
    * ```ts
    * testJob.expectSettings({ environment: { name: "production" }, runsOn: { group: "deploy", labels: ["linux"] } });
