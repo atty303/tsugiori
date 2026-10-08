@@ -1,0 +1,11 @@
+Task: Remove detailed trigger explanation from README introduction
+Anchor: 68e49718d23dc899619bff23aa7d4f429e6fcddf
+Base: f77888e562ea65e8cdc4375cb1ca085544e6ae3f
+Branch: main
+Commits: 68e49718d23dc899619bff23aa7d4f429e6fcddf docs(readme): remove detailed trigger explanation from introduction
+Guidance: User correction, AGENTS.md, develop-repository, git-task-evidence and data-handling references
+Conditions: Current checkout; documentation-only correction; no push or release; complete runtime thread read and current cycle compared against all 16 human messages
+Authority: Latest user request and applicable repository guidance
+## Transcript
+- U1: だからREADMEの入門に詳細情報を追加するな。取り消して
+  - A: Removed the 12-line trigger contract paragraph added to the introduction. Verified README exactly matches its content before the preceding feature commit and git diff --check passes. Created this local documentation commit; implementation and detailed documentation are unchanged.
