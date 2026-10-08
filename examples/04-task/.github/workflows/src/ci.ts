@@ -1,5 +1,5 @@
 // Use the workflow builder and GitHub's plain-text value contract.
-import { textValue, workflow } from "@atty303/tsugiori/github-actions";
+import { workflow } from "@atty303/tsugiori/github-actions";
 import $ from "@david/dax";
 // Use the typed checkout Action contract.
 import checkout from "#actions/actions/checkout";
@@ -46,12 +46,12 @@ export const ci = workflow("workflows/ci.yml", {
         // Bind the dispatch input through a text contract.
         inputs: ({ inputs }) => ({
           // Connect the dispatch value to the task input.
-          format: { contract: textValue(), from: inputs.format },
+          format: { from: inputs.format },
         }),
         // Declare a required text output.
         outputs: {
           // Validate and require the summary written by this task.
-          summary: { contract: textValue(), required: true },
+          summary: { required: true },
         },
         // Receive parsed inputs and an output writer in the task body.
         run: async ({ inputs, outputs }) => {

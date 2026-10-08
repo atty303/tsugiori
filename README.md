@@ -333,9 +333,9 @@ generated `actions/cache` step restores that artifact.
 This workflow adds a `workflow_dispatch` text input named `format`, defaulting
 to `%h %s`.
 Task inputs and outputs default to non-empty plain text, so their `contract`
-can be omitted. This uses `textValue()`; the next chapter introduces
-`jsonValue()` as an opt-in for structured data. The task runs Git and writes
-the result:
+can be omitted: use `{ from }` for inputs and `{ required }` for outputs.
+The next chapter introduces `jsonValue()` as an opt-in for structured data.
+The task runs Git and writes the result:
 
 ```ts
 // Pass the dispatch format as one Git argument.
@@ -391,20 +391,19 @@ It writes the array through the shared contract:
 await outputs.set("files", ["src/main.ts", "src/helpers.ts"]);
 ```
 
-The next task declares an input using the shared contract:
+The next task inherits the contract from the typed output reference:
 
 ```javascript
 // Bind the collector's output as the next task's typed input.
 inputs: ({ steps }) => ({
-  // Reuse the same JSON contract to parse this value.
-  files: { contract: files, from: steps.collect.outputs.files },
+  // Inherit the collector's JSON contract.
+  files: { from: steps.collect.outputs.files },
 })
 ```
 
 For a direct typed output reference, the input can omit `contract` and inherit
 it from the source. Computed expressions do not retain that contract and
-default to text when `contract` is omitted. The standalone example projects
-remain pinned to their released package version and use explicit contracts.
+default to text when `contract` is omitted.
 
 Inside the task body, `inputs.files` is already parsed and typed as `string[]`:
 

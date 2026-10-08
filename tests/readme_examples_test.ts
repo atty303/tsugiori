@@ -1,10 +1,59 @@
 import { assert, assertEquals } from "@std/assert";
+import { cp } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import {
   configuration as initConfiguration,
   workflows as initWorkflows,
 } from "../src/init/templates.ts";
 
 const root = new URL("../", import.meta.url);
+const published = Deno.args.includes("--published");
+
+async function withChapter<T>(
+  chapter: string,
+  check: (directory: string) => Promise<T>,
+): Promise<T> {
+  const original = new URL(`examples/${chapter}/.github/`, root).pathname;
+  const fixture = await Deno.makeTempDir({ prefix: `tsugiori-${chapter}-` });
+  try {
+    const directory = `${fixture}/.github`;
+    await cp(original, directory, { recursive: true });
+    if (published) return await check(directory);
+    const packageConfig = JSON.parse(
+      await Deno.readTextFile(new URL("deno.json", root)),
+    );
+    const configPath = `${directory}/deno.json`;
+    const config = JSON.parse(await Deno.readTextFile(configPath));
+    for (const [name, path] of Object.entries(packageConfig.exports)) {
+      config.imports[`${packageConfig.name}/${name.slice(2)}`] =
+        new URL(path as string, root).href;
+    }
+    // Supply the documented checkout preparation prerequisite only in the harness.
+    const api = new URL("src/github_actions.ts", root).href;
+    await Deno.writeTextFile(
+      `${directory}/local_api.ts`,
+      `export * from ${JSON.stringify(api)};
+import { project as nativeProject } from ${JSON.stringify(api)};
+export const project: typeof nativeProject = (options) =>
+  nativeProject({ ...options, localTaskPrepareAction: "./actions/task-prepare" });
+`,
+    );
+    config.imports[`${packageConfig.name}/github-actions`] =
+      pathToFileURL(`${directory}/local_api.ts`).href;
+    await Deno.writeTextFile(
+      configPath,
+      JSON.stringify(config, null, 2) + "\n",
+    );
+    await cp(
+      new URL("actions/task-prepare/", root).pathname,
+      `${fixture}/actions/task-prepare`,
+      { recursive: true },
+    );
+    return await check(directory);
+  } finally {
+    await Deno.remove(fixture, { recursive: true });
+  }
+}
 const chapters = [
   "01-init",
   "02-typed-dsl",
@@ -27,9 +76,9 @@ function lines(text: string): string {
 }
 
 async function run(directory: string, args: string[]): Promise<void> {
-  const result = await new Deno.Command("mise", {
+  const result = await new Deno.Command(Deno.execPath(), {
     cwd: directory,
-    args: ["exec", "--", "deno", ...args],
+    args,
     stdout: "piped",
     stderr: "piped",
   }).output();
@@ -64,37 +113,35 @@ Deno.test("README invalid output reference reports its documented type error", a
     /```ts\n(env: \(\{ needs \}\) => \(\{ MESSAGE: needs\.hello\.outputs\.greeting \}\),)\n```\n\n```text\n([^`]+)```/,
   );
   assert(match);
-  const directory =
-    new URL("examples/02-typed-dsl/.github/workflows/src/", root)
-      .pathname;
-  const file = await Deno.makeTempFile({ dir: directory, suffix: ".ts" });
-  try {
-    const source = await Deno.readTextFile(
-      new URL("examples/02-typed-dsl/.github/workflows/src/ci.ts", root),
-    );
-    const validLine =
-      "env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),";
-    assert(source.includes(validLine));
-    await Deno.writeTextFile(
-      file,
-      source.replace(validLine, match[1]),
-    );
-    const result = await new Deno.Command("mise", {
-      cwd: new URL("examples/02-typed-dsl/.github/", root).pathname,
-      args: ["exec", "--", "deno", "check", "--frozen=true", file],
-      env: { NO_COLOR: "1" },
-      stdout: "piped",
-      stderr: "piped",
-    }).output();
-    assert(result.code !== 0, "the invalid README snippet must fail checking");
-    const diagnostic = new TextDecoder().decode(result.stderr);
-    assert(
-      diagnostic.includes(match[2].trim()),
-      `README diagnostic differs from deno check:\n${diagnostic}`,
-    );
-  } finally {
-    await Deno.remove(file);
-  }
+  await withChapter("02-typed-dsl", async (projectDirectory) => {
+    const directory = `${projectDirectory}/workflows/src/`;
+    const file = await Deno.makeTempFile({ dir: directory, suffix: ".ts" });
+    try {
+      const source = await Deno.readTextFile(`${directory}/ci.ts`);
+      const validLine =
+        "env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),";
+      assert(source.includes(validLine));
+      await Deno.writeTextFile(file, source.replace(validLine, match[1]));
+      const result = await new Deno.Command(Deno.execPath(), {
+        cwd: projectDirectory,
+        args: ["check", ...(published ? ["--frozen=true"] : []), file],
+        env: { NO_COLOR: "1" },
+        stdout: "piped",
+        stderr: "piped",
+      }).output();
+      assert(
+        result.code !== 0,
+        "the invalid README snippet must fail checking",
+      );
+      const diagnostic = new TextDecoder().decode(result.stderr);
+      assert(
+        diagnostic.includes(match[2].trim()),
+        `README diagnostic differs from deno check:\n${diagnostic}`,
+      );
+    } finally {
+      await Deno.remove(file);
+    }
+  });
 });
 
 Deno.test("chapter 01 matches init and every chapter uses the managed Deno and range", async () => {
@@ -102,7 +149,7 @@ Deno.test("chapter 01 matches init and every chapter uses the managed Deno and r
   const denoVersion = rootMise.match(/^deno = "[^"]+"$/m)?.[0];
   assert(denoVersion);
   const expected = JSON.parse(initConfiguration);
-  expected.imports["@atty303/tsugiori"] = "jsr:@atty303/tsugiori@^0.11.0";
+  expected.imports["@atty303/tsugiori"] = "jsr:@atty303/tsugiori@^0.12.0";
   const initSource = await Deno.readTextFile(
     new URL("examples/01-init/.github/workflows.ts", root),
   );
@@ -120,23 +167,31 @@ Deno.test("chapter 01 matches init and every chapter uses the managed Deno and r
     else {
       assertEquals(
         config.imports["@atty303/tsugiori"],
-        "jsr:@atty303/tsugiori@^0.11.0",
+        "jsr:@atty303/tsugiori@^0.12.0",
       );
     }
   }
 });
 
-Deno.test("each documented project typechecks and its generated files are current", async () => {
-  for (const chapter of chapters) {
-    const directory = new URL(`examples/${chapter}/.github/`, root).pathname;
-    await run(directory, [
-      "check",
-      "--frozen=true",
-      "--allow-import=jsr.io:443,tsugiori.atty303.workers.dev:443",
-      "workflows.ts",
-    ]);
-    await run(directory, ["task", "tsugiori", "generate", "--check"]);
-  }
-  const testing = new URL("examples/06-testing/.github/", root).pathname;
-  await run(testing, ["test", "-A", "workflows/src/"]);
-});
+Deno.test(
+  published
+    ? "published examples typecheck and committed generated files are current"
+    : "checkout examples typecheck, generate and run scenarios before publication",
+  async () => {
+    for (const chapter of chapters) {
+      await withChapter(chapter, async (directory) => {
+        await run(directory, [
+          "check",
+          ...(published ? ["--frozen=true"] : []),
+          "--allow-import=jsr.io:443,tsugiori.atty303.workers.dev:443",
+          "workflows.ts",
+        ]);
+        if (!published) await run(directory, ["task", "tsugiori", "generate"]);
+        await run(directory, ["task", "tsugiori", "generate", "--check"]);
+        if (chapter === "06-testing") {
+          await run(directory, ["test", "-A", "workflows/src/"]);
+        }
+      });
+    }
+  },
+);

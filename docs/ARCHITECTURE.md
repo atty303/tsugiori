@@ -17,6 +17,19 @@ The current implementation has one provider backend. Its API and workflow AST
 model GitHub Actions concepts directly. There is no provider-neutral job or step
 model and no second delivery backend.
 
+## Example verification
+
+The normal repository test suite checks the actual README/example sources
+against the checkout's public exports in disposable project copies. The harness
+supplies the documented local task preparation Action prerequisite, and runs
+Deno typechecking, generation and task/scenario tests. It does not require a
+published Tsugiori version or change the example sources.
+
+The separate `test:examples:published` Deno task checks the standalone projects
+against their locked JSR dependencies, including their committed generated
+files. This consumer check can run after publication; it is not a prerequisite
+for committing an implementation and its examples.
+
 ## Package and authoring
 
 The root `deno.json` defines one Deno package with no default root export. The

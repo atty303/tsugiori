@@ -1,13 +1,9 @@
-// Import the workflow builder, expression type, and presence check.
-import {
-  type Expression,
-  present,
-  workflow,
-} from "@atty303/tsugiori/github-actions";
+// Import the workflow builder and presence check.
+import { present, workflow } from "@atty303/tsugiori/github-actions";
 // Use the typed checkout Action contract.
 import checkout from "#actions/actions/checkout";
 // Reuse the same task functions and contracts as the unit tests.
-import { collectFiles, countLines, files, hasFiles } from "./tasks.ts";
+import { collectFiles, countLines, files } from "./tasks.ts";
 
 // Generate this workflow at workflows/ci.yml.
 export const ci = workflow("workflows/ci.yml", {
@@ -42,16 +38,13 @@ export const ci = workflow("workflows/ci.yml", {
           // Validate this value with the shared file-list contract.
           files: { contract: files, required: true },
           // Carry the presence flag as plain text.
-          hasFiles: { contract: hasFiles, required: true },
+          hasFiles: { required: true },
         },
         // Pass a function object that Deno.test also calls directly.
         run: collectFiles,
       })
-      // Fix the consumer's input shape for TypeScript inference.
-      .task<
-        "count",
-        { files: { contract: typeof files; from: Expression<unknown, string> } }
-      >({
+      // Add a task to count lines in the collected files.
+      .task({
         // Give the consumer a stable step ID for scenario assertions.
         id: "count",
         // Set the displayed name.
@@ -63,9 +56,9 @@ export const ci = workflow("workflows/ci.yml", {
           ),
         // Read the collector's JSON output through the shared contract.
         inputs: ({ steps }) => ({
-          // Validate this value with the shared file-list contract.
-          files: { contract: files, from: steps.collect.outputs.files },
-        } as const),
-        // Reuse the directly unit-tested function object.
+          // Inherit the collector's JSON contract.
+          files: { from: steps.collect.outputs.files },
+        }),
+        // Pass the same function object used by unit tests.
         run: countLines,
       }));

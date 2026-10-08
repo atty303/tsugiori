@@ -24,17 +24,17 @@ jobs:
         continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: ${{ runner.temp }}/tsugiori-artifacts/S3MS72G95TWM2EONKJ29HXJG19ULSG2RQKSADH0ZYHDJBGHVGPE-${{ runner.os }}-${{ runner.arch }}
-          key: tsugiori-task-S3MS72G95TWM2EONKJ29HXJG19ULSG2RQKSADH0ZYHDJBGHVGPE-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/tsugiori-artifacts/S3TOSYFJI9CRH8L60JUMHZ1R198OA5J42ST4XP7DJEKHUU6PH3R-${{ runner.os }}-${{ runner.arch }}
+          key: tsugiori-task-S3TOSYFJI9CRH8L60JUMHZ1R198OA5J42ST4XP7DJEKHUU6PH3R-${{ runner.os }}-${{ runner.arch }}
 
       - name: Prepare task artifact
         id: tsugiori-task-prepare
-        uses: atty303/tsugiori/actions/task-prepare@8bce0b38712cf3425097cc48289f01d9d52cc036
+        uses: atty303/tsugiori/actions/task-prepare@12c693240e8f77b949ef060d6fc6e3d145067196
         with:
           project-directory: .github
           entrypoint: ./workflows.ts
-          source-key: S3MS72G95TWM2EONKJ29HXJG19ULSG2RQKSADH0ZYHDJBGHVGPE
-          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S3MS72G95TWM2EONKJ29HXJG19ULSG2RQKSADH0ZYHDJBGHVGPE-${{ runner.os }}-${{ runner.arch }}
+          source-key: S3TOSYFJI9CRH8L60JUMHZ1R198OA5J42ST4XP7DJEKHUU6PH3R
+          cache-directory: ${{ runner.temp }}/tsugiori-artifacts/S3TOSYFJI9CRH8L60JUMHZ1R198OA5J42ST4XP7DJEKHUU6PH3R-${{ runner.os }}-${{ runner.arch }}
 
       - name: Format commit
         id: commit

@@ -1,5 +1,5 @@
 // Define the same output contracts used by the workflow.
-import { jsonValue, textValue } from "@atty303/tsugiori/github-actions";
+import { jsonValue } from "@atty303/tsugiori/github-actions";
 // Type the callable task functions without hiding them inside the DSL.
 import type { TaskContext, TaskLogger } from "@atty303/tsugiori/github-actions";
 import $ from "@david/dax";
@@ -8,15 +8,13 @@ import { join } from "node:path";
 
 // Parse file paths as a JSON array at task boundaries.
 export const files = jsonValue(z.array(z.string()));
-// Carry the presence flag as plain GitHub Actions text.
-export const hasFiles = textValue();
 
 // Describe the outputs accepted by the collector's writer.
 type CollectOutputs = {
   // Validate this value with the shared file-list contract.
   files: { contract: typeof files; required: true };
   // Carry the presence flag as plain text.
-  hasFiles: { contract: typeof hasFiles; required: true };
+  hasFiles: { required: true };
 };
 
 // Export an ordinary function for both the DSL and Deno.test.

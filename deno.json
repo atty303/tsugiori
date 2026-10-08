@@ -17,6 +17,7 @@
   },
   "tasks": {
     "test": "deno test -A tests/ scripts/ services/",
+    "test:examples:published": "deno test -A tests/readme_examples_test.ts -- --published",
     "test:update": "deno test -A --update-snapshots tests/ scripts/ services/ -- --update"
   }
 }

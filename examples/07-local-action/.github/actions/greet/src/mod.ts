@@ -1,5 +1,5 @@
 // Build a local composite Action with typed task values.
-import { compositeAction, textValue } from "@atty303/tsugiori/github-actions";
+import { compositeAction } from "@atty303/tsugiori/github-actions";
 
 // Generate Action metadata at actions/greet/action.yml.
 const draft = compositeAction("actions/greet/action.yml", {
@@ -23,10 +23,10 @@ export const greet = draft.steps(({ step }) =>
     // Bind the Action input through a text contract.
     inputs: {
       // Connect the Action input to the task.
-      who: { contract: textValue(), from: draft.inputs.who },
+      who: { from: draft.inputs.who },
     },
     // Require the task to write a message.
-    outputs: { message: { contract: textValue(), required: true } },
+    outputs: { message: { required: true } },
     // Write the greeting through the typed output writer.
     run: async ({ inputs, outputs }) => {
       // Publish the value promised by the task output contract.

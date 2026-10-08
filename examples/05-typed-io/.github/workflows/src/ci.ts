@@ -1,10 +1,5 @@
 // Import typed task contracts and workflow expressions.
-import {
-  jsonValue,
-  present,
-  textValue,
-  workflow,
-} from "@atty303/tsugiori/github-actions";
+import { jsonValue, present, workflow } from "@atty303/tsugiori/github-actions";
 import $ from "@david/dax";
 import { z } from "@zod/zod";
 import { join } from "node:path";
@@ -50,7 +45,7 @@ export const ci = workflow("workflows/ci.yml", {
             required: true,
           },
           // Carry the presence flag as plain text.
-          hasFiles: { contract: textValue(), required: true },
+          hasFiles: { required: true },
         },
         // Write values through the declared output contracts.
         run: async ({ cwd, outputs }) => {
@@ -73,8 +68,8 @@ export const ci = workflow("workflows/ci.yml", {
           ),
         // Bind the previous output with the same JSON contract.
         inputs: ({ steps }) => ({
-          // Validate this value with the shared file-list contract.
-          files: { contract: files, from: steps.collect.outputs.files },
+          // Inherit the collector's JSON contract.
+          files: { from: steps.collect.outputs.files },
         }),
         // Receive inputs.files as an already parsed string array.
         run: async ({ cwd, inputs, logger }) => {
