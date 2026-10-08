@@ -1,0 +1,147 @@
+Task: Implement the agreed frozen GitHub Actions settings and fixture-only scenario contracts
+Anchor: d91ebbd036f421b25a4f91983e72173ead7f50ae
+Base: 826f91d26200491b0706dbee77539b20511f5653
+Branch: main
+Commits: d91ebbd036f421b25a4f91983e72173ead7f50ae feat(github-actions): complete frozen workflow settings
+Guidance: User implementation request and decisions; AGENTS.md; dig; develop-repository; design-review; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: Current checkout; workspace-write sandbox; fixed GitHub docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436; approved feat/minor; no deploy/release/push/PR/environment configuration changes; no step/task execution in scenarios; hosted GitHub execution unverified
+## Evidence
+- Fresh full review of patch 5daf0b041d13c027c443639d765af98a5dd2e676e9bc3755e43d31ed00a973ce reported one P2 compatibility defect. Delta review of 9893b24ad1b8fb315b93abf8e43fe7bf2cf15f14508ab98771fd149ed01eb825 cleared it with no further actionable findings; staged content matched that patch per file.
+- The complete runtime session history was retrieved and all 15 human messages compared in order, preserving selections and multiline implementation request; injected guidance was excluded.
+Authority: User task and feat/minor approval, current AGENTS.md and applicable skill contracts
+## Transcript
+- U1:
+    $dig 次のgithub specのタスクは？
+  - A: Read dig guidance and current roadmap/coverage; identified the next GitHub settings group and asked its scope.
+- U2:
+    B
+  - A: Accepted the full settings group; explained the distinction between authored configuration and GitHub-owned execution models.
+- U3:
+    Bの追加モデルについて個別に詳しく
+  - A: Explained candidate permissions, environment, runner and concurrency models without executing tasks or steps.
+- U4:
+    まとめずに判断を1項目ずつ詳細とともにきいて。scenarioに入れるメリットがあるかどうか、step/taskを実行しない前提で、がきになる
+  - A: Reviewed permissions alone and asked whether effective-permission calculation justified its maintenance cost.
+- U5:
+    A
+  - A: Excluded effective permissions; moved to the environment gate decision.
+- U6:
+    environmentのprotection ruleがapprove/rejectされたときの動きは検証したいが。approveかどうかはfixtureでいいけど。理解あってる？
+  - A: Confirmed a fixture-driven protection outcome can control step start and downstream behavior without calculating protection rules.
+- U7:
+    approve/rejectって僕が適当に言ったけど仕様どおりだっけ？
+  - A: Checked GitHub documentation; distinguished individual reviewer approval from all-rule passage and left detailed rejection propagation pending evidence.
+- U8:
+    pendingはscenarioが扱う意味ないよね
+  - A: Excluded pending/wait/resume; proposed interpreting runner group/labels without runner inventory or assignment.
+- U9:
+    A
+  - A: Excluded runner allocation; asked whether competing-run concurrency modeling was necessary.
+- U10:
+    A
+  - A: Excluded competing-run modeling; proposed optional environment gate fixtures for existing scenario compatibility.
+- U11:
+    A
+  - A: Preserved ungated advance on fixture omission; proposed interpreting explicit workflow/job/step defaults without runner or filesystem inference.
+- U12:
+    A
+  - A: Accepted effective defaults. Checked the published rejection observation and GitHub Support response showing failure with empty steps; did not perform live reproduction. Presented final design agreement.
+- U13:
+    A
+  - A: Produced the implementation request with fixed revision, agreed fixtures and execution exclusions.
+- U14:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugioriの固定GitHub Actions仕様に対する、次の設定対応を実装してください。
+    
+    - permissionsの全項目と`read-all`／`write-all`
+    - workflowの`defaults.run`と既存job defaultsの整合
+    - structured environments
+    - runner groups
+    - workflow/job concurrencyの式による`cancel-in-progress`
+    
+    併せて、以下で合意したscenario対応を実装してください。
+    
+    ## 目的
+    - GitHub Actionsの標準設定を、型付きAPIから通常のworkflow YAMLとして記述できるようにする。
+    - step/taskを実行せず、作者が制御する設定の解釈と、environmentの保護ルール判定後のworkflowの振る舞いを検証できるようにする。
+    
+    ## 成功条件
+    - 対象設定について、固定仕様に沿ったAPI、式のscope、validation、AST、YAML生成が整合している。
+    - 既存の記述形式とscenarioの互換性が維持されている。
+    - scenarioでenvironmentの全保護ルール通過／拒否をfixtureとして指定できる。
+    - 通過時はstep fixtureによる進行を行い、拒否時はstep fixtureを消費せず、job failureを後続へ伝える。
+    - 拒否時の`needs`、job条件、status-check関数、outputの扱いを検証している。
+    - scenarioでrunnerの要求group・labels、concurrencyのgroup・cancellationの式を検証できる。
+    - scenarioでrun stepに適用されるshell・working directoryを、workflow、job、stepの明示設定の優先順位に従って確認できる。
+    - 公開JSDoc、実際の文書例の型検証、代表的なLSP表示、関連テストが整合している。
+    - coverage inventory、ARCHITECTURE、ROADMAPが実装後の状態を示している。
+    - repositoryの標準check・testが通る。
+    
+    ## 決定事項
+    - 現在の固定仕様を基準に、ROADMAPの先頭設定グループを対応する。
+      - 理由: trigger対応の次に残る設定上の不足をまとめて解消する。
+      - 主な棄却案: permissionsだけの対応。今回の合意範囲より狭いため。
+    
+    - permissionsの実効権限モデルはscenarioに追加しない。
+      - 理由: step/taskを実行しないため、操作の認可成功を検証できず、宣言の退行検知は生成結果で行える。
+      - 主な棄却案: 外部設定fixtureによる実効権限計算、stepごとの必要権限宣言。維持負担に見合う具体的用途がないため。
+    
+    - environmentは、全保護ルールの通過／拒否という確定結果をfixtureから受け取る。
+      - 理由: 判定そのものを模倣せず、結果に対するstep開始と後続jobの振る舞いを検証したい。
+      - 主な棄却案: 保護ルールの計算、pendingと待機・再開モデル。今回の検証目的には不要なため。
+      - 個別ルールの`approved`と、全ルール通過を混同しないAPI・説明にする。
+      - 拒否は独自のjob resultを増やさず、既存のfailureとして伝播する。
+    
+    - environment判定fixtureの省略時は、従来どおりstepへ進む。
+      - 理由: 既存テストとの互換性を保ち、保護ルールのないenvironmentにも追加fixtureを要求しない。
+      - 主な棄却案: environmentを使う全jobへのfixture必須化。互換性を壊すため。
+      - 省略したscenarioは実環境での保護ルール通過を保証しないことを文書化する。
+    
+    - runnerの選択・割り当てモデルは追加しない。
+      - 理由: 要求group・labelsと式の検証で作者の判断を確認できる。
+      - 主な棄却案: runner一覧fixtureによる候補照合。外部構成の維持負担が増えるため。
+    
+    - concurrencyの複数run競合モデルは追加しない。
+      - 理由: 今回の設定追加はgroupとcancellationの式の検証で確認できる。
+      - 主な棄却案: 到着順、待機、キャンセル対象の状態遷移モデル。具体的需要がないため。
+    
+    - defaultsの適用後の値はscenarioで検証する。
+      - 理由: 外部環境fixtureを増やさず、作者が制御する上書きと式を確認できる。
+      - 主な棄却案: YAML生成の検証のみ。適用後の値を確認したいため。
+    
+    ## 制約
+    - 仕様snapshotの基準revisionを更新しない。現在の基準は`0b8c768bf0d5a13560ec82fd3daa414137e2e436`。
+    - GitHub標準の設定・scope・優先順位に従い、Tsugiori独自の実行規則を加えない。
+    - scenarioではstep/task本体を実行しない。
+    - 既存のpublic APIとtask runtime契約を維持する。
+    - defaults対応を理由に、taskのshellやcwdの契約を変更しない。
+    - deploy、release、push、PR作成、repositoryのenvironment設定変更は行わない。
+    
+    ## 対象外
+    - permissionsによる操作の認可判定
+    - 保護ルール、reviewer資格、待機時間、bypassの計算
+    - pending状態と承認イベントによる再開
+    - runner候補照合、割り当て、空き待ち、実行環境の再現
+    - 複数runの競合、scheduler、process停止の再現
+    - shellでのcommand実行、directoryの実在確認
+    - matrix、container/servicesなど、別のROADMAPグループの実装
+    
+    ## 未検証の前提
+    - environment拒否の一次観測では、jobの`conclusion`が`failure`でstepsが空になる。今回の会話ではライブ再現していない。詳細な結果伝播は固定仕様、以下の証拠、既存scenario契約を照合して確認する。
+      - https://github.com/orgs/community/discussions/149319
+    - 各対象設定の完全な項目、式の許可scope、組み合わせ制約は、実装前に固定revisionの出典から確認する。
+    
+    ## 実装時の指示
+    - 既存の型、scope catalog、AST、emitter、validationにある対応を確認し、足りない部分を拡張する。
+    - environment判定はjobの条件判定とmatrix展開の順序を踏まえ、実際に到達したjob instanceへ適用する。matrixとローカル再利用workflowへの伝播も関連ケースを検証する。
+    - 拒否されたjobについて、step由来のoutputを生成しないことと、後続の条件評価を確認する。
+    - defaultsは明示設定から適用値を計算し、runner由来の既定shellやfilesystemは推測しない。
+    - `queue: "max"`と式によるcancellationの組み合わせは固定仕様を確認し、静的に判定できる不正とGitHub実行時にしか判定できない範囲を区別する。
+    - environment保護ルールの説明に追加出典が必要なら、同じ固定revisionの出典とdigestを記録する。仕様基準更新として扱わない。
+    - GitHub実行境界の項目を、ローカル検証だけで実行確認済みに変更しない。
+  - A: Read repository/development/design/observability guidance, inspected local Git state and release entrypoint, fetched code and notes, and requested feat/minor release-impact approval while preparing the authorized implementation.
+- U15:
+    承認：feat / minor
+  - A: Implemented every fixed permission/shorthand, workflow defaults, structured environments (deployment expressions via raw escape because the fixed table lacks its own context scope), runner groups and scoped cancellation. Added optional aggregate passed/rejected gates, failure and empty-output propagation through needs/matrix/local reuse, and opt-in settings/default interpretation preserving existing fixture requirements. Reused host-owned privacy-safe scenario observations without a new execution model. Diagnosed missing reusable job output handling and final job status URL evaluation with focused tests. Added public JSDoc, actual examples, LSP checks, fixed-revision supplemental sources/digests and coverage/architecture/roadmap updates; regenerated native CI identity. mise install succeeded after sandbox escalation for toolchain writes. mise run fix and check succeeded; final mise run test passed 194 tests, and 206 published examples plus actual LSP checks passed. Wrangler dry-run succeeded despite sandbox log-directory recording denial; no deployment occurred. Fresh independent review found new context requirements in old scenarios; fixed this with explicit expectSettings/expectConcurrency/expectRunSettings activation and a compatibility regression. Delta review cleared the correction. Confirmed staged content matched the reviewed snapshot; made approved signed local feat/minor commit d91ebbd036f421b25a4f91983e72173ead7f50ae. No push, PR, release or environment configuration changes; no live GitHub run claim.
