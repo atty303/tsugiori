@@ -661,6 +661,64 @@ workflow("computed.yml", { on: { push: {} } }).job("test", ({ job }) => job.runs
           `${name}: ${displays[name].length} characters exceeds ${limit}`,
         );
       }
+      const settingsPrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+const ci = workflow(".github/workflows/settings.yml", { on: { push: {} } });
+`;
+      for (
+        const [index, [field, expected]] of ([
+          ["name", ["github", "inputs", "vars", "needs", "strategy", "matrix"]],
+          ["url", [
+            "github",
+            "inputs",
+            "vars",
+            "needs",
+            "strategy",
+            "matrix",
+            "job",
+            "runner",
+            "env",
+            "steps",
+          ]],
+        ] as const).entries()
+      ) {
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          310 + index,
+          `environment-${field}`,
+          settingsPrefix +
+            `ci.job("deploy", ({ job }) => job.runsOn("ubuntu-latest").environment({ ${
+              field === "url" ? 'name: "dev", ' : ""
+            }${field}: context => context./*completion*/ }));`,
+        );
+        assertIncludesExactly(labels, [...expected]);
+      }
+      const settingHover = await sourceHover(
+        writer,
+        stream,
+        312,
+        "structured-environment-state",
+        settingsPrefix +
+          `const built = ci.job("deploy", ({ job }) => job.runsOn({ group: "deploy", labels: ["linux"] }).run({ id: "deploy", name: "Deploy", run: "true", outputs: ["url"] }).environment({ name: "dev", url: ({ steps }) => steps.deploy.outputs.url }));
+built/*completion*/;`,
+      );
+      assert(settingHover.includes("Workflow<"), settingHover);
+      assert(!settingHover.includes("..."), settingHover);
+      const environmentSignature = await sourceHover(
+        writer,
+        stream,
+        313,
+        "environment-signature",
+        settingsPrefix +
+          `ci.job("deploy", ({ job }) => job.runsOn("ubuntu-latest").run({ id: "deploy", name: "Deploy", run: "true", outputs: ["url"] }).environment(/*completion*/));`,
+        false,
+        "signatureHelp",
+      );
+      assert(
+        environmentSignature.includes("EnvironmentValue<"),
+        environmentSignature,
+      );
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

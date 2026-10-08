@@ -16,7 +16,9 @@ import {
   type JobInstanceResult,
   type JobResult,
   type JobRules,
+  type JobSettings,
   type Program,
+  type ResolvedConcurrency,
   type Result,
   ScenarioError,
   type ScenarioObservationState,
@@ -282,6 +284,9 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
     steps: new Map([...base.steps, ...instance.steps]),
     internals: new Map([...base.internals, ...instance.internals]),
     expectedResult: instance.expectedResult,
+    environmentProtection: instance.environmentProtection ??
+      base.environmentProtection,
+    expectedSettings: instance.expectedSettings ?? base.expectedSettings,
     expectedStepOrder: instance.expectedStepOrder ?? base.expectedStepOrder,
     call: instance.call ?? base.call,
     callFixture: instance.callFixture ?? base.callFixture,
@@ -311,6 +316,121 @@ function stepStatus(
   };
 }
 
+function resolvedConcurrency(
+  value: Job["concurrency"],
+  context: Context,
+  status: Status,
+  location: string,
+  overrides: ReadonlyMap<string, unknown>,
+): ResolvedConcurrency | undefined {
+  if (!value) return undefined;
+  const cancelInProgress = typeof value.cancelInProgress === "boolean"
+    ? value.cancelInProgress
+    : evaluateAt(
+      value.cancelInProgress,
+      context,
+      status,
+      location,
+      "concurrency.cancel-in-progress",
+      overrides,
+    );
+  if (
+    typeof cancelInProgress !== "boolean" ||
+    (value.queue === "max" && cancelInProgress)
+  ) {
+    throw new ScenarioError(
+      "expression_error",
+      `${location}.concurrency.cancel-in-progress`,
+      "Cancellation must resolve to boolean; queue max requires false.",
+    );
+  }
+  return {
+    group: stringValue(
+      evaluateAt(
+        value.group,
+        context,
+        status,
+        location,
+        "concurrency.group",
+        overrides,
+      ),
+    ),
+    cancelInProgress,
+    ...(value.queue === undefined ? {} : { queue: value.queue }),
+  };
+}
+function resolvedSettings(
+  job: Job,
+  context: Context,
+  status: Status,
+  location: string,
+  overrides: ReadonlyMap<string, unknown>,
+): JobSettings {
+  const scalar = (value: string, field: string) =>
+    stringValue(evaluateAt(value, context, status, location, field, overrides));
+  const labels = (values: readonly string[], field: string) =>
+    values.map((v, i) =>
+      scalar(v, `${field}.${i}`)
+    ) as unknown as import("../github_actions/mod.ts").NonEmptyReadonlyArray<
+      string
+    >;
+  const selection = job.runsOn;
+  const environment = job.environment;
+  const deployment =
+    typeof environment === "object" && environment.deployment !== undefined
+      ? typeof environment.deployment === "boolean"
+        ? environment.deployment
+        : evaluateAt(
+          environment.deployment,
+          context,
+          status,
+          location,
+          "environment.deployment",
+          overrides,
+        )
+      : undefined;
+  if (deployment !== undefined && typeof deployment !== "boolean") {
+    throw new ScenarioError(
+      "expression_error",
+      `${location}.environment.deployment`,
+      "Deployment must resolve to boolean.",
+    );
+  }
+  const concurrency = resolvedConcurrency(
+    job.concurrency,
+    context,
+    status,
+    location,
+    overrides,
+  );
+  return {
+    ...(selection === undefined ? {} : {
+      runsOn: selection.type === "group"
+        ? {
+          group: scalar(selection.group, "runs-on.group"),
+          ...(selection.labels === undefined
+            ? {}
+            : { labels: labels(selection.labels, "runs-on.labels") }),
+        }
+        : selection.labels.length === 1
+        ? scalar(selection.labels[0], "runs-on")
+        : labels(selection.labels, "runs-on"),
+    }),
+    ...(environment === undefined ? {} : {
+      environment: {
+        name: scalar(
+          typeof environment === "string" ? environment : environment.name,
+          "environment.name",
+        ),
+        ...(typeof environment === "string" ||
+            deployment === undefined
+          ? {}
+          : { deployment: deployment as boolean }),
+      },
+    }),
+    ...(concurrency === undefined ? {} : { concurrency }),
+  };
+}
 async function runInstance(
   job: Job,
   authorJob: AuthoringJob,
@@ -319,6 +439,7 @@ async function runInstance(
   rules: InstanceRules,
   workflowPath: string,
   defaultResult?: Result,
+  workflowDefaults?: import("../github_actions/mod.ts").RunDefaults,
 ): Promise<JobInstanceResult> {
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
@@ -335,6 +456,70 @@ async function runInstance(
       rules.steps.get("__job__")?.expressions ?? new Map(),
     ),
   };
+  const jobOverrides = rules.steps.get("__job__")?.expressions ?? new Map();
+  const initialStatus: Status = {
+    success: true,
+    failure: false,
+    cancelled: false,
+  };
+  let settings = rules.expectedSettings === undefined
+    ? undefined
+    : resolvedSettings(
+      job,
+      context,
+      initialStatus,
+      location,
+      jobOverrides,
+    );
+  if (
+    rules.environmentProtection !== undefined &&
+    (!job.environment ||
+      !["passed", "rejected"].includes(rules.environmentProtection))
+  ) {
+    throw new ScenarioError(
+      "fixture_invalid",
+      `${location}.environment`,
+      "Protection fixtures require an environment and a passed/rejected decision.",
+    );
+  }
+  if (rules.environmentProtection === "rejected") {
+    for (const [id, rule] of rules.steps) {
+      if (id === "__job__") continue;
+      const authored = authorJob.steps.find((step) => step.id === id);
+      checkStep(
+        {
+          id,
+          outcome: "skipped",
+          conclusion: "skipped",
+          inputs: {},
+          outputs: {},
+          env: {},
+        },
+        rule,
+        `${location}.${id}`,
+        undefined,
+        authored,
+      );
+    }
+    if (rules.expectedStepOrder !== undefined) {
+      expectValue([], rules.expectedStepOrder, `${location}.stepOrder`);
+    }
+    if (rules.expectedResult !== undefined) {
+      expectValue("failure", rules.expectedResult, `${location}.result`);
+    }
+    if (rules.expectedSettings) {
+      expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
+    }
+    return {
+      matrix,
+      result: "failure",
+      steps: {},
+      ...(settings === undefined ? {} : { settings }),
+      environmentProtection: "rejected",
+      outputs: {},
+    };
+  }
+  const defaults = { ...workflowDefaults, ...job.defaults };
   const source = new Map(
     authorJob.steps.filter((step) => step.id !== undefined).map((
       step,
@@ -369,6 +554,7 @@ async function runInstance(
       checkStep(skipped, rule, stepLocation, defaultResult, authorStep);
       continue;
     }
+
     if (!isInternal && !authorStep?.id) {
       throw new ScenarioError(
         "fixture_missing",
@@ -376,6 +562,7 @@ async function runInstance(
         "Reached authored step needs an explicit ID and fixture.",
       );
     }
+    let run: import("../github_actions/mod.ts").RunDefaults | undefined;
     let outcome: StepOutcome;
     let outputs: Record<string, string> = {};
     let inputs: Record<string, unknown> = {};
@@ -405,6 +592,37 @@ async function runInstance(
       env = Object.fromEntries(
         Object.entries(rawEnv).map(([key, value]) => [key, stringValue(value)]),
       );
+      run = step.type === "run" && rule?.expectedRunSettings !== undefined
+        ? Object.fromEntries(
+          Object.entries({
+            shell: step.shell ?? defaults.shell,
+            workingDirectory: step.workingDirectory ??
+              defaults.workingDirectory,
+          }).filter(([, value]) => value !== undefined).map((
+            [key, value],
+          ) => [
+            key,
+            stringValue(
+              evaluateAt(
+                value!,
+                step[key as "shell" | "workingDirectory"] !== undefined
+                  ? { ...context, env }
+                  : context,
+                status,
+                stepLocation,
+                step[key as "shell" | "workingDirectory"] !== undefined
+                  ? (key === "workingDirectory" ? "working-directory" : key)
+                  : `defaults.run.${
+                    key === "workingDirectory" ? "working-directory" : key
+                  }`,
+                step[key as "shell" | "workingDirectory"] !== undefined
+                  ? overrides
+                  : jobOverrides,
+              ),
+            ),
+          ]),
+        )
+        : undefined;
       if (authorStep?.type === "task") {
         for (const [name, input] of Object.entries(authorStep.inputs)) {
           try {
@@ -438,6 +656,7 @@ async function runInstance(
             inputs: inputs as never,
             env,
             matrix: matrix as never,
+            ...(run === undefined ? {} : { run }),
           })
           : rule.fixture;
       } catch (error) {
@@ -477,6 +696,7 @@ async function runInstance(
       outputs,
       inputs,
       env,
+      ...(run === undefined ? {} : { run }),
     };
     steps[id] = result;
     if (step.id) (context.steps as Record<string, unknown>)[id] = result;
@@ -501,7 +721,40 @@ async function runInstance(
   if (rules.expectedResult !== undefined) {
     expectValue(result, rules.expectedResult, `${location}.result`);
   }
-  return { matrix, result, steps };
+  context.job = { status: result };
+  if (
+    settings !== undefined && typeof job.environment === "object" &&
+    job.environment.url !== undefined
+  ) {
+    settings = {
+      ...settings,
+      environment: {
+        ...settings.environment!,
+        url: stringValue(
+          evaluateAt(
+            job.environment.url,
+            context,
+            status,
+            location,
+            "environment.url",
+            jobOverrides,
+          ),
+        ),
+      },
+    };
+  }
+  if (rules.expectedSettings) {
+    expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
+  }
+  return {
+    matrix,
+    result,
+    steps,
+    ...(settings === undefined ? {} : { settings }),
+    ...(rules.environmentProtection === undefined
+      ? {}
+      : { environmentProtection: rules.environmentProtection }),
+  };
 }
 
 function fixtureOutputs(
@@ -568,6 +821,16 @@ function checkStep(
   defaultResult?: Result,
   authorStep?: AuthoringJob["steps"][number],
 ): void {
+  if (rules?.expectedRunSettings !== undefined) {
+    if (!result.run) {
+      throw new ScenarioError(
+        "expectation_failed",
+        `${location}.run`,
+        "Run settings require a reached run step.",
+      );
+    }
+    expectSubset(result.run, rules.expectedRunSettings, `${location}.run`);
+  }
   if (rules?.expectedRun !== undefined) {
     expectValue(
       result.outcome !== "skipped",
@@ -639,6 +902,22 @@ async function interpretScenario(
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const workflow =
     lowered.workflows.find((p) => p.path === author.path)!.workflow;
+  const concurrency = program.expectedConcurrency === undefined
+    ? undefined
+    : resolvedConcurrency(
+      workflow.concurrency,
+      program.external,
+      { success: true, failure: false, cancelled: false },
+      author.path,
+      program.expressions ?? new Map(),
+    );
+  if (program.expectedConcurrency) {
+    expectValue(
+      concurrency,
+      program.expectedConcurrency,
+      `${author.path}.concurrency`,
+    );
+  }
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));
   for (const name of program.jobs.keys()) {
     if (!authoredJobs.has(name)) {
@@ -668,6 +947,7 @@ async function interpretScenario(
     }
   }
   const results: Record<string, JobResult> = {};
+  const ancestorStatus = new Map<string, Status>();
   for (const job of workflow.jobs) {
     const location = `${author.path}.${job.id}`;
     const rules = program.jobs.get(job.id) ?? {
@@ -704,9 +984,12 @@ async function interpretScenario(
     );
     const status: Status = {
       success: needResults.every((result) => result === "success"),
-      failure: needResults.includes("failure"),
-      cancelled: needResults.includes("cancelled"),
+      failure: needResults.includes("failure") ||
+        job.needs.some((id) => ancestorStatus.get(id)?.failure),
+      cancelled: needResults.includes("cancelled") ||
+        job.needs.some((id) => ancestorStatus.get(id)?.cancelled),
     };
+    ancestorStatus.set(job.id, status);
     const overrides = rules.steps.get("__job__")?.expressions ??
       new Map<string, unknown>();
     if (!condition(job.if, context, status, location, overrides)) {
@@ -729,6 +1012,31 @@ async function interpretScenario(
       if (job.uses !== undefined) {
         const location = `${author.path}.${job.id}[${JSON.stringify(matrix)}]`;
         const callContext = { ...context, matrix };
+        const callOverrides = merged.steps.get("__job__")?.expressions ??
+          new Map<string, unknown>();
+        const settings = merged.expectedSettings === undefined
+          ? undefined
+          : resolvedSettings(
+            job,
+            callContext,
+            status,
+            location,
+            callOverrides,
+          );
+        if (merged.environmentProtection !== undefined) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            `${location}.environment`,
+            "Reusable caller jobs cannot declare environments; apply protection fixtures to the callee's environment job.",
+          );
+        }
+        if (merged.expectedSettings) {
+          expectSubset(
+            settings!,
+            merged.expectedSettings,
+            `${location}.settings`,
+          );
+        }
         const inputs = evaluateMap(
           job.with,
           callContext,
@@ -891,6 +1199,7 @@ async function interpretScenario(
           result: child.result,
           steps: {},
           call: child,
+          ...(settings === undefined ? {} : { settings }),
           outputs: child.outputs ?? {},
         });
         continue;
@@ -904,6 +1213,7 @@ async function interpretScenario(
           merged,
           author.path,
           program.defaultResult,
+          workflow.defaults,
         ),
       );
     }
@@ -913,6 +1223,7 @@ async function interpretScenario(
     }
     const outputs: Record<string, string> = {};
     for (const instance of instances) {
+      if (instance.environmentProtection === "rejected") continue;
       const jobContext = {
         ...context,
         matrix: instance.matrix,
@@ -985,6 +1296,7 @@ async function interpretScenario(
   return {
     result,
     jobs: results,
+    ...(concurrency === undefined ? {} : { concurrency }),
     ...(author.on.workflow_call?.outputs ? { outputs } : {}),
   };
 }

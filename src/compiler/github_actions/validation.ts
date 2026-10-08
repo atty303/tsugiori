@@ -1,3 +1,4 @@
+import { permissionLevels } from "../../github_actions/permissions.ts";
 import { validateTriggers } from "./triggers.ts";
 import type { Job, RunnerSelection, Workflow } from "./ast.ts";
 
@@ -36,6 +37,9 @@ export type DiagnosticCode =
   | "job.permissions.value.invalid"
   | "job.timeout.invalid"
   | "job.environment.empty"
+  | "job.environment.invalid"
+  | "workflow.defaults.invalid"
+  | "job.defaults.invalid"
   | "job.outputs.invalid"
   | "job.strategy.invalid"
   | "job.concurrency.invalid"
@@ -173,18 +177,35 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
         ),
       );
     }
-    if (
-      job.environment !== undefined &&
-      (typeof job.environment !== "string" || isBlank(job.environment))
-    ) {
-      diagnostics.push(
-        diagnostic(
-          "job.environment.empty",
-          [...jobPath, "environment"],
-          "Job environment must not be empty.",
-        ),
-      );
+    if (job.environment !== undefined) {
+      const environment = job.environment;
+      if (
+        typeof environment === "string"
+          ? isBlank(environment)
+          : !isPlainRecord(environment) ||
+            typeof environment.name !== "string" || isBlank(environment.name) ||
+            (environment.url !== undefined &&
+              typeof environment.url !== "string") ||
+            (environment.deployment !== undefined &&
+              typeof environment.deployment !== "boolean" &&
+              !(typeof environment.deployment === "string" &&
+                /^\s*\$\{\{[\s\S]+\}\}\s*$/.test(environment.deployment))) ||
+            Object.keys(environment).some((k) =>
+              !["name", "url", "deployment"].includes(k)
+            )
+      ) {
+        diagnostics.push(
+          diagnostic(
+            typeof environment === "string"
+              ? "job.environment.empty"
+              : "job.environment.invalid",
+            [...jobPath, "environment"],
+            "Environment requires a name and optional string URL and boolean or expression deployment.",
+          ),
+        );
+      }
     }
+
     validateExpressionMap(
       job.outputs,
       [...jobPath, "outputs"],
@@ -368,7 +389,10 @@ function validatePermissions(
   scope: "workflow" | "job",
   diagnostics: Diagnostic[],
 ): void {
-  if (permissions === undefined) return;
+  if (
+    permissions === undefined || permissions === "read-all" ||
+    permissions === "write-all"
+  ) return;
   if (!isPlainRecord(permissions)) {
     diagnostics.push(diagnostic(
       `${scope}.permissions.invalid`,
@@ -380,7 +404,7 @@ function validatePermissions(
     return;
   }
   Object.entries(permissions).forEach(([key, value]) => {
-    if (!["contents", "id-token", "actions", "pull-requests"].includes(key)) {
+    if (!Object.hasOwn(permissionLevels, key)) {
       diagnostics.push(diagnostic(
         `${scope}.permissions.key.unsupported`,
         [...path, key],
@@ -388,17 +412,22 @@ function validatePermissions(
       ));
     }
     if (
-      key === "id-token"
-        ? value !== "none" && value !== "write"
-        : value !== "none" && value !== "read" && value !== "write"
+      Object.hasOwn(permissionLevels, key) &&
+      !(permissionLevels[
+        key as keyof typeof permissionLevels
+      ] as readonly unknown[]).includes(value)
     ) {
-      diagnostics.push(diagnostic(
-        `${scope}.permissions.value.invalid`,
-        [...path, key],
-        key === "id-token"
-          ? "OIDC permission must be none or write."
-          : "Workflow permission must be none, read, or write.",
-      ));
+      diagnostics.push(
+        diagnostic(
+          `${scope}.permissions.value.invalid`,
+          [...path, key],
+          key === "id-token"
+            ? "OIDC permission must be none or write."
+            : key === "vulnerability-alerts"
+            ? "Vulnerability alerts permission must be none or read."
+            : "Workflow permission must be none, read, or write.",
+        ),
+      );
     }
   });
 }
@@ -412,15 +441,18 @@ function validateConcurrency(
   if (value === undefined) return;
   if (
     !isPlainRecord(value) || typeof value.group !== "string" ||
-    isBlank(value.group) || typeof value.cancelInProgress !== "boolean" ||
+    isBlank(value.group) ||
+    (typeof value.cancelInProgress !== "boolean" &&
+      !isExpression(value.cancelInProgress)) ||
     (value.queue !== undefined &&
-      (value.queue !== "max" || value.cancelInProgress))
+      (!["single", "max"].includes(value.queue as string) ||
+        value.queue === "max" && value.cancelInProgress === true))
   ) {
     diagnostics.push(
       diagnostic(
         code,
         path,
-        "Concurrency requires a nonempty group and boolean cancelInProgress; queue max requires cancelInProgress false.",
+        "Concurrency requires a nonempty group and boolean or expression cancelInProgress; queue max cannot use literal true. Expression-valued cancellation remains a GitHub runtime check.",
       ),
     );
   }
@@ -769,6 +801,7 @@ function validateNativeFields(
       }
     }
   }
+  validateDefaults(workflow.defaults, ["defaults"], true, diagnostics);
   validateExpressionMap(workflow.env, ["env"], "step.env.invalid", diagnostics);
   for (const job of workflow.jobs) {
     validateExpressionMap(
@@ -777,11 +810,39 @@ function validateNativeFields(
       "step.env.invalid",
       diagnostics,
     );
-    if (
-      job.defaults !== undefined &&
-      (job.defaults.shell !== undefined && isBlank(job.defaults.shell) ||
-        job.defaults.workingDirectory !== undefined &&
-          isBlank(job.defaults.workingDirectory))
-    ) invalid("defaults", "Run defaults must not be blank.");
+    validateDefaults(
+      job.defaults,
+      ["jobs", job.id, "defaults"],
+      false,
+      diagnostics,
+    );
+  }
+}
+
+function isExpression(value: unknown): value is string {
+  return typeof value === "string" && /^\$\{\{.+\}\}$/s.test(value);
+}
+function validateDefaults(
+  value: unknown,
+  path: DiagnosticPath,
+  workflow: boolean,
+  diagnostics: Diagnostic[],
+): void {
+  if (value === undefined) return;
+  if (
+    !isPlainRecord(value) ||
+    Object.entries(value).some(([key, entry]) =>
+      !["shell", "workingDirectory"].includes(key) ||
+      (entry !== undefined && (typeof entry !== "string" || isBlank(entry) ||
+        (workflow && entry.includes("${{"))))
+    )
+  ) {
+    diagnostics.push(
+      diagnostic(
+        workflow ? "workflow.defaults.invalid" : "job.defaults.invalid",
+        path,
+        "Run defaults require nonempty shell/directory strings; workflow defaults cannot use expressions.",
+      ),
+    );
   }
 }

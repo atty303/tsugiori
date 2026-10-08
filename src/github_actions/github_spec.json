@@ -31,6 +31,14 @@
     }
   ],
   "sources": {
+    "content/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments.md": {
+      "sha256": "be3b487be15e6d5dc66520a845dd5ec484c837531ccca04aa4ef44ab54e1840c",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments.md"
+    },
+    "content/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments.md": {
+      "sha256": "858811a0e9cb6d65b1df0badc0eb27cfbb289128e80593c672d148eb5f844d08",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/deploy/configure-and-manage-deployments/review-deployments.md"
+    },
     "content/actions/how-tos/reuse-automations/reuse-workflows.md": {
       "sha256": "3583c6522f2b5ed08f73fb17742d1a9cf45ee16bd6f9f484dceebd0aff00534f",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/how-tos/reuse-automations/reuse-workflows.md"
@@ -123,9 +131,21 @@
       "sha256": "781c2490d7cff126bb9f0152c7bc017e8b7b2dd35f6149f847d6c8213ee1b68a",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/features/security-and-quality-tab.yml"
     },
+    "data/features/virtual-registry.yml": {
+      "sha256": "da1e741177a001f26962829b88f4a730c3feadd5a08ae5b27c9503314637d338",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/features/virtual-registry.yml"
+    },
     "data/features/vulnerability-alerts-permission.yml": {
       "sha256": "8a27594fe876b85e9d95c2ddb08c4a8fdb7187601457bd64477f7ee993d2948f",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/features/vulnerability-alerts-permission.yml"
+    },
+    "data/reusables/actions/about-custom-deployment-protection-rules.md": {
+      "sha256": "ff1ec892e11d431d07559ec0b0e1e8b7d1f0cc36b343bff2740aeec4acb0792e",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/about-custom-deployment-protection-rules.md"
+    },
+    "data/reusables/actions/about-environments.md": {
+      "sha256": "1a201f82aec4571f9a941eafd9c96029e6cd880be5ad94f00623de64773b1920",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/about-environments.md"
     },
     "data/reusables/actions/action-cache.md": {
       "sha256": "49632cb8dd2f158d0bdf77d0b2d33792c1211f704e1e68a129288b74dfb8cbd9",
@@ -195,6 +215,10 @@
       "sha256": "9d9cf3bee392fee3b0d0e611519878521f2eaa0995b51aa4d97c748d86f74ad6",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/branch-requirement.md"
     },
+    "data/reusables/actions/cd-templates-actions.md": {
+      "sha256": "6ef57fac8c6761145827130b75257a8e5634d1d784b5e80a7364c7f7988b7c27",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/cd-templates-actions.md"
+    },
     "data/reusables/actions/composite-actions-unsupported-refs.md": {
       "sha256": "37f19089de3567a0aea0c8fb60568edbde10251aafeb9031cd0d78b5f5c49a56",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/composite-actions-unsupported-refs.md"
@@ -211,6 +235,10 @@
       "sha256": "2b0b57e4fa9343703b28e6b16fb94295c208dead51238644900fd55faba7ea7f",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/context-injection-warning.md"
     },
+    "data/reusables/actions/custom-deployment-protection-rules-beta-note.md": {
+      "sha256": "eddea03b25fae256a351a75517975d27fc5ef41707cd4c585b5ced347033882c",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/custom-deployment-protection-rules-beta-note.md"
+    },
     "data/reusables/actions/defaults-override.md": {
       "sha256": "38a065c0959b61a17078a937dc1b86254cca0a05f57e9e5bbfd5f43ef8f1c1a8",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/defaults-override.md"
@@ -222,6 +250,10 @@
     "data/reusables/actions/enterprise-github-hosted-runners.md": {
       "sha256": "217e71432c9354f078ca574fc303efd6e0cb7383e1018a108171c6e990f22626",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/enterprise-github-hosted-runners.md"
+    },
+    "data/reusables/actions/environment-deployment-event.md": {
+      "sha256": "d6f5d2772ffd4c77dbf6e58e9246b6631a5913c104d12d0b05feec0a7d2f8335",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/actions/environment-deployment-event.md"
     },
     "data/reusables/actions/expression-syntax-if.md": {
       "sha256": "ef79fd815739aaeececacfe58efa116c61e1678e85684ed8eb91ee9cbb020196",
@@ -711,6 +743,10 @@
       "sha256": "859ca1add568fe6644d85bfb8b8547b63f49a48da156c0ce9402bf48a464311e",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/developer-site/pull_request_forked_repos_link.md"
     },
+    "data/reusables/gated-features/environments.md": {
+      "sha256": "51cbf209ab4ddb2251ac8a8a48bbf13377ec170676b91639f9550712824141b3",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/gated-features/environments.md"
+    },
     "data/reusables/pull_requests/path-filtering-required-workflows.md": {
       "sha256": "c6e62dacda695e578bae48e956372ef541fd097a6dfc4d14fbe61a0869c47c5d",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/pull_requests/path-filtering-required-workflows.md"
@@ -722,6 +758,10 @@
     "data/reusables/repositories/actions-scheduled-workflow-example.md": {
       "sha256": "675ad618ba48c887d5a2abbc5313949e86c2edf7c18e1473b9032a7fa4e4237f",
       "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/repositories/actions-scheduled-workflow-example.md"
+    },
+    "data/reusables/repositories/actions-workflow-status-badge-intro.md": {
+      "sha256": "6b4a48a1a0d02c8208e3af29ce74d9ab0391cd71a5a754937a9663f5997413ed",
+      "url": "https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/data/reusables/repositories/actions-workflow-status-badge-intro.md"
     },
     "data/reusables/repositories/cron.md": {
       "sha256": "4dc275b713e62ea156b93e1424a2e64a1819e1957ed6911bb174f956b8d73f54",
@@ -759,7 +799,7 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "Existing job timeout validation remains narrower than the source (1–360 vs runner-dependent job limits); this is a Tsugiori limitation, not a GitHub guarantee.",
+    "Existing job timeout validation remains narrower than the source (1\u2013360 vs runner-dependent job limits); this is a Tsugiori limitation, not a GitHub guarantee.",
     "No new GitHub-only fields such as cache-mode, snapshot, background/wait/parallel, services command or entrypoint were implemented. They are inventoried as unsupported."
   ],
   "coverage": [
@@ -1139,13 +1179,18 @@
     {
       "domain": "syntax",
       "key": "permissions",
-      "status": "limited",
-      "notes": "contents, id-token, pull-requests and actions only; no read-all/write-all shorthand. Effective authorization belongs to GitHub.",
+      "status": "implemented",
+      "notes": "Every frozen GitHub.com permission, empty map and read-all/write-all forms are typed, validated and emitted. Effective authorization belongs to GitHub; scenarios do not calculate permissions.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "permissions",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1162,57 +1207,77 @@
     {
       "domain": "syntax",
       "key": "defaults",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native workflow run defaults with validation forbidding expressions; scenario resolves per-property workflow/job/step precedence without platform or filesystem simulation.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "defaults",
       "assessment": [
-        "implementation-gap"
+        "supported"
       ]
     },
     {
       "domain": "syntax",
       "key": "defaults.run",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Workflow shell and working-directory declarations are emitted; workflow expressions are forbidden. Job/step settings override each property independently.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "defaultsrun",
       "assessment": [
-        "implementation-gap"
+        "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "defaults.run.shell",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Literal workflow shell default; scenario exposes explicitly configured effective shell, without inferring runner defaults or executing commands.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "defaultsrunshell",
       "assessment": [
-        "implementation-gap"
+        "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "defaults.run.working-directory",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Literal workflow directory default; scenario exposes explicitly configured effective directory without filesystem checks.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "defaultsrunworking-directory",
       "assessment": [
-        "implementation-gap"
+        "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "concurrency",
-      "status": "limited",
-      "notes": "Literal workflow group and boolean cancellation; queue max only with cancellation disabled. Scenario does not simulate scheduling.",
+      "status": "implemented",
+      "notes": "Scoped workflow group and boolean/expression cancellation plus single/max queue declarations. Literal max/true conflicts are rejected; dynamic cancellation is a GitHub runtime validation boundary. Scenario resolves settings and checks supplied max/cancellation combinations without scheduling.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "concurrency",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1262,13 +1327,18 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.permissions",
-      "status": "limited",
-      "notes": "Same subset as workflow permissions; scenario does not check authorization.",
+      "status": "implemented",
+      "notes": "Same complete declaration forms as workflow permissions; effective authorization and reusable permission enforcement belong to GitHub.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idpermissions",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1296,13 +1366,18 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.runs-on",
-      "status": "limited",
-      "notes": "String, expression or conjunctive label array; public runner groups are unsupported. Tasks reject identifiable Windows labels.",
+      "status": "implemented",
+      "notes": "String, scoped expressions, conjunctive label arrays and runner groups with optional labels are typed, validated and emitted. Scenarios resolve the request without candidate lookup or assignment. Tasks still reject identifiable Windows labels.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idruns-on",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1319,25 +1394,35 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.environment",
-      "status": "limited",
-      "notes": "Name only; URLs and structured deployment options are unsupported. Scenario does not simulate approvals.",
+      "status": "implemented",
+      "notes": "Name or structured name/url/deployment declarations with separate field scopes; URL may reference named step outputs. Scenario accepts aggregate protection passed/rejected fixtures; omission is ungated, rejection prevents steps and propagates failure without step-derived outputs. GitHub owns protection decisions and deployment compatibility with configured rules. deployment supports boolean/native expressions; the fixed context table has no separate deployment scope, so context expressions use the raw escape hatch.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idenvironment",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.concurrency",
-      "status": "limited",
-      "notes": "Expression group; cancellation is a boolean; queue max only. Scenario does not simulate scheduling.",
+      "status": "implemented",
+      "notes": "Scoped job group and boolean/expression cancellation with single/max queues; native declarations emitted. Scenario resolves requests without scheduling. Dynamic max/cancellation conflicts depend on supplied contexts and GitHub validation.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idconcurrency",
       "assessment": [
-        "implementation-gap",
+        "supported",
         "github-runtime"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1393,6 +1478,11 @@
       "anchor": "jobsjob_iddefaultsrun",
       "assessment": [
         "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1404,6 +1494,11 @@
       "anchor": "jobsjob_iddefaultsrunshell",
       "assessment": [
         "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1415,6 +1510,11 @@
       "anchor": "jobsjob_iddefaultsrunworking-directory",
       "assessment": [
         "supported"
+      ],
+      "evidence": [
+        "tests/workflow_settings_test.ts",
+        "tests/workflow_settings_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ]
     },
     {
@@ -1631,7 +1731,7 @@
       "domain": "syntax",
       "key": "jobs.<job_id>.timeout-minutes",
       "status": "limited",
-      "notes": "Tsugiori retains its 1–360 integer validation limit, narrower than GitHub job time limits; expressions are passed through. Scenario does not enforce elapsed time.",
+      "notes": "Tsugiori retains its 1\u2013360 integer validation limit, narrower than GitHub job time limits; expressions are passed through. Scenario does not enforce elapsed time.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idtimeout-minutes",
       "assessment": [

@@ -90,21 +90,26 @@ uses/with/secrets. Calls specify a native `uses` reference and a callee
 definition separately; no output path is converted to a GitHub reference. The
 project contains both callers and callees; lowering checks membership,
 contracts, nesting and output references. Workflow env stays within each
-workflow. Run defaults remain native job settings and per-step overrides remain
-explicit. The public `rawExpression()` emits an explicit `${{ ... }}` value. The
-expression AST serializes literals, property references, operators, built-in
-calls, and opaque `rawNode<T>()` nodes. Field callbacks derive their available
-contexts from the provider scope catalog. Settings sharing that scope accept a
-static object or one authoring callback returning the complete object. Step/job
-env, job run defaults and concurrency, and task input bindings use this form;
-individual values do not accept callbacks. Reusable caller inputs and secrets
-have separate map callbacks because only the secrets scope exposes secrets.
-Caller arguments remain an object, preserving these field boundaries. All these
-callbacks run during authoring and retain typed references and task presence
-proofs. The AST is built at each field; it is not a host-language evaluation of
-GitHub runtime values. `rawNode<T>()` and `.as<T>()` contain caller assertions,
-not runtime validation. Typed task JSON references give `fromJSON()` an inferred
-result type while preserving its ordinary GitHub expression rendering.
+workflow. Run defaults remain native workflow/job settings and per-step
+overrides remain explicit. Workflow defaults forbid expressions; job defaults
+retain their scoped expressions. Runner groups, structured environments and
+expression-valued cancellation remain visible native settings. Permission
+declarations cover the fixed GitHub.com scopes and read-all/write-all without
+calculating authorization. The public `rawExpression()` emits an explicit
+`${{ ... }}` value. The expression AST serializes literals, property references,
+operators, built-in calls, and opaque `rawNode<T>()` nodes. Field callbacks
+derive their available contexts from the provider scope catalog. Settings
+sharing that scope accept a static object or one authoring callback returning
+the complete object. Step/job env, job run defaults and concurrency, and task
+input bindings use this form; individual values do not accept callbacks.
+Reusable caller inputs and secrets have separate map callbacks because only the
+secrets scope exposes secrets. Caller arguments remain an object, preserving
+these field boundaries. All these callbacks run during authoring and retain
+typed references and task presence proofs. The AST is built at each field; it is
+not a host-language evaluation of GitHub runtime values. `rawNode<T>()` and
+`.as<T>()` contain caller assertions, not runtime validation. Typed task JSON
+references give `fromJSON()` an inferred result type while preserving its
+ordinary GitHub expression rendering.
 
 Generated property references prefer GitHub-native dot syntax, including
 hyphenated names, and use brackets when required. Explicit raw expressions
@@ -229,9 +234,20 @@ default to success and support an explicit outcome override.
 The interpreter checks trigger filters, conditions, step order, matrix
 expansion, job dependencies, status and `continue-on-error`, and value
 propagation. It does not call authored step or task bodies. It does not model
-runner behavior, permissions, environment approvals, timeouts, concurrency, or
-actual parallel execution. Unknown expression forms and `hashFiles()` need a
-field-specific scenario value; unsupported forms never silently succeed.
+runner behavior, effective permissions, protection-rule decisions, timeouts,
+concurrency effects, or actual parallel execution. Explicit expectSettings(),
+expectConcurrency() and expectRunSettings() calls enable interpretation of
+runner requests, concurrency expressions and effective run settings from
+explicit workflow/job/step values; platform shell defaults and filesystem
+existence are not inferred. Environment name resolves before steps and URL after
+steps. An optional per-instance environment protection fixture supplies the
+aggregate passed/rejected result. Rejection runs no steps, produces job failure
+and omits step-derived job outputs; failure flows through dependencies and local
+reusable calls. Omission retains ungated interpretation and does not prove
+actual approval. Pending, reviewer eligibility, timers and protection-rule
+calculation are not modeled. Evaluated unknown expression forms and
+`hashFiles()` need a field-specific scenario value; unsupported forms never
+silently succeed.
 
 ### Trigger and payload contracts
 

@@ -1,4 +1,5 @@
 import type {
+  JobEnvironment,
   RunDefaults,
   StaticMatrix,
   WorkflowPermissions,
@@ -11,13 +12,17 @@ export type {
 export type { WorkflowEvent } from "../../github_actions/mod.ts";
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 export type Concurrency = Readonly<
-  { group: string; cancelInProgress: boolean; queue?: "max" }
+  {
+    group: string;
+    cancelInProgress: boolean | string;
+    queue?: "single" | "max";
+  }
 >;
 export type JobOptions = Readonly<{
   if?: string;
   permissions?: WorkflowPermissions;
   timeoutMinutes?: number | string;
-  environment?: string;
+  environment?: string | JobEnvironment;
   name?: string;
   env?: EnvironmentVariables;
   defaults?: RunDefaults;
@@ -98,5 +103,6 @@ export type Workflow = Readonly<{
   env?: EnvironmentVariables;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
+  defaults?: RunDefaults;
   jobs: readonly Job[];
 }>;

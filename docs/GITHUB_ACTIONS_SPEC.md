@@ -63,11 +63,17 @@ Generation, validation and scenarios consume local code and the frozen basis;
 they perform no specification network requests. Raw expressions and external
 workflow references remain explicit assertions. GitHub validates their actual
 semantics, access and execution. Scenarios do not execute actions/scripts,
-simulate runner environments, approvals, effective permissions, timeouts,
-concurrency, fail-fast cancellation or actual scheduling. They do not emulate
-GitHub's suppression of outputs that contain secrets. Conflicting nonempty
-matrix output values fail locally because GitHub's completion order cannot be
-predicted.
+simulate runner environments, protection-rule decisions, effective permissions,
+timeouts, concurrency, fail-fast cancellation or actual scheduling. An optional
+per-job-instance environment fixture supplies the aggregate passed/rejected
+protection result. Rejection prevents steps and propagates job failure without
+step-derived outputs; omission continues interpretation without proving
+approval. Explicit scenario expectations enable interpretation of requested
+runner/concurrency settings and run defaults; existing scenarios do not require
+their expression contexts. Values are interpreted, without runner assignment,
+platform defaults or filesystem checks. They do not emulate GitHub's suppression
+of outputs that contain secrets. Conflicting nonempty matrix output values fail
+locally because GitHub's completion order cannot be predicted.
 
 Use the repository's
 [specification update skill](../.agents/skills/update-github-actions-spec/SKILL.md)

@@ -1,5 +1,5 @@
 import { Document, isMap, isScalar, isSeq } from "../../deps.ts";
-import type { Job, RunnerSelection, Step } from "./ast.ts";
+import type { Job, RunnerSelection, Step, Workflow } from "./ast.ts";
 import type { ValidatedWorkflow } from "./validation.ts";
 
 export function emitWorkflow(workflow: ValidatedWorkflow): string {
@@ -33,6 +33,9 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
         ? {}
         : { "run-name": workflow.runName }),
       ...(workflow.env === undefined ? {} : { env: workflow.env }),
+      ...(workflow.defaults === undefined
+        ? {}
+        : { defaults: emitDefaults(workflow.defaults) }),
       on: events,
       ...(workflow.permissions === undefined
         ? {}
@@ -97,18 +100,9 @@ function emitJob(job: Job): Record<string, unknown> {
       : { uses: job.uses }),
     ...(job.name === undefined ? {} : { name: job.name }),
     ...(job.env === undefined ? {} : { env: job.env }),
-    ...(job.defaults === undefined ? {} : {
-      defaults: {
-        run: {
-          ...(job.defaults.shell === undefined
-            ? {}
-            : { shell: job.defaults.shell }),
-          ...(job.defaults.workingDirectory === undefined
-            ? {}
-            : { "working-directory": job.defaults.workingDirectory }),
-        },
-      },
-    }),
+    ...(job.defaults === undefined
+      ? {}
+      : { defaults: emitDefaults(job.defaults) }),
     ...(job.with === undefined ? {} : { with: job.with }),
     ...(job.callSecrets === undefined ? {} : {
       secrets: job.callSecrets,
@@ -188,7 +182,11 @@ export function emitStep(step: Step): Record<string, unknown> {
 }
 
 function emitConcurrency(
-  value: { group: string; cancelInProgress: boolean; queue?: "max" },
+  value: {
+    group: string;
+    cancelInProgress: boolean | string;
+    queue?: "single" | "max";
+  },
 ): Record<string, unknown> {
   return {
     group: value.group,
@@ -210,4 +208,15 @@ function emitDefinitions<T extends object>(
       ),
     ]),
   );
+}
+
+function emitDefaults(defaults: NonNullable<Workflow["defaults"]>): unknown {
+  return {
+    run: {
+      ...(defaults.shell === undefined ? {} : { shell: defaults.shell }),
+      ...(defaults.workingDirectory === undefined
+        ? {}
+        : { "working-directory": defaults.workingDirectory }),
+    },
+  };
 }

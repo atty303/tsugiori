@@ -162,7 +162,7 @@ Deno.test("rejects invalid job permissions", () => {
       id: "deploy",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
       needs: [],
-      permissions: { "id-token": "read", discussions: "write" },
+      permissions: { "id-token": "read", unknownScope: "write" },
       steps: [{ type: "run", run: "true" }],
     }],
   } as unknown as Workflow);
@@ -174,7 +174,7 @@ Deno.test("rejects invalid job permissions", () => {
     },
     {
       code: "job.permissions.key.unsupported",
-      path: ["jobs", 0, "permissions", "discussions"],
+      path: ["jobs", 0, "permissions", "unknownScope"],
     },
   ]);
 });
@@ -642,7 +642,11 @@ Deno.test("rejects invalid permissions and action input values", () => {
   const result = validateWorkflow({
     name: "Invalid values",
     on: { push: {} },
-    permissions: { contents: "admin", "id-token": "read", discussions: "read" },
+    permissions: {
+      contents: "admin",
+      "id-token": "read",
+      unknownScope: "read",
+    },
     jobs: [{
       id: "test",
       runsOn: { type: "labels", labels: ["ubuntu-latest"] },
@@ -672,7 +676,7 @@ Deno.test("rejects invalid permissions and action input values", () => {
       },
       {
         code: "workflow.permissions.key.unsupported",
-        path: ["permissions", "discussions"],
+        path: ["permissions", "unknownScope"],
       },
       {
         code: "step.with.value.invalid",

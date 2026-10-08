@@ -70,7 +70,7 @@ type _ExecutionSurface = Expect<
 type _StepSurface = Expect<
   Equal<
     StringKeys<Step<"ci", "test", Record<never, never>>>,
-    "uses" | "run" | "steps" | "task" | "outputs"
+    "uses" | "run" | "steps" | "task" | "outputs" | "environment"
   >
 >;
 type _TaskArtifactCacheSurface = Expect<

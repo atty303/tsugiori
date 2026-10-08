@@ -1,4 +1,9 @@
-import type { WorkflowInputValues } from "../github_actions/mod.ts";
+import type {
+  JobEnvironment,
+  RunDefaults,
+  RunnerRequest,
+  WorkflowInputValues,
+} from "../github_actions/mod.ts";
 import type {
   EventPayload,
   EventsOf,
@@ -39,7 +44,7 @@ import type {
  *
  * This test covers trigger filters, conditions, matrix expansion, `needs`,
  * status, input and output wiring, and results. GitHub Actions still owns runner
- * execution, permissions, environment approvals, timeouts, concurrency, and
+ * execution, effective permissions, protection-rule decisions, timeouts, concurrency effects, and
  * actual scheduling. Keep task unit tests for the task bodies themselves.
  *
  * Pass `{ config }` as the third argument of `scenario()` when testing local
@@ -137,6 +142,8 @@ export type FixtureContext<Inputs, Matrix> = Readonly<{
   /** Concrete matrix row for this instance; fixtures may branch on its fields.
    */
   matrix: Matrix;
+  /** Explicit/default run settings enabled by expectRunSettings(), without runner defaults or filesystem checks. Absent unless explicitly requested on a reached run step. */
+  run?: RunDefaults;
 }>;
 /** A fixed fixture or synchronous/asynchronous callback returning one. The callback receives {@link FixtureContext} and runs only for a reached step. See {@link StepScenario.fixture}.
  */
@@ -171,6 +178,31 @@ export class ScenarioError extends Error {
   }
 }
 
+/** Interpreted concurrency request, without scheduling or cancellation effects. */
+export type ResolvedConcurrency = Readonly<{
+  /** Case-insensitive group name resolved from the supplied contexts. */
+  group: string;
+  /** Whether the supplied context requests cancellation of an in-progress member. */
+  cancelInProgress: boolean;
+  /** Pending queue policy; this interpreter does not maintain a queue. */
+  queue?: "single" | "max";
+}>;
+/** Settings resolved for a reached concrete job, not a live runner assignment or deployment observation. */
+export type JobSettings = Readonly<{
+  /** Requested runner labels/group; a group's supplied labels are normalized to an array. Availability and assignment are not simulated. */
+  runsOn?: RunnerRequest;
+  /** Environment name and deployment flag before steps, optional URL after steps. */
+  environment?:
+    & Omit<JobEnvironment, "deployment">
+    & Readonly<{
+      /** Explicit creation flag resolved to a boolean; omission retains GitHub's default. */
+      deployment?: boolean;
+    }>;
+  /** Requested concurrency policy. */
+  concurrency?: ResolvedConcurrency;
+}>;
+/** Aggregate protection decision supplied by a fixture. passed means all rules passed, not one review approval. pending and rule calculation are outside the scenario contract. */
+export type EnvironmentProtection = "passed" | "rejected";
 /** Observed scenario step result. Outcome precedes continue-on-error; conclusion follows it. Inputs are native parsed values, outputs are serialized strings, and env is the interpreted step environment.
  */
 export type StepResult = Readonly<{
@@ -192,6 +224,8 @@ export type StepResult = Readonly<{
   /** Resolved step environment; workflow env does not cross a reusable call.
    */
   env: Readonly<Record<string, string>>;
+  /** Explicit/default run settings enabled by expectRunSettings(), without runner defaults or filesystem checks. Absent unless explicitly requested on a reached run step. */
+  run?: RunDefaults;
 }>;
 /** Result of one concrete matrix instance, retaining step results and an optional nested reusable workflow result. See {@link JobResult}.
  */
@@ -211,6 +245,10 @@ export type JobInstanceResult = Readonly<{
   /** Declared fixture values or observed serialized outputs. See the owning type for native task values versus GitHub wire strings.
    */
   outputs?: Readonly<Record<string, string>>;
+  /** Settings interpreted when expectSettings() explicitly enables validation for this instance. */
+  settings?: JobSettings;
+  /** Explicit aggregate gate fixture, when provided; omission preserves ungated interpretation. */
+  environmentProtection?: EnvironmentProtection;
 }>;
 /** Aggregate scenario job result and string outputs across matrix instances. Conflicting nonempty output values fail because GitHub completion order cannot be predicted.
  */
@@ -237,11 +275,15 @@ export type ScenarioResult = Readonly<{
   /** Declared fixture values or observed serialized outputs. See the owning type for native task values versus GitHub wire strings.
    */
   outputs?: Readonly<Record<string, string>>;
+  /** Workflow concurrency request evaluated when expectConcurrency() explicitly enables validation. */
+  concurrency?: ResolvedConcurrency;
 }>;
 
 /** Mutable step expectations retained by the scenario builder. Prefer {@link StepScenario} methods; this record does not run a step.
  */
 export type StepRules = {
+  /** Expected effective run settings; no command execution is performed. */
+  expectedRunSettings?: RunDefaults;
   /** Fixed or callback fixture for a reached step. Prefer {@link StepScenario.fixture}.
    * @example Given typed scenario builders for the selected job/step.
    * ```ts
@@ -271,6 +313,10 @@ export type StepRules = {
 /** Mutable expectations for one job/matrix instance. Prefer {@link InstanceScenario} methods.
  */
 export type InstanceRules = {
+  /** Aggregate environment gate fixture; omit to retain previous behavior. */
+  environmentProtection?: EnvironmentProtection;
+  /** Requested runner/environment/concurrency expectations. */
+  expectedSettings?: JobSettings;
   /** Observed named steps or retained per-step rules for this instance.
    */
   steps: Map<string, StepRules>;
@@ -324,6 +370,10 @@ export type JobRules = InstanceRules & {
 /** Mutable scenario definition retained by {@link WorkflowScenario}. Prefer its methods to setting maps directly; interpretation begins in {@link scenario}.
  */
 export type Program = {
+  /** Expected resolved workflow concurrency request. */
+  expectedConcurrency?: ResolvedConcurrency;
+  /** Exact workflow expression overrides, such as concurrency.group. */
+  expressions?: Map<string, unknown>;
   /** Ordered files considered by GitHub, or its diff bypass reason. */
   changedFiles?: readonly string[] | "timeout" | "over-1000-commits";
   /** Delivered image identity, independent of undocumented payload fields. */
@@ -419,6 +469,16 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    */
   expectOutputs(value: Partial<Outputs>): this {
     this.rules.expectedOutputs = value as Readonly<Record<string, unknown>>;
+    return this;
+  }
+  /** Enable interpretation and compare effective shell/directory after workflow, job and step overrides. Only applies to reached run steps; does not verify commands or directory existence. Pass {} to expose the resolved values to the fixture callback without comparing properties. Without this call, existing scenarios do not evaluate shell/directory expressions or require their contexts.
+   * @example Given a typed step scenario builder `testStep`.
+   * ```ts
+   * testStep.expectRunSettings({ shell: "bash", workingDirectory: "src" });
+   * ```
+   */
+  expectRunSettings(value: RunDefaults): this {
+    this.rules.expectedRunSettings = value;
     return this;
   }
   /** Require the step to be reached. Still supply a fixture for its execution.
@@ -521,6 +581,39 @@ export class InstanceScenario<Job> {
     child.program.workflowPath =
       project({ workflows: [workflow] }).workflows[0].path;
     this.rules.call = child.program;
+    return this;
+  }
+  /** Supply the aggregate environment protection decision for a reached job instance. passed means every rule passed; rejected prevents all steps and produces job failure. Omission advances as before and proves nothing about GitHub protection. No pending, reviewers, timers or rule calculation is modeled. Configure per-matrix decisions with eachMatrix().
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.environmentProtection("rejected").expectResult("failure");
+   * ```
+   */
+  environmentProtection(value: EnvironmentProtection): this {
+    this.rules.environmentProtection = value;
+    return this;
+  }
+  /** Enable interpretation and compare resolved runner/environment/concurrency requests. Runner assignment, protection rules and concurrency scheduling are not simulated. Environment URLs resolve after steps. Pass {} to expose resolved settings on the result without comparing properties. Without this call, existing scenarios do not evaluate these settings or require their contexts.
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.expectSettings({ environment: { name: "production" }, runsOn: { group: "deploy", labels: ["linux"] } });
+   * ```
+   */
+  expectSettings(value: JobSettings): this {
+    this.rules.expectedSettings = value;
+    return this;
+  }
+  /** Supply an exact job expression value for raw expressions or unsupported functions; native paths include runs-on.group, environment.url and defaults.run.shell. For settings fields, enable interpretation with expectSettings() or expectRunSettings(); condition and matrix overrides retain their existing behavior.
+   * @example Given a typed job/instance scenario builder `testJob`.
+   * ```ts
+   * testJob.expression("environment.url", "https://example.com")
+   *   .expectSettings({ environment: { name: "production", url: "https://example.com" } });
+   * ```
+   */
+  expression(field: string, value: unknown): this {
+    const rules = this.rules.steps.get("__job__") ?? newStepRules();
+    rules.expressions.set(field, value);
+    this.rules.steps.set("__job__", rules);
     return this;
   }
   /** Supply outputs and outcome for an external raw reusable call. A local typed call instead requires call() and rejects an external fixture.
@@ -647,18 +740,6 @@ export class JobScenario<Job> extends InstanceScenario<Job> {
     };
     return this;
   }
-  /** Supply a value at this exact expression field for an unsupported raw expression or hashFiles(). The interpreter does not guess unspecified values; use the native field path, such as if or strategy.matrix.
-   * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
-   * ```ts
-   * testJob.expression("if", true);
-   * ```
-   */
-  expression(field: string, value: unknown): this {
-    const rules = this.rules.steps.get("__job__") ?? newStepRules();
-    rules.expressions.set(field, value);
-    this.rules.steps.set("__job__", rules);
-    return this;
-  }
 }
 
 /** Recursive optional fixture shape. Properties retain their source value types; missing values needed by evaluation fail at their location. */
@@ -774,6 +855,27 @@ export class WorkflowScenario<
    */
   secrets(value: Readonly<Record<string, unknown>>): this {
     this.program.external.secrets = value;
+    return this;
+  }
+  /** Enable interpretation and compare the workflow concurrency request without simulating competing runs. Without this call, existing scenarios do not evaluate concurrency expressions or require their contexts.
+   * @example Given a workflow scenario builder `test`.
+   * ```ts
+   * test.expectConcurrency({ group: "ci-main", cancelInProgress: true });
+   * ```
+   */
+  expectConcurrency(value: ResolvedConcurrency): this {
+    this.program.expectedConcurrency = value;
+    return this;
+  }
+  /** Supply an exact workflow expression override, such as concurrency.cancel-in-progress, for unsupported raw expressions. Enable interpretation with expectConcurrency().
+   * @example Given a workflow scenario builder `test`.
+   * ```ts
+   * test.expression("concurrency.group", "ci-main")
+   *   .expectConcurrency({ group: "ci-main", cancelInProgress: false });
+   * ```
+   */
+  expression(field: string, value: unknown): this {
+    (this.program.expressions ??= new Map()).set(field, value);
     return this;
   }
   /** Set a common expected conclusion for all reached authored steps. Explicit step expectations remain independent.

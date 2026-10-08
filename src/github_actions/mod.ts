@@ -128,12 +128,17 @@
  * emits native defaults, and a run step's `shell` and `workingDirectory` override
  * them. Step `timeoutMinutes` accepts an integer or an expression callback.
  * PR/PR-target `types`, push tags, dispatch choice/options, `runName`, job
- * `.name()` and `actions`/`pull-requests` permissions are supported.
+ * `.name()`, all token permission declarations, workflow/job run defaults,
+ * runner groups, structured environments and expression-valued concurrency are supported.
+ * Set a URL referencing step outputs through `.environment()` after those steps.
+ * Scenarios interpret requested settings and accept aggregate environment protection
+ * fixtures; they do not calculate authorization, protection rules or scheduling.
  *
  * {@link githubActionsSpec} exposes the frozen specification basis and capability coverage. Generation, validation and scenarios do not fetch specifications. Coverage does not prove hosted GitHub execution or authorization.
  * @module
  */
 import { posix } from "node:path";
+import { permissionLevels } from "./permissions.ts";
 import type { ActionContract, ActionContractInput } from "./action_contract.ts";
 import { registerCacheSteps } from "./cache_factory_registry.ts";
 export type {
@@ -364,40 +369,43 @@ export type OidcPermissionLevel = "none" | "write";
  * const value = { contents: "read" } satisfies WorkflowPermissions;
  * ```
  */
-export type WorkflowPermissions = Readonly<{
-  /** Controls GITHUB_TOKEN access to repository contents: read allows checkout; write allows content changes and releases.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
-   * @example
-   * ```ts
-   * const value = { contents: "read" } satisfies WorkflowPermissions;
-   * ```
-   */
-  contents?: PermissionLevel;
-  /** Allows requesting an OpenID Connect token for authentication to an external provider. write permits token requests, not writes to that provider.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
-   * @example
-   * ```ts
-   * const value = { "id-token": "write" } satisfies WorkflowPermissions;
-   * ```
-   */
-  "id-token"?: OidcPermissionLevel;
-  /** Controls GITHUB_TOKEN access to pull requests, including reading metadata or writing labels and comments.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
-   * @example
-   * ```ts
-   * const value = { "pull-requests": "read" } satisfies WorkflowPermissions;
-   * ```
-   */
-  "pull-requests"?: PermissionLevel;
-  /** Controls GITHUB_TOKEN access to GitHub Actions, including reading runs or cancelling workflow runs with write.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
-   * @example
-   * ```ts
-   * const value = { actions: "read" } satisfies WorkflowPermissions;
-   * ```
-   */
-  actions?: PermissionLevel;
-}>;
+export type WorkflowPermissions =
+  | "read-all"
+  | "write-all"
+  | Readonly<{
+    /** Controls reading or managing Actions runs. */
+    "actions"?: PermissionLevel;
+    /** Controls reading or writing artifact metadata. */
+    "artifact-metadata"?: PermissionLevel;
+    /** Controls reading or creating artifact attestations. */
+    "attestations"?: PermissionLevel;
+    /** Controls reading or managing check runs. */
+    "checks"?: PermissionLevel;
+    /** Controls reading or writing code quality results. */
+    "code-quality"?: PermissionLevel;
+    /** Controls repository contents, including checkout and releases. */
+    "contents"?: PermissionLevel;
+    /** Controls reading or creating deployments. */
+    "deployments"?: PermissionLevel;
+    /** Controls reading or managing discussions. */
+    "discussions"?: PermissionLevel;
+    /** Allows OIDC token requests with write; it does not grant access to the external provider. */
+    "id-token"?: OidcPermissionLevel;
+    /** Controls reading or managing issues. */
+    "issues"?: PermissionLevel;
+    /** Controls reading or publishing packages. */
+    "packages"?: PermissionLevel;
+    /** Controls reading or deploying GitHub Pages. */
+    "pages"?: PermissionLevel;
+    /** Controls reading or managing pull requests. */
+    "pull-requests"?: PermissionLevel;
+    /** Controls reading or writing security events. */
+    "security-events"?: PermissionLevel;
+    /** Controls reading or writing commit statuses. */
+    "statuses"?: PermissionLevel;
+    /** Controls reading vulnerability alerts; write is not supported. */
+    "vulnerability-alerts"?: "none" | "read";
+  }>;
 /** Reusable input default: a native value, typed expression or one field-scoped authoring callback.
  * The callback runs once when workflow() is authored. GitHub evaluates its expression in the callee's github/inputs/vars context.
  * Raw expressions are explicit caller assertions. scenarios evaluate defaults for omitted local call inputs.
@@ -888,7 +896,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
       secrets: SecretValues<C> | "inherit";
     })
 >;
-/** Job run defaults choose the shell and working directory for run steps. Step-level settings override the job defaults. They do not affect uses steps.
+/** Run defaults choose the shell and working directory for run steps. Job values override workflow values, and step values override both, independently for each property. They do not affect uses steps.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrun
  * @example
  * ```ts
@@ -900,7 +908,7 @@ export type WorkflowCallArguments<C extends WorkflowCall> = Readonly<
  */
 export type RunDefaults = Readonly<
   {
-    /** The default command interpreter (for example bash, pwsh or cmd) for run steps in this job. An explicit step value overrides it; this does not configure action steps.
+    /** The default command interpreter (for example bash, pwsh or cmd) for run steps in this scope. An explicit step value overrides it; this does not configure action steps.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunshell
      * @example
      * ```ts
@@ -911,7 +919,7 @@ export type RunDefaults = Readonly<
      * ```
      */
     shell?: string;
-    /** The default execution directory, which must exist on the runner for run steps in this job. An explicit step value overrides it; this does not configure action steps.
+    /** The default execution directory, which must exist on the runner for run steps in this scope. An explicit step value overrides it; this does not configure action steps.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_iddefaultsrunworking-directory
      * @example
      * ```ts
@@ -924,6 +932,42 @@ export type RunDefaults = Readonly<
     workingDirectory?: string;
   }
 >;
+/** A native runner group optionally narrowed by labels. GitHub selects an accessible runner satisfying both; scenarios only interpret the request.
+ * @example
+ * ```ts
+ * const runner = { group: "deploy", labels: ["linux", "x64"] } satisfies RunnerGroup;
+ * ```
+ */
+export type RunnerGroup = Readonly<{
+  /** Runner group name; access and availability are GitHub-owned. */
+  group: string;
+  /** One label or conjunctive labels within the group. Order is preserved. */
+  labels?: string | NonEmptyReadonlyArray<string>;
+}>;
+/** Materialized runner request. Author through runsOn(); expressions remain native YAML strings. */
+export type RunnerRequest =
+  | string
+  | NonEmptyReadonlyArray<string>
+  | RunnerGroup;
+/** Materialized deployment environment. All protection rules must pass before steps start; scenarios accept the aggregate decision as a fixture.
+ * @example
+ * ```ts
+ * const environment = { name: "production", url: "https://example.com", deployment: false } satisfies JobEnvironment;
+ * ```
+ */
+export type JobEnvironment = Readonly<{
+  /** Environment name, resolved before job execution. */
+  name: string;
+  /** Deployment URL; may reference step outputs and is resolved after steps. */
+  url?: string;
+  /** Whether to create a deployment, default true; native expressions remain YAML strings. false still applies reviewers and wait timers, but is incompatible with custom protection rules. GitHub owns that configuration check.
+   * @example
+   * ```ts
+   * const environment = { name: "production", deployment: "${{ github.ref_name == 'main' }}" } satisfies JobEnvironment;
+   * ```
+   */
+  deployment?: boolean | string;
+}>;
 /** Primitive values in a static matrix.
  * @example
  * ```ts
@@ -983,7 +1027,10 @@ export type ActionInputs = Readonly<Record<string, ActionInput>>;
  */
 export type EnvironmentVariables = Readonly<Record<string, string>>;
 /** Concurrency restricts jobs or workflow runs sharing a group to one running member. By default, a new pending member replaces the existing pending member.
- * Tsugiori supports queue max only with cancellation disabled; scenarios do not simulate scheduling.
+ * Cancellation can be a boolean or a native expression string. Author callbacks in
+ * workflow concurrency use github/inputs/vars; job concurrency also permits needs/strategy/matrix.
+ * queue max rejects literal true during generation. An expression must resolve to false
+ * at GitHub runtime (or in the scenario's supplied context); scenarios do not schedule.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
  * @example
  * ```ts
@@ -1007,7 +1054,23 @@ export type Concurrency = Readonly<{
    * ```
    */
   group: string;
-  /** Whether a newly queued group member also cancels the currently running member. false keeps the running member.
+  /** Whether a newly queued group member also cancels the currently running member. false keeps the running member; a native expression is evaluated by GitHub.
+   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
+   * @example
+   * ```ts
+   * const value = {
+   *   group: "deploy-production",
+   *   cancelInProgress: false,
+   *   queue: "max",
+   * } satisfies Concurrency;
+   * ```
+   * @example
+   * ```ts
+   * const value = { group: "ci", cancelInProgress: "${{ github.ref != 'refs/heads/main' }}" } satisfies Concurrency;
+   * ```
+   */
+  cancelInProgress: boolean | string;
+  /** single (the default) retains one pending member; max allows up to 100 pending members; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    * @example
    * ```ts
@@ -1018,19 +1081,7 @@ export type Concurrency = Readonly<{
    * } satisfies Concurrency;
    * ```
    */
-  cancelInProgress: boolean;
-  /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
-   * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
-   * @example
-   * ```ts
-   * const value = {
-   *   group: "deploy-production",
-   *   cancelInProgress: false,
-   *   queue: "max",
-   * } satisfies Concurrency;
-   * ```
-   */
-  queue?: "max";
+  queue?: "single" | "max";
 }>;
 type JobOptions = Readonly<{
   /** The condition for running this job, evaluated before matrix expansion. success() is implicit unless a status-check function occurs in the condition.
@@ -1049,7 +1100,7 @@ type JobOptions = Readonly<{
   /** The deployment environment whose protection rules, approvals and secrets apply to this job. Protection rules must pass before the job is sent to a runner.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
    */
-  environment?: string;
+  environment?: string | JobEnvironment;
   /** The job display name in the run UI. If omitted, GitHub uses the job id.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idname
    */
@@ -1287,7 +1338,7 @@ export type AuthoringJob =
     /** The runner executing this job. An array requires every listed label; a single label may select a GitHub-hosted image. Caller jobs use a reusable workflow instead of selecting a runner.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
      */
-    runsOn?: string | NonEmptyReadonlyArray<string>;
+    runsOn?: RunnerRequest;
     /** Jobs that must finish successfully before this job starts. A failed or skipped dependency skips dependent jobs unless the job condition explicitly admits another status.
      * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idneeds
      */
@@ -1350,8 +1401,9 @@ export type AuthoringWorkflow = Readonly<{
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    */
   permissions?: WorkflowPermissions;
-  /** Completed jobs in this workflow. Author jobs in dependency order and refer to them through needs().
-   */
+  /** Workflow run defaults; expressions are forbidden at this scope. */
+  defaults?: RunDefaults;
+  /** Completed jobs in dependency order. */
   jobs: readonly AuthoringJob[];
 }>;
 /** Materialized project returned by {@link project}. Pass it to runProject for generation. Workflow and Action metadata paths are relative to the invocation Deno project, not the source module URL.
@@ -1539,11 +1591,22 @@ export type WorkflowOptions<
    * ```ts
    * workflow(".github/workflows/ci.yml", {
    *   on: { push: {} },
-   *   concurrency: { group: "ci-${{ github.ref }}", cancelInProgress: true },
+   *   concurrency: ({ github }) => ({ group: github.ref, cancelInProgress: github.ref.ne("refs/heads/main") }),
    * });
    * ```
    */
-  concurrency?: Concurrency;
+  concurrency?: AuthoringValue<
+    ConcurrencyInput,
+    Scope<
+      "concurrency",
+      E,
+      E,
+      E,
+      Names<Vars>,
+      Names<Secrets>,
+      WorkflowInputs<On>
+    >
+  >;
   /** Permissions granted to GITHUB_TOKEN for jobs in this workflow. A job can override this map. Once any permission is specified, unspecified permissions become none; repository and fork policies may further restrict access.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#permissions
    * @example
@@ -1555,6 +1618,13 @@ export type WorkflowOptions<
    * ```
    */
   permissions?: WorkflowPermissions;
+  /** Workflow defaults for run steps. Job and step settings override each property independently. Expressions and contexts are not allowed at workflow scope.
+   * @example
+   * ```ts
+   * workflow(".github/workflows/ci.yml", { on: { push: {} }, defaults: { shell: "bash", workingDirectory: "src" } });
+   * ```
+   */
+  defaults?: RunDefaults;
 }>;
 
 type LiteralNames<Values extends readonly string[] | undefined> = Values extends
@@ -1920,6 +1990,67 @@ type TaskInputDefinitions = Readonly<
   >
 >;
 type AuthoringValue<Value, Context> = Value | ((context: Context) => Value);
+type ConcurrencyInput = Readonly<{
+  group: string | ExpressionInput;
+  cancelInProgress: boolean | Expression<boolean> | RawExpression;
+  queue?: "single" | "max";
+}>;
+type RunnerInput =
+  | string
+  | Expression<string>
+  | NonEmptyReadonlyArray<string | Expression<string>>
+  | Readonly<{
+    group: string | Expression<string>;
+    labels?:
+      | string
+      | Expression<string>
+      | NonEmptyReadonlyArray<string | Expression<string>>;
+  }>;
+type RunnerValue<
+  N extends Record<string, readonly string[]>,
+  M extends object,
+  V extends string,
+  S extends string,
+  I extends object,
+> = AuthoringValue<
+  RunnerInput,
+  Scope<"jobs.<job_id>.runs-on", N, E, M, V, S, I>
+>;
+type EnvironmentValue<
+  N extends Record<string, readonly string[]>,
+  T extends Record<string, readonly string[]>,
+  M extends object,
+  V extends string,
+  S extends string,
+  I extends object,
+> =
+  | string
+  | Field<"jobs.<job_id>.environment", N, E, M, V, S, I>
+  | Readonly<{
+    /** Name or name-scoped callback; steps, runner, env and secrets are unavailable.
+     * @example In a job callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").environment({ name: ({ github }) => github.ref_name });
+     * ```
+     */
+    name: string | Field<"jobs.<job_id>.environment", N, E, M, V, S, I>;
+    /** URL or URL-scoped callback, evaluated after steps. Secrets are unavailable.
+     * @example In a job callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").environment({ name: "production", url: ({ github }) => github.server_url });
+     * ```
+     */
+    url?: string | Field<"jobs.<job_id>.environment.url", N, T, M, V, S, I>;
+    /** Whether GitHub creates a deployment, default true; does not bypass protection rules.
+     * The fixed context catalog does not list a deployment expression scope, so use
+     * an explicit raw expression when referring to runtime context here.
+     * @example In a job callback with `{ job }`.
+     * ```ts
+     * job.runsOn("ubuntu-latest").environment({ name: "production", deployment: rawExpression("github.ref_name == 'main'") });
+     * ```
+     */
+    deployment?: boolean | Expression<boolean> | RawExpression;
+  }>;
 type StepEnv<
   Needs extends Record<string, readonly string[]>,
   Steps extends StepReferences,
@@ -2730,7 +2861,11 @@ interface ExecBase<
 > {
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
-   * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
+   * Configure strategy before selecting a matrix-dependent runner. A group request requires an accessible runner in that group matching every supplied label; scenarios interpret the request without assigning runners.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(({ github }) => ({ group: github.repository_owner, labels: ["linux"] }));
+   * ```
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -2738,20 +2873,7 @@ interface ExecBase<
    * ```
    */
   runsOn(
-    runner:
-      | string
-      | NonEmptyReadonlyArray<string>
-      | ((
-        context: Scope<
-          "jobs.<job_id>.runs-on",
-          Needs,
-          E,
-          Matrix,
-          Vars,
-          Secrets,
-          InputValues
-        >,
-      ) => Expression<string> | string | NonEmptyReadonlyArray<string>),
+    runner: RunnerValue<Needs, Matrix, Vars, Secrets, InputValues>,
   ): ExecOf<
     WorkflowPath,
     JobId,
@@ -3179,7 +3301,7 @@ interface ExecBase<
     Proof
   >;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
-   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
+   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation may be a boolean expression evaluated by GitHub. The queue max cannot use literal true; expression-valued cancellation is checked by GitHub; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -3217,8 +3339,8 @@ interface ExecBase<
            * }));
            * ```
            */
-          cancelInProgress: boolean;
-          /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+          cancelInProgress: boolean | Expression<boolean> | RawExpression;
+          /** single (the default) retains one pending member; max allows up to 100 pending members; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
            * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
@@ -3229,7 +3351,7 @@ interface ExecBase<
            * }));
            * ```
            */
-          queue?: "max";
+          queue?: "single" | "max";
         }
       >,
       Scope<
@@ -3253,7 +3375,7 @@ interface ExecBase<
     Proof
   >;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
-   * Tsugiori supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
+   * Accepts every permission in the fixed GitHub.com specification, an empty map, read-all or write-all; scenarios do not calculate effective authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -3303,7 +3425,7 @@ interface ExecBase<
     Proof
   >;
   /** Names the deployment environment used by this job. GitHub applies its protection rules and required approvals before sending the job to a runner; environment secrets become available after protection rules pass.
-   * Tsugiori supports the name only, not the structured name/url form; scenarios do not enforce protections.
+   * Accepts a name or structured settings with independently scoped name/URL callbacks. Set a step-dependent URL after its named step with Step.environment(). Scenarios can supply the aggregate protection decision; no protection rules are calculated.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idenvironment
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -3311,7 +3433,7 @@ interface ExecBase<
    * ```
    */
   environment(
-    value: string,
+    value: EnvironmentValue<Needs, E, Matrix, Vars, Secrets, InputValues>,
   ): ExecOf<
     WorkflowPath,
     JobId,
@@ -4319,6 +4441,34 @@ interface StepBase<
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
 > extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
+  /** Sets the environment while retaining earlier step references. Name callbacks exclude steps; URL callbacks include named outputs. URL is evaluated after steps, and protection is checked before any step.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").run({ id: "deploy", name: "Deploy", run: "deploy", outputs: ["url"] })
+   *   .environment({ name: "production", url: ({ steps }) => steps.deploy.outputs.url });
+   * ```
+   */
+  environment(
+    value: EnvironmentValue<
+      Needs,
+      OutputMap<Steps>,
+      Matrix,
+      Vars,
+      Secrets,
+      InputValues
+    >,
+  ): StepOf<
+    WorkflowPath,
+    JobId,
+    Steps,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof
+  >;
   /** References to earlier named steps in this immutable job.
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -4987,7 +5137,7 @@ interface CallJobBase<
       >,
   ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Sets this job's GITHUB_TOKEN permissions, overriding the workflow map. Once any permission is specified, all unspecified permissions become none. Repository, organization and fork policies can reduce effective access.
-   * Tsugiori supports contents, id-token, actions and pull-requests; scenarios do not verify authorization.
+   * Accepts every permission in the fixed GitHub.com specification, an empty map, read-all or write-all; scenarios do not calculate effective authorization.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idpermissions
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -4998,7 +5148,7 @@ interface CallJobBase<
     value: WorkflowPermissions,
   ): CallJobOf<P, J, N, M, V, S, InputValues>;
   /** Allows at most one running member of a group in this repository. A new pending member normally replaces the old pending member; cancelInProgress also cancels the running member.
-   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation remains a static boolean. The queue max setting requires cancellation disabled; scenarios do not schedule.
+   * Accepts a static object or one authoring callback returning the complete settings in the concurrency scope. Cancellation may be a boolean expression evaluated by GitHub. The queue max cannot use literal true; expression-valued cancellation is checked by GitHub; scenarios do not schedule.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idconcurrency
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -5036,8 +5186,8 @@ interface CallJobBase<
            * }));
            * ```
            */
-          cancelInProgress: boolean;
-          /** max allows up to 100 pending members instead of the default one; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
+          cancelInProgress: boolean | Expression<boolean> | RawExpression;
+          /** single (the default) retains one pending member; max allows up to 100 pending members; additional members are cancelled when the queue is full. Members are processed in order of starting to wait, not dispatch time. Cannot be combined with cancel-in-progress.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
            * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts
@@ -5048,7 +5198,7 @@ interface CallJobBase<
            * }));
            * ```
            */
-          queue?: "max";
+          queue?: "single" | "max";
         }
       >,
       Scope<
@@ -5366,7 +5516,11 @@ interface JobInitBase<
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
-   * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
+   * Configure strategy before selecting a matrix-dependent runner. A group request requires an accessible runner in that group matching every supplied label; scenarios interpret the request without assigning runners.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(({ github }) => ({ group: github.repository_owner, labels: ["linux"] }));
+   * ```
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -5374,7 +5528,7 @@ interface JobInitBase<
    * ```
    */
   runsOn(
-    runner: string | NonEmptyReadonlyArray<string>,
+    runner: RunnerValue<E, E, Vars, Secrets, InputValues>,
   ): ExecOf<
     WorkflowPath,
     JobId,
@@ -5470,7 +5624,11 @@ interface DepJobBase<
   >;
   /** Selects the runner executing this job. A label array requires a runner matching every label, for example [self-hosted, linux, x64]. A single label can select a GitHub-hosted image such as ubuntu-latest.
    * Label order and spelling are preserved. If self-hosted is present (case-insensitive), it must be first or generation fails validation; it is not required.
-   * Configure strategy before selecting a matrix-dependent runner; scenarios do not provision runners.
+   * Configure strategy before selecting a matrix-dependent runner. A group request requires an accessible runner in that group matching every supplied label; scenarios interpret the request without assigning runners.
+   * @example In a `workflow().job()` callback with `{ job }`.
+   * ```ts
+   * job.runsOn(({ github }) => ({ group: github.repository_owner, labels: ["linux"] }));
+   * ```
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idruns-on
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -5478,7 +5636,7 @@ interface DepJobBase<
    * ```
    */
   runsOn(
-    runner: string | NonEmptyReadonlyArray<string>,
+    runner: RunnerValue<Needs, E, Vars, Secrets, InputValues>,
   ): ExecOf<
     WorkflowPath,
     JobId,
@@ -6064,6 +6222,7 @@ type WorkflowDraft = Readonly<{
   env?: EnvironmentVariables;
   concurrency?: Concurrency;
   permissions?: WorkflowPermissions;
+  defaults?: RunDefaults;
   jobs: readonly AuthoringJob[];
   references: JobReferences;
   owner: symbol;
@@ -6072,7 +6231,7 @@ type JobDraft = Readonly<{
   workflowPath: string;
   id: string;
   owner: symbol;
-  runsOn?: string | NonEmptyReadonlyArray<string>;
+  runsOn?: RunnerRequest;
   options?: JobOptions;
   needs: readonly string[];
   steps: readonly AuthoringStep[];
@@ -6179,8 +6338,9 @@ export function workflow<
     on: materializeTriggers(options.on),
     runName: options.runName,
     env: options.env && Object.freeze({ ...options.env }),
+    defaults: options.defaults && Object.freeze({ ...options.defaults }),
     ...(options.concurrency === undefined ? {} : {
-      concurrency: Object.freeze({ ...options.concurrency }),
+      concurrency: renderConcurrency(options.concurrency, "concurrency"),
     }),
     ...(options.permissions === undefined
       ? {}
@@ -6552,8 +6712,10 @@ function createJobStartFacade(
     Readonly<Record<string, string>>
   > {
   const start = (value: JobDraft) => ({
-    runsOn: (runner: string | NonEmptyReadonlyArray<string>) =>
-      createExecutionJobFacade(Object.freeze({ ...value, runsOn: runner })),
+    runsOn: (runner: unknown) =>
+      createExecutionJobFacade(
+        Object.freeze({ ...value, runsOn: renderRunner(runner) }),
+      ),
     reusable: () => createReusableJobFacade(value),
   });
   return Object.freeze({
@@ -6669,15 +6831,65 @@ function createReusableJobFacade(
     rawCall: (uses: string, args: unknown) => invoke(uses, args),
   }) as CallJobOf<string, string>;
 }
+function renderRunner(value: unknown): RunnerRequest {
+  const runner = resolveAuthoringValue<RunnerInput>(
+    "jobs.<job_id>.runs-on",
+    value,
+  );
+  if (typeof runner === "string" || runner instanceof Expression) {
+    return renderAuthoringScalar(runner);
+  }
+  if (Array.isArray(runner)) {
+    return Object.freeze(
+      runner.map(renderAuthoringScalar),
+    ) as NonEmptyReadonlyArray<string>;
+  }
+  const group = runner as { group: unknown; labels?: unknown };
+  return Object.freeze({
+    group: renderAuthoringScalar(group.group),
+    ...(group.labels === undefined ? {} : {
+      labels: Array.isArray(group.labels)
+        ? Object.freeze(
+          group.labels.map(renderAuthoringScalar),
+        ) as NonEmptyReadonlyArray<string>
+        : renderAuthoringScalar(group.labels),
+    }),
+  });
+}
+function renderEnvironment(value: unknown): string | JobEnvironment {
+  if (
+    typeof value === "string" || typeof value === "function" ||
+    value instanceof Expression
+  ) return evaluateScalar("jobs.<job_id>.environment", value);
+  const definition = value as {
+    name: unknown;
+    url?: unknown;
+    deployment?: boolean | Expression<boolean> | RawExpression;
+  };
+  return Object.freeze({
+    name: evaluateScalar("jobs.<job_id>.environment", definition.name),
+    ...(definition.url === undefined ? {} : {
+      url: evaluateScalar("jobs.<job_id>.environment.url", definition.url),
+    }),
+    ...(definition.deployment === undefined ? {} : {
+      deployment: typeof definition.deployment === "boolean"
+        ? definition.deployment
+        : renderAuthoringScalar(definition.deployment),
+    }),
+  });
+}
 function renderConcurrency(
   value: unknown,
+  key: "concurrency" | "jobs.<job_id>.concurrency" =
+    "jobs.<job_id>.concurrency",
 ): NonNullable<JobOptions["concurrency"]> {
-  const definition = resolveAuthoringValue<
-    { group: unknown; cancelInProgress: boolean; queue?: "max" }
-  >("jobs.<job_id>.concurrency", value);
+  const definition = resolveAuthoringValue<ConcurrencyInput>(key, value);
   return Object.freeze({
     ...definition,
     group: renderAuthoringScalar(definition.group),
+    cancelInProgress: typeof definition.cancelInProgress === "boolean"
+      ? definition.cancelInProgress
+      : renderAuthoringScalar(definition.cancelInProgress),
   });
 }
 function renderStrategy(value: unknown): NonNullable<JobOptions["strategy"]> {
@@ -6705,20 +6917,11 @@ function renderStrategy(value: unknown): NonNullable<JobOptions["strategy"]> {
 function createExecutionJobFacade(
   draft:
     & JobDraft
-    & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
+    & Readonly<{ runsOn: RunnerRequest }>,
 ): ExecOf<string, string> {
   return Object.freeze({
-    runsOn: (v: unknown) => {
-      const runner = typeof v === "function"
-        ? v(scope("jobs.<job_id>.runs-on"))
-        : v;
-      return createExecutionJobFacade({
-        ...draft,
-        runsOn: runner instanceof Expression
-          ? emitExpression(runner)
-          : runner as string | NonEmptyReadonlyArray<string>,
-      });
-    },
+    runsOn: (v: unknown) =>
+      createExecutionJobFacade({ ...draft, runsOn: renderRunner(v) }),
     name: (v: unknown) =>
       createExecutionJobFacade({
         ...draft,
@@ -6803,11 +7006,11 @@ function createExecutionJobFacade(
           },
         }),
       ),
-    environment: (value: string) =>
+    environment: (value: unknown) =>
       createExecutionJobFacade(
         Object.freeze({
           ...draft,
-          options: { ...draft.options, environment: value },
+          options: { ...draft.options, environment: renderEnvironment(value) },
         }),
       ),
     uses: (
@@ -6938,7 +7141,7 @@ function createExecutionJobFacade(
 function createStepFacade(
   draft:
     & JobDraft
-    & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
+    & Readonly<{ runsOn: RunnerRequest }>,
 ): StepOf<string, string, StepReferences> {
   const base = createExecutionJobFacade(draft);
   return Object.freeze({
@@ -6981,6 +7184,11 @@ function createStepFacade(
         }),
       );
     },
+    environment: (value: unknown) =>
+      createStepFacade({
+        ...draft,
+        options: { ...draft.options, environment: renderEnvironment(value) },
+      }),
     uses: base.uses,
     run: base.run,
     task: base.task,
@@ -6989,7 +7197,7 @@ function createStepFacade(
 function appendStep(
   draft:
     & JobDraft
-    & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
+    & Readonly<{ runsOn: RunnerRequest }>,
   step: AuthoringStep,
   outputNames: readonly string[] = Object.freeze([]),
   contracts?: Readonly<Record<string, ReferenceBinding>>,
@@ -7211,7 +7419,7 @@ function taskStep(
 function materializeJob(
   draft:
     & JobDraft
-    & Readonly<{ runsOn: string | NonEmptyReadonlyArray<string> }>,
+    & Readonly<{ runsOn: RunnerRequest }>,
 ): AuthoringJob {
   return Object.freeze({
     id: draft.id,
@@ -7231,6 +7439,7 @@ function materializeWorkflow(draft: WorkflowDraft): AuthoringWorkflow {
     on: draft.on,
     runName: draft.runName,
     env: draft.env,
+    defaults: draft.defaults,
     ...(draft.concurrency === undefined
       ? {}
       : { concurrency: draft.concurrency }),
@@ -7258,19 +7467,24 @@ function stepReference(
 function copyPermissions(
   permissions: WorkflowPermissions,
 ): WorkflowPermissions {
+  if (permissions === "read-all" || permissions === "write-all") {
+    return permissions;
+  }
   assertPlainRecord(permissions, "Workflow permissions");
   for (const [key, value] of Object.entries(permissions)) {
-    if (!["contents", "id-token", "pull-requests", "actions"].includes(key)) {
+    if (!Object.hasOwn(permissionLevels, key)) {
       throw new TypeError(
         `Workflow permission ${JSON.stringify(key)} is not supported.`,
       );
     }
-    if (key === "id-token") {
-      if (value !== "none" && value !== "write") {
-        throw new TypeError("OIDC permission must be none or write.");
-      }
-    } else if (value !== "none" && value !== "read" && value !== "write") {
-      throw new TypeError("Workflow permission must be none, read, or write.");
+    if (
+      !(permissionLevels[
+        key as keyof typeof permissionLevels
+      ] as readonly unknown[]).includes(value)
+    ) {
+      throw new TypeError(
+        `Invalid level for workflow permission ${JSON.stringify(key)}.`,
+      );
     }
   }
   return Object.freeze({ ...permissions });

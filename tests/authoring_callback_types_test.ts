@@ -49,7 +49,6 @@ function checkCallbacks() {
         group: secrets.TOKEN,
         cancelInProgress: false,
       }));
-      // @ts-expect-error concurrency keeps boolean cancellation
       execution.concurrency(({ github }) => ({
         group: github.ref,
         cancelInProgress: literal(true),

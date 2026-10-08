@@ -165,7 +165,13 @@ export function lowerProject(
         taskNames.length > 0 &&
         (typeof job.runsOn === "string"
           ? job.runsOn
-          : job.runsOn?.join(" ") ?? "").toLowerCase().includes("windows")
+          : Array.isArray(job.runsOn)
+          ? job.runsOn.join(" ")
+          : job.runsOn && "group" in job.runsOn
+          ? typeof job.runsOn.labels === "string"
+            ? job.runsOn.labels
+            : job.runsOn.labels?.join(" ") ?? ""
+          : "").toLowerCase().includes("windows")
       ) {
         diagnostics.push(
           `Job ${JSON.stringify(job.id)} in workflow ${
@@ -311,12 +317,24 @@ export function lowerProject(
 
       jobs.push({
         id: job.id,
-        runsOn: {
-          type: "labels",
-          labels: typeof job.runsOn === "string"
-            ? [job.runsOn]
-            : job.runsOn ?? [""],
-        },
+        runsOn: typeof job.runsOn === "object" && job.runsOn !== null &&
+            "group" in job.runsOn
+          ? {
+            type: "group",
+            group: job.runsOn.group,
+            ...(job.runsOn.labels === undefined ? {} : {
+              labels: typeof job.runsOn.labels === "string"
+                ? [job.runsOn.labels]
+                : job.runsOn.labels,
+            }),
+          }
+          : {
+            type: "labels",
+            labels: typeof job.runsOn === "string" ? [job.runsOn] : job
+              .runsOn as import("./github_actions/ast.ts").NonEmptyReadonlyArray<
+                string
+              > ?? [""],
+          },
         name: job.name,
         env: job.env,
         defaults: job.defaults,
@@ -345,6 +363,7 @@ export function lowerProject(
       on: workflow.on,
       runName: workflow.runName,
       env: workflow.env,
+      defaults: workflow.defaults,
       ...(workflow.concurrency === undefined
         ? {}
         : { concurrency: workflow.concurrency }),
