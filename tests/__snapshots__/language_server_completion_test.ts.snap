@@ -35,6 +35,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     outputs: object;
 }>) & Readonly<{
     timeoutMinutes?: never;
+    background?: never;
     workingDirectory?: string;
     outputs?: O | undefined;
     if?: C | undefined;
@@ -62,19 +63,19 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
             readonly required: true;
         };
     }>>;
-}>, {
+}, false, string>, {
     readonly secrets: never;
     readonly inputs: {
         readonly who: string;
     };
 }>',
-  "composite-signature": 'run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; }>): CStep<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>',
+  "composite-signature": 'run(definition: { readonly name: "Next"; readonly shell: "bash"; readonly run: "true"; } & Readonly<{ shell: string; timeoutMinutes?: never; background?: never; }>): CStep<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, { ...; }>',
   "composite-start": '(parameter) step: Pick<CStep<"actions/greet/action.yml", "composite", E, {
     readonly secrets: never;
     readonly inputs: {
         readonly who: string;
     };
-}>, "uses" | "run" | "task">',
+}>, "run" | "uses" | "task">',
   "composite-steps": 'const state: CStep<"actions/greet/action.yml", "composite", {
     readonly one: NS<"one", readonly ["value"]>;
     readonly two: TR<"two", {
@@ -155,13 +156,16 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>;
 }>',
   "simple-step-signature": 'run(definition: { readonly id: "one"; readonly name: "One"; readonly run: "true"; }): Step<"ci.yml", "simple", { readonly one: NS<"one", readonly []>; }, { readonly inputs: WorkflowInputs<{ readonly push: {}; }>; }>',
-  "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 6 more ..., string>.run<D>(definition: AvailableStepDefinition<D, {
+  "step-method": '(method) StepBase<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }, ... 7 more ..., false>.run<D>(definition: AvailableStepDefinition<D, {
     readonly test: NS<"test", readonly []>;
     readonly report: NS<"report", readonly []>;
-}>): Step<"ci.yml", "test", AddStepReference<D, {
+}>): Step<"ci.yml", "test", { readonly [K in keyof AddStepReference<D, {
     readonly test: NS<"test", readonly []>;
     readonly report: NS<"report", readonly []>;
-}>, {
+}, "ci.yml#test">]: AddStepReference<D, {
+    readonly test: NS<"test", readonly []>;
+    readonly report: NS<"report", readonly []>;
+}, "ci.yml#test">[K]; }, {
     readonly needs: {
         readonly build: JobOutputNames<{
             readonly version: Ref<string, "steps.build.outputs.version">;
@@ -176,7 +180,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
 }>',
   "step-signature": 'run(definition: { readonly name: "Next"; readonly run: "true"; }): Step<"ci.yml", "test", { readonly test: NS<"test", readonly []>; readonly report: NS<"report", readonly []>; }, { readonly needs: { readonly build: JobOutputNames<{ readonly version: Ref<string, "steps.build.outputs.version">; }>; }; readonly matrix: { ...; }; readonly inputs: WorkflowInputs<...>; }>',
   "task-cache-job": "(parameter) job: TaskArtifactCacheJob",
-  "task-cache-run-signature": "run(definition: RunStepDefinition): TaskArtifactCacheJob",
+  "task-cache-run-signature": 'run(definition: Omit<RunStepDefinition, "background">): TaskArtifactCacheJob',
   "task-callback": '(parameter) context: TaskContext<{
     who: {
         readonly from: Expression<"world", never, undefined, false>;

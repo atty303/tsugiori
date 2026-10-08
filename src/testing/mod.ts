@@ -86,12 +86,20 @@ export type ScenarioObservation = Readonly<
     /** Parent workflow operation ID for a nested reusable call, when present.
      */
     parentId?: number;
-    /** Workflow interpretation or modeled container initialization stage.
+    /** Background launch operations joined or receiving a stop request. IDs contain no fixture values.
      */
-    stage: "workflow" | "container-initialization";
-    /** Stage start, success or failure; no fixture values are included.
+    links?: readonly number[];
+    /** Workflow interpretation, container initialization or logical synchronization stage.
      */
-    status: "start" | "success" | "failure";
+    stage:
+      | "workflow"
+      | "container-initialization"
+      | "background-start"
+      | "background-join"
+      | "background-cancel";
+    /** Stage start, success, failure or cancellation; no fixture values are included.
+     */
+    status: "start" | "success" | "failure" | "cancelled";
     /** Stable error category on failure, without raw error text.
      */
     errorType?: string;
@@ -126,6 +134,12 @@ export type Result = StepOutcome | "skipped";
 /** Declared outcome and outputs for a reached authored step. Outcome defaults to success. Task outputs use native contract values; run/Action outputs use strings. All required task outputs must be supplied. See {@link StepScenario.fixture}.
  */
 export type Fixture<Outputs> = Readonly<{
+  /** Values written to GITHUB_ENV, supplied as fixture facts. Published only at
+   * completion/synchronization and unavailable to the producing step itself.
+   * Conflicting writes joined at one boundary fail because completion order is
+   * not modeled. No environment values are sent to the observation sink.
+   */
+  environmentChanges?: Readonly<Record<string, string>>;
   /** Execution result before continue-on-error, default success in a fixture.
    */
   outcome?: StepOutcome;
@@ -274,6 +288,10 @@ export type EnvironmentProtection = "passed" | "rejected";
 /** Observed scenario step result. Outcome precedes continue-on-error; conclusion follows it. Inputs are native parsed values, outputs are serialized strings, and env is the interpreted step environment.
  */
 export type StepResult = Readonly<{
+  /** Whether a native cancel requested termination. The producer fixture still
+   * owns the final outcome; cancellation requests do not invent process results.
+   */
+  cancellationRequested?: boolean;
   /** Explicit authored step ID.
    */
   id: string;

@@ -38,13 +38,13 @@ import { project as makeProject, workflow, runProject } from "./src/github_actio
 import { marker } from "./dependency.ts";
 if (Deno.env.get("TEST_OLD_VERSION") === "1") Object.defineProperty(Deno, "version", {value: {...Deno.version, deno: "2.5.0"}});
 if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ workingDirectory: ".", localTaskPrepareAction: "./actions/task-prepare", workflows: [workflow("workflows/ci.yml", { on: { push: {} }, cacheMode: "none" })
-  .job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ name: "Test",
+  .job("test", ({ job }) => job.runsOn("ubuntu-latest").parallel(group => [group.task({ name: "Test",
     outputs: { result: { required: true } },
     run: async (ctx) => {
       if (Deno.env.get("TASK_FAIL") === "1") throw new Error("task-failure-private");
       await Deno.writeTextFile("task-result.txt", marker);
       await ctx.outputs.set("result", "first\\nsecond");
-    } }))] }), entrypointUrl: import.meta.url });
+    } }), group.task({ id: "named", name: "Named", run: () => Deno.writeTextFile("named-result.txt", "named") })]))] }), entrypointUrl: import.meta.url });
 `,
       );
       const output = resolve(fixture, "github-output");
@@ -182,6 +182,17 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
         "first",
       );
       assertStringIncludes(await Deno.readTextFile(output), "first\nsecond\n");
+      const named = await run(
+        runtime,
+        ["workflows/ci.yml/test/named"],
+        fixture,
+        { ...environment, ...offline },
+      );
+      assertEquals(named.code, 0, named.stderr);
+      assertEquals(
+        await Deno.readTextFile(resolve(fixture, "named-result.txt")),
+        "named",
+      );
       const failedTask = await run(
         runtime,
         ["workflows/ci.yml/test/task-1"],

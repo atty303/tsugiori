@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 import { defaultCacheMode } from "../github_actions/cache_mode.ts";
 import type { CacheMode } from "../github_actions/mod.ts";
 import { containerContext, validateContainerRuntime } from "./containers.ts";
@@ -268,7 +269,7 @@ function validateRules(
   authorJob: AuthoringJob,
   location: string,
 ): void {
-  const ids = new Set(authorJob.steps.map((step) => step.id));
+  const ids = new Set(flattenSteps(authorJob.steps).map((step) => step.id));
   for (const id of rules.steps.keys()) {
     if (id !== "__job__" && !ids.has(id)) {
       throw new ScenarioError(
@@ -677,7 +678,9 @@ async function runInstance(
   if (rules.environmentProtection === "rejected") {
     for (const [id, rule] of rules.steps) {
       if (id === "__job__") continue;
-      const authored = authorJob.steps.find((step) => step.id === id);
+      const authored = flattenSteps(authorJob.steps).find((step) =>
+        step.id === id
+      );
       checkStep(
         {
           id,
@@ -739,194 +742,339 @@ async function runInstance(
   }
   const defaults = { ...workflowDefaults, ...job.defaults };
   const source = new Map(
-    authorJob.steps.filter((step) => step.id !== undefined).map((
+    flattenSteps(authorJob.steps).filter((step) => step.id !== undefined).map((
       step,
     ) => [step.id!, step]),
   );
-  for (const [index, step] of job.steps.entries()) {
-    const id = step.id ?? `#${index + 1}`;
-    const stepLocation = `${location}.${id}`;
-    const authorStep = step.id === undefined ? undefined : source.get(step.id);
-    const isInternal = !authorStep && step.id !== undefined;
-    const rule = rules.steps.get(id);
-    const status = stepStatus(steps, initializationFailed);
-    updateJobStatus(
-      status.failure ? "failure" : status.cancelled ? "cancelled" : "success",
+  const pending = new Map<
+    string,
+    {
+      result: StepResult;
+      changes: Readonly<Record<string, string>>;
+      operationId: number;
+    }
+  >();
+  const startedOrder: string[] = [];
+  let anonymousOrdinal = 0;
+  const observeAsync = (
+    stage: "background-start" | "background-join" | "background-cancel",
+    links: readonly number[] = [],
+  ) => {
+    const operationId = ++observation.nextId;
+    const emit = (
+      status: "start" | "success" | "failure" | "cancelled",
+      errorType?: string,
+    ) => {
+      try {
+        observation.observer?.({
+          operationId,
+          parentId: observation.parentId,
+          stage,
+          status,
+          ...(links.length ? { links } : {}),
+          ...(errorType ? { errorType } : {}),
+        });
+      } catch { /* Host-owned recording is non-interfering. */ }
+    };
+    emit("start");
+    return { operationId, emit };
+  };
+  const join = (ids: readonly string[]) => {
+    const operation = observeAsync(
+      "background-join",
+      ids.flatMap((id) => {
+        const value = pending.get(id);
+        return value ? [value.operationId] : [];
+      }),
     );
-    const overrides = rule?.expressions ?? new Map<string, unknown>();
-    if (!condition(step.if, context, status, stepLocation, overrides)) {
-      const skipped: StepResult = {
-        id,
-        outcome: "skipped",
-        conclusion: "skipped",
-        outputs: {},
-        inputs: {},
-        env: {},
-      };
-      steps[id] = skipped;
-      if (step.id) (context.steps as Record<string, unknown>)[id] = skipped;
-      checkStep(skipped, rule, stepLocation, defaultResult, authorStep);
-      continue;
+    const changes: Record<string, string> = Object.create(null);
+    for (const id of ids) {
+      const value = pending.get(id);
+      if (!value) continue;
+      for (const [key, entry] of Object.entries(value.changes)) {
+        if (Object.hasOwn(changes, key) && changes[key] !== entry) {
+          operation.emit("failure", "fixture_invalid");
+          throw new ScenarioError(
+            "fixture_invalid",
+            `${location}.environmentChanges`,
+            "Conflicting asynchronous environment writes require an explicit order.",
+          );
+        }
+        changes[key] = entry;
+      }
     }
-
-    if (!isInternal && !authorStep?.id) {
-      throw new ScenarioError(
-        "fixture_missing",
-        stepLocation,
-        "Reached authored step needs an explicit ID and fixture.",
+    let failed = false;
+    let cancelled = false;
+    for (const id of ids) {
+      const value = pending.get(id);
+      if (!value) continue;
+      steps[id] = value.result;
+      if (!id.startsWith("#")) {
+        (context.steps as Record<string, unknown>)[id] = value.result;
+      }
+      failed ||= value.result.conclusion === "failure";
+      cancelled ||= value.result.conclusion === "cancelled";
+      pending.delete(id);
+    }
+    context.env = { ...(context.env as Record<string, unknown>), ...changes };
+    operation.emit(failed ? "failure" : cancelled ? "cancelled" : "success");
+  };
+  const execute = async (
+    sequence: readonly Step[],
+    inParallel = false,
+  ): Promise<void> => {
+    for (const step of sequence) {
+      if (step.type === "parallel") {
+        const before = new Set(pending.keys());
+        await execute(step.steps, true);
+        join([...pending.keys()].filter((id) => !before.has(id)));
+        continue;
+      }
+      if (step.type === "wait" || step.type === "wait-all") {
+        join(step.type === "wait-all" ? [...pending.keys()] : step.targets);
+        continue;
+      }
+      if (step.type === "cancel") {
+        const id = step.targets[0];
+        const value = pending.get(id);
+        const operation = observeAsync(
+          "background-cancel",
+          value ? [value.operationId] : [],
+        );
+        if (value) {
+          pending.set(id, {
+            ...value,
+            result: { ...value.result, cancellationRequested: true },
+          });
+        } else if (steps[id]) {
+          steps[id] = { ...steps[id], cancellationRequested: true };
+        }
+        operation.emit("success");
+        continue;
+      }
+      const id = step.id ?? `#${++anonymousOrdinal}`;
+      startedOrder.push(id);
+      const stepLocation = `${location}.${id}`;
+      const authorStep = step.id === undefined
+        ? undefined
+        : source.get(step.id);
+      const isInternal = !authorStep && step.id !== undefined;
+      const rule = rules.steps.get(id);
+      const status = stepStatus(steps, initializationFailed);
+      updateJobStatus(
+        status.failure ? "failure" : status.cancelled ? "cancelled" : "success",
       );
-    }
-    let run: import("../github_actions/mod.ts").RunDefaults | undefined;
-    let outcome: StepOutcome;
-    let outputs: Record<string, string> = {};
-    let inputs: Record<string, unknown> = {};
-    let env: Record<string, string> = {};
-    if (isInternal) {
-      outcome = rules.internals.get(internalKind(step) ?? "prepare") ??
-        "success";
-    } else {
-      if (rule?.fixture === undefined) {
+      const overrides = rule?.expressions ?? new Map<string, unknown>();
+      if (!condition(step.if, context, status, stepLocation, overrides)) {
+        const skipped: StepResult = {
+          id,
+          outcome: "skipped",
+          conclusion: "skipped",
+          outputs: {},
+          inputs: {},
+          env: {},
+        };
+        steps[id] = skipped;
+        if (step.id) (context.steps as Record<string, unknown>)[id] = skipped;
+        checkStep(skipped, rule, stepLocation, defaultResult, authorStep);
+        continue;
+      }
+
+      if (!isInternal && !authorStep?.id) {
         throw new ScenarioError(
           "fixture_missing",
           stepLocation,
-          "Reached authored step has no fixture.",
+          "Reached authored step needs an explicit ID and fixture.",
         );
       }
-      const rawEnv = {
-        ...(context.env as Record<string, unknown>),
-        ...evaluateMap(
-          step.env,
-          context,
-          status,
-          stepLocation,
-          "env",
-          overrides,
-        ),
-      };
-      env = Object.fromEntries(
-        Object.entries(rawEnv).map(([key, value]) => [key, stringValue(value)]),
-      );
-      run = step.type === "run" && rule?.expectedRunSettings !== undefined
-        ? Object.fromEntries(
-          Object.entries({
-            shell: step.shell ?? defaults.shell,
-            workingDirectory: step.workingDirectory ??
-              defaults.workingDirectory,
-          }).filter(([, value]) => value !== undefined).map((
+      let changes: Readonly<Record<string, string>> = {};
+      let run: import("../github_actions/mod.ts").RunDefaults | undefined;
+      let outcome: StepOutcome;
+      let outputs: Record<string, string> = {};
+      let inputs: Record<string, unknown> = {};
+      let env: Record<string, string> = {};
+      if (isInternal) {
+        outcome = rules.internals.get(internalKind(step) ?? "prepare") ??
+          "success";
+      } else {
+        if (rule?.fixture === undefined) {
+          throw new ScenarioError(
+            "fixture_missing",
+            stepLocation,
+            "Reached authored step has no fixture.",
+          );
+        }
+        const rawEnv = {
+          ...(context.env as Record<string, unknown>),
+          ...evaluateMap(
+            step.env,
+            context,
+            status,
+            stepLocation,
+            "env",
+            overrides,
+          ),
+        };
+        env = Object.fromEntries(
+          Object.entries(rawEnv).map((
             [key, value],
-          ) => [
-            key,
-            stringValue(
-              evaluateAt(
-                value!,
-                step[key as "shell" | "workingDirectory"] !== undefined
-                  ? { ...context, env }
-                  : context,
-                status,
-                stepLocation,
-                step[key as "shell" | "workingDirectory"] !== undefined
-                  ? (key === "workingDirectory" ? "working-directory" : key)
-                  : `defaults.run.${
-                    key === "workingDirectory" ? "working-directory" : key
-                  }`,
-                step[key as "shell" | "workingDirectory"] !== undefined
-                  ? overrides
-                  : jobOverrides,
+          ) => [key, stringValue(value)]),
+        );
+        run = step.type === "run" && rule?.expectedRunSettings !== undefined
+          ? Object.fromEntries(
+            Object.entries({
+              shell: step.shell ?? defaults.shell,
+              workingDirectory: step.workingDirectory ??
+                defaults.workingDirectory,
+            }).filter(([, value]) => value !== undefined).map((
+              [key, value],
+            ) => [
+              key,
+              stringValue(
+                evaluateAt(
+                  value!,
+                  step[key as "shell" | "workingDirectory"] !== undefined
+                    ? { ...context, env }
+                    : context,
+                  status,
+                  stepLocation,
+                  step[key as "shell" | "workingDirectory"] !== undefined
+                    ? (key === "workingDirectory" ? "working-directory" : key)
+                    : `defaults.run.${
+                      key === "workingDirectory" ? "working-directory" : key
+                    }`,
+                  step[key as "shell" | "workingDirectory"] !== undefined
+                    ? overrides
+                    : jobOverrides,
+                ),
               ),
-            ),
-          ]),
-        )
-        : undefined;
-      if (authorStep?.type === "task") {
-        for (const [name, input] of Object.entries(authorStep.inputs)) {
-          try {
-            inputs[name] = parseWireValue(
-              input.contract,
-              env[input.from] ?? "",
-            );
-          } catch (error) {
+            ]),
+          )
+          : undefined;
+        if (authorStep?.type === "task") {
+          for (const [name, input] of Object.entries(authorStep.inputs)) {
+            try {
+              inputs[name] = parseWireValue(
+                input.contract,
+                env[input.from] ?? "",
+              );
+            } catch (error) {
+              throw new ScenarioError(
+                "fixture_invalid",
+                `${stepLocation}.inputs.${name}`,
+                "Task input violates its contract.",
+                { cause: error },
+              );
+            }
+          }
+        } else if (step.type === "uses") {
+          inputs = evaluateMap(
+            step.with,
+            context,
+            status,
+            stepLocation,
+            "with",
+            overrides,
+          );
+        }
+        let provided: Fixture<Record<string, unknown>>;
+        try {
+          provided = typeof rule.fixture === "function"
+            ? await rule.fixture({
+              inputs: inputs as never,
+              env,
+              matrix: matrix as never,
+              ...(run === undefined ? {} : { run }),
+            })
+            : rule.fixture;
+        } catch (error) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            stepLocation,
+            "Fixture callback failed.",
+            { cause: error },
+          );
+        }
+        if (!provided || typeof provided !== "object") {
+          throw new ScenarioError(
+            "fixture_invalid",
+            stepLocation,
+            "Fixture must return a result object.",
+          );
+        }
+        outcome = provided.outcome ?? "success";
+        if (
+          !(["success", "failure", "cancelled"] as string[]).includes(outcome)
+        ) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            stepLocation,
+            "Fixture outcome is invalid.",
+          );
+        }
+        outputs = fixtureOutputs(provided, authorStep, stepLocation, outcome);
+        if (provided.environmentChanges !== undefined) {
+          if (
+            !provided.environmentChanges ||
+            typeof provided.environmentChanges !== "object" ||
+            Array.isArray(provided.environmentChanges) ||
+            Object.entries(provided.environmentChanges).some(([key, value]) =>
+              !key || typeof value !== "string"
+            )
+          ) {
             throw new ScenarioError(
               "fixture_invalid",
-              `${stepLocation}.inputs.${name}`,
-              "Task input violates its contract.",
-              { cause: error },
+              `${stepLocation}.environmentChanges`,
+              "Environment changes must be a string map.",
             );
           }
+          changes = provided.environmentChanges;
         }
-      } else if (step.type === "uses") {
-        inputs = evaluateMap(
-          step.with,
-          context,
-          status,
-          stepLocation,
-          "with",
-          overrides,
-        );
       }
-      let provided: Fixture<Record<string, unknown>>;
-      try {
-        provided = typeof rule.fixture === "function"
-          ? await rule.fixture({
-            inputs: inputs as never,
-            env,
-            matrix: matrix as never,
-            ...(run === undefined ? {} : { run }),
-          })
-          : rule.fixture;
-      } catch (error) {
-        throw new ScenarioError(
-          "fixture_invalid",
-          stepLocation,
-          "Fixture callback failed.",
-          { cause: error },
-        );
+      const conclusion = outcome === "failure" &&
+          booleanSetting(
+            step.continueOnError,
+            { ...context, env },
+            status,
+            stepLocation,
+            "continue-on-error",
+            overrides,
+          )
+        ? "success"
+        : outcome;
+      const result: StepResult = {
+        id,
+        outcome,
+        conclusion,
+        outputs,
+        inputs,
+        env,
+        ...(run === undefined ? {} : { run }),
+      };
+      if (step.background || inParallel) {
+        const operation = observeAsync("background-start");
+        pending.set(id, {
+          result,
+          changes,
+          operationId: operation.operationId,
+        });
+        operation.emit("success");
+      } else {
+        steps[id] = result;
+        if (step.id) (context.steps as Record<string, unknown>)[id] = result;
+        context.env = {
+          ...(context.env as Record<string, unknown>),
+          ...changes,
+        };
       }
-      if (!provided || typeof provided !== "object") {
-        throw new ScenarioError(
-          "fixture_invalid",
-          stepLocation,
-          "Fixture must return a result object.",
-        );
-      }
-      outcome = provided.outcome ?? "success";
-      if (
-        !(["success", "failure", "cancelled"] as string[]).includes(outcome)
-      ) {
-        throw new ScenarioError(
-          "fixture_invalid",
-          stepLocation,
-          "Fixture outcome is invalid.",
-        );
-      }
-      outputs = fixtureOutputs(provided, authorStep, stepLocation, outcome);
+      checkStep(result, rule, stepLocation, defaultResult, authorStep);
     }
-    const conclusion = outcome === "failure" &&
-        booleanSetting(
-          step.continueOnError,
-          { ...context, env },
-          status,
-          stepLocation,
-          "continue-on-error",
-          overrides,
-        )
-      ? "success"
-      : outcome;
-    const result: StepResult = {
-      id,
-      outcome,
-      conclusion,
-      outputs,
-      inputs,
-      env,
-      ...(run === undefined ? {} : { run }),
-    };
-    steps[id] = result;
-    if (step.id) (context.steps as Record<string, unknown>)[id] = result;
-    checkStep(result, rule, stepLocation, defaultResult, authorStep);
-  }
+  };
+  await execute(job.steps);
+  if (pending.size) join([...pending.keys()]);
   if (rules.expectedStepOrder !== undefined) {
-    const authoredOrder = Object.keys(steps).filter((id) =>
-      authorJob.steps.some((step) => step.id === id)
+    const authoredOrder = startedOrder.filter((id) =>
+      flattenSteps(authorJob.steps).some((step) => step.id === id)
     );
     expectValue(
       authoredOrder,

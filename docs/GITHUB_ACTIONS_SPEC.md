@@ -81,6 +81,18 @@ filesystem checks. They do not emulate GitHub's suppression of outputs that
 contain secrets. Conflicting nonempty matrix output values fail locally because
 GitHub's completion order cannot be predicted.
 
+Background, wait, wait-all, cancel and parallel use the fixed Actions NGA
+GitHub.com feature gate. Native run/uses and task-backed run steps retain
+visible execution boundaries. Typed control references identify earlier
+background work; outputs are hidden until synchronization. Parallel children use
+the pre-group context, and final job outputs use the implicit wait-all. cancel
+requests termination without publishing outputs or assuming a process result.
+Composite internals cannot declare asynchronous steps. Scenarios interpret
+fixture outcomes and environment writes at logical joins, with no scheduling,
+signal or elapsed time emulation. Conflicting environment writes at one join
+fail instead of assuming a completion order. Task cache/prepare completes
+outside the first parallel group containing tasks.
+
 Container/services use the frozen syntax and context scopes, including service
 command/entrypoint. Scenarios interpret requests and explicitly supplied runtime
 context; empty service images have no runtime entry. Aggregate initialization

@@ -3,7 +3,7 @@ import { containerProblems } from "../../github_actions/containers.ts";
 import { MatrixError, matrixRows } from "../../github_actions/matrix.ts";
 import { permissionLevels } from "../../github_actions/permissions.ts";
 import { validateTriggers } from "./triggers.ts";
-import type { Job, RunnerSelection, Workflow } from "./ast.ts";
+import type { Job, RunnerSelection, Step, Workflow } from "./ast.ts";
 
 const validatedWorkflowBrand: unique symbol = Symbol("ValidatedWorkflow");
 
@@ -12,6 +12,7 @@ export type ValidatedWorkflow = Workflow & {
 };
 
 export type DiagnosticCode =
+  | "step.async.invalid"
   | "cache-mode.invalid"
   | "job.snapshot.invalid"
   | "workflow.native.invalid"
@@ -349,134 +350,189 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     }
 
     const stepIds = new Map<string, number>();
-    job.steps.forEach((step, stepIndex) => {
-      const stepPath = [...jobPath, "steps", stepIndex] as const;
-      if (
-        step.timeoutMinutes !== undefined && !validTimeout(step.timeoutMinutes)
-      ) {
-        diagnostics.push(
-          diagnostic(
-            "step.timeout.invalid",
-            stepPath,
-            "Step timeout must be a positive integer up to 360 or an expression.",
-          ),
-        );
-      }
-      if (
-        step.type === "run" && step.shell !== undefined && isBlank(step.shell)
-      ) {
-        diagnostics.push(
-          diagnostic(
-            "step.shell.invalid",
-            stepPath,
-            "Shell must not be blank.",
-          ),
-        );
-      }
-      if (step.name !== undefined && isBlank(step.name)) {
-        diagnostics.push(diagnostic(
-          "step.name.empty",
-          [...stepPath, "name"],
-          "Step name must not be empty when provided.",
-        ));
-      }
-      if (step.id !== undefined) {
-        if (!STEP_ID_PATTERN.test(step.id)) {
-          diagnostics.push(diagnostic(
-            "step.id.invalid",
-            [...stepPath, "id"],
-            `Step ID ${JSON.stringify(step.id)} is invalid.`,
-          ));
-        }
-        const existing = stepIds.get(step.id);
-        if (existing === undefined) {
-          stepIds.set(step.id, stepIndex);
-        } else {
-          diagnostics.push(diagnostic(
-            "step.id.duplicate",
-            [...stepPath, "id"],
-            `Step ID ${
-              JSON.stringify(step.id)
-            } duplicates steps[${existing}].id.`,
-          ));
-        }
-      }
-      if (step.if !== undefined && isBlank(step.if)) {
-        diagnostics.push(diagnostic(
-          "step.if.empty",
-          [...stepPath, "if"],
-          "Step condition must not be empty when provided.",
-        ));
-      }
-      if (
-        step.continueOnError !== undefined &&
-        !validBoolean(step.continueOnError)
-      ) {
-        diagnostics.push(diagnostic(
-          "step.continue-on-error.invalid",
-          [...stepPath, "continueOnError"],
-          "Step continue-on-error must be a boolean or expression.",
-        ));
-      }
-      if (step.type === "uses" && isBlank(step.uses)) {
-        diagnostics.push(diagnostic(
-          "step.uses.empty",
-          [...stepPath, "uses"],
-          "Action reference must not be empty.",
-        ));
-      }
-      if (step.type === "uses" && step.with !== undefined) {
-        if (!isPlainRecord(step.with)) {
-          diagnostics.push(diagnostic(
-            "step.with.invalid",
-            [...stepPath, "with"],
-            "Action inputs must be an object.",
-          ));
+    const backgroundIds = new Set<string>();
+    const inspectSteps = (
+      steps: readonly Step[],
+      basePath: DiagnosticPath,
+      inParallel = false,
+    ): void => {
+      steps.forEach((step, stepIndex) => {
+        const stepPath = [...basePath, stepIndex] as const;
+        const asyncProblem = (message: string) =>
+          diagnostics.push(diagnostic("step.async.invalid", stepPath, message));
+        if (step.type === "parallel") {
+          if (inParallel || !step.steps.length) {
+            asyncProblem(
+              "Parallel must contain a nonempty group of executable steps.",
+            );
+          }
+          if (
+            Object.keys(step).some((key) => !["type", "steps"].includes(key))
+          ) asyncProblem("Parallel groups accept only child steps.");
+          inspectSteps(step.steps, [...stepPath, "parallel"], true);
           return;
         }
-        Object.entries(step.with).forEach(([key, value]) => {
-          if (isBlank(key)) {
+        if (
+          step.type === "wait" || step.type === "wait-all" ||
+          step.type === "cancel"
+        ) {
+          if (inParallel) {
+            asyncProblem("Parallel cannot contain control steps.");
+          }
+          if (
+            Object.keys(step).some((key) => !["type", "targets"].includes(key))
+          ) {
+            asyncProblem(
+              "Controls cannot carry executable step settings or conditions.",
+            );
+          }
+          if (
+            step.type === "wait-all"
+              ? step.targets.length !== 0
+              : step.type === "cancel"
+              ? step.targets.length !== 1
+              : step.targets.length === 0
+          ) asyncProblem("Invalid control target count.");
+          if (
+            new Set(step.targets).size !== step.targets.length ||
+            step.targets.some((id) => !backgroundIds.has(id))
+          ) asyncProblem("Controls require distinct preceding background IDs.");
+          return;
+        }
+        if (
+          step.background !== undefined &&
+          (typeof step.background !== "boolean" || inParallel)
+        ) asyncProblem("background must be a boolean outside parallel groups.");
+        if (step.background && step.id) backgroundIds.add(step.id);
+        if (
+          step.timeoutMinutes !== undefined &&
+          !validTimeout(step.timeoutMinutes)
+        ) {
+          diagnostics.push(
+            diagnostic(
+              "step.timeout.invalid",
+              stepPath,
+              "Step timeout must be a positive integer up to 360 or an expression.",
+            ),
+          );
+        }
+        if (
+          step.type === "run" && step.shell !== undefined && isBlank(step.shell)
+        ) {
+          diagnostics.push(
+            diagnostic(
+              "step.shell.invalid",
+              stepPath,
+              "Shell must not be blank.",
+            ),
+          );
+        }
+        if (step.name !== undefined && isBlank(step.name)) {
+          diagnostics.push(diagnostic(
+            "step.name.empty",
+            [...stepPath, "name"],
+            "Step name must not be empty when provided.",
+          ));
+        }
+        if (step.id !== undefined) {
+          if (!STEP_ID_PATTERN.test(step.id)) {
             diagnostics.push(diagnostic(
-              "step.with.key.empty",
-              [...stepPath, "with", key],
-              "Action input name must not be empty.",
+              "step.id.invalid",
+              [...stepPath, "id"],
+              `Step ID ${JSON.stringify(step.id)} is invalid.`,
             ));
           }
-          if (typeof value !== "string") {
+          const existing = stepIds.get(step.id);
+          if (existing === undefined) {
+            stepIds.set(step.id, stepIndex);
+          } else {
             diagnostics.push(diagnostic(
-              "step.with.value.invalid",
-              [...stepPath, "with", key],
-              "Action input must be a string.",
+              "step.id.duplicate",
+              [...stepPath, "id"],
+              `Step ID ${
+                JSON.stringify(step.id)
+              } duplicates steps[${existing}].id.`,
             ));
           }
-        });
-      }
-      if (step.type === "run" && isBlank(step.run)) {
-        diagnostics.push(diagnostic(
-          "step.run.empty",
-          [...stepPath, "run"],
-          "Run command must not be empty.",
-        ));
-      }
-      validateExpressionMap(
-        step.env,
-        [...stepPath, "env"],
-        "step.env.invalid",
-        diagnostics,
-      );
-      if (
-        step.type === "run" && step.workingDirectory !== undefined &&
-        (typeof step.workingDirectory !== "string" ||
-          isBlank(step.workingDirectory))
-      ) {
-        diagnostics.push(
-          diagnostic("step.working-directory.empty", [
-            ...stepPath,
-            "workingDirectory",
-          ], "Working directory must not be empty."),
+        }
+        if (step.if !== undefined && isBlank(step.if)) {
+          diagnostics.push(diagnostic(
+            "step.if.empty",
+            [...stepPath, "if"],
+            "Step condition must not be empty when provided.",
+          ));
+        }
+        if (
+          step.continueOnError !== undefined &&
+          !validBoolean(step.continueOnError)
+        ) {
+          diagnostics.push(diagnostic(
+            "step.continue-on-error.invalid",
+            [...stepPath, "continueOnError"],
+            "Step continue-on-error must be a boolean or expression.",
+          ));
+        }
+        if (step.type === "uses" && isBlank(step.uses)) {
+          diagnostics.push(diagnostic(
+            "step.uses.empty",
+            [...stepPath, "uses"],
+            "Action reference must not be empty.",
+          ));
+        }
+        if (step.type === "uses" && step.with !== undefined) {
+          if (!isPlainRecord(step.with)) {
+            diagnostics.push(diagnostic(
+              "step.with.invalid",
+              [...stepPath, "with"],
+              "Action inputs must be an object.",
+            ));
+            return;
+          }
+          Object.entries(step.with).forEach(([key, value]) => {
+            if (isBlank(key)) {
+              diagnostics.push(diagnostic(
+                "step.with.key.empty",
+                [...stepPath, "with", key],
+                "Action input name must not be empty.",
+              ));
+            }
+            if (typeof value !== "string") {
+              diagnostics.push(diagnostic(
+                "step.with.value.invalid",
+                [...stepPath, "with", key],
+                "Action input must be a string.",
+              ));
+            }
+          });
+        }
+        if (step.type === "run" && isBlank(step.run)) {
+          diagnostics.push(diagnostic(
+            "step.run.empty",
+            [...stepPath, "run"],
+            "Run command must not be empty.",
+          ));
+        }
+        validateExpressionMap(
+          step.env,
+          [...stepPath, "env"],
+          "step.env.invalid",
+          diagnostics,
         );
-      }
-    });
+        if (
+          step.type === "run" && step.workingDirectory !== undefined &&
+          (typeof step.workingDirectory !== "string" ||
+            isBlank(step.workingDirectory))
+        ) {
+          diagnostics.push(
+            diagnostic("step.working-directory.empty", [
+              ...stepPath,
+              "workingDirectory",
+            ], "Working directory must not be empty."),
+          );
+        }
+      });
+    };
+    inspectSteps(job.steps, [...jobPath, "steps"]);
   });
 
   validateJobReferences(workflow, jobsById, diagnostics);

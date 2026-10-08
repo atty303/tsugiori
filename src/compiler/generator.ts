@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 import { resolveProjectWorkingDirectory } from "./source.ts";
 import type { DiagnosticRecorder } from "../task-runtime/diagnostics.ts";
 import { posix } from "node:path";
@@ -37,7 +38,7 @@ export async function generateFiles(
     options.recorder,
   );
   const hasActionTasks = collectCompositeActions(project).some((action) =>
-    action.runs.steps.some((step) => step.type === "task")
+    flattenSteps(action.runs.steps).some((step) => step.type === "task")
   );
   const payload = hasActionTasks
     ? await actionPayload(
@@ -57,7 +58,7 @@ export async function generateFiles(
   if (
     project.workflows.some((workflow) =>
       workflow.jobs.some((job) =>
-        job.steps.some((step) => step.type === "task")
+        flattenSteps(job.steps).some((step) => step.type === "task")
       )
     ) &&
     taskPrepareAction(project.localTaskPrepareAction) === undefined
@@ -72,7 +73,7 @@ export async function generateFiles(
       emitWorkflow(workflow.workflow),
   }));
   for (const action of lowered.actions) {
-    const needsPayload = action.action.runs.steps.some((step) =>
+    const needsPayload = flattenSteps(action.action.runs.steps).some((step) =>
       step.type === "task"
     );
     files.push({

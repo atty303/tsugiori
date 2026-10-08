@@ -831,7 +831,7 @@
   "reconciliation": [
     "Published workflow syntax section identities matched the fixed source revision. Included templates, variables and feature gates were retrieved from that revision; their SHA-256 digests are listed. GitHub.com conditions apply; GHES alternatives are excluded.",
     "The syntax run-name paragraph mentions github and inputs while the context availability table also permits vars. Tsugiori retains the context-table scope; raw string run names are emitted unchanged.",
-    "Cache-mode and snapshot are implemented from the fixed basis with supplemental dependency-caching and custom-image sources at the same revision. Background/wait/parallel remain unsupported. The fixed context table has no snapshot row; supplemental examples evidence github.ref only."
+    "Cache-mode and snapshot are implemented from the fixed basis with supplemental dependency-caching and custom-image sources at the same revision. Background, wait, wait-all, cancel and parallel emit native steps and have fixture-based synchronization interpretation; runner scheduling and termination remain external boundaries. The fixed context table has no snapshot row; supplemental examples evidence github.ref only."
   ],
   "coverage": [
     {
@@ -1713,56 +1713,91 @@
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].background",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native YAML, typed control references and synchronization-scoped output publication. Scenarios defer fixture outputs, environment changes and failures until joins, retaining explicit cancellation requests and producer outcomes. Parallel children use the pre-group context. Composite internals are excluded; GitHub owns process termination, scheduling and the ten-step concurrency limit.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepsbackground",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/background_test.ts",
+        "tests/background_types_test.ts",
+        "tests/language_server_completion_test.ts",
+        "tests/task_runtime_e2e_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].wait",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native YAML, typed control references and synchronization-scoped output publication. Scenarios defer fixture outputs, environment changes and failures until joins, retaining explicit cancellation requests and producer outcomes. Parallel children use the pre-group context. Composite internals are excluded; GitHub owns process termination, scheduling and the ten-step concurrency limit.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepswait",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/background_test.ts",
+        "tests/background_types_test.ts",
+        "tests/language_server_completion_test.ts",
+        "tests/task_runtime_e2e_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].wait-all",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native YAML, typed control references and synchronization-scoped output publication. Scenarios defer fixture outputs, environment changes and failures until joins, retaining explicit cancellation requests and producer outcomes. Parallel children use the pre-group context. Composite internals are excluded; GitHub owns process termination, scheduling and the ten-step concurrency limit.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepswait-all",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/background_test.ts",
+        "tests/background_types_test.ts",
+        "tests/language_server_completion_test.ts",
+        "tests/task_runtime_e2e_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].cancel",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native YAML, typed control references and synchronization-scoped output publication. Scenarios defer fixture outputs, environment changes and failures until joins, retaining explicit cancellation requests and producer outcomes. Parallel children use the pre-group context. Composite internals are excluded; GitHub owns process termination, scheduling and the ten-step concurrency limit.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepscancel",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/background_test.ts",
+        "tests/background_types_test.ts",
+        "tests/language_server_completion_test.ts",
+        "tests/task_runtime_e2e_test.ts"
       ]
     },
     {
       "domain": "syntax",
       "key": "jobs.<job_id>.steps[*].parallel",
-      "status": "unsupported",
-      "notes": "No public authoring support in this snapshot.",
+      "status": "implemented",
+      "notes": "Native YAML, typed control references and synchronization-scoped output publication. Scenarios defer fixture outputs, environment changes and failures until joins, retaining explicit cancellation requests and producer outcomes. Parallel children use the pre-group context. Composite internals are excluded; GitHub owns process termination, scheduling and the ten-step concurrency limit.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idstepsparallel",
       "assessment": [
-        "implementation-gap"
+        "supported",
+        "github-runtime"
+      ],
+      "evidence": [
+        "tests/background_test.ts",
+        "tests/background_types_test.ts",
+        "tests/language_server_completion_test.ts",
+        "tests/task_runtime_e2e_test.ts"
       ]
     },
     {

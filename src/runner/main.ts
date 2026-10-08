@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 /**
  * Run generation and manage consumer Action import mappings.
  *
@@ -235,12 +236,14 @@ export async function runProject(
       );
       recorder.operation({ name: "project.source", status: "success" });
       const hasTasks = collectCompositeActions(source.project).some((action) =>
-        action.runs.steps.some((step) =>
+        flattenSteps(action.runs.steps).some((step) =>
           step.type === "task"
         )
       ) || source.project.workflows.some((workflow) =>
         workflow.jobs.some((job) =>
-          job.steps.some((step) => step.type === "task")
+          flattenSteps<import("../github_actions/mod.ts").AuthoringStep>(
+            job.steps,
+          ).some((step) => step.type === "task")
         )
       );
       const identity = hasTasks
@@ -392,7 +395,11 @@ async function dispatchTask(
       for (const job of workflow.jobs) {
         const taskSuffixes = taskEntrypointSuffixes(job.steps);
         let ordinal = 0;
-        for (const step of job.steps) {
+        for (
+          const step of flattenSteps<
+            import("../github_actions/mod.ts").AuthoringStep
+          >(job.steps)
+        ) {
           if (step.type !== "task") continue;
           const taskSuffix = taskSuffixes[ordinal++];
           if (typeof step.run !== "function") {
@@ -410,7 +417,7 @@ async function dispatchTask(
     for (const action of collectCompositeActions(project)) {
       const taskSuffixes = taskEntrypointSuffixes(action.runs.steps);
       let ordinal = 0;
-      for (const step of action.runs.steps) {
+      for (const step of flattenSteps(action.runs.steps)) {
         if (step.type !== "task") continue;
         const taskSuffix = taskSuffixes[ordinal++];
         if (`${action.path}/composite/${taskSuffix}` === entrypoint) {

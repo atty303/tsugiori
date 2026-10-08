@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 import { collectCompositeActions } from "./composite.ts";
 import type { DiagnosticRecorder } from "../task-runtime/diagnostics.ts";
 import type { ProjectConfig } from "../github_actions/mod.ts";
@@ -65,13 +66,13 @@ export async function resolveProjectWorkingDirectory(
   const required =
     project.workflows.some((workflow) =>
       workflow.jobs.some((job) =>
-        job.steps.some((step) =>
+        flattenSteps(job.steps).some((step) =>
           step.type === "task" ||
           (step.type === "uses" && step.calleeAction !== undefined)
         )
       )
     ) || collectCompositeActions(project).some((action) =>
-      action.runs.steps.some((step) =>
+      flattenSteps(action.runs.steps).some((step) =>
         step.type === "uses" && step.calleeAction !== undefined
       )
     );

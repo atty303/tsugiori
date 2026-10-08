@@ -538,7 +538,7 @@ const flow = workflow("empty.yml", { on: { push: {} } });`;
         "signatureHelp",
       );
       assert(
-        emptySignature.includes("TaskOptions<string | undefined, E, E,"),
+        emptySignature.includes("TaskOptions<undefined, E, E,"),
         emptySignature,
       );
 
@@ -908,6 +908,69 @@ const ci = workflow("ci.yml", { on: { push: {} } });
       );
       assert(cacheHover.includes("CacheMode"), cacheHover);
       assert(!cacheHover.includes("..."), cacheHover);
+      const backgroundPrefix =
+        `import { workflow } from "../src/github_actions/mod.ts";
+workflow("background.yml", { on: { push: {} } }).job("build", ({ job }) => {
+const started = job.runsOn("ubuntu-latest").run({ id: "build", name: "Build", run: "true", outputs: ["version"], background: true });
+const joined = started.wait(started.steps.build);
+`;
+      for (
+        const [index, [name, expression, outputs]] of ([
+          ["pending-background", "started.steps.build", false],
+          ["joined-background", "joined.steps.build", true],
+        ] as const).entries()
+      ) {
+        const labels = await sourceCompletionLabels(
+          writer,
+          stream,
+          390 + index,
+          name,
+          backgroundPrefix + `${expression}./*completion*/; return joined; });`,
+        );
+        assertEquals(labels.includes("outputs"), outputs, labels.join(","));
+      }
+      const backgroundHover = await sourceHover(
+        writer,
+        stream,
+        392,
+        "background-state-hover",
+        backgroundPrefix + `started/*completion*/; return joined; });`,
+        true,
+      );
+      assert(backgroundHover.includes("Background<"), backgroundHover);
+      assert(!backgroundHover.includes("..."), backgroundHover);
+      const waitSignature = await sourceHover(
+        writer,
+        stream,
+        393,
+        "wait-signature",
+        backgroundPrefix +
+          `started.wait(/*completion*/started.steps.build); return joined; });`,
+        false,
+        "signatureHelp",
+      );
+      assert(waitSignature.includes("Background<"), waitSignature);
+      assert(!waitSignature.includes("..."), waitSignature);
+      const groupLabels = await sourceCompletionLabels(
+        writer,
+        stream,
+        394,
+        "parallel-builder",
+        `import { workflow } from "../src/github_actions/mod.ts";
+workflow("parallel.yml", { on: { push: {} } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").parallel(group => { group./*completion*/; return [group.run({ id: "one", name: "One", run: "true" })]; }));`,
+      );
+      assertEquals([...groupLabels].sort(), ["run", "task", "uses"]);
+      const groupHover = await sourceHover(
+        writer,
+        stream,
+        395,
+        "parallel-group-hover",
+        `import { workflow } from "../src/github_actions/mod.ts";
+workflow("parallel.yml", { on: { push: {} } }).job("build", ({ job }) => job.runsOn("ubuntu-latest").parallel(group => { group/*completion*/; return [group.run({ id: "one", name: "One", run: "true" })]; }));`,
+        true,
+      );
+      assert(groupHover.includes("Parallel<"), groupHover);
+      assert(!groupHover.includes("..."), groupHover);
       await t.assertSnapshot(displays);
       for (
         const [index, [name, expected]] of ([

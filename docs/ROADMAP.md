@@ -24,11 +24,10 @@ documented in the [README](../README.md) and [architecture](ARCHITECTURE.md).
 
 The frozen [coverage inventory](../src/github_actions/github_spec.json) records
 `assessment` separately from status. Trigger declarations, payload typing,
-activity guards and fixture-based filtering are implemented and verified; the
-next feature groups are:
+activity guards, fixture-based filtering and native background/parallel steps
+with logical synchronization are implemented and verified locally; remaining
+feature groups are:
 
-- Add the native background/parallel step family where applicable to the frozen
-  GitHub.com basis.
 - Complete context fields and native expression interpretation currently
   requiring explicit scenario overrides; enforce the reusable unique-workflow
   limit where local graphs allow it.

@@ -67,18 +67,31 @@ export function emitWorkflow(workflow: ValidatedWorkflow): string {
     if (!isSeq(steps)) {
       throw new Error("Workflow steps must be a YAML sequence.");
     }
-    for (const [stepIndex, step] of job.steps.entries()) {
-      const node = steps.items[stepIndex];
-      if (!isMap(node)) throw new Error("Workflow step must be a YAML map.");
-      if (stepIndex > 0) node.spaceBefore = true;
-      if (step.type === "uses" && step.originalRef !== undefined) {
-        const uses = node.get("uses", true);
-        if (!isScalar(uses)) {
-          throw new Error("Action reference must be a YAML scalar.");
+    const formatSteps = (
+      sequence: typeof steps,
+      definitions: readonly Step[],
+    ): void => {
+      for (const [stepIndex, step] of definitions.entries()) {
+        const node = sequence.items[stepIndex];
+        if (!isMap(node)) throw new Error("Workflow step must be a YAML map.");
+        if (stepIndex > 0) node.spaceBefore = true;
+        if (step.type === "parallel") {
+          const children = node.get("parallel", true);
+          if (!isSeq(children)) {
+            throw new Error("Parallel steps must be a YAML sequence.");
+          }
+          formatSteps(children, step.steps);
         }
-        uses.comment = ` ${actionRefComment(step.originalRef)}`;
+        if (step.type === "uses" && step.originalRef !== undefined) {
+          const uses = node.get("uses", true);
+          if (!isScalar(uses)) {
+            throw new Error("Action reference must be a YAML scalar.");
+          }
+          uses.comment = ` ${actionRefComment(step.originalRef)}`;
+        }
       }
-    }
+    };
+    formatSteps(steps, job.steps);
   }
   return document.toString({ lineWidth: 0 });
 }
@@ -170,7 +183,17 @@ function emitRunnerSelection(selection: RunnerSelection): unknown {
 }
 
 export function emitStep(step: Step): Record<string, unknown> {
+  if (step.type === "parallel") return { parallel: step.steps.map(emitStep) };
+  if (step.type === "wait-all") return { "wait-all": null };
+  if (step.type === "wait" || step.type === "cancel") {
+    return {
+      [step.type]: step.targets.length === 1
+        ? step.targets[0]
+        : [...step.targets],
+    };
+  }
   const emitted: Record<string, unknown> = {};
+  if (step.background !== undefined) emitted.background = step.background;
   if (step.name !== undefined) {
     emitted.name = step.name;
   }

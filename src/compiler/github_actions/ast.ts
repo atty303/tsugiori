@@ -50,6 +50,7 @@ export type ActionInputs = Readonly<Record<string, ActionInput>>;
 
 export type StepMetadata = Readonly<{
   id?: string;
+  background?: boolean;
   if?: string;
   continueOnError?: boolean | string;
   timeoutMinutes?: number | string;
@@ -91,7 +92,29 @@ export type RunStep =
     shell?: string;
   }>;
 
-export type Step = UsesStep | RunStep;
+export type ControlStep<
+  K extends "wait" | "wait-all" | "cancel" = "wait" | "wait-all" | "cancel",
+> =
+  & StepMetadata
+  & Readonly<{
+    type: K;
+    name?: string;
+    targets: readonly string[];
+  }>;
+export type ParallelStep =
+  & StepMetadata
+  & Readonly<{
+    type: "parallel";
+    name?: string;
+    steps: readonly (UsesStep | RunStep)[];
+  }>;
+export type Step =
+  | UsesStep
+  | RunStep
+  | ControlStep<"wait">
+  | ControlStep<"wait-all">
+  | ControlStep<"cancel">
+  | ParallelStep;
 
 export type Job =
   & Readonly<{

@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 import type {
   AuthoringCompositeAction,
   AuthoringStep,
@@ -15,7 +16,7 @@ export function collectCompositeActions(
     inspect(action.runs.steps);
   };
   const inspect = (steps: readonly AuthoringStep[]): void => {
-    for (const step of steps) {
+    for (const step of flattenSteps(steps)) {
       if (step.type === "uses" && step.calleeAction) visit(step.calleeAction);
     }
   };

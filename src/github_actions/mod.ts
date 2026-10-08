@@ -146,6 +146,7 @@
  * {@link githubActionsSpec} exposes the frozen specification basis and capability coverage. Generation, validation and scenarios do not fetch specifications. Coverage does not prove hosted GitHub execution or authorization.
  * @module
  */
+import { flattenSteps } from "./steps.ts";
 import { renderContainer } from "./containers.ts";
 import type {
   ContainerDefinition,
@@ -1373,6 +1374,8 @@ export type NonEmptyReadonlyArray<T> = readonly [T, ...T[]];
 export type AuthoringUsesStep = Readonly<{
   /** Materialized uses step discriminator. */
   type: "uses";
+  /** Runs asynchronously; values become visible at a synchronization boundary. */
+  background?: boolean;
   /** Local composite definition retained for automatic collection and nested-call validation.
    */
   calleeAction?: AuthoringCompositeAction;
@@ -1419,6 +1422,8 @@ export type AuthoringUsesStep = Readonly<{
 export type AuthoringRunStep = Readonly<{
   /** Materialized run step discriminator. */
   type: "run";
+  /** Runs asynchronously; values become visible at a synchronization boundary. */
+  background?: boolean;
   /** A unique job identifier used by needs and output/result references.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_id
    */
@@ -1464,6 +1469,8 @@ export type AuthoringRunStep = Readonly<{
 export type AuthoringTaskStep = Readonly<{
   /** Materialized task step discriminator. */
   type: "task";
+  /** Runs asynchronously; values become visible at a synchronization boundary. */
+  background?: boolean;
   /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
    */
   workingDirectory?: string;
@@ -1530,7 +1537,36 @@ export type AuthoringTaskStep = Readonly<{
 }>;
 /** Materialized action, shell or task step. Prefer the corresponding builder methods on {@link Exec}; these records are generated definitions, not commands to execute on the host.
  */
+/** Native synchronization or termination step. Controls always run, without an if condition. */
+export type AuthoringControlStep<
+  K extends "wait" | "wait-all" | "cancel" = "wait" | "wait-all" | "cancel",
+> = Readonly<{
+  /** Native control discriminator. */ type: K;
+  /** Earlier background step IDs; wait-all has no targets. */ targets:
+    readonly string[];
+  /** Optional display label. */ name?: string;
+  /** Controls have no authored ID. */ id?: never;
+  /** Controls cannot be conditional. */ if?: never;
+  /** Controls are not background work. */ background?: never;
+  /** Controls have no environment map. */ env?: never;
+  /** Controls have no timeout. */ timeoutMinutes?: never;
+  /** Failure tolerance is owned by the background producer. */ continueOnError?:
+    never;
+}>;
+/** Native group of independent steps, joined before the job continues. */
+export type AuthoringParallelStep =
+  & Omit<AuthoringControlStep, "type" | "targets">
+  & Readonly<{
+    /** Native group discriminator. */ type: "parallel";
+    /** Independent run, Action or task children. */ steps:
+      readonly (AuthoringRunStep | AuthoringUsesStep | AuthoringTaskStep)[];
+  }>;
+/** Ordered native executable steps, synchronization controls and parallel groups. */
 export type AuthoringStep =
+  | AuthoringControlStep<"wait">
+  | AuthoringControlStep<"wait-all">
+  | AuthoringControlStep<"cancel">
+  | AuthoringParallelStep
   | AuthoringUsesStep
   | AuthoringRunStep
   | AuthoringTaskStep;
@@ -1673,8 +1709,8 @@ export interface TaskArtifactCacheJob {
   >(
     action: C,
     ...options: RequiredContractKeys<NoInfer<C>> extends never
-      ? [options?: UsesStepOptions<NoInfer<C>, Id>]
-      : [options: UsesStepOptions<NoInfer<C>, Id>]
+      ? [options?: Omit<UsesStepOptions<NoInfer<C>, Id>, "background">]
+      : [options: Omit<UsesStepOptions<NoInfer<C>, Id>, "background">]
   ): TaskArtifactCacheJob;
   /** Append a shell step using the same validation and expression handling as job.run(). Composite Action run steps require `shell`.
    * @example Inside a taskArtifactCache factory.
@@ -1683,10 +1719,10 @@ export interface TaskArtifactCacheJob {
    *   job.run({ name: "Prepare cache service", run: "cachectl ready", shell: "bash" }) });
    * ```
    */
-  run(definition: RunStepDefinition): TaskArtifactCacheJob;
+  run(definition: Omit<RunStepDefinition, "background">): TaskArtifactCacheJob;
 }
 
-/** Called during generation for each task-backed workflow job and composite Action. Return the supplied job after appending zero or more uses/run steps. Steps run before task preparation; task() is unavailable because it requires that preparation. List a local composite Action used only by this factory in project.actions so it is generated with the project.
+/** Called during generation for each task-backed workflow job and composite Action. Return the supplied job after appending zero or more uses/run steps. Cache steps complete synchronously before task preparation; background work and task() are unavailable because it requires that preparation. List a local composite Action used only by this factory in project.actions so it is generated with the project.
  * @example Inside project, with a compatible cache Action.
  * ```ts
  * project({ workflows: [ci], taskArtifactCache: ({ kind, path, key, job }) =>
@@ -2135,7 +2171,52 @@ export interface SR<
    */
   readonly [testStepShape]?: Test;
 }
-type StepReferences = Readonly<Record<string, SR>>;
+const backgroundReference: unique symbol = Symbol(
+  "tsugiori.background-reference",
+);
+/** Control reference for an asynchronous step. Outputs are exposed by wait()/waitAll(),
+ * or the final job outputs callback. Obtain from state.steps after background: true.
+ * A synchronized type does not guarantee a value from skipped or failed work.
+ */
+export type Background<R extends SR = SR, Owner extends string = string> =
+  & Omit<R, "outputs">
+  & Readonly<{
+    /** Retained complete reference and owning workflow/job identity. */
+    [backgroundReference]: Readonly<{
+      /** Complete reference published after synchronization. */
+      reference: R;
+      /** Owning workflow and job identity. */
+      owner: Owner;
+    }>;
+  }>;
+type StepReferences = Readonly<Record<string, SR | Background>>;
+type Joined<R> = R extends Background<infer Complete> ? Complete : R;
+type Synchronize<T extends StepReferences, Ids extends PropertyKey = keyof T> =
+  {
+    readonly [K in keyof T]: K extends Ids ? Joined<T[K]>
+      : T[K];
+  };
+type Pending<T extends StepReferences, Owner extends string> = Extract<
+  T[keyof T],
+  Background<SR, Owner>
+>;
+type AsyncReference<D, R extends SR, Owner extends string = string> = D extends
+  unknown
+  ? "background" extends keyof D
+    ? D extends { background: true } ? Background<R, Owner>
+    : D extends { background?: infer B }
+      ? true extends B ? R | Background<R, Owner> : R
+    : R
+  : R
+  : never;
+type GroupSteps<
+  T extends readonly JobDone<string, string, readonly string[]>[],
+  Prior extends StepReferences = E,
+> = Omit<Synchronize<UnionIntersection<TestStepsOf<T[number]>>>, keyof Prior>;
+type UnionIntersection<T> =
+  (T extends unknown ? (value: T) => void : never) extends
+    (value: infer I) => void ? I extends StepReferences ? I : never : never;
+
 type TypedNames<O extends OutputDefinitions> =
   & readonly (keyof O & string)[]
   & Readonly<{
@@ -2167,7 +2248,13 @@ type OutputMap<
   References extends Readonly<
     Record<string, { outputNames: readonly string[] }>
   >,
-> = { readonly [K in keyof References]: References[K]["outputNames"] };
+> = {
+  readonly [
+    K in keyof References as Extract<References[K], Background> extends never
+      ? K
+      : never
+  ]: References[K]["outputNames"];
+};
 type NeedsMap<
   Dependencies extends readonly JR<
     string,
@@ -2345,6 +2432,17 @@ type StepCommon<
   InputValues extends object = Readonly<Record<string, string>>,
   Services extends string = string,
 > = Readonly<{
+  /** Run asynchronously; default false. Give an ID to use wait/cancel references.
+   * Outputs and environment changes are published at wait/wait-all; a final implicit
+   * wait-all runs before cleanup. GitHub queues work beyond ten concurrent steps.
+   * Literal true exposes a control reference. An optional or widened boolean may be
+   * synchronous, so use waitAll() before reading its outputs; selective wait/cancel
+   * require a definite background reference. Composite internals cannot declare
+   * background work. See Background and Step.wait.
+   * @see https://github.com/github/docs/blob/0b8c768bf0d5a13560ec82fd3daa414137e2e436/content/actions/reference/workflows-and-actions/workflow-syntax.md#jobsjob_idstepsbackground
+   */
+  background?: boolean;
+
   /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -2994,6 +3092,7 @@ type FinalizedJobDefinition<
   workflowPath: WorkflowPath;
   jobId: JobId;
   owner: symbol;
+  parallelOrigin?: symbol;
   job: AuthoringJob;
   outputNames: Outputs;
   contracts: Readonly<Record<string, ReferenceBinding>>;
@@ -3048,11 +3147,15 @@ type DefinitionStepReference<Definition> = Definition extends
       : TaskOutputs<Definition>
   >
   : never;
-type AddStepReference<Definition, Steps extends StepReferences> =
-  [DefinitionStepId<Definition>] extends [never] ? Steps : {
-    readonly [K in keyof Steps | DefinitionStepId<Definition>]: K extends
-      keyof Steps ? Steps[K] : DefinitionStepReference<Definition>;
-  };
+type AddStepReference<
+  Definition,
+  Steps extends StepReferences,
+  Owner extends string = string,
+> = [DefinitionStepId<Definition>] extends [never] ? Steps : {
+  readonly [K in keyof Steps | DefinitionStepId<Definition>]: K extends
+    keyof Steps ? Steps[K]
+    : AsyncReference<Definition, DefinitionStepReference<Definition>, Owner>;
+};
 /** Typed task reference retaining native fixture inputs and the full output
  * contracts, including optional outputs. Obtain it from a named task step.
  */
@@ -3069,9 +3172,11 @@ type AddTaskReference<
   I extends InputDefinitions,
   O extends OutputDefinitions,
   Steps extends StepReferences,
+  B extends boolean = false,
+  Owner extends string = string,
 > = Id extends string ? {
     readonly [K in keyof Steps | Id]: K extends keyof Steps ? Steps[K]
-      : TR<Id, NativeInputs<I>, O>;
+      : AsyncReference<{ background: B }, TR<Id, NativeInputs<I>, O>, Owner>;
   }
   : Steps;
 type SkippableOutputs<O extends OutputDefinitions> = {
@@ -3147,6 +3252,57 @@ interface ExecBase<
   Proof extends string = never,
   Services extends string = string,
 > {
+  /** Author independent children from the same pre-group state, returning a nonempty
+   * tuple of single-step branches. The host callback runs during authoring. Children
+   * cannot consume sibling outputs; all group outputs are exposed on return.
+   * GitHub owns scheduling and the ten-background-step concurrency limit. Nested
+   * groups and control steps are not accepted as children. Composite internals
+   * cannot contain parallel groups.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").parallel(group => [
+   *   group.run({ id: "frontend", name: "Frontend", run: "build frontend" }),
+   *   group.run({ id: "backend", name: "Backend", run: "build backend" }),
+   * ]);
+   * ```
+   */
+  parallel<
+    const R extends readonly [
+      JobDone<WorkflowPath, JobId, readonly string[]>,
+      ...JobDone<WorkflowPath, JobId, readonly string[]>[],
+    ],
+  >(
+    define: (
+      group: Parallel<
+        WorkflowPath,
+        JobId,
+        E,
+        Compact<
+          {
+            needs: Needs;
+            matrix: Matrix;
+            vars: Vars;
+            secrets: Secrets;
+            inputs: InputValues;
+            proof: Proof;
+            services: Services;
+          }
+        >
+      >,
+    ) => R,
+  ): StepOf<
+    WorkflowPath,
+    JobId,
+    E & GroupSteps<R>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    readonly [],
+    Proof,
+    Services
+  >;
   /** Set this job's native cache access before appending steps. Overrides the
    * workflow declaration, subject to any explicit reusable caller ceiling.
    * Omission retains workflow/caller settings or the trigger default. CacheMode
@@ -3803,6 +3959,7 @@ interface ExecBase<
     const C extends ActionContract | string,
     const Id extends string | undefined = undefined,
     const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+    const B extends boolean = false,
   >(
     action: C,
     ...options: RequiredContractKeys<NoInfer<C>> extends never ? [
@@ -3827,6 +3984,7 @@ interface ExecBase<
              */
             with?: R;
           }>
+          & Readonly<{ background?: B }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
       : [
@@ -3851,12 +4009,17 @@ interface ExecBase<
              */
             with?: R;
           }>
+          & Readonly<{ background?: B }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
   ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, E>,
+    AddStepReference<
+      ActionStepDefinition<C, Id> & { background: B },
+      E,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -3882,6 +4045,7 @@ interface ExecBase<
     const C extends ActionContract | string,
     const Id extends string | undefined = undefined,
     const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+    const B extends boolean = false,
   >(
     action: C,
     options:
@@ -3922,11 +4086,16 @@ interface ExecBase<
           ) => R;
         }
       >
+      & Readonly<{ background?: B }>
       & CheckedActionValues<C, NoInfer<R>>,
   ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, E>,
+    AddStepReference<
+      ActionStepDefinition<C, Id> & { background: B },
+      E,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -3967,7 +4136,7 @@ interface ExecBase<
   ): StepOf<
     WorkflowPath,
     JobId,
-    AddStepReference<D, E>,
+    AddStepReference<D, E, `${WorkflowPath}#${JobId}`>,
     Needs,
     Matrix,
     Vars,
@@ -3977,7 +4146,7 @@ interface ExecBase<
     Proof,
     Services
   >;
-  /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
+  /** Steps run sequentially by default; background and parallel introduce native synchronization boundaries. Conditions, environment, timeouts and continue-on-error determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -3995,7 +4164,7 @@ interface ExecBase<
    * ```
    */
   task<
-    const Id extends string | undefined,
+    const Id extends string | undefined = undefined,
     const I extends TaskInputDefinitions = E,
     const O extends OutputDefinitions = E,
     const C extends
@@ -4027,6 +4196,7 @@ interface ExecBase<
       I,
       Proof | ConditionProof<C>
     >,
+    const B extends boolean = false,
   >(
     definition:
       & TaskStepDefinition<
@@ -4047,6 +4217,7 @@ interface ExecBase<
       & Readonly<{
         /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
         outputs?: O;
+        /** Asynchronous task execution; see Background. */ background?: B;
         /** GitHub runtime condition. A callback builds the expression during authoring; it does not decide whether to run on the host.
          */
         if?: C;
@@ -4071,7 +4242,14 @@ interface ExecBase<
   ): StepOf<
     WorkflowPath,
     JobId,
-    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, E>,
+    AddTaskReference<
+      Id,
+      I,
+      EffectiveOutputs<O, C, F>,
+      E,
+      B,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -4223,6 +4401,8 @@ interface CStepBase<
             /** Unsupported in composite Actions; omit this property. Workflow steps support a timeout through their native step settings.
              */
             timeoutMinutes?: never;
+            /** Composite internals cannot run background work. */ background?:
+              never;
           }>,
       ]
       : [
@@ -4251,6 +4431,8 @@ interface CStepBase<
             /** Unsupported in composite Actions; omit this property. Workflow steps support a timeout through their native step settings.
              */
             timeoutMinutes?: never;
+            /** Composite internals cannot run background work. */ background?:
+              never;
           }>,
       ]
   ): CStepOf<
@@ -4317,6 +4499,8 @@ interface CStepBase<
         /** Unsupported in composite Actions; omit this property. Workflow steps support a timeout through their native step settings.
          */
         timeoutMinutes?: never;
+        /** Composite internals cannot run background work. */ background?:
+          never;
       }>,
   ): CStepOf<
     WorkflowPath,
@@ -4358,6 +4542,8 @@ interface CStepBase<
         /** Unsupported in composite Actions; omit this property. Workflow steps support a timeout through their native step settings.
          */
         timeoutMinutes?: never;
+        /** Composite internals cannot run background work. */ background?:
+          never;
       }>,
   ): CStepOf<
     WorkflowPath,
@@ -4379,7 +4565,7 @@ interface CStepBase<
    * ```
    */
   task<
-    const Id extends string | undefined,
+    const Id extends string | undefined = undefined,
     const I extends TaskInputDefinitions = E,
     const O extends OutputDefinitions = E,
     const C extends
@@ -4430,6 +4616,8 @@ interface CStepBase<
           /** Unsupported in composite Actions; omit this property. Workflow steps support a timeout through their native step settings.
            */
           timeoutMinutes?: never;
+          /** Composite internals cannot run background work. */ background?:
+            never;
           /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
            */
           workingDirectory?: string;
@@ -4813,9 +5001,62 @@ type StepOf<
   outputs: Outputs;
   proof: Proof;
   services: Services;
-}> extends infer Context extends StateEnv
-  ? Step<WorkflowPath, JobId, Steps, Context>
+}> extends infer Context extends StateEnv ? Step<
+    WorkflowPath,
+    JobId,
+    { readonly [K in keyof Steps]: Steps[K] },
+    Context
+  >
   : never;
+/** A single independent parallel child. Return it in the group tuple; it exposes
+ * no output references or further step methods before the group joins.
+ */
+export type ParallelChild<
+  W extends string,
+  J extends string,
+  T extends StepReferences,
+  M extends object = E,
+> = JobDone<W, J, readonly [], T, M>;
+/** Authoring surface for independent children sharing the pre-group context.
+ * Call run, uses or task and return their single-step states in the group tuple.
+ */
+export type Parallel<
+  W extends string,
+  J extends string,
+  T extends StepReferences,
+  C extends StateEnv = E,
+> = Pick<
+  StepBase<
+    W,
+    J,
+    T,
+    Setting<C, "needs", Record<string, readonly string[]>, E>,
+    Setting<C, "matrix", object, E>,
+    Setting<C, "vars", string, string>,
+    Setting<C, "secrets", string, string>,
+    Setting<C, "inputs", object, E>,
+    readonly [],
+    Setting<C, "proof", string, never>,
+    Setting<C, "services", string, string>,
+    true
+  >,
+  "run" | "uses" | "task"
+>;
+type Next<
+  W extends string,
+  J extends string,
+  T extends StepReferences,
+  N extends Record<string, readonly string[]>,
+  M extends object,
+  V extends string,
+  S extends string,
+  I extends object,
+  O extends readonly string[],
+  P extends string,
+  Service extends string,
+  Branch extends boolean,
+> = Branch extends true ? ParallelChild<W, J, T, M>
+  : StepOf<W, J, T, N, M, V, S, I, O, P, Service>;
 /** Method surface of {@link Step}; its context is inferred by the DSL. */
 interface StepBase<
   WorkflowPath extends string,
@@ -4829,7 +5070,132 @@ interface StepBase<
   Outputs extends readonly string[] = readonly [],
   Proof extends string = never,
   Services extends string = string,
+  Branch extends boolean = false,
 > extends JobDone<WorkflowPath, JobId, Outputs, Steps, Matrix> {
+  /** Wait for selected earlier background steps. Always runs; returns a new state
+   * exposing their declared outputs. Failure is observed at this boundary; producer
+   * continueOnError retains its native meaning. No condition is accepted.
+   * @example After declaring background steps in `started`.
+   * ```ts
+   * const joined = started.wait(started.steps.build);
+   * joined.steps.build.outputs.version;
+   * ```
+   */
+  wait<
+    const R extends readonly [
+      Pending<Steps, `${WorkflowPath}#${JobId}`>,
+      ...Pending<Steps, `${WorkflowPath}#${JobId}`>[],
+    ],
+  >(
+    ...references: R
+  ): StepOf<
+    WorkflowPath,
+    JobId,
+    Synchronize<Steps, R[number]["id"]>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof,
+    Services
+  >;
+  /** Wait for all earlier background work, including steps without IDs. Always runs
+   * and returns a new state exposing all declared outputs.
+   * @example After starting background work in `started`.
+   * ```ts
+   * const joined = started.waitAll();
+   * ```
+   */
+  waitAll(): StepOf<
+    WorkflowPath,
+    JobId,
+    Synchronize<Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof,
+    Services
+  >;
+  /** Request termination of one earlier background step. Always runs. Does not
+   * expose its outputs; use wait or waitAll for synchronization. Scenarios retain
+   * the producer fixture's final result rather than inventing process behavior.
+   * @example After starting a background server in `started`.
+   * ```ts
+   * const stopped = started.cancel(started.steps.server);
+   * const joined = stopped.wait(stopped.steps.server);
+   * ```
+   */
+  cancel(
+    reference: Pending<Steps, `${WorkflowPath}#${JobId}`>,
+  ): StepOf<
+    WorkflowPath,
+    JobId,
+    Steps,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof,
+    Services
+  >;
+  /** Author independent children from the same pre-group state, returning a nonempty
+   * tuple of single-step branches. The host callback runs during authoring. Children
+   * cannot consume sibling outputs; all group outputs are exposed on return.
+   * GitHub owns scheduling and the ten-background-step concurrency limit. Nested
+   * groups and control steps are not accepted as children. Composite internals
+   * cannot contain parallel groups.
+   * @example In a job callback with `{ job }`.
+   * ```ts
+   * job.runsOn("ubuntu-latest").parallel(group => [
+   *   group.run({ id: "frontend", name: "Frontend", run: "build frontend" }),
+   *   group.run({ id: "backend", name: "Backend", run: "build backend" }),
+   * ]);
+   * ```
+   */
+  parallel<
+    const R extends readonly [
+      JobDone<WorkflowPath, JobId, readonly string[]>,
+      ...JobDone<WorkflowPath, JobId, readonly string[]>[],
+    ],
+  >(
+    define: (
+      group: Parallel<
+        WorkflowPath,
+        JobId,
+        Steps,
+        Compact<
+          {
+            needs: Needs;
+            matrix: Matrix;
+            vars: Vars;
+            secrets: Secrets;
+            inputs: InputValues;
+            proof: Proof;
+            services: Services;
+          }
+        >
+      >,
+    ) => R,
+  ): StepOf<
+    WorkflowPath,
+    JobId,
+    Steps & GroupSteps<R, Steps>,
+    Needs,
+    Matrix,
+    Vars,
+    Secrets,
+    InputValues,
+    Outputs,
+    Proof,
+    Services
+  >;
   /** Sets the environment while retaining earlier step references. Name callbacks exclude steps; URL callbacks include named outputs. URL is evaluated after steps, and protection is checked before any step.
    * @example In a job callback with `{ job }`.
    * ```ts
@@ -4871,7 +5237,7 @@ interface StepBase<
    * ```
    */
   readonly steps: Steps;
-  /** Maps step values to string outputs for dependent jobs; GitHub can suppress outputs containing secrets.
+  /** Maps step values to string outputs for dependent jobs after the implicit final wait-all. This callback can reference pending background outputs without an explicit wait step. Earlier states remain unchanged; GitHub can suppress outputs containing secrets.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idoutputs
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
@@ -4890,7 +5256,7 @@ interface StepBase<
         Field<
           "jobs.<job_id>.outputs.<output_id>",
           Needs,
-          OutputMap<Steps>,
+          OutputMap<Synchronize<Steps>>,
           Matrix,
           Vars,
           Secrets,
@@ -4904,7 +5270,7 @@ interface StepBase<
       context: Scope<
         "jobs.<job_id>.outputs.<output_id>",
         Needs,
-        OutputMap<Steps>,
+        OutputMap<Synchronize<Steps>>,
         Matrix,
         Vars,
         Secrets,
@@ -4935,6 +5301,7 @@ interface StepBase<
     const C extends ActionContract | string,
     const Id extends string | undefined = undefined,
     const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+    const B extends boolean = false,
   >(
     action: C,
     ...options: RequiredContractKeys<NoInfer<C>> extends never ? [
@@ -4959,6 +5326,7 @@ interface StepBase<
              */
             with?: R;
           }>
+          & Readonly<{ background?: Branch extends true ? never : B }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
       : [
@@ -4983,12 +5351,17 @@ interface StepBase<
              */
             with?: R;
           }>
+          & Readonly<{ background?: Branch extends true ? never : B }>
           & CheckedActionValues<C, NoInfer<R>>,
       ]
-  ): StepOf<
+  ): Next<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
+    AddStepReference<
+      ActionStepDefinition<C, Id> & { background: B },
+      Steps,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -4996,7 +5369,8 @@ interface StepBase<
     InputValues,
     Outputs,
     Proof,
-    Services
+    Services,
+    Branch
   >;
   /** Runs an action with the supplied inputs, subject to the step condition, environment and failure policy.
    * Tsugiori scenarios represent action behavior with fixtures.
@@ -5014,6 +5388,7 @@ interface StepBase<
     const C extends ActionContract | string,
     const Id extends string | undefined = undefined,
     const R extends ActionValues<NoInfer<C>> = ActionValues<NoInfer<C>>,
+    const B extends boolean = false,
   >(
     action: C,
     options:
@@ -5054,11 +5429,16 @@ interface StepBase<
           ) => R;
         }
       >
+      & Readonly<{ background?: Branch extends true ? never : B }>
       & CheckedActionValues<C, NoInfer<R>>,
-  ): StepOf<
+  ): Next<
     WorkflowPath,
     JobId,
-    AddStepReference<ActionStepDefinition<C, Id>, Steps>,
+    AddStepReference<
+      ActionStepDefinition<C, Id> & { background: B },
+      Steps,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -5066,7 +5446,8 @@ interface StepBase<
     InputValues,
     Outputs,
     Proof,
-    Services
+    Services,
+    Branch
   >;
   /** Executes commands in a new runner shell process. Explicit shell and working directory override job defaults; shell state does not persist between run steps.
    * Tsugiori preserves the script through YAML emission; scenarios do not execute it.
@@ -5095,11 +5476,16 @@ interface StepBase<
       Services
     >,
   >(
-    definition: AvailableStepDefinition<D, Steps>,
-  ): StepOf<
+    definition:
+      & AvailableStepDefinition<D, Steps>
+      & (Branch extends true ? Readonly<{
+          /** Parallel children omit explicit background. */ background?: never;
+        }>
+        : unknown),
+  ): Next<
     WorkflowPath,
     JobId,
-    AddStepReference<D, Steps>,
+    AddStepReference<D, Steps, `${WorkflowPath}#${JobId}`>,
     Needs,
     Matrix,
     Vars,
@@ -5107,9 +5493,10 @@ interface StepBase<
     InputValues,
     Outputs,
     Proof,
-    Services
+    Services,
+    Branch
   >;
-  /** Steps run sequentially within a job. Their conditions, environment, timeouts and continue-on-error policy determine execution and failure handling.
+  /** Steps run sequentially by default; background and parallel introduce native synchronization boundaries. Conditions, environment, timeouts and continue-on-error determine execution and failure handling.
    * Tsugiori creates a step invoking the task runtime; the task body remains outside YAML and uses typed task I/O.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idsteps
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -5141,7 +5528,7 @@ interface StepBase<
    * ```
    */
   task<
-    const Id extends string | undefined,
+    const Id extends string | undefined = undefined,
     const I extends TaskInputDefinitions = E,
     const O extends OutputDefinitions = E,
     const C extends
@@ -5173,6 +5560,7 @@ interface StepBase<
       I,
       Proof | ConditionProof<C>
     >,
+    const B extends boolean = false,
   >(
     definition:
       & TaskStepDefinition<
@@ -5194,6 +5582,8 @@ interface StepBase<
         {
           /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
           outputs?: O;
+          /** Whether this task runs asynchronously; see StepCommon.background. */ background?:
+            Branch extends true ? never : B;
           /** The condition for executing this step. A success() status check is implicit unless a status-check function is present. Use always(), failure() or cancelled() when the default success gate is inappropriate.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsif
            * @example In a `workflow().job()` callback with `{ job }`.
@@ -5251,10 +5641,17 @@ interface StepBase<
           id?: Exclude<Id, keyof Steps>;
         }
       >,
-  ): StepOf<
+  ): Next<
     WorkflowPath,
     JobId,
-    AddTaskReference<Id, I, EffectiveOutputs<O, C, F>, Steps>,
+    AddTaskReference<
+      Id,
+      I,
+      EffectiveOutputs<O, C, F>,
+      Steps,
+      B,
+      `${WorkflowPath}#${JobId}`
+    >,
     Needs,
     Matrix,
     Vars,
@@ -5262,7 +5659,8 @@ interface StepBase<
     InputValues,
     Outputs,
     Proof,
-    Services
+    Services,
+    Branch
   >;
 }
 /** Native caller jobs contain uses/with/secrets, never runs-on or steps.
@@ -6564,6 +6962,7 @@ type JobDraft = Readonly<{
   proofPaths: ReadonlySet<string>;
   composite?: boolean;
   outputContracts?: Readonly<Record<string, ReferenceBinding>>;
+  parallelOrigin?: symbol;
 }>;
 
 /** A workflow defines event triggers and jobs. Its project-relative YAML path is its sole identity.
@@ -6956,7 +7355,7 @@ function createWorkflowFacade(
     },
     ...(finalized ? { [workflowDefinition]: materializeWorkflow(draft) } : {}),
   };
-  return Object.freeze(facade) as
+  return Object.freeze(facade) as unknown as
     | WorkflowStartOf<string>
     | WorkflowOf<string, JobReferences>;
 }
@@ -7490,6 +7889,7 @@ function createExecutionJobFacade(
         outputs,
       );
     },
+    parallel: asynchronousFacade(draft).parallel,
     run: (
       definition: RunStepDefinition<string | undefined, readonly string[]>,
     ) => {
@@ -7539,6 +7939,7 @@ function createStepFacade(
       workflowPath: draft.workflowPath,
       jobId: draft.id,
       owner: draft.owner,
+      parallelOrigin: draft.parallelOrigin,
       job: materializeJob(draft),
       outputNames: Object.freeze(Object.keys(draft.options?.outputs ?? {})),
       contracts: draft.outputContracts ?? Object.freeze({}),
@@ -7582,6 +7983,7 @@ function createStepFacade(
     uses: base.uses,
     run: base.run,
     task: base.task,
+    ...asynchronousFacade(draft),
   }) as unknown as StepOf<string, string, StepReferences>;
 }
 function appendStep(
@@ -7593,8 +7995,17 @@ function appendStep(
   contracts?: Readonly<Record<string, ReferenceBinding>>,
 ): StepOf<string, string, StepReferences> {
   if (
+    draft.composite &&
+    (step.background || step.type === "parallel" || step.type === "wait" ||
+      step.type === "wait-all" || step.type === "cancel")
+  ) {
+    throw new TypeError(
+      "Composite internals do not support asynchronous steps.",
+    );
+  }
+  if (
     step.id !== undefined &&
-    draft.steps.some((candidate) => candidate.id === step.id)
+    flattenSteps(draft.steps).some((candidate) => candidate.id === step.id)
   ) throw new TypeError(`Step ID ${JSON.stringify(step.id)} is duplicated.`);
   return createStepFacade(Object.freeze({
     ...draft,
@@ -7615,24 +8026,186 @@ function appendStep(
       ]),
     references: step.id === undefined ? draft.references : Object.freeze({
       ...draft.references,
-      [step.id]: stepReference(step.id, outputNames, contracts),
+      [step.id]: step.background === true
+        ? pendingReference(
+          stepReference(step.id, outputNames, contracts),
+          `${draft.workflowPath}#${draft.id}`,
+        )
+        : stepReference(step.id, outputNames, contracts),
     }),
   }));
 }
+function pendingReference(reference: SR, owner: string): Background {
+  const { outputs: _outputs, ...control } = reference;
+  return Object.freeze({
+    ...control,
+    [backgroundReference]: Object.freeze({ reference, owner }),
+  });
+}
+function synchronizeReferences(
+  references: StepReferences,
+  ids?: ReadonlySet<string>,
+): StepReferences {
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(references).map(([id, ref]) => [
+        id,
+        backgroundReference in ref && (ids === undefined || ids.has(id))
+          ? ref[backgroundReference].reference
+          : ref,
+      ]),
+    ),
+  );
+}
+function asynchronousFacade(
+  draft: JobDraft & Readonly<{ runsOn: RunnerRequest }>,
+) {
+  const assertTarget = (ref: Background): string => {
+    if (
+      !ref || !(backgroundReference in ref) ||
+      ref[backgroundReference].owner !== `${draft.workflowPath}#${draft.id}` ||
+      draft.references[ref.id] !== ref
+    ) {
+      throw new TypeError(
+        "Control requires an earlier background reference from this job state.",
+      );
+    }
+    return ref.id;
+  };
+  const control = (
+    type: AuthoringControlStep["type"],
+    refs: readonly Background[],
+  ) => {
+    if (draft.composite) {
+      throw new TypeError(
+        "Composite internals do not support asynchronous steps.",
+      );
+    }
+    if (
+      type === "wait" && refs.length === 0 ||
+      type === "cancel" && refs.length !== 1
+    ) throw new TypeError("Control target count is invalid.");
+    const targets = refs.map(assertTarget);
+    if (new Set(targets).size !== targets.length) {
+      throw new TypeError("Control targets must be distinct.");
+    }
+    return createStepFacade({
+      ...draft,
+      steps: Object.freeze([
+        ...draft.steps,
+        Object.freeze({ type, targets: Object.freeze(targets) }),
+      ]),
+      references: type === "cancel" ? draft.references : synchronizeReferences(
+        draft.references,
+        type === "wait-all" ? undefined : new Set(targets),
+      ),
+    });
+  };
+  return {
+    wait: (...refs: Background[]) => control("wait", refs),
+    waitAll: () => control("wait-all", []),
+    cancel: (ref: Background) => control("cancel", [ref]),
+    parallel: (define: (group: unknown) => readonly JobDone[]) => {
+      if (draft.composite) {
+        throw new TypeError(
+          "Composite internals do not support parallel groups.",
+        );
+      }
+      const origin = Symbol("parallel-group");
+      const branch = createStepFacade({ ...draft, parallelOrigin: origin });
+      const children = define(
+        Object.freeze({
+          run: branch.run,
+          uses: branch.uses,
+          task: branch.task,
+        }),
+      );
+      if (!Array.isArray(children) || children.length === 0) {
+        throw new TypeError(
+          "Parallel requires a nonempty tuple of single-step branches.",
+        );
+      }
+      const steps:
+        (AuthoringRunStep | AuthoringUsesStep | AuthoringTaskStep)[] = [];
+      let references: StepReferences = draft.references;
+      const contracts = new Map(draft.contracts);
+      for (const child of children) {
+        const value = child?.[jobDefinition];
+        if (
+          !value || value.owner !== draft.owner ||
+          value.parallelOrigin !== origin ||
+          value.job.steps.length !== draft.steps.length + 1 ||
+          Object.keys(value.job.outputs ?? {}).length
+        ) {
+          throw new TypeError(
+            "Parallel children must add exactly one step from the supplied group state.",
+          );
+        }
+        const step = value.job.steps.at(-1)!;
+        if (
+          step.type !== "run" && step.type !== "uses" && step.type !== "task"
+        ) {
+          throw new TypeError(
+            "Parallel children must be run, uses or task steps.",
+          );
+        }
+        if (step.background !== undefined) {
+          throw new TypeError(
+            "Parallel children are implicitly background; omit background.",
+          );
+        }
+        steps.push(step);
+        if (step.id !== undefined) {
+          if (Object.hasOwn(references, step.id)) {
+            throw new TypeError(
+              `Step ID ${JSON.stringify(step.id)} is duplicated.`,
+            );
+          }
+          const ref =
+            (child as unknown as { steps: StepReferences }).steps[step.id];
+          references = Object.freeze({ ...references, [step.id]: ref });
+          for (const [name, binding] of Object.entries(ref.contracts ?? {})) {
+            contracts.set(
+              referencePath(
+                referencePath(referencePath("steps", step.id), "outputs"),
+                name,
+              ),
+              binding,
+            );
+          }
+        }
+      }
+      return createStepFacade({
+        ...draft,
+        contracts,
+        references,
+        steps: Object.freeze([
+          ...draft.steps,
+          Object.freeze({ type: "parallel", steps: Object.freeze(steps) }),
+        ]),
+      });
+    },
+  };
+}
 function stepFields(
   definition: {
+    background?: boolean;
     if?: unknown;
     env?: unknown;
     continueOnError?: unknown;
     timeoutMinutes?: unknown;
   },
 ): {
+  background?: boolean;
   if?: string;
   env?: EnvironmentVariables;
   continueOnError?: boolean | string;
   timeoutMinutes?: number | string;
 } {
   return {
+    ...(definition.background === undefined
+      ? {}
+      : { background: definition.background }),
     ...(definition.timeoutMinutes === undefined ? {} : {
       timeoutMinutes: typeof definition.timeoutMinutes === "number"
         ? definition.timeoutMinutes
@@ -7702,6 +8275,7 @@ function taskStep(
   jobProofPaths: ReadonlySet<string>,
 ): AuthoringTaskStep {
   const fields = stepFields({
+    background: definition.background,
     env: definition.env,
     timeoutMinutes: definition.timeoutMinutes,
     continueOnError: definition.continueOnError,

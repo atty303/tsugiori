@@ -117,16 +117,24 @@ retain their authored spelling.
 
 Jobs use staged methods for conditions, matrix, concurrency, and other options.
 Step output names come from typed action definitions, declared run-step outputs,
-or task-step output declarations. Job outputs are authored after their steps and
-become the typed `needs` surface of subsequent jobs. A task is defined directly
-in `job.task({ inputs, outputs, env, run })`. Each typed input couples a
-contract to a GitHub expression source. Contracts are optional: outputs default
-to the shared `textValue()` contract; inputs inherit a direct typed reference
-contract or default to text when the source carries no contract. Explicit input
-contracts must match the source contract object. The compiler creates its step
-`env` entry and rejects collisions with authored `env`. Task output writes
-validate and serialize native values before appending GitHub's multiline format
-to `GITHUB_OUTPUT`; the runner parses and validates input wire values before
+or task-step output declarations. Background steps initially expose control
+references without outputs. wait()/waitAll() return new states exposing joined
+outputs; cancel() requests termination without publishing values. Parallel
+children are single-step branches from one pre-group state and expose no sibling
+references; the group return publishes their outputs. Final job output callbacks
+see the native implicit end-of-job wait-all boundary. Synchronization does not
+prove output presence for skipped, failed or cancelled work.
+
+Job outputs are authored after their steps and become the typed `needs` surface
+of subsequent jobs. A task is defined directly in
+`job.task({ inputs, outputs, env, run })`. Each typed input couples a contract
+to a GitHub expression source. Contracts are optional: outputs default to the
+shared `textValue()` contract; inputs inherit a direct typed reference contract
+or default to text when the source carries no contract. Explicit input contracts
+must match the source contract object. The compiler creates its step `env` entry
+and rejects collisions with authored `env`. Task output writes validate and
+serialize native values before appending GitHub's multiline format to
+`GITHUB_OUTPUT`; the runner parses and validates input wire values before
 calling `run`.
 
 Text and JSON are distinct task I/O variants. JSON accepts a consumer-owned
@@ -247,6 +255,14 @@ and `matrix` contexts, evaluates supported expressions, serializes typed task
 outputs to GitHub wire values, and checks independent expectations against the
 resulting state. Generated task preparation steps default to success and support
 an explicit outcome override.
+
+The interpreter defers background fixture results, environment writes and status
+until an explicit join, a parallel group's join or the implicit end-of-job join.
+Parallel children resolve inputs against the pre-group context. cancel records a
+termination request while the producer fixture supplies its final outcome; it
+does not invent signal handling or completion times. Conflicting environment
+writes at one join fail because completion order is unknown. Sequential or
+selective joins provide an explicit publication order.
 
 The interpreter checks trigger filters, conditions, step order, matrix
 expansion, job dependencies, status and `continue-on-error`, and value
@@ -443,9 +459,10 @@ the bridge records their startup/fallback outcome. Shell evidence lasts only as
 long as runner temporary storage.
 
 The scenario library emits workflow operations to an optional host-owned sink;
-consumer absence or failure does not alter results. It owns no provider,
-recording store, or exporter. Deterministic compiler/schema failures retain
-typed diagnostics and can be rerun safely from the same authoring input.
+consumer absence or failure does not alter results. Background start, join and
+cancel stages carry no fixture, output or environment values. It owns no
+provider, recording store, or exporter. Deterministic compiler/schema failures
+retain typed diagnostics and can be rerun safely from the same authoring input.
 
 ## Type service
 

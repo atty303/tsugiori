@@ -1,3 +1,4 @@
+import { flattenSteps } from "../github_actions/steps.ts";
 import { cacheModeWithin, isCacheMode } from "../github_actions/cache_mode.ts";
 import type { CacheMode } from "../github_actions/mod.ts";
 import { collectCompositeActions } from "./composite.ts";
@@ -64,7 +65,7 @@ export class AuthoringValidationError extends Error {
 export function taskEntrypointSuffixes(
   steps: readonly AuthoringStep[],
 ): readonly string[] {
-  const tasks = steps.filter((step) => step.type === "task");
+  const tasks = flattenSteps(steps).filter((step) => step.type === "task");
   const used = new Set(
     tasks.flatMap((task) => task.id === undefined ? [] : [task.id]),
   );
@@ -96,7 +97,7 @@ export function lowerProject(
     steps: readonly import("../github_actions/mod.ts").AuthoringStep[],
     ancestors: readonly AuthoringCompositeAction[],
   ) => {
-    for (const step of steps) {
+    for (const step of flattenSteps(steps)) {
       if (step.type !== "uses" || !step.calleeAction) continue;
       const target = step.calleeAction;
       if (ancestors.includes(target)) {
@@ -157,11 +158,13 @@ export function lowerProject(
         });
         continue;
       }
-      const steps: Step[] = [];
+
       const usedStepIds = new Set(
-        job.steps.flatMap((step) => step.id === undefined ? [] : [step.id]),
+        flattenSteps(job.steps).flatMap((step) =>
+          step.id === undefined ? [] : [step.id]
+        ),
       );
-      const taskNames = job.steps
+      const taskNames = flattenSteps(job.steps)
         .filter((step) => step.type === "task")
         .map((step) => step.name);
       if (
@@ -201,6 +204,16 @@ export function lowerProject(
           uses: `actions/cache@${ACTIONS_CACHE_COMMIT}`,
           with: { path: cachePath, key: cacheKey },
         }];
+      if (
+        cacheSteps.some((step) =>
+          step.background || step.type === "parallel" || step.type === "wait" ||
+          step.type === "wait-all" || step.type === "cancel"
+        )
+      ) {
+        diagnostics.push(
+          "Task artifact cache setup must complete synchronously before preparation.",
+        );
+      }
       for (const step of cacheSteps) {
         if (step.id !== undefined) usedStepIds.add(step.id);
       }
@@ -210,114 +223,180 @@ export function lowerProject(
       let preparationEmitted = false;
       const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
       if (taskNames.length > 0) prepareStepIds[job.id] = prepareStepId;
-      const firstTask = job.steps.findIndex((step) => step.type === "task");
+      const firstTask = job.steps.findIndex((step) =>
+        flattenSteps([step]).some((child) => child.type === "task")
+      );
       const authoringSteps = firstTask < 0 ? job.steps : [
         ...job.steps.slice(0, firstTask),
         ...cacheSteps,
         ...job.steps.slice(firstTask),
       ];
-      for (const step of authoringSteps) {
-        if (internalActionLowering) {
-          if (step.type === "run" && !step.shell?.trim()) {
+      const prepare = (): Step =>
+        preparationStep(
+          entrypointArgument,
+          projectDirectory,
+          prepareStepId,
+          sourceKey,
+          cachePath,
+          taskPrepareAction(project.localTaskPrepareAction) ?? "unresolved",
+        );
+      const lowerSteps = (authored: readonly AuthoringStep[]): Step[] => {
+        const steps: Step[] = [];
+        for (const step of authored) {
+          if (step.type === "parallel") {
+            if (internalActionLowering) {
+              diagnostics.push(
+                "Composite internals do not support parallel groups.",
+              );
+            }
+            if (
+              !preparationEmitted &&
+              flattenSteps(step.steps).some((child) => child.type === "task")
+            ) {
+              steps.push(prepare());
+              preparationEmitted = true;
+            }
+            steps.push({
+              type: "parallel",
+              steps: lowerSteps(
+                step.steps,
+              ) as (
+                | import("./github_actions/ast.ts").RunStep
+                | import("./github_actions/ast.ts").UsesStep
+              )[],
+            });
+            continue;
+          }
+          if (
+            step.type === "wait" || step.type === "wait-all" ||
+            step.type === "cancel"
+          ) {
+            if (internalActionLowering) {
+              diagnostics.push(
+                "Composite internals do not support asynchronous controls.",
+              );
+            }
+            steps.push({ type: step.type, targets: step.targets });
+            continue;
+          }
+          if (internalActionLowering && step.background) {
             diagnostics.push(
-              `Composite ${workflow.path} run steps require shell.`,
+              "Composite internals do not support background work.",
             );
           }
-          if (step.timeoutMinutes !== undefined) {
-            diagnostics.push(
-              `Composite ${workflow.path} does not support step timeout-minutes.`,
-            );
+          if (internalActionLowering) {
+            if (step.type === "run" && !step.shell?.trim()) {
+              diagnostics.push(
+                `Composite ${workflow.path} run steps require shell.`,
+              );
+            }
+            if (step.timeoutMinutes !== undefined) {
+              diagnostics.push(
+                `Composite ${workflow.path} does not support step timeout-minutes.`,
+              );
+            }
           }
-        }
-        if (step.type === "uses") {
-          steps.push({
-            type: "uses",
+          if (step.type === "uses") {
+            steps.push({
+              type: "uses",
+              ...(step.background === undefined
+                ? {}
+                : { background: step.background }),
+              name: step.name,
+              ...(step.id === undefined ? {} : { id: step.id }),
+              uses: step.calleeAction
+                ? localActionReference(
+                  projectDirectory,
+                  posix.dirname(step.calleeAction.path),
+                )
+                : step.uses,
+              ...(step.originalRef === undefined
+                ? {}
+                : { originalRef: step.originalRef }),
+              ...(step.if === undefined ? {} : { if: step.if }),
+              ...(step.continueOnError === undefined ? {} : {
+                continueOnError: step.continueOnError,
+              }),
+              ...(step.timeoutMinutes === undefined
+                ? {}
+                : { timeoutMinutes: step.timeoutMinutes }),
+              ...(step.env === undefined ? {} : { env: step.env }),
+              ...(step.with === undefined ? {} : { with: step.with }),
+            });
+            continue;
+          }
+          if (step.type === "run") {
+            steps.push({
+              type: "run",
+              ...(step.background === undefined
+                ? {}
+                : { background: step.background }),
+              name: step.name,
+              ...(step.id === undefined ? {} : { id: step.id }),
+              run: step.run,
+              ...(step.shell === undefined ? {} : { shell: step.shell }),
+              ...(step.if === undefined ? {} : { if: step.if }),
+              ...(step.continueOnError === undefined ? {} : {
+                continueOnError: step.continueOnError,
+              }),
+              ...(step.timeoutMinutes === undefined
+                ? {}
+                : { timeoutMinutes: step.timeoutMinutes }),
+              ...(step.env === undefined ? {} : { env: step.env }),
+              ...(step.workingDirectory === undefined ? {} : {
+                workingDirectory: step.workingDirectory,
+              }),
+            });
+            continue;
+          }
+
+          const taskSuffix = taskSuffixes[taskOrdinal++];
+          if (!preparationEmitted) {
+            steps.push(preparationStep(
+              entrypointArgument,
+              projectDirectory,
+              prepareStepId,
+              sourceKey,
+              cachePath,
+              taskPrepareAction(project.localTaskPrepareAction) ?? "unresolved",
+            ));
+            preparationEmitted = true;
+          }
+          const entrypoint = `${layoutKey}/${taskSuffix}`;
+          tasks.push({
+            entrypoint,
             name: step.name,
-            ...(step.id === undefined ? {} : { id: step.id }),
-            uses: step.calleeAction
-              ? localActionReference(
-                projectDirectory,
-                posix.dirname(step.calleeAction.path),
-              )
-              : step.uses,
-            ...(step.originalRef === undefined
-              ? {}
-              : { originalRef: step.originalRef }),
-            ...(step.if === undefined ? {} : { if: step.if }),
-            ...(step.continueOnError === undefined ? {} : {
-              continueOnError: step.continueOnError,
-            }),
-            ...(step.timeoutMinutes === undefined
-              ? {}
-              : { timeoutMinutes: step.timeoutMinutes }),
-            ...(step.env === undefined ? {} : { env: step.env }),
-            ...(step.with === undefined ? {} : { with: step.with }),
+            workflowPath: workflow.path,
+            jobId: job.id,
+            task: step,
           });
-          continue;
-        }
-        if (step.type === "run") {
           steps.push({
             type: "run",
+            ...(step.background === undefined
+              ? {}
+              : { background: step.background }),
             name: step.name,
             ...(step.id === undefined ? {} : { id: step.id }),
-            run: step.run,
-            ...(step.shell === undefined ? {} : { shell: step.shell }),
             ...(step.if === undefined ? {} : { if: step.if }),
             ...(step.continueOnError === undefined ? {} : {
               continueOnError: step.continueOnError,
             }),
+            ...(step.env === undefined ? {} : { env: step.env }),
             ...(step.timeoutMinutes === undefined
               ? {}
               : { timeoutMinutes: step.timeoutMinutes }),
-            ...(step.env === undefined ? {} : { env: step.env }),
-            ...(step.workingDirectory === undefined ? {} : {
-              workingDirectory: step.workingDirectory,
-            }),
+            ...(step.workingDirectory === undefined
+              ? {}
+              : { workingDirectory: step.workingDirectory }),
+            run: `"\${{ steps.${prepareStepId}.outputs.runtime-path }}" ${
+              quotePosix(entrypoint)
+            }`,
           });
-          continue;
         }
 
-        const taskSuffix = taskSuffixes[taskOrdinal++];
-        if (!preparationEmitted) {
-          steps.push(preparationStep(
-            entrypointArgument,
-            projectDirectory,
-            prepareStepId,
-            sourceKey,
-            cachePath,
-            taskPrepareAction(project.localTaskPrepareAction) ?? "unresolved",
-          ));
-          preparationEmitted = true;
-        }
-        const entrypoint = `${layoutKey}/${taskSuffix}`;
-        tasks.push({
-          entrypoint,
-          name: step.name,
-          workflowPath: workflow.path,
-          jobId: job.id,
-          task: step,
-        });
-        steps.push({
-          type: "run",
-          name: step.name,
-          ...(step.id === undefined ? {} : { id: step.id }),
-          ...(step.if === undefined ? {} : { if: step.if }),
-          ...(step.continueOnError === undefined ? {} : {
-            continueOnError: step.continueOnError,
-          }),
-          ...(step.env === undefined ? {} : { env: step.env }),
-          ...(step.timeoutMinutes === undefined
-            ? {}
-            : { timeoutMinutes: step.timeoutMinutes }),
-          ...(step.workingDirectory === undefined
-            ? {}
-            : { workingDirectory: step.workingDirectory }),
-          run: `"\${{ steps.${prepareStepId}.outputs.runtime-path }}" ${
-            quotePosix(entrypoint)
-          }`,
-        });
-      }
-
+        return steps;
+      };
+      const steps = lowerSteps(authoringSteps);
       jobs.push({
         id: job.id,
         runsOn: typeof job.runsOn === "object" && job.runsOn !== null &&

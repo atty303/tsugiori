@@ -136,6 +136,12 @@ const importCode = [...imports].map(([name, url]) =>
 ).join("\n");
 const setup = `
 declare const logger: TaskLogger;
+function backgroundFixture(job: JobInit<"background.yml", "build">) {
+  return job.runsOn("ubuntu-latest")
+    .run({ id: "build", name: "Build", run: "true", outputs: ["version"], background: true })
+    .run({ id: "server", name: "Server", run: "true", background: true });
+}
+declare const started: ReturnType<typeof backgroundFixture>;
 const sampleWorkflow = workflow(".github/workflows/doc.yml", { on: { push: {} } })
   .job("build", ({ job }) => job.runsOn("ubuntu-latest")
     .strategy({ matrix: { stage: ["dev", "prd"] } })
