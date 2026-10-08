@@ -2503,6 +2503,11 @@ export type TaskStepDefinition<
       InputValues
     >
     | undefined = undefined,
+  Accepted extends Record<string, unknown> =
+    import("../task/mod.ts").InputValues<
+      Inputs,
+      Proof | ConditionProof<Condition>
+    >,
 > =
   & TaskOptions<
     Id,
@@ -2515,9 +2520,10 @@ export type TaskStepDefinition<
     Secrets,
     InputValues,
     Proof,
-    Condition
+    Condition,
+    Accepted
   >
-  & TaskContracts<Inputs, Outputs>;
+  & TaskContracts<Inputs, Outputs, Accepted>;
 interface TaskOptions<
   Id extends string | undefined = undefined,
   Inputs extends TaskInputDefinitions = E,
@@ -2540,6 +2546,11 @@ interface TaskOptions<
       InputValues
     >
     | undefined = undefined,
+  Accepted extends Record<string, unknown> =
+    import("../task/mod.ts").InputValues<
+      Inputs,
+      Proof | ConditionProof<Condition>
+    >,
 > extends
   Omit<StepCommon<Needs, Steps, Matrix, Vars, Secrets, InputValues>, "if"> {
   /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
@@ -2591,7 +2602,7 @@ interface TaskOptions<
    * ```
    */
   readonly inputs?: AuthoringValue<
-    Inputs,
+    CheckedTaskInputs<Inputs, Accepted, Proof | ConditionProof<Condition>>,
     Scope<
       "jobs.<job_id>.steps.env",
       Needs,
@@ -2620,6 +2631,9 @@ interface TaskOptions<
    */
   readonly outputs?: Outputs;
   /** Runs in the compiled task runtime with native values; await output writes.
+   * A named function is checked against the input declarations and presence
+   * conditions without requiring builder type arguments. Its parameter
+   * annotation does not declare task inputs or output references.
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
@@ -2633,19 +2647,78 @@ interface TaskOptions<
    *   },
    * });
    * ```
+   * @example In a `workflow().job()` callback with `{ job }`, reuse a function whose parameters describe native values.
+   * ```ts
+   * const printSha = ({ inputs }: { inputs: { sha: string } }) => {
+   *   console.log(inputs.sha);
+   * };
+   * job.runsOn("ubuntu-latest").task({
+   *   name: "Print SHA",
+   *   inputs: ({ github }) => ({ sha: { from: github.sha } }),
+   *   run: printSha,
+   * });
+   * ```
    */
   readonly run: (
-    context: NoInfer<
-      TaskContext<Inputs, Outputs, Proof | ConditionProof<Condition>>
+    context: TaskRunContext<
+      Inputs,
+      Outputs,
+      Accepted,
+      Proof | ConditionProof<Condition>
     >,
   ) => void | Promise<void>;
 }
 
+// Infer declaration members before checking a named handler's accepted values.
+// A whole-object conditional fixes I too early while inputs is still contextual.
+type CheckedTaskInputs<
+  I extends TaskInputDefinitions,
+  Accepted extends Record<string, unknown>,
+  Proof extends string,
+> =
+  & {
+    readonly [K in keyof I]:
+      & I[K]
+      & (
+        K extends keyof Accepted
+          ? InputValues<{ value: I[K] }, Proof>["value"] extends Accepted[K]
+            ? unknown
+          : never
+          : unknown
+      );
+  }
+  & Record<Exclude<RequiredInputNames<Accepted>, keyof I>, never>;
+
+type RequiredInputNames<T> = keyof {
+  [
+    K in keyof T as string extends K ? never
+      : number extends K ? never
+      : Record<never, never> extends Pick<T, K> ? never
+      : K
+  ]: unknown;
+};
+
+type TaskRunContext<
+  I extends TaskInputDefinitions,
+  O extends OutputDefinitions,
+  Accepted extends Record<string, unknown>,
+  Proof extends string,
+> = RequiredInputNames<Accepted> extends keyof I
+  ? NoInfer<TaskContext<I, O, Proof>>
+  : Omit<TaskContext<E, NoInfer<O>>, "inputs"> & {
+    readonly inputs: Accepted & NoInfer<InputValues<I, Proof>>;
+  };
+
+type HasTaskInputs<I, Accepted> = keyof I | RequiredInputNames<Accepted> extends
+  never ? false : true;
+
 type TaskContracts<
   I extends TaskInputDefinitions,
   O extends OutputDefinitions,
+  Accepted extends Record<string, unknown> = E,
 > =
-  & (keyof I extends never ? unknown : Readonly<{ inputs: object }>)
+  & (HasTaskInputs<I, Accepted> extends true ? Readonly<{ inputs: object }>
+    : unknown)
   & (keyof O extends never ? unknown : Readonly<{ outputs: object }>);
 const jobDefinition = Symbol("tsugiori.job-definition");
 /** Identity key carrying a completed composite definition. Obtain it through {@link compositeAction}; do not fabricate a definition or use this as a GitHub runtime value.
@@ -3637,6 +3710,10 @@ interface ExecBase<
         >
         | undefined,
     const F extends boolean | undefined = undefined,
+    K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
+      I,
+      Proof | ConditionProof<C>
+    >,
   >(
     definition:
       & TaskStepDefinition<
@@ -3650,7 +3727,8 @@ interface ExecBase<
         Secrets,
         InputValues,
         Proof,
-        C
+        C,
+        K
       >
       & Readonly<{
         /** Native output contracts. Omission declares no outputs; run retains its output writer. See {@link TaskStepDefinition.outputs}. */
@@ -3997,6 +4075,10 @@ interface CStepBase<
         >
         | undefined,
     const F extends boolean | undefined = undefined,
+    K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
+      I,
+      Proof | ConditionProof<C>
+    >,
   >(
     definition:
       & TaskStepDefinition<
@@ -4010,7 +4092,8 @@ interface CStepBase<
         Secrets,
         InputValues,
         Proof,
-        C
+        C,
+        K
       >
       & Readonly<
         {
@@ -4697,6 +4780,10 @@ interface StepBase<
         >
         | undefined,
     const F extends boolean | undefined = undefined,
+    K extends Record<string, unknown> = import("../task/mod.ts").InputValues<
+      I,
+      Proof | ConditionProof<C>
+    >,
   >(
     definition:
       & TaskStepDefinition<
@@ -4710,7 +4797,8 @@ interface StepBase<
         Secrets,
         InputValues,
         Proof,
-        C
+        C,
+        K
       >
       & Readonly<
         {

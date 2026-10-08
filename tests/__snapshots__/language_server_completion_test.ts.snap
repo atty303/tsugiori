@@ -17,7 +17,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
         };
     };
 }>',
-  "composite-method": '(method) CStepBase<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F>(definition: TaskOptions<Id, I, O, E, {
+  "composite-method": '(method) CStepBase<"actions/greet/action.yml", "composite", { readonly one: NS<"one", readonly ["value"]>; readonly two: TR<"two", { readonly who: string; }, SkippableOutputs<{ readonly value: { readonly contract: ValueContract<string, "text">; readonly required: true; }; }>>; }, ... 6 more ..., never>.task<Id, I, O, C, F, K>(definition: TaskOptions<Id, I, O, E, {
     readonly one: NS<"one", readonly ["value"]>;
     readonly two: TR<"two", {
         readonly who: string;
@@ -29,9 +29,9 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
     }>>;
 }, E, string, never, {
     readonly who: string;
-}, never, C> & (keyof I extends never ? unknown : Readonly<{
+}, never, C, K> & (HasTaskInputs<I, K> extends true ? Readonly<{
     inputs: object;
-}>) & (keyof O extends never ? unknown : Readonly<{
+}> : unknown) & (keyof O extends never ? unknown : Readonly<{
     outputs: object;
 }>) & Readonly<{
     timeoutMinutes?: never;
@@ -142,7 +142,7 @@ snapshot[`Deno language server exposes only context-valid authoring candidates 1
   "task-cache-job": "(parameter) job: TaskArtifactCacheJob",
   "task-cache-run-signature": "run(definition: RunStepDefinition): TaskArtifactCacheJob",
   "task-callback": '(parameter) context: TaskContext<{
-    readonly who: {
+    who: {
         readonly from: Expression<"world", never, undefined, false>;
     };
 }, {

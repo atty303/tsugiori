@@ -2,10 +2,35 @@ import { scenario } from "../src/testing/mod.ts";
 import {
   fromJSON,
   jsonValue,
+  literal,
   present,
   toJSON,
   workflow,
 } from "../src/github_actions.ts";
+
+function assertNamedHandlerScenarioInputs(): void {
+  const consume = (_: { inputs: Record<string, unknown> }) => {};
+  const flow = workflow("named-map.yml", { on: { push: {} } }).job(
+    "test",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").task({
+        id: "consume",
+        name: "Consume",
+        inputs: () => ({ text: { from: literal("text") } }),
+        run: consume,
+      }),
+  );
+  void scenario(flow, (test) => {
+    test.job("test", (job) => {
+      job.step("consume").expectInputs({ text: "text" });
+      // @ts-expect-error broad handler annotations retain the declared text value type
+      job.step("consume").expectInputs({ text: 1 });
+      // @ts-expect-error broad handler annotations do not declare arbitrary input names
+      job.step("consume").expectInputs({ missing: "text" });
+    });
+  });
+}
+void assertNamedHandlerScenarioInputs;
 
 function assertScenarioTypes(): void {
   const numberValue = jsonValue({

@@ -465,6 +465,21 @@ workflow("json.yml", { on: { push: {} } }).job("test", ({ job }) => job.runsOn("
         inheritedJsonHover.includes("const value: string[]"),
         inheritedJsonHover,
       );
+      const namedHandlerHover = await sourceHover(
+        writer,
+        stream,
+        87,
+        "named-handler-input",
+        `import { workflow, jsonValue, present } from "../src/github_actions/mod.ts";
+const items = jsonValue({ parse(value: unknown): readonly string[] { return value as string[]; } });
+const consume = (_: { inputs: { items: readonly string[] } }) => {};
+workflow("named.yml", { on: { push: {} } }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "make", name: "Make", outputs: { items: { contract: items, required: false } }, run: () => {} }).task({ name: "Read", if: ({ steps }) => present(steps.make.outputs.items), inputs: ({ steps }) => { const value = steps.make.outputs.items; value/*completion*/; return { items: { from: value } }; }, run: consume }));`,
+        true,
+      );
+      assert(
+        namedHandlerHover.includes("TypedReference<readonly string[]"),
+        namedHandlerHover,
+      );
       const widenedJsonHover = await sourceHover(
         writer,
         stream,

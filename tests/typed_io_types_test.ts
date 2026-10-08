@@ -5,12 +5,211 @@ import {
   format,
   fromJSON,
   jsonValue,
+  literal,
   present,
   rawNode,
   type TaskStepDefinition,
   textValue,
   workflow,
 } from "../src/github_actions/mod.ts";
+
+function assertNamedTaskHandlers(): void {
+  const files = jsonValue({
+    parse(value: unknown): readonly string[] {
+      if (!Array.isArray(value)) throw new TypeError();
+      return value as string[];
+    },
+  });
+  const consumeFiles = (_: { inputs: { files: readonly string[] } }) => {};
+  const consumeOptional = (
+    _: { inputs: { files: readonly string[] | null } },
+  ) => {};
+  const consumeText = (_: { inputs: { text: string } }) => {};
+  const consumeExtra = (_: { inputs: { text: string; missing: string } }) => {};
+  const consumeLiteral = (_: { inputs: { text: "literal" } }) => {};
+  const produce = async (
+    { outputs }: TaskContext<
+      Record<never, never>,
+      { files: { contract: typeof files; required: false } }
+    >,
+  ) => {
+    await outputs.set("files", ["main.ts"]);
+  };
+
+  workflow("named.yml", { on: { push: {} } }).job("test", ({ job }) => {
+    const first = job.runsOn("ubuntu-latest").task({
+      name: "Text",
+      inputs: ({ github }) => ({ text: { from: github.sha } }),
+      run: consumeText,
+    });
+    first.task({
+      name: "Subset",
+      inputs: ({ github }) => ({
+        text: { from: github.sha },
+        ignored: { from: literal("value") },
+      }),
+      run: consumeText,
+    });
+    const phantomOutput = (
+      _: TaskContext<Record<never, never>, { value: { required: true } }>,
+    ) => {};
+    first.task({
+      id: "phantom",
+      name: "Phantom output",
+      run: phantomOutput,
+    }).run({
+      name: "Check declarations",
+      run: "true",
+      env: ({ steps }) => {
+        // @ts-expect-error handler annotations cannot declare output references
+        void steps.phantom.outputs.value;
+        return {};
+      },
+    });
+    const consumeUnknownMap = (_: { inputs: Record<string, unknown> }) => {};
+    const consumeTextMap = (_: { inputs: Record<string, string> }) => {};
+    const consumeOptionalText = (_: { inputs: { text?: string } }) => {};
+    first.task({ name: "Empty map", run: consumeUnknownMap });
+    first.task({ name: "Optional name", run: consumeOptionalText });
+    first.task({
+      name: "Unknown map",
+      inputs: ({ github }) => ({ text: { from: github.sha } }),
+      run: consumeUnknownMap,
+    });
+    first.task({
+      name: "Text map",
+      inputs: () => ({ text: { from: literal("text") } }),
+      run: consumeTextMap,
+    });
+    const consumeExtraOptional = (
+      _: { inputs: { text: string; extra?: string } },
+    ) => {};
+    const consumeIncorrectExtraOptional = (
+      _: { inputs: { text: number; extra?: string } },
+    ) => {};
+    first.task({
+      name: "Optional extra",
+      inputs: () => ({ text: { from: literal("text") } }),
+      run: consumeExtraOptional,
+    });
+    first.task({
+      name: "Incorrect optional extra",
+      // @ts-expect-error optional undeclared names cannot hide a mismatched native value type
+      inputs: () => ({ text: { from: literal("text") } }),
+      // @ts-expect-error native context is incompatible with the annotated handler
+      run: consumeIncorrectExtraOptional,
+    });
+    const consumeCorrelated = (
+      _: {
+        inputs: { a: string; b: number; extra?: string } | {
+          a: number;
+          b: string;
+          extra?: string;
+        };
+      },
+    ) => {};
+    const consumeCompatibleUnion = (
+      _: {
+        inputs: { a: string; b: string; extra?: string } | {
+          a: number;
+          b: number;
+          extra?: string;
+        };
+      },
+    ) => {};
+    const consumeDifferentNames = (
+      _: { inputs: { a: string } | { b: string } },
+    ) => {};
+    first.task({
+      name: "Incompatible union",
+      inputs: () => ({ a: { from: literal("a") }, b: { from: literal("b") } }),
+      // @ts-expect-error property-wise unions do not prove whole-map compatibility
+      run: consumeCorrelated,
+    });
+    first.task({
+      name: "Compatible union",
+      inputs: () => ({ a: { from: literal("a") }, b: { from: literal("b") } }),
+      run: consumeCompatibleUnion,
+    });
+    first.task({
+      name: "Different names",
+      inputs: () => ({ a: { from: literal("a") } }),
+      run: consumeDifferentNames,
+    });
+    const collected = first.task({
+      id: "collect",
+      name: "Collect",
+      outputs: {
+        files: { contract: files, required: false },
+        text: { required: false },
+      },
+      run: produce,
+    });
+    collected.task({
+      name: "Optional",
+      inputs: ({ steps }) => ({ files: { from: steps.collect.outputs.files } }),
+      run: consumeOptional,
+    });
+    collected.task({
+      name: "Unguarded optional extra",
+      // @ts-expect-error optional undeclared names cannot erase missing output values
+      inputs: ({ steps }) => ({ text: { from: steps.collect.outputs.text } }),
+      // @ts-expect-error the whole native context retains null
+      run: consumeExtraOptional,
+    });
+    collected.task({
+      name: "Incorrect map value",
+      // @ts-expect-error JSON arrays are not values accepted by a text map
+      inputs: ({ steps }) => ({ files: { from: steps.collect.outputs.files } }),
+      // @ts-expect-error native arrays are incompatible with a text map
+      run: consumeTextMap,
+    });
+    collected.task({
+      name: "Unguarded",
+      // @ts-expect-error binding values include absence without a presence proof
+      inputs: ({ steps }) => ({ files: { from: steps.collect.outputs.files } }),
+      // @ts-expect-error an array-only handler cannot accept a missing output
+      run: consumeFiles,
+    });
+    first.task({
+      name: "Extra",
+      // @ts-expect-error handler annotations cannot add undeclared input names
+      inputs: () => ({ text: { from: literal("value") } }),
+      run: consumeExtra,
+    });
+    first.task({
+      name: "Narrow",
+      // @ts-expect-error the declared text contract does not produce a literal-only value
+      inputs: () => ({ text: { from: literal("literal") } }),
+      // @ts-expect-error text contracts cannot guarantee a literal value
+      run: consumeLiteral,
+    });
+    return collected.task({
+      id: "consume",
+      name: "Consume",
+      if: ({ steps }) => present(steps.collect.outputs.files),
+      inputs: ({ steps }) => ({ files: { from: steps.collect.outputs.files } }),
+      run: consumeFiles,
+    });
+  });
+  compositeAction("actions/named/action.yml", {
+    name: "Named",
+    description: "Named task handlers",
+  }).steps(({ step }) =>
+    step.task({
+      id: "collect",
+      name: "Collect",
+      outputs: { files: { contract: files, required: false } },
+      run: produce,
+    }).task({
+      name: "Consume",
+      if: ({ steps }) => present(steps.collect.outputs.files),
+      inputs: ({ steps }) => ({ files: { from: steps.collect.outputs.files } }),
+      run: consumeFiles,
+    }).outputs(() => ({}))
+  );
+}
+void assertNamedTaskHandlers;
 
 function assertTypedIO(): void {
   const contract = jsonValue({
@@ -537,9 +736,9 @@ function rejectPhantomTaskContracts(): void {
   workflow("phantom.yml", { on: { push: {} } }).job("test", ({ job }) => {
     const execution = job.runsOn("ubuntu-latest");
     void declared;
+    // @ts-expect-error run annotations cannot introduce undeclared contracts
     execution.task({
       name: "Phantom",
-      // @ts-expect-error run annotations cannot introduce undeclared contracts
       run: typedRun,
     });
     // @ts-expect-error explicit nonempty input types require their declarations
@@ -570,9 +769,9 @@ function rejectPhantomTaskContracts(): void {
     name: "Phantom",
     description: "Phantom contracts",
   }).steps(({ step }) => {
+    // @ts-expect-error run annotations cannot introduce undeclared contracts
     step.task({
       name: "Phantom",
-      // @ts-expect-error run annotations cannot introduce undeclared contracts
       run: typedRun,
     });
     return step.task({ name: "Empty", run: () => {} }).outputs(() => ({}));
