@@ -1,0 +1,11 @@
+Task: Strengthen mandatory README editing prerequisites in AGENTS.md
+Anchor: a8f5555243d95754c074a3890afcf4834bbc32de
+Base: 68e49718d23dc899619bff23aa7d4f429e6fcddf
+Branch: main
+Commits: a8f5555243d95754c074a3890afcf4834bbc32de docs(agents): require README criteria checks before editing
+Guidance: AGENTS.md, maintain-agent-guidance, develop-repository and atty303 engineering policy; Git task evidence and data handling
+Conditions: Current checkout; documentation-only local commit within prior approved release-impact ceiling; code and notes fetched, remote notes confirmed ancestor of local notes; complete runtime thread read and current cycle compared against all 17 human messages
+Authority: Explicit user request to strengthen repository guidance and existing README documentation criteria
+## Transcript
+- U1: AGENTS.mdの絶対に見逃しがない位置に強く絶対条件として「READMEの編集前にAGENTS.mdの基準を守る」を追記。現在の書き方だと今回のようにお前がガイドに違反するREADMEを編集してしまう
+  - A: Added a bold mandatory prerequisite immediately below the AGENTS.md title. Required rereading the existing public documentation criteria before README edits, prohibited detailed specifications and advanced usage in the introduction, and rejected noncompliant edits regardless of validation. Updated only AGENTS.md. Verified mise run check AGENTS.md and git diff --check; committed locally without push or release.
