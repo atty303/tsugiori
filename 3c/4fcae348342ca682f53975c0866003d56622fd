@@ -1,0 +1,95 @@
+Task: GitHub native cache-mode and job snapshot declaration settings
+Anchor: 3c4fcae348342ca682f53975c0866003d56622fd
+Base: 15ffb209cbc0df344dbf2d5d1d7794687197543a
+Branch: main (current checkout)
+Commits: 3c4fcae348342ca682f53975c0866003d56622fd implements cache-mode and snapshot; feat/minor approved by U9
+Guidance: AGENTS.md; develop-repository; design-review; design-program-observability; review; git-task-evidence; dig planning
+Conditions: macOS; repository-managed mise/Deno; sandbox Git metadata writes escalated; no push, remote ref update, PR, release or deploy authorized; fixed GitHub docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 and verifiedOn 2026-10-02
+## Evidence
+- Final check and test exited 0: 219 passed, 0 failed; 241 published TypeScript examples; actual Deno LSP completion, hover and signature passed.
+- Independent fresh review found no actionable issue in patch SHA256 c9689a218b42c01e908eadf398dad4691c6b43020a6da492d3d328aecb9e32cb; all 19 reviewed file digests unchanged before commit.
+- GitHub-hosted token/cache enforcement, image generation, runner eligibility and external reusable graphs are outside local verification.
+Authority: User implementation request and feat/minor consent; applicable AGENTS.md and skills; fixed official GitHub docs and current source/tests/docs
+## Transcript
+- U1: $dig 次のgithub spec対応は？
+  - A: digを適用し、現行HEADと固定GitHub仕様の対応状況を調査して次の対応候補を提示した。
+- U2: 小ささではなく対応コストでまとめて
+  - A: 対応コストと共有する変更経路で候補をまとめ、cache-modeとsnapshotを同じ宣言設定群として提案した。
+- U3: A
+  - A: 同じ対応群の選択を受け、固定公式出典を確認し、YAML出力に加えてローカルで判断できる意味の検証を推奨した。
+- U4: A
+  - A: 意味検証まで実装する合意を受け、既存task準備とscenarioの設定経路を調査しexpectSettings方式を提案した。
+- U5: その前にcache-modeってなに？ actions/cacheの固有仕様の話？
+  - A: cache-modeはGitHubネイティブのworkflow/job設定であり、actions/cacheの入力とは異なること、restore/save能力と4モードの意味を説明した。
+- U6: A
+  - A: expectSettingsのopt-in方式を合意し、仕様基準、実行境界と対象外を整理して共通理解を確認した。
+- U7: A
+  - A: 共通理解の確認を受け、単独で実装に使える依頼promptを作成した。
+- U8:
+    # 実装依頼
+    
+    ## 依頼
+    現在のcheckoutで、GitHub Actionsの宣言設定群として`cache-mode`と`jobs.<job_id>.snapshot`をまとめて実装してください。型付きauthoring API、compiler、静的検証、scenario、公開JSDoc、仕様coverageを整合させてください。
+    
+    ## 目的
+    - キャッシュアクセス制限とcustom runner image生成設定を、GitHubネイティブの意味を保ってTypeScriptで宣言できるようにする。
+    - 共通する設定経路と検証をまとめて整備し、後続対応の重複作業を減らす。
+    
+    ## 成功条件
+    - workflow、通常job、reusable workflow呼び出しjobで`cache-mode`を宣言でき、対応するネイティブYAMLを生成する。
+    - `read`、`write`、`write-only`、`none`を扱い、workflow/jobの優先順位、明示設定とtrigger依存defaultの違いを保持する。
+    - ローカルで確認できるreusable呼び出しグラフでは、明示されたキャッシュアクセス上限を超えるcallee設定を静的検証する。restore/saveの能力を区別し、`read`と`write-only`を大小関係で扱わない。
+    - 通常jobでsnapshotの文字列形式とmapping形式（`image-name`、任意の`version`、`if`）を宣言・出力・検証できる。
+    - `expectSettings()`で有効化したscenarioで、cache-modeの適用・伝播とsnapshotの条件・生成要求を検証できる。
+    - 既存scenarioに、新しい設定の式評価やcontext fixtureを一律に要求しない。
+    - 代表的なauthoringコードの実際のLSP completion・hover・signatureと、公開TypeScript例のtypecheckを確認する。
+    - 適切なcompiler・validation・scenarioテストと標準チェックが通り、coverageと現行docsが実装結果を正確に示す。
+    
+    ## 決定事項
+    - cache-modeとsnapshotを同じ対応群として実装する。
+      - 理由: 宣言設定の型・検証・YAML出力・設定expectationの変更経路を共有できるため。
+      - 主な棄却案: 小ささを基準とする個別対応。共通経路と検証の再作業が生じるため。
+    - YAML出力だけでなく、ローカルで判定できる意味まで対応する。
+      - 理由: reusable制限と条件付きsnapshotを検証可能にし、scenario対応を後付けするコストを減らすため。
+      - 主な棄却案: 宣言・出力のみの対応。意味検証の穴と後続の手戻りが残るため。
+    - scenarioの設定解釈は既存の`expectSettings()`方式にそろえる。
+      - 理由: 既存の設定検証と操作を統一し、既存scenarioへのfixture追加を避けるため。
+      - 主な棄却案: 全scenarioで常に設定を解釈する方式。既存テストのcontext要求を変えるため。
+    - Tsugiori独自のキャッシュ操作やimage生成を追加せず、GitHubネイティブ設定を扱う。
+      - 理由: 実行とアクセス制御はGitHubが所有するため。
+      - 主な棄却案: なし。
+    
+    ## 制約
+    - 仕様基準は`src/github_actions/github_spec.json`のGitHub.com固定revision `0b8c768bf0d5a13560ec82fd3daa414137e2e436`を維持する。verifiedOnやdocsRevisionを更新しない。
+    - 実際のキャッシュ操作、tokenによる権限強制、image生成、runner適格性・利用可能性はGitHub側の境界とする。
+    - 生成するtask準備キャッシュもネイティブのcache-mode制限に従わせる。制限を回避する仕組みを追加しない。
+    - 外部reusable workflowグラフなど、ローカルで確認できない範囲を検証済みと扱わない。
+    - deploy、release、push、remote ref更新、PR作成は行わない。
+    
+    ## 対象外
+    - GitHub仕様snapshotの基準更新。
+    - background、wait、wait-all、cancel、parallelの対応。
+    - 無関係なcontext・式解釈の網羅的補完、reusable workflow数制限の追加。
+    - キャッシュ操作やimage生成の実行シミュレーション、cloud resourceの作成・変更。
+    
+    ## 未検証の前提
+    - snapshot各フィールドの許容形式、式context、評価時点、version制約の詳細は、実装前に固定revisionの公式出典で確認する。根拠のないcontext拡張や制約を加えない。
+    - cache-mode省略時のtrigger依存defaultと、nested reusable workflowでの省略・上限伝播の詳細を固定出典で確認する。
+    - 既存のtask準備経路が、restore/saveを禁止された場合もcache missやsave skipとして正常に継続できることを確認する。
+    
+    ## 実装時の指示
+    - 開始時の調査ではHEAD `15ffb20`でcontainer/servicesまで対応済みだった。現在のHEADと差分を確認し、既存対応を重複実装しない。
+    - 固定revisionの以下の出典を確認する。
+      - `content/actions/reference/workflows-and-actions/workflow-syntax.md`
+      - `content/actions/reference/workflows-and-actions/dependency-caching.md`
+      - `content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md`
+      - `content/actions/how-tos/reuse-automations/reuse-workflows.md`
+      - `content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md`
+      - `data/reusables/actions/jobs/choosing-runner-custom-images.md`
+    - 必要な補助出典は同じ固定revisionに留め、source manifestと出典リンクを整合させる。
+    - cache-modeの静的reusable制限検証は`expectSettings()`の有無に依存させない。
+    - snapshotのscenario結果は条件を満たした生成要求として表し、実際のimage生成成功を意味させない。
+    - `docs/ROADMAP.md`とcoverageから完了した項目を更新し、残る制限を正確に記載する。
+  - A: develop-repository、design-review、design-program-observabilityを適用。開始HEAD 15ffb20、既存container/services対応を確認しcurrent checkoutで実装。固定6出典と補助出典のdigestを照合しdocsRevisionとverifiedOnを維持。型付きauthoring、native YAML、明示restore/save上限のlocal reusable静的検証、trigger default、opt-in scenarioの伝播と成功時snapshot生成要求、JSDoc、coverageと現行docsを整備。task準備cold pathを確認し生成CI artifact identityを更新。mise install、fix、check、testを実行し219 passed、公開241 TypeScript例typecheckと実際のLSP completion/hover/signatureを確認。LSP表示をreadonly interfaceで修正後、review skillに基づくfresh independent reviewは指摘なし。最終差分を固定しfeat/minor分類の承認待ちで止めた。
+- U9: feat／minor相当で確定
+  - A: feat/minor分類の承認を受け、review済み19ファイルのdigest不変とdiff --check成功を確認。署名付きローカルcommit 3c4fcae348342ca682f53975c0866003d56622fd を作成し、完全runtime履歴を取得して9件のhuman messageと注入2件を区別し逐語照合した。remote操作、release、deploy、PR作成は実施していない。
