@@ -1,0 +1,109 @@
+Task: Complete fixed GitHub context references and explicit scenario runtime fixtures
+Anchor: 73c47a696b96aca647c4be835616232a1d625c75
+Base: ec69c07e9e27f09f99bba64524495845c78d0e23
+Branch: main; existing checkout retained
+Commits: 73c47a696b96aca647c4be835616232a1d625c75 (feat, approved SemVer minor; signed local commit)
+Guidance: supplied common/project AGENTS.md; dig; design-review; develop-repository with atty303 profile; design-program-observability; investigate-problem; review; Git task evidence
+Conditions: macOS workspace-write; Git metadata mutations required sandbox escalation; existing mise toolchain Deno 2.9.7; fixed docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 verifiedOn 2026-10-02 unchanged; local-only work; code/notes fetch authorized; remote notes were an ancestor of retained local notes; hosted runner behavior not verified; injected guidance and skill content omitted from transcript
+## Evidence
+- Final reviewed source diff SHA-256: 59bf65a0f12c8417dcb95d3d5076b423831c614eaa2d38b88567821ccc954084; commit stage matches the verified candidate.
+- Full mise run test: exit 0, 236 passed, 0 failed (5m43s), including actual LSP, task/composite runtime E2E and 248 published JSDoc examples. Final missing-token error-only delta: mise run check exit 0, related 36 tests passed, independent delta review no findings; full suite was not rerun after this final delta.
+- Actual LSP verified native fields and standard token completion, numeric/domain hovers, and compact JobRuntime/RunnerRuntime/StepGitHub signatures without truncation; existing display snapshots unchanged.
+Authority: User implementation request and minor commit approval; supplied common/project AGENTS.md and applicable skills; current code/tests/docs and frozen immutable specification sources.
+## Transcript
+- U1:
+    $dig 次のgithub spec対応は？
+  - A: Applied dig and design-review. Read current roadmap, architecture, fixed coverage and compiler/testing code; verified the immutable GitHub source. Identified reusable unique-count, context and expression candidates and asked Q1. Memory lookup only confirmed a prior native-GitHub-semantics preference; current repository/source evidence governed the result.
+- U2:
+    B
+  - A: Selected context completion. Compared fixed context tables with public types and identified missing artifact paths, job identity, runner.environment and standard-token references. Asked Q2 whether typed references and explicit scenario fixtures should be delivered together.
+- U3:
+    A
+  - A: Accepted joint typed/scenario scope and examined existing workflow/job/matrix/step builders. Asked Q3 about per-execution-unit fixture granularity.
+- U4:
+    A
+  - A: Accepted granular fixtures. Inspected caller/callee context propagation and computed status/container ownership. Presented Q4 scope confirmation covering additive context fields, fixture isolation, standard token, fixed baseline and exclusions.
+- U5:
+    A
+  - A: Produced a standalone implementation prompt capturing the agreed decisions, observable success conditions, constraints, factual checks and task-specific instructions.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugioriの固定GitHub Actions仕様に対するcontext補完を実装してください。公開型の不足項目と、scenarioで明示fixtureから評価する経路をセットで追加してください。
+    
+    ## 目的
+    - 不足しているGitHub contextをraw expressionなしで型付き参照できるようにする。
+    - job、matrix instance、step、reusable workflowごとに異なるcontext値をscenarioで検証できるようにする。
+    
+    ## 成功条件
+    - 次の型付き参照が利用でき、正しいネイティブ式を生成する。
+      - `github.artifacts`: string
+      - `github.artifacts_list`: string
+      - `job.check_run_id`: number
+      - `job.workflow_ref`: string
+      - `job.workflow_sha`: string
+      - `job.workflow_repository`: string
+      - `job.workflow_file_path`: string
+      - `runner.environment`: 固定仕様に沿った型
+      - `secrets.GITHUB_TOKEN`: string。利用者によるsecret名の宣言なしで参照できる。
+    - scenarioで、workflow共通のgithub fixture、job／matrix instanceのjob・runner fixture、step固有のgithub上書きを渡せる。
+    - fixtureの適用範囲と優先順位が検証され、必要な値の未指定は不足箇所を示して失敗する。
+    - reusable workflowでcallerのgithub contextとcalleeのjob／runner contextを区別できる。
+    - `job.status`、steps、needsなどscenarioが計算する値をfixtureで上書きできない。
+    - 既存のcontainer／services fixtureと矛盾せず、従来のscenarioが維持される。
+    - focusedな型・生成・scenarioテスト、実際のLSP completion／hover／signature確認、公開JSDocの実コード例検証が通る。
+    - coverageと現行ドキュメントが実装・検証結果を正確に表す。
+    
+    ## 決定事項
+    - 型付き参照とscenario fixture対応を同時に補完する。
+      - 理由: 補完したcontextを使うworkflowを型安全に検証するため。
+      - 主な棄却案: 型とYAML生成だけ追加する案。scenarioで式ごとのoverrideが必要な状態を残すため。
+    - fixtureは値の所属する実行単位で指定する。
+      - 理由: runner情報はjobごと、check run IDはmatrix instanceごと、artifact関連パスはstepごとに異なるため。
+      - 主な棄却案: workflow共通fixtureだけにする案。実行単位の違いを表現できないため。
+    - workflow共通github fixtureを基本とし、step固有のgithub値はそのstepだけで上書きする。job共通fixtureに対してmatrix instance指定を優先する。
+      - 理由: 共通値を再利用しながら、実行単位ごとの差を明示するため。
+      - 主な棄却案: 上書きが後続stepや別instanceへ漏れる扱い。
+    - reusable workflowはcallerのgithub contextを継承し、calleeのjob・runner情報はcallee側fixtureで指定する。
+      - 理由: `job.workflow_*` は現在のjobを定義するworkflowを示し、callerの `github.workflow_*` と異なり得るため。
+      - 主な棄却案: callerのjob・runner情報の流用や、github情報からの推測。
+    - runner所有の値は推測せず、必要な値が未指定なら不足として報告する。
+      - 理由: scenarioの成功を実環境の値や実行の確認と誤認させないため。
+      - 主な棄却案: 仮のパス、ID、runner情報の自動生成。
+    - 既存の計算済みcontextはfixtureで上書きさせない。
+      - 理由: fixtureによって条件・状態・依存関係の検証を無効にしないため。
+      - 主な棄却案: 任意contextを注入する汎用API。
+    
+    ## 制約
+    - 固定仕様基準は `src/github_actions/github_spec.json` のGitHub.com snapshotを使う。調査時点では検証日2026-10-02、github/docs revision `0b8c768bf0d5a13560ec82fd3daa414137e2e436`。
+    - GitHubネイティブのcontextスコープと意味を維持する。
+    - fixtureはテスト値であり、GitHub、runner、認可、ファイルの存在を確認するものではない。
+    - 実tokenやcredentialをfixture、出力、ドキュメントへ使用しない。
+    - deploy、release、push、remote ref更新、PR作成は行わない。
+    
+    ## 対象外
+    - GitHub仕様snapshotの更新。
+    - expression interpreterの一般的な補完やhashFilesの実装。
+    - reusable workflowの50ユニーク上限対応。
+    - 既存context型全体のnullable性やスコープの再設計。
+    - artifactの宣言・収集・ファイル操作を実行する機能。
+    - runner環境の再現やGitHub上での実行検証。
+    
+    ## 未検証の前提
+    - `runner.environment` の正確な値域と各追加項目の条件は、固定revisionのcontexts本文と参照テンプレートから確認する。
+    - `GITHUB_TOKEN` のreusable workflowでの標準的な可用性とfixture伝播は固定仕様から確認し、他のsecretの明示渡し・inherit規則を維持する。
+    - context用fixtureと既存containerRuntime、matrix rule、background／parallel、job output評価との適用順序は実装前に確認する。
+    
+    ## 実装時の指示
+    - 主な調査入口は `src/github_actions/expression.ts`、`src/testing/mod.ts`、`src/testing/run.ts`、`src/testing/expression.ts`、`src/testing/containers.ts`。
+    - 調査時点では公開型に上記項目が不足している。scenarioのGitHubFixtureはGitHubContext由来であり、job contextはstatusとcontainer／servicesから構築される。
+    - 現行のlocal reusable callはcalleeのexternal fixtureを一律拒否し、caller contextからchild contextを構築する。この境界を維持しながら、callee内部のjob／instance／step fixtureを指定できるようにする。
+    - fixtureの新API名は既存builderの命名・構造に沿って最小限に設計する。
+    - step上書きは他stepやjob outputへ漏らさず、matrix instance fixtureは別instanceへ漏らさないことを検証する。
+    - coverageには、型付き参照・scenario対応の実装とGitHub所有の実行境界を分けて記録する。局所的な補完だけでcontext全体を完全対応としない。
+    - 詳細な利用方法は公開JSDocへ記載する。必要に応じて `docs/GITHUB_ACTIONS_SPEC.md`、`docs/ARCHITECTURE.md`、`docs/ROADMAP.md` を更新する。
+  - A: Implemented public context references and runtime fixture APIs with explicit native values. Confirmed frozen runner environment domain and automatic reusable standard-token access from immutable GitHub sources. Retained caller github, isolated callee execution contexts, field-merged matrix fixtures and step-only overrides; preserved computed/container contexts and observer privacy. Installed managed toolchain, fetched origin code and compared remote notes without overwriting newer local notes. Regenerated CI source identity only. Actual LSP checks found and corrected token completion and expanded fixture displays. JSDoc 248 examples, final check and related tests passed. Fresh independent review identified namespace-only missing-token diagnostics; reproduced and corrected with an empty secrets context, added three evaluation-site cases, and obtained no findings on final delta. Full suite passed 236 tests before that correction; final related suite passed 36 tests. Release-impact approval was requested by develop-repository and commit was held pending minor approval. No deploy, release, push or PR creation.
+- U7:
+    minor commit
+  - A: Accepted explicit minor approval. Verified the unchanged final reviewed diff digest and stage set, committed 12 files on existing main as a signed feat commit with Codex co-author, and verified complete runtime thread history: seven human messages in order from the dig request through minor commit. Read Git-note CAS/schema requirements and confirmed this anchor has no existing note. Prepared a classified normalized note from actual history, without copying injected AGENTS/skill/environment blocks.
