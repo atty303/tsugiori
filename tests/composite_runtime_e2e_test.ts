@@ -136,6 +136,12 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
       const first = await bootstrap();
       assertEquals(first.code, 0, first.stderr);
       assertStringIncludes(first.stdout, "cache miss");
+      const manifest = JSON.parse(
+        await Deno.readTextFile(resolve(root, "delivery/manifest.json")),
+      );
+      assertEquals(manifest.entrypoints, [
+        "action.yaml/composite/tsugiori-task-prepare",
+      ]);
       const runtime = (await Deno.readTextFile(env.GITHUB_OUTPUT)).split("\n")
         .find((line) => line.startsWith("runtime-path="))!.slice(
           "runtime-path=".length,
@@ -162,7 +168,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
       for (const who of ["one", "two"]) {
         const task = await run(
           runtime,
-          ["action.yaml/composite/task-1"],
+          ["action.yaml/composite/tsugiori-task-prepare"],
           consumer,
           {
             ...env,
@@ -182,7 +188,7 @@ if (import.meta.main) Deno.exitCode = await runProject({ project: makeProject({ 
       );
       const failure = await run(
         runtime,
-        ["action.yaml/composite/task-1"],
+        ["action.yaml/composite/tsugiori-task-prepare"],
         consumer,
         { ...env, TSUGIORI_INPUT_WHO: "bad", TASK_FAIL: "1" },
       );

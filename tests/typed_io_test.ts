@@ -322,7 +322,7 @@ jobs:
 
       - name: Find
         id: find
-        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/deploy.yml/detect/task-1'"
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/deploy.yml/detect/find'"
 
   deploy:
     runs-on: ubuntu-latest

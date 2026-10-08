@@ -29,7 +29,7 @@ Deno.test("task output writer writes declared multiline values and permits omitt
         JSON.stringify(core)
       };
 import {runProject} from ${JSON.stringify(runner)};
-Deno.exitCode = await runProject({project: makeProject({workflows:[workflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{required:true},omitted:{required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task-1"]);`;
+Deno.exitCode = await runProject({project: makeProject({workflows:[workflow(".github/workflows/ci.yml", {on: { push: {  } },}).job("test", ({job}) => job.runsOn("ubuntu-latest").task({id:"task",name:"Task",inputs:{},outputs:{written:{required:true},omitted:{required:false}},run: async ({outputs}) => {await outputs.set("written","first\\nsecond");}}))]}),entrypointUrl:import.meta.url},[".github/workflows/ci.yml/test/task"]);`;
     const result = await new Deno.Command(Deno.execPath(), {
       args: ["eval", program],
       env: { ...Deno.env.toObject(), GITHUB_OUTPUT: output },

@@ -71,7 +71,9 @@
  * `tsugiori/runtimes/` directory (`XDG_CACHE_HOME` overrides the base;
  * otherwise `~/Library/Caches` on macOS or `~/.cache` on Linux). The Actions
  * transport path lives under `runner.temp`. Each task receives an absolute
- * runtime path and uses `<workflow-path>/<job-id>/task-<ordinal>` as its entrypoint.
+ * runtime path and uses `<workflow-path>/<job-id>/<task-id>` as its entrypoint.
+ * An authored step ID supplies `<task-id>`; otherwise Tsugiori assigns an
+ * available `task-N` within that job.
  * The binary is compiled with Deno `-A`; task artifacts support Linux and macOS
  * on X64 and ARM64. Windows task artifacts are rejected.
  *
@@ -107,6 +109,7 @@
  */
 import { addAction } from "./actions.ts";
 import { collectCompositeActions } from "../compiler/composite.ts";
+import { taskEntrypointSuffixes } from "../compiler/authoring.ts";
 import { generateFiles } from "../compiler/generator.ts";
 import { checkGeneratedFiles } from "../compiler/check.ts";
 import { projectSource } from "../compiler/source.ts";
@@ -387,28 +390,30 @@ async function dispatchTask(
     let task: AuthoringTaskStep | undefined;
     for (const workflow of project.workflows) {
       for (const job of workflow.jobs) {
+        const taskSuffixes = taskEntrypointSuffixes(job.steps);
         let ordinal = 0;
         for (const step of job.steps) {
           if (step.type !== "task") continue;
-          ordinal += 1;
+          const taskSuffix = taskSuffixes[ordinal++];
           if (typeof step.run !== "function") {
             throw new TaskRuntimeError(
               "schema_invalid",
               "Task step does not contain a function.",
             );
           }
-          if (`${workflow.path}/${job.id}/task-${ordinal}` === entrypoint) {
+          if (`${workflow.path}/${job.id}/${taskSuffix}` === entrypoint) {
             task = step;
           }
         }
       }
     }
     for (const action of collectCompositeActions(project)) {
+      const taskSuffixes = taskEntrypointSuffixes(action.runs.steps);
       let ordinal = 0;
       for (const step of action.runs.steps) {
         if (step.type !== "task") continue;
-        ordinal += 1;
-        if (`${action.path}/composite/task-${ordinal}` === entrypoint) {
+        const taskSuffix = taskSuffixes[ordinal++];
+        if (`${action.path}/composite/${taskSuffix}` === entrypoint) {
           task = step;
         }
       }

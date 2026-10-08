@@ -2556,7 +2556,9 @@ interface TaskOptions<
   /** Task body working directory override; default is the native job/step working directory. It does not select the preparation Deno project.
    */
   readonly workingDirectory?: string;
-  /** Unique step ID for typed output references.
+  /** Unique step ID for typed output references. It is also the task runtime
+   * entrypoint suffix. Without an ID, Tsugiori assigns an available `task-N`
+   * within the job or composite Action.
    * @example In a `workflow().job()` callback with `{ job }`.
    * ```ts
    * job.runsOn("ubuntu-latest").task({
@@ -4115,7 +4117,7 @@ interface CStepBase<
            */
           continueOnError?: F;
 
-          /** Unique step ID exposing declared outputs to later steps. IDs are distinct from display names.
+          /** Unique step ID exposing declared outputs to later steps. It is also the task runtime entrypoint suffix. IDs are distinct from display names.
            */
           id?: Exclude<Id, keyof Steps>;
         }
@@ -4828,7 +4830,7 @@ interface StepBase<
            * ```
            */
           continueOnError?: F;
-          /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is separate from the display name.
+          /** A unique step identifier used to reference its outputs, outcome and conclusion through `steps.<id>`. It is also the task runtime entrypoint suffix and is separate from the display name.
            * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstepsid
            * @example In a `workflow().job()` callback with `{ job }`.
            * ```ts

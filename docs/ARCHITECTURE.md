@@ -222,8 +222,10 @@ field-specific scenario value; unsupported forms never silently succeed.
 ## Task artifact lifecycle
 
 Compiler lowering records inline task functions in a registry. A task-backed
-step gets an entrypoint of the form `<workflow-path>/<job-id>/task-<ordinal>`,
-where the ordinal counts task steps within the job.
+step gets an entrypoint of the form `<workflow-path>/<job-id>/<task-id>` (or
+`<action-path>/composite/<task-id>`). An explicit step ID is also the task ID.
+Otherwise, ID-less tasks receive available `task-N` IDs in appearance order
+within the job or composite Action, skipping explicit task IDs.
 
 Each task-backed job contains a pinned `actions/cache` step by default,
 followed by a normal composite preparation Action distributed from

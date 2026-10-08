@@ -59,6 +59,23 @@ export class AuthoringValidationError extends Error {
   }
 }
 
+export function taskEntrypointSuffixes(
+  steps: readonly AuthoringStep[],
+): readonly string[] {
+  const tasks = steps.filter((step) => step.type === "task");
+  const used = new Set(
+    tasks.flatMap((task) => task.id === undefined ? [] : [task.id]),
+  );
+  let ordinal = 0;
+  return tasks.map((task) => {
+    if (task.id !== undefined) return task.id;
+    let suffix: string;
+    do suffix = `task-${++ordinal}`; while (used.has(suffix));
+    used.add(suffix);
+    return suffix;
+  });
+}
+
 export function lowerProject(
   project: ProjectConfig,
   entrypointArgument: string,
@@ -179,6 +196,7 @@ export function lowerProject(
         if (step.id !== undefined) usedStepIds.add(step.id);
       }
 
+      const taskSuffixes = taskEntrypointSuffixes(job.steps);
       let taskOrdinal = 0;
       let preparationEmitted = false;
       const prepareStepId = allocateStepId(PREPARE_STEP_ID, usedStepIds);
@@ -250,7 +268,7 @@ export function lowerProject(
           continue;
         }
 
-        taskOrdinal += 1;
+        const taskSuffix = taskSuffixes[taskOrdinal++];
         if (!preparationEmitted) {
           steps.push(preparationStep(
             entrypointArgument,
@@ -262,7 +280,7 @@ export function lowerProject(
           ));
           preparationEmitted = true;
         }
-        const entrypoint = `${layoutKey}/task-${taskOrdinal}`;
+        const entrypoint = `${layoutKey}/${taskSuffix}`;
         tasks.push({
           entrypoint,
           name: step.name,

@@ -316,6 +316,59 @@ Deno.test("task registry retains invocation entrypoints", async () => {
   );
 });
 
+Deno.test("task entrypoints reserve explicit IDs and number only ID-less tasks", () => {
+  const ci = makeWorkflow(".github/workflows/ci.yml", {
+    on: { push: {} },
+  }).job("test", ({ job }) =>
+    job.runsOn("ubuntu-latest")
+      .task({ name: "First", run: () => {} })
+      .task({ id: "task-2", name: "Reserved", run: () => {} })
+      .task({ name: "Second", run: () => {} })
+      .task({ id: "stable", name: "Stable", run: () => {} })
+      .task({ name: "Third", run: () => {} }));
+  const lowered = lowerProject(project({ workflows: [ci] }), "./tsugiori.ts");
+  const expected = ["task-1", "task-2", "task-3", "stable", "task-4"];
+  assertEquals(
+    lowered.tasks.map(({ entrypoint }) => entrypoint),
+    expected.map((suffix) => `.github/workflows/ci.yml/test/${suffix}`),
+  );
+  const steps = lowered.workflows[0].workflow.jobs[0].steps;
+  assertEquals(
+    steps.flatMap((step) =>
+      step.type === "run" && step.name !== undefined ? [step.run] : []
+    ),
+    expected.map((suffix) =>
+      `"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}" '.github/workflows/ci.yml/test/${suffix}'`
+    ),
+  );
+});
+
+Deno.test("inserting an explicitly named task leaves other generated IDs stable", () => {
+  const build = (insertExplicit: boolean) =>
+    makeWorkflow(".github/workflows/ci.yml", { on: { push: {} } }).job(
+      "test",
+      ({ job }) => {
+        const first = job.runsOn("ubuntu-latest").task({
+          name: "First",
+          run: () => {},
+        });
+        if (insertExplicit) {
+          return first.task({ id: "stable", name: "Inserted", run: () => {} })
+            .task({ name: "Second", run: () => {} });
+        }
+        return first.task({ name: "Second", run: () => {} });
+      },
+    );
+  const suffixes = (insertExplicit: boolean) =>
+    lowerProject(
+      project({ workflows: [build(insertExplicit)] }),
+      "./tsugiori.ts",
+    )
+      .tasks.map(({ entrypoint }) => entrypoint.split("/").at(-1));
+  assertEquals(suffixes(false), ["task-1", "task-2"]);
+  assertEquals(suffixes(true), ["task-1", "stable", "task-2"]);
+});
+
 Deno.test("duplicate workflow outputs fail before generation", () => {
   const first = makeWorkflow(".github/workflows/ci.yml", {
     on: { push: {} },
@@ -717,7 +770,7 @@ jobs:
         id: plan
         env:
           TOKEN: \${{ secrets.TOKEN }}
-        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/task-1'"
+        run: "\\"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}\\" '.github/workflows/ci.yml/test/plan'"
 `,
       { serializer: (yaml) => yaml },
     );

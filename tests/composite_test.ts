@@ -19,6 +19,35 @@ import { parse } from "../src/deps.ts";
 import { TASK_PREPARE_SCRIPT } from "../src/task-runtime/bootstrap.ts";
 import { generateV1 } from "../services/type-service/src/github/actions/v1.ts";
 
+Deno.test("composite task entrypoints reserve explicit IDs", () => {
+  const action = compositeAction("actions/tasks/action.yml", {
+    name: "Tasks",
+    description: "Task IDs",
+  }).steps(({ step }) =>
+    step.task({ name: "First", run: () => {} })
+      .task({ id: "task-2", name: "Reserved", run: () => {} })
+      .task({ name: "Second", run: () => {} })
+      .task({ id: "stable", name: "Stable", run: () => {} })
+  );
+  const lowered = lowerProject(
+    makeProject({ actions: [action] }),
+    "./actions.ts",
+  );
+  const expected = ["task-1", "task-2", "task-3", "stable"];
+  assertEquals(
+    lowered.tasks.map(({ entrypoint }) => entrypoint),
+    expected.map((suffix) => `actions/tasks/action.yml/composite/${suffix}`),
+  );
+  assertEquals(
+    lowered.actions[0].steps.flatMap((step) =>
+      step.type === "run" && step.name !== undefined ? [step.run] : []
+    ),
+    expected.map((suffix) =>
+      `"\${{ steps.tsugiori-task-prepare.outputs.runtime-path }}" 'actions/tasks/action.yml/composite/${suffix}'`
+    ),
+  );
+});
+
 Deno.test("composite outputs and nested local calls render into native YAML", async () => {
   const draft = compositeAction("actions/greet/action.yml", {
     name: "Greet",
