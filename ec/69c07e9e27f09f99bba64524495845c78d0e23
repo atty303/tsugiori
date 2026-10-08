@@ -1,0 +1,114 @@
+Task: Implement native background and parallel synchronization for GitHub Actions
+Anchor: ec69c07e9e27f09f99bba64524495845c78d0e23
+Base: 3c4fcae348342ca682f53975c0866003d56622fd
+Branch: main
+Commits: ec69c07e9e27f09f99bba64524495845c78d0e23 (feat(github-actions), approved minor)
+Guidance: User implementation request and feat/minor approval; AGENTS.md; develop-repository; design-review; design-program-observability; review; Git task evidence
+Conditions: Existing main checkout; repository-managed mise/Deno toolchain; durable library/compiler; fixed GitHub docs revision; no dependencies, scheduler, remote writes or hosted execution
+Authority: User decisions and request; current repository AGENTS.md and frozen src/github_actions/github_spec.json; applicable development and review skills
+## Transcript
+- U1: $dig 次のgithub spec対応は？
+  - A: 固定仕様coverageと現在のsourceを確認し、次候補としてbackground/parallel群、context/式補完、reusable unique workflow制限を提示した。
+- U2: A
+  - A: 5構文とscenario解釈を同時対応するか質問し、論理同期と実時間実行の境界を説明した。
+- U3: A
+  - A: 同期前の出力参照を許す案とwait後だけ型で公開する案を比較した。
+- U4: AとBの違いをyamlで示して
+  - A: 両案のYAMLは同じであり、違いは同期前参照に対する型検査であると具体例を示した。
+- U5: B
+  - A: 選択Bを受け取り、次のユーザー補足でその設計意図を確認した。
+- U6: Bのほうがtsugioriのコンセプトの合っているのでは？
+  - A: 構築順に参照を増やすimmutable設計とBが整合すると訂正し、型付き制御参照と文字列IDの選択肢を示した。
+- U7: 具体例で詳しく
+  - A: 型付き制御参照、wait後の新状態と旧状態の違い、文字列指定との比較をTypeScriptとYAMLの例で示した。
+- U8: A
+  - A: 同じjobの型付き制御参照を採用し、run/uses/task全てを対象にする案を提示した。
+- U9: A. artifact prepareのinsert場所を気をつけるだけだよな
+  - A: 専用並行runtimeは不要と説明し、cache/prepareの挿入位置、子task収集、ID割当とrunner検索を整理してparallel兄弟参照の設計を確認した。
+- U10: A
+  - A: parallel開始前の参照だけを使う設計を採用し、cancelを出力公開境界にしない案を説明した。
+- U11: A
+  - A: cancelは停止要求だけを表すと決め、最終job出力に暗黙wait-all後の参照を公開する案を示した。
+- U12: A
+  - A: 最終job出力callbackの暗黙同期を採用し、共通理解を箇条書きで照合した。
+- U13: A
+  - A: 合意した目的、成功条件、決定、制約と未検証前提を実装依頼promptとして出力した。
+- U14:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugioriの固定GitHub Actions仕様基準に対して、`background`・`wait`・`wait-all`・`cancel`・`parallel`のstep群を実装してください。型付きauthoring API、compiler、YAML生成、静的検証、task packaging/runtime検索、scenario解釈、公開JSDoc、仕様coverageを整合させてください。
+    
+    ## 目的
+    - 同一job内の並行処理と同期をGitHubネイティブのstepとして記述できるようにする。
+    - background stepの出力を同期前に利用する誤りを型で防ぐ。
+    - 実行せずに、同期境界と値・失敗の伝播をscenarioで検証できるようにする。
+    
+    ## 成功条件
+    - `run`・`uses`・`task`をbackgroundおよびparallel内で利用でき、標準のGitHub Actions YAMLを生成できる。
+    - background stepの制御用参照を公開し、出力参照はwait／wait-all後のimmutableな状態でのみ公開する。
+    - wait／cancelの対象を同じjobの先行background stepの型付き参照で指定でき、誤った対象を拒否する。
+    - parallel内の各stepはグループ開始前の参照だけ利用でき、グループ終了後に出力をまとめて公開する。
+    - cancelだけでは出力参照を公開しない。
+    - jobの最終出力callbackでは、暗黙のwait-all後の出力参照を利用できる。
+    - taskを含むparallelより前にcache／prepareを同期stepとして挿入し、taskの収集、entrypoint ID割当、artifact生成、runner検索を整合させる。
+    - scenarioで同期、出力・環境変更の公開タイミング、失敗伝播、停止要求を検証できる。
+    - 実際のLSP表示・補完、公開コード例、関連するcompiler・型・scenario・taskテストと標準検証が通る。
+    - coverageおよび現在の設計文書が実装と一致する。
+    
+    ## 決定事項
+    - 5構文とscenario解釈をまとめて対応する。
+      - 理由: 生成できるworkflowの同期契約をscenarioでも検証するため。
+      - 主な棄却案: YAML生成だけ先行する案。出力公開と失敗伝播を検証できないため。
+    - background stepの出力をwait／wait-all後に公開する。
+      - 理由: 構築順序に応じて利用可能な参照を増やすTsugioriの型設計と揃えるため。
+      - 主な棄却案: 同期前も出力参照を公開する案。未同期の利用を型で防げないため。
+    - wait／cancelは型付きの制御用参照を受け取る。
+      - 理由: 宣言済み対象の種類と所属jobを確認でき、既存の`needs(jobs.build)`と揃うため。
+      - 主な棄却案: 文字列IDによる指定。既存の参照方式を優先するため。
+    - `run`・`uses`・`task`を対象にする。
+      - 理由: taskも通常のGitHub stepへコンパイルされ、同じ同期契約で扱えるため。
+      - 主な棄却案: task対応の延期。利用できるstep種別に差を作るため。
+    - parallel内では兄弟stepの出力参照を公開せず、終了後にまとめて公開する。
+      - 理由: グループ内に依存を満たす同期境界がないため。
+      - 主な棄却案: 先に宣言した兄弟stepの参照を公開する案。未同期の依存を作れるため。
+    - cancelは停止操作として扱い、出力公開の境界にはしない。
+      - 理由: 固定出典が明記するwaitの出力公開保証に型を揃えるため。
+      - 主な棄却案: cancelを出力公開の境界にする案。保証の根拠が不足するため。
+    - jobの最終出力callbackには暗黙のwait-all後の参照を公開する。
+      - 理由: GitHubの終了時同期を反映し、依存jobへ出力を渡すだけの場合に追加のwaitを要求しないため。
+      - 主な棄却案: 最終出力にも明示的なwaitを要求する案。ネイティブの終了時同期と重複するため。
+    - scenarioは論理的な同期を解釈する。
+      - 理由: fixtureを使って決定的に値と失敗の伝播を検証するため。
+      - 主な棄却案: 実時間・プロセスの並行実行を再現する案。GitHub runnerの責務を越えるため。
+    
+    ## 制約
+    - 対象repositoryは `/Users/a13400/src/atty303/tsugiori`。
+    - 固定基準は `src/github_actions/github_spec.json` が所有するGitHub.com仕様。合意時のdocs revisionは `0b8c768bf0d5a13560ec82fd3daa414137e2e436`。仕様基準の更新は依頼に含めない。
+    - 同期済みの型は、条件によるskipや失敗時の出力存在まで保証しない。
+    - composite内部のbackground／parallelは禁止する。
+    - task用の専用並行実行runtimeを導入しない。
+    - deploy、release、push、remote ref更新、PR作成は含めない。
+    
+    ## 対象外
+    - contextフィールドや式評価全般の補完。
+    - reusable workflowの50個制限。
+    - runnerの実時間、スケジューリング、プロセス実行・停止の再現。
+    - hosted runnerでの動作検証をローカル検証から推定すること。
+    
+    ## 未検証の前提
+    - 固定出典の5構文について、許容フィールド、参照条件、失敗・取消の意味、暗黙のwait-allと最終出力評価の順序を実装前に確認する。
+    - 現在のtask処理にはjob直下のstepを走査する箇所がある。parallel内も扱う必要がある全経路を確認する。
+    - scenarioの環境変更と取消結果のfixture表現が新しい同期契約を満たせるか確認する。不明なrunner挙動を推測して成功・取消・出力存在へ変換しない。
+    
+    ## 実装時の指示
+    - 関連資料は `docs/ARCHITECTURE.md`、`docs/ROADMAP.md`、`docs/GITHUB_ACTIONS_SPEC.md`、`src/github_actions/github_spec.json`。
+    - 主な実装確認箇所は `src/github_actions/mod.ts`、`src/compiler/authoring.ts`、`src/compiler/github_actions/`、`src/testing/`、`src/runner/main.ts`。
+    - 会話中のTypeScript例はAPI形状の説明用だった。正確な名前やoverloadは、合意した契約を維持して既存APIに合わせる。
+    - 保持済みの同期前状態では、wait後も出力参照を公開しない。返された新しい状態に公開する。
+    - taskがparallel内で初めて現れる場合、cache／prepareをグループ内へ入れず、その直前へ配置する。通常のbackground taskでもprepareは先に同期完了させる。
+    - taskの入力・出力契約と通常のstepへのloweringを維持し、収集・ID・artifact・runtime検索で同じstep構造を扱う。
+    - 型検証には同期前後、兄弟step間、別job参照、cancel後、最終job出力を含める。scenario検証には選択的wait、wait-all、暗黙の終了時同期、失敗・skip・停止要求を含める。
+  - A: 現在のcheckoutと固定出典を調査し、develop-repository/design-review/design-program-observabilityに従って実装を開始した。release分類としてfeat/minorを提案し、承認済み実装と検証を進めた。
+- U15: feat・minor相当でよい
+  - A: background/wait/wait-all/cancel/parallelをrun/uses/taskへ実装し、immutableな同期前後の参照、型付き所有job検証、parallelの独立子step、最終job出力の暗黙同期を整合した。task cache/prepareをグループ直前へ同期挿入し、task収集・ID・artifact・runner検索を共通走査へ対応した。scenarioの論理join、環境変更公開、失敗遅延、停止要求とprivacy-safe観測を実装した。公開JSDoc、固定coverage、設計文書を更新した。独立レビューでoptional/boolean backgroundの型・実体不一致とcallback参照漏れを確認し、union参照・分配同期型・OutputMapのpending除外で修正、delta再レビューで追加指摘なし。mise install/fix/check/testを実行し、最終228テスト、245公開TS例、実LSP、compiled task dispatchが成功した。固定docs revision/digestは変更せずhosted runnerは未検証。code fetch成功、notes fetch非FF後に取得objectのtreeを比較しlocalがremote内容を全保持すると確認した。後続read-only notes再fetchはSSH agentの認証失敗で未取得、新規temp refなし。現checkout mainに承認されたfeat/minor相当の署名local commit ec69c07e9e27f09f99bba64524495845c78d0e23を保存した。complete threadの15 human messageを再照合し、標準Git noteを保存する前のcheckpointまでを記録した。push/release/deploy/PRは行っていない。
