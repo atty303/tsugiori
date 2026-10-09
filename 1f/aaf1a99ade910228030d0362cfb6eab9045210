@@ -1,0 +1,98 @@
+Task: Implement typed workflow env callbacks for the fixed GitHub Actions specification
+Anchor: 1faaf1a99ade910228030d0362cfb6eab9045210
+Base: a6d482c0d08beeaa061724b365c3b86d2d82b566
+Branch: main
+Commits: 1faaf1a99ade910228030d0362cfb6eab9045210 - feat(github-actions): support typed workflow env callbacks
+Guidance: Repository AGENTS.md; dig; develop-repository and atty303 profile; design-review; design-program-observability; investigate-problem; independent review; Git task evidence
+Conditions: Codex local checkout; user approved minor feat commit; no worktree or branch change; no new dependency; filesystem metadata writes used reviewed escalation; no push/PR/release; deterministic synchronous authoring reuses existing library interfaces
+## Evidence
+- Final mise run test: 250 passed plus 1 LSP subtest, 0 failed, 5m54s; includes check, type-service checks and public JSDoc verification.
+- Published JSDoc verifier: 250 distinct actual TypeScript examples across 6 entrypoints typechecked.
+- Existing LSP display snapshots passed unchanged when new workflow env fixtures run after their assertion; scope/name completions, boolean/number/initialized-string hovers and the named push-example signature passed.
+- Fresh read-only independent review and delta reviews: no actionable findings. Final exact artifact matched the committed diff.
+- Complete human-message history from the current runtime JSONL was enumerated and compared: initial dig, four A selections, implementation request, and minor feat approval. Injected AGENTS/skill/environment blocks were excluded.
+Authority: User implementation request and minor feat approval; repository AGENTS.md; current fixed specification and implementation sources; applicable development and evidence skills
+## Transcript
+- U1: $dig github specの未実装に対応する
+  - A: Applied dig and design-review. Consulted memory for grouping by shared delivery/validation cost; inspected the current fixed inventory and repository boundaries. Presented Q1 with six implementation areas covering eight unfinished units; recommended workflow env authoring.
+- U2: A
+  - A: Accepted workflow-env-callback scope. Inspected WorkflowOptions, workflow(), env scope and existing materialization. Q2 compared an options map callback against a workflow.env() method; recommended the existing options field.
+- U3: A
+  - A: Accepted the options callback. Compared existing job/step env value types and scenario evaluation. Q3 proposed string | Expression<unknown> values rather than restricting expression result types to string.
+- U4: A
+  - A: Accepted the value contract. Confirmed existing scenario workflow env wiring and summarized API, native contexts, evaluation timing, validation, documentation and exclusions in Q4.
+- U5: A
+  - A: After agreement, produced the complete implementation request prompt containing the accepted decisions, constraints, success criteria and task-specific source pointers.
+- U6:
+    # 実装依頼
+    
+    ## 依頼
+    Tsugiori の固定 GitHub Actions 仕様 inventory にある `authoring-capability:workflow-env-callback` を実装してください。
+    
+    既存の `workflow(path, options)` の `env` に、型付き context を受け取り env map 全体を返す callback を追加してください。
+    
+    ## 目的
+    - workflow env を job/step env と同じ型付き authoring 形式で記述できるようにする。
+    - 宣言済み vars・secrets・trigger inputs を補完と型検査付きで参照し、通常の GitHub Actions YAML を生成できるようにする。
+    
+    ## 成功条件
+    - 次の形式で authoring でき、SHA・REGION の参照が native YAML expression として生成される。
+      ```ts
+      workflow(".github/workflows/ci.yml", {
+        on: { push: {} },
+        vars: ["REGION"],
+        env: ({ github, vars }) => ({
+          SHA: github.sha,
+          REGION: vars.REGION,
+          CI: "true",
+        }),
+      });
+      ```
+    - 静的 map・callback の両方で `string | Expression<unknown>` を受け付ける。boolean・number 型の input Expression も直接使用できる。
+    - 既存の文字列 map と raw expression の使用方法・生成結果を維持する。
+    - vars・secrets の宣言名と trigger inputs の型を callback に推論し、既存の標準 GITHUB_TOKEN の扱いを維持する。
+    - workflow env の固定 scope と評価フェーズを守り、範囲外の context、数値・boolean リテラル、値ごとの callback を型検査で拒否する。
+    - 実際の LSP completion・hover・signature で、推論と表示を確認する。
+    - scenario で callback 由来の式を評価でき、workflow/job/step の env 上書きと reusable callee への workflow env 非継承を維持する。
+    - public JSDoc と実際の掲載 TypeScript 例を検証し、coverage inventory と関連する設計文書を実装に整合させる。
+    - repository の必要な検証が通る。
+    
+    ## 決定事項
+    - `workflow()` options の既存 `env` に callback を追加する。
+      - 理由: 既存 workflow 設定と job/step の map callback 規則に揃い、新しい設定順序や型状態を増やさずに済む。
+      - 主な棄却案: workflow の `.env()` メソッド追加。設定順序・再設定・options との優先関係という API 契約が増えるため採用しない。
+    - 静的 map・callback ともに値を `string | Expression<unknown>` とする。
+      - 理由: job/step env と同じ契約に揃え、boolean・number 型の input Expression を直接使用できるようにする。
+      - 主な棄却案: 文字列型の Expression への限定。workflow env だけ明示的な文字列化と異なる型制約が必要になるため採用しない。
+    - callback は定義作成時に実行し、返された参照を GitHub runtime expression として生成する。
+      - 理由: 既存の authoring と runtime の境界を維持する。
+      - 主な棄却案: なし。
+    - callback context は固定 scope の `github`・`vars`・`secrets`・`inputs` とする。
+      - 理由: workflow env の既存 scope catalog に対応する。
+      - 主な棄却案: 同じ map の env 値への相互参照や追加 context の提供。固定 scope を超えるため採用しない。
+    
+    ## 制約
+    - 固定仕様 basis を維持する。確認時の `docsRevision` は `0b8c768bf0d5a13560ec82fd3daa414137e2e436`、`verifiedOn` は `2026-10-02`。
+    - 既存の immutable authoring、宣言名・input 推論、評価フェーズ別の型情報を維持する。
+    - scenario は明示 fixture に基づく値の評価に留め、GitHub の実行や認可を再現したと主張しない。
+    - push・remote ref 更新・PR 作成は行わない。
+    
+    ## 対象外
+    - 他の未実装 inventory 項目。
+    - env 名を追跡する新しい型状態。
+    - workflow `.env()` メソッド。
+    - GitHub 設定変更、外部仕様の更新、hosted execution の検証。
+    
+    ## 未検証の前提
+    - なし。
+    
+    ## 実装時の指示
+    - 主な確認箇所は `src/github_actions/mod.ts` の `WorkflowOptions`・`workflow()`・`evaluateEnv()`、`src/github_actions/expression_scope.ts` の `env` scope、`src/testing/run.ts` の workflow env 評価経路。
+    - 既存の job/step env の型と materialization 経路を参考にし、workflow scope を明示して必要最小限の変更を行う。
+    - scenario の既存評価経路が生成された式を扱えるか確認し、必要な変更だけ加える。
+    - 型検査には宣言名の推論、boolean/number input Expression、範囲外 context、不正な値の負例を含める。
+    - inventory の `workflow-env-callback` と関連する `syntax:env`・`context-availability:env` を確認し、実装・検証 evidence に基づいて更新する。
+    - 詳細な利用方法と制約は public JSDoc または設計文書に記載し、README の入門へ追加しない。
+  - A: Started implementation workflow with develop-repository, design-program-observability and design-review. Read repository profile and canonical references, inspected clean main at a6d482c and SemVer release configuration. Proposed a minor feat local commit, without release or push. Git metadata operations required sandbox escalation. Fetched origin code; retained existing local notes when the direct standard-notes fetch rejected non-fast-forward replacement, then fetched a comparison ref and confirmed local notes already contain it.
+- U7: minor 対象の feat commit を承認
+  - A: Implemented WorkflowOptions.env static maps/map-level callbacks through evaluateEnv with native env scope. Added named WorkflowEnv and WorkflowArgs types preserving declaration and input inference, readonly information, standard token and initialized github types. Added type-negative cases and generation/scenario tests including callback-once, immutable materialization, boolean/number expressions, override precedence, missing-token errors and local reusable env isolation. Corrected test assumptions to preserve existing choice-as-string and open names when declarations are omitted. Actual LSP checks led to named workflow arguments; retained scoped completions and typed hovers and validated the agreed push example signature without truncation. Moving new fixtures after the existing LSP snapshot assertion preserved existing display order; no snapshots were updated. Updated public JSDoc, three related inventory units and living docs without changing the fixed revision/date or README. Regenerated CI source identity. Public documentation verifier checked 250 actual published examples. Final mise run test passed 250 tests and one workflow-env LSP subtest; check, lint, typechecking and generate-check passed. Read-only independent review and subsequent delta reviews found no actionable product issues; removed duplicate entries from the temporary review artifact and verified the exact committed diff. Saved the approved minor feat commit 1faaf1a99ade910228030d0362cfb6eab9045210. Retrieved complete local runtime thread history and verified all seven human messages, excluding injected guidance. No push, PR, release or hosted GitHub execution occurred.
