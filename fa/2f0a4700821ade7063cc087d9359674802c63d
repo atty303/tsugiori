@@ -1,0 +1,237 @@
+Task: Implement scenario value fixtures, strategy inspection, matrix completion order and nested token permissions
+Anchor: fa2f0a4700821ade7063cc087d9359674802c63d
+Base: 1faaf1a99ade910228030d0362cfb6eab9045210
+Branch: main
+Commits: fa2f0a4700821ade7063cc087d9359674802c63d - feat(testing): resolve scenario value fixtures and matrix outputs
+Guidance: Repository AGENTS.md; dig; develop-repository and atty303 profile; design-review; design-program-observability; investigate-problem; independent review; Git task evidence
+Conditions: Current Codex local checkout; approved minor feat at 0.x baseline v0.16.0; .expression removal explicitly approved; no worktree/branch/dependency change; reviewed escalation for Git metadata/test tool caches; no push/PR/release; scenarios model explicit fixture assumptions only
+## Evidence
+- Final mise run test: 268 passed plus 2 LSP subtests, 0 failed, 6m39s; includes fmt/lint/types/generate guard, published JSDoc examples, README examples and offline runtime tests.
+- Published API verifier: 252 distinct actual TypeScript examples across 6 entrypoints typechecked; fixed docsRevision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 and verifiedOn 2026-10-02 retained.
+- Actual new LSP completions, typed input/matrix hovers, named readonly strategy/permission hovers, and hashFiles/completionOrder/tokenPermissions signatures passed; existing display snapshots passed unchanged.
+- Fresh read-only independent review and final delta review: no unresolved actionable findings. Final staged artifact matched the reviewed implementation; README prose, probe input and named type display corrections plus regenerated source identity were reviewed.
+Authority: Latest user implementation request and approved expression() removal; repository AGENTS.md and current source; frozen github_spec.json; applicable skills govern execution/verification/notes, not hosted behavior
+## Transcript
+- U1: 次の未実装inventoryは？ $dig
+  - A: Read current inventory and compared seven remaining units; proposed hashFiles return fixtures first.
+- U2: A, B, C, D
+  - A: Selected four scenario units and asked how hashFiles calls should be identified.
+- U3: A
+  - A: Confirmed exact evaluated argument tuples and examined existing step/matrix configuration scopes.
+- U4: A
+  - A: Proposed step-scoped fixtures and asked whether instance settings should replace or merge common settings.
+- U5: どっちが使いやすいか？
+  - A: Compared usability and recommended argument-keyed overlays instead of whole-step replacement.
+- U6: 既存の振る舞いが最適とは限らないので、既存も含めて整合をとりたい
+  - A: Audited existing setting behavior and proposed component-wise common/instance merging for all related step settings.
+- U7: A
+  - A: Confirmed component merging and asked about named-map key overlays with atomic individual values.
+- U8: A
+  - A: Confirmed named-key overlays and proposed explicit whole-step inheritance replacement.
+- U9: A
+  - A: Confirmed explicit whole-step replacement and proposed rejecting duplicate registrations within a layer.
+- U10: A
+  - A: Confirmed duplicate errors within a layer and intentional overrides across layers; examined max-parallel settings versus fixture values.
+- U11: workflowとscenarioの関係を整理して教えて
+  - A: Explained workflow authoring, scenario supplied assumptions, and expectations with max-parallel examples.
+- U12: いや、max-parallelに関してだけ判断したいから関係性を詳しく説明して
+  - A: Read fixed strategy context and current evaluation path; distinguished authored limits, resolved context, and actual hosted concurrency.
+- U13: なるほどね。それならmax-parallelのfixtureはscenario interpreterの既定値とするのがいいのでは？ そしてassertではそれを取り出せればいいのでは。workflowでmax-parallelを省略したユーザーはGitHub Runnerが設定した値になることを期待するのであって、特定の値を期待しないからmaxParallel(3)などと設定したいわけではないだろう
+  - A: Adopted the user's interpreter-default model and proposed expanded matrix count as the deterministic sufficient-runner assumption.
+- U14: A
+  - A: Confirmed expanded instance count, no clamping of authored values, and proposed inspection through callbacks and instance results.
+- U15: A
+  - A: Confirmed readonly native-key strategy on both surfaces and asked how output order conflicts should be handled.
+- U16: A
+  - A: Confirmed explicit order for conflicts and proposed zero-based strategy.job-index identifiers.
+- U17: A
+  - A: Received index selection; no separate response was sent before the following human message.
+- U18: A. 重複したmatrixって定義できたんだ…
+  - A: Inspected local matrix expansion without deduplication; distinguished local evidence and asked about a full index permutation.
+- U19: いや、tsugioriではなくgithub runnerが重複matrixを実行できるのか？
+  - A: Clarified that duplicate matrix hosted execution had not been verified and was not claimed as confirmed.
+- U20: github側でmatrix値で参照する記法ではなくindex記法しかなければ重複を許すと推定できる
+  - A: Read fixed native strategy indexing and described duplicate support as an inference, not hosted execution evidence.
+- U21: じゃscenarioもindexでいいんじゃない？
+  - A: Confirmed native zero-based indexes and proposed listing every instance exactly once.
+- U22: A
+  - A: Confirmed full permutation validation and compared ordinary job versus reusable matrix output aggregation semantics.
+- U23: B
+  - A: Selected a shared completionOrder API for both job kinds with their distinct output rules; proposed opt-in permission fixtures.
+- U24: A
+  - A: Confirmed opt-in permission checking and distinguished environment defaults from caller ceilings.
+- U25: A
+  - A: Confirmed root defaults plus explicit write restriction and proposed errors for inherited-ceiling violations.
+- U26: A
+  - A: Confirmed path/scope/request/ceiling errors and proposed external caller-boundary inspection without resolving external internals.
+- U27: A
+  - A: Confirmed external boundary support and proposed readonly resolved permissions on callbacks and instance results.
+- U28: A
+  - A: Confirmed complete scope maps and proposed rejecting a nested callee's independent initial permission fixture.
+- U29: A
+  - A: Confirmed nested fixture rejection while permitting standalone tests and summarized agreed acceptance criteria.
+- U30: A
+  - A: Produced the implementation request covering four units, step merge contracts, types/LSP/public docs/inventory checks and non-goals.
+- U31: # 実装依頼
+    
+    ## 依頼
+    
+    Tsugiori の固定 GitHub Actions 仕様 inventory にある次の 4 項目を実装してください。
+    
+    - `scenario-capability:hashFiles-result-fixture`
+    - `scenario-capability:strategy-max-parallel-fixture`
+    - `scenario-capability:matrix-output-completion-order`
+    - `scenario-capability:nested-token-permissions`
+    
+    関連する既存の step scenario 設定についても、共通設定と matrix instance 設定の継承・上書き・重複登録の契約を整合させてください。
+    
+    ## 目的
+    
+    - hashFiles の返り値だけを fixture で与え、周囲の expression を検証できるようにする。
+    - workflow に max-parallel を明示しなくても、scenario 内で解決済み strategy を参照・検証できるようにする。
+    - matrix の完了順をテストの前提として指定し、downstream に渡る出力を検証できるようにする。
+    - 明示した環境前提に基づき、nested reusable workflow の token permission 上限を検証できるようにする。
+    - 共通の step 設定を残しながら、matrix instance ごとの違いを自然に記述できるようにする。
+    
+    ## 成功条件
+    
+    - hashFiles の fixture は step 単位で登録でき、その step の各 expression field で利用できる。
+    - 引数を評価してから、その文字列引数列を順序も含めて照合する。同じ引数列には同じ fixture 値を使う。
+    - hashFiles の返り値を注入した後も、連結・format・条件分岐など周囲の expression は通常どおり評価される。
+    - 空文字の返り値、動的引数、複数引数、短絡評価、skip、matrix ごとの差分を検証する。必要な fixture がない場合は、到達した評価位置を示して失敗する。
+    - 既存の field 全体の expression override は、周囲の式も置換する従来の契約を維持する。
+    
+    - step の共通設定と instance 設定を、設定要素ごとに継承・上書きできる。
+    - fixture は callback・返り値を含む一つの値として置換し、その内部を再帰的に merge しない。
+    - expectedInputs・expectedOutputs・github・expectedRunSettings は名前付きキーごとに merge する。各キーの値の内部は merge しない。
+    - scalar expectation は instance 側に明示設定がある場合だけ上書きする。
+    - expression override は field、hashFiles fixture は評価済み引数列をキーとして merge する。
+    - instance の step 設定について、共通設定を一切継承しない明示的な全体置換を選べる。個別キーの削除 API は追加しない。
+    - 同じ登録階層での重複設定はエラーにする。fixture・scalar・expression field・hashFiles 引数列・map の同名キーを対象とし、異なる map キーの追加登録は許可する。
+    - 共通階層と instance 階層の間の上書きは、重複登録エラーにしない。
+    
+    - workflow に maxParallel があれば、既存の expression 評価による設定値を使う。
+    - 省略時の `strategy.max-parallel` は、展開済み matrix instance 件数とする。
+    - 明示した maxParallel を matrix 件数まで切り下げない。
+    - readonly な解決済み `strategy` を fixture callback と各 job instance の結果に公開する。
+    - strategy の property は native の `fail-fast`・`job-index`・`job-total`・`max-parallel` とする。
+    - `expectSettings()` は authored settings の検証を維持し、scenario の既定値を workflow が明示した設定として扱わない。
+    
+    - 通常の matrix job と reusable workflow の matrix 呼び出しで、完了順を指定できる。
+    - 完了順は `strategy.job-index` に対応する 0 始まりの index 列で指定する。
+    - 全 instance を一度ずつ含める。重複・欠落・範囲外・不正な番号を拒否する。
+    - 結果の `instances` は展開順を維持し、指定した完了順は出力集約に使う。
+    - reusable call の出力は、出力ごとに最後に正常終了して非空の値を設定した instance の値を採用する。後続の正常終了した instance が空文字を返しても先の値を残す。
+    - 通常 job の出力集約は、その native 仕様に合わせる。reusable call 固有の正常終了条件を一律に適用しない。
+    - 順序を省略した場合、異なる非空出力の競合をエラーにする既存の契約を維持する。
+    - 集約した出力が needs や workflow_call outputs に伝播することを検証する。
+    
+    - root scenario に環境の既定権限と write 制限を明示すると、token permission 検証が有効になる。
+    - fixture がない既存 scenario は、権限検証を行わず従来どおり動く。
+    - 環境既定権限、workflow 宣言、job 宣言、環境による write 制限の順序と、未指定 scope の扱いを固定仕様に合わせて計算する。
+    - 環境の既定権限を、宣言で増やせない権限上限として扱わない。
+    - local nested call は caller の解決済み権限を上限として引き継ぎ、省略時は継承し、明示設定では縮小できる。
+    - 有効な権限要求が引き継いだ上限を超える場合、呼び出し経路・permission 名・要求値・上限値を示してエラーにする。
+    - readonly な `tokenPermissions` を fixture callback と各 job instance の結果に公開する。検証無効時は undefined とする。
+    - 解決済み権限は対応する全 scope を持ち、付与されない scope は none として参照できる。
+    - 権限 scope ごとの許可レベルを維持する。特に id-token などを通常の read/write scope と同一視しない。
+    - 権限検証中の nested local callee に独自の初期権限 fixture があれば拒否する。同じ callee の単独テストでは初期 fixture を使える。
+    - external call は caller から渡す権限まで計算し、callFixture callback と caller instance の結果から参照できる。external callee 内部は検証したと主張しない。
+    
+    - 公開 API の型検査、負例、実際の LSP completion・hover・signature を検証する。
+    - public JSDoc と実際に掲載する TypeScript code block を検証する。
+    - coverage inventory と関連する設計文書を実装・検証 evidence に整合させる。
+    - repository の必要な検証が通る。
+    
+    ## 決定事項
+    
+    - hashFiles は関数の返り値だけを注入する。
+      - 理由: surrounding expression の wiring と評価を検証するため。
+      - 主な棄却案: field 全体の override だけで対応する方法。周囲の演算まで置き換わるため採用しない。
+    
+    - hashFiles fixture は step scope、識別キーは評価済み引数列とする。
+      - 理由: workspace は step 間で変化し得る。動的引数を扱い、実際の呼び出しを識別するため。
+      - 主な棄却案: workflow/job 全体の既定 fixture、filesystem/glob の実行、引数の同値化。今回は追加しない。
+    
+    - step 設定は共通設定と instance の差分を要素ごとに merge する。
+      - 理由: 一つの期待値を追加しただけで共通 fixture や他の期待値が消えることを防ぐため。
+      - 主な棄却案: instance に step 設定があれば step 全体を暗黙に置換する既存方式。採用しない。
+    
+    - fixture は atomic、名前付き map はキー単位、各キーの値は atomic とする。
+      - 理由: 意図しない fixture 内容や JSON 値の合成を避けるため。
+      - 主な棄却案: 汎用的な deep merge。採用しない。
+    
+    - 明示的な step 全体置換を残し、同一階層の重複登録は拒否する。
+      - 理由: 継承を外す操作を明示し、登録順による意図しない上書きを検出するため。
+      - 主な棄却案: 継承解除不可、同一階層での last-write-wins、個別キー削除 API。採用しない。
+    
+    - max-parallel の省略値は interpreter の既定値とし、matrix 件数を使う。
+      - 理由: workflow の省略を維持し、十分な runner がある scenario 環境を決定的にモデル化するため。
+      - 主な棄却案: job ごとの maxParallel fixture 登録、固定値 1、GitHub の実際の値を推測する方法。採用しない。
+    
+    - 解決済み strategy と tokenPermissions を callback・instance 結果の両方に公開する。
+      - 理由: fixture 内と実行後の両方で通常の assert を使えるようにするため。
+      - 主な棄却案: 結果だけの公開、専用 expectation API だけの提供。採用しない。
+    
+    - 完了順は全 instance の index 列とし、通常 job と reusable call で共通 API を使う。
+      - 理由: native の識別情報を使い、同じ matrix 値の instance も区別し、fixture の成否が変わっても指定方法を維持するため。
+      - 主な棄却案: matrix 値による識別、正常終了 instance だけの指定、reusable call 専用 API。採用しない。
+    
+    - 完了順を省略した場合の競合エラーを維持する。
+      - 理由: downstream の出力値を変える順序を、テストの前提として明示するため。
+      - 主な棄却案: 展開順を既定の完了順にする方法。採用しない。
+    
+    - token permission 検証は、root の環境 fixture による opt-in とする。
+      - 理由: 環境の既定権限と制限を推測せず、既存 scenario の互換性を維持するため。
+      - 主な棄却案: permissions 宣言による自動有効化、root job の調整済み権限だけを直接供給する方法。採用しない。
+    
+    - nested の上限超過はエラーにし、callee の独自初期 fixture は拒否する。
+      - 理由: 実現できない要求と、使用されない fixture の誤解を検出するため。
+      - 主な棄却案: 自動切り下げ、callee fixture の黙示的な無視。採用しない。
+    
+    - external call は caller 境界までの検証を許可する。
+      - 理由: 定義を取得しない既存 fixture と、local graph の検証を併用するため。
+      - 主な棄却案: external call を全面拒否する方法、external 内部の権限モデルを追加する方法。採用しない。
+    
+    ## 制約
+    
+    - 固定仕様 basis を維持する。docsRevision は `0b8c768bf0d5a13560ec82fd3daa414137e2e436`、verifiedOn は `2026-10-02`。
+    - GitHub が orchestration・execution を所有する境界を維持する。
+    - scenario の既定値・順序・権限は明示したモデルであり、hosted execution、実際の同時実行数、runner availability、実際の API 認可を再現したと主張しない。
+    - 既存の immutable workflow authoring、宣言名・input・matrix 推論、評価フェーズ別の型情報を維持する。
+    - step 設定の整合変更を、aggregate job expectations など意味の異なる設定へ機械的に拡張しない。
+    - push・remote ref 更新・PR 作成は行わない。
+    
+    ## 対象外
+    
+    - その他の未実装 inventory 項目。
+    - secret-output-suppression。
+    - external workflow の取得・ref 解決・内部 graph 解析。
+    - YAML anchors/aliases。
+    - 実 filesystem に対する hashFiles の hashing・glob 展開。
+    - scheduler、実際の並列実行、完了時刻の再現。
+    - GitHub 設定変更、外部仕様の更新、hosted execution の検証。
+    - token 値の生成、GitHub API 呼び出し、permission enforcement。
+    - README 入門への詳細仕様追加。
+    
+    ## 未検証の前提
+    
+    - なし。重複 matrix の GitHub 上での実行は確認済みとは扱わず、native の index による識別を API の根拠とする。
+    
+    ## 実装時の指示
+    
+    - 主な確認箇所は `src/testing/expression.ts`、`src/testing/mod.ts`、`src/testing/run.ts`、`src/github_actions/matrix.ts`、`src/github_actions/permissions.ts`、`src/github_actions/github_spec.json`。
+    - 既存の step fixture、expression override、mergedRules、strategy context、matrix 出力集約、local/external call 経路を利用して変更する。
+    - `hashFiles`、`completionOrder`、`tokenPermissions` などの提示名は API 案である。合意した契約を維持し、既存命名・型表示に合う具体的な公開 API を選ぶ。
+    - 権限計算では workflow/job の置換規則を適用して有効な要求を求めてから caller 上限と比較する。workflow の既定宣言と nested の権限上限を混同しない。
+    - write 制限は fixture で明示し、event 名から repository 設定を推測しない。scope ごとの許可レベルに合う結果にする。
+    - matrix の各出力は対応する instance の context で評価し、集約順だけを指定順に変える。job-index や結果配列の対応を崩さない。
+    - inventory の `strategy-max-parallel-fixture` は、ユーザー登録 fixture ではなく interpreter 既定値と inspection surface を実装する方針に合わせて説明を更新する。
+    - 対象 inventory と関連する context・syntax・reuse 項目を確認し、実装 evidence に基づいて更新する。
+    - 詳細な利用方法・継承規則・評価タイミング・検証限界は public JSDoc または設計文書へ記載する。
+    - 既存の LSP snapshot を不要に変更しない。前回の workflow-env 検証では、新しい probe の順序が既存の推論表示に影響したため、snapshot 対象と新規 probe の配置を確認する。
+  - A: Applied development/design/observability guidance; used approved minor feat scope and existing observer/errors; implemented return fixtures and setting merges before further API steering.
+- U32: 未対応の式があるときに field 全体を置換するの互換性って必要なの？未対応がゼロになるはずだが
+  - A: Audited field overrides and invalid custom-function tests; explained that fixed valid expressions can use native evaluation and value/context fixtures, and requested contract change approval.
+- U33: 廃止して整合させる（推奨）
+  - A: Removed workflow/job/step expression() APIs and override plumbing, migrated invalid custom-function tests to native expressions/context fixtures, and made invalid syntax expression_error and reached missing hash results fixture_missing. Implemented exact step hash tuples, atomic/named-key step merges and replaceInherited(), readonly resolved native strategy with modeled omitted max-parallel, full-index completion order preserving expansion-order results and distinct ordinary/reusable output rules, and opt-in root/nested permission resolution with complete scope-specific readonly maps. Preserved disabled-check compatibility and external caller boundary. Updated public docs, fixed inventory evidence and generated CI artifact source identity without changing frozen basis. Focused scenario/type checks passed. LSP test-helper scope filtering and an invalid task input probe were corrected; actual token map hover expansion led to a named public interface retaining levels and readonly. Fresh read-only review found README stale override guidance and hover expansion; both corrected, final delta review found no actionable findings. Standard check passed; 252 published TypeScript examples passed; final mise run test passed 268 tests and 2 LSP subtests, zero failures, 6m39s; existing snapshots unchanged. Committed approved minor feat fa2f0a4 locally; complete runtime history retrieval verified all 33 human messages against the cycle extract. Prepared the normalized standard Git note; no push, remote ref update, PR, release or hosted execution occurred.
