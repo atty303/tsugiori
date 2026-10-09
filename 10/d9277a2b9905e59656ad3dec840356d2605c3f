@@ -1,0 +1,140 @@
+Task: scenario output suppression result fixtures and ordinary assertion result API
+Anchor: 10d9277a2b9905e59656ad3dec840356d2605c3f
+Base: fa2f0a4700821ade7063cc087d9359674802c63d
+Branch: main (current checkout)
+Commits: 10d9277a2b9905e59656ad3dec840356d2605c3f feat(testing), user-approved minor local commit
+Guidance: repository AGENTS.md; dig; develop-repository; design-review; design-program-observability; investigate-problem; review; git-task-evidence
+Conditions: durable local Deno library; no dependencies or hosted execution; no release/push/PR; .git and hk state writes require scoped sandbox escalation; complete root thread JSONL acquired and human messages compared (25, first dig request through minor local commit)
+Authority: user implementation request and minor/local-commit authorization; current repository source, AGENTS.md and applicable skills
+## Transcript
+- U1: $dig github specの未実装に対応する
+  - A: Applied dig, checked frozen coverage and current source. Offered YAML anchors, secret-output suppression and external reusable analysis as separate work branches.
+- U2: 実装済みはinventoryに反映されてるよね？
+  - A: Verified current inventory: implemented 394, limited 3, unimplemented 3, excluded 6, reference 47; hashFiles native emission and return fixture already implemented.
+- U3: b
+  - A: Inspected fixed runner output masking boundary and offered detector vs supplied suppression-result fixture.
+- U4: A
+  - A: Investigated fixed value encoders and regex mask hints; proposed supported detector scope.
+- U5: B
+  - A: Discussed .NET helper versus TypeScript regex compatibility implementation.
+- U6: そんな厳密な互換が実際に必要なの？
+  - A: Acknowledged full regex compatibility had no established need and narrowed inquiry to actual runner input patterns.
+- U7: なにをいっているかわからん。正規表現の実体は任意入力ではなくrunner imageで固定されていないのか？ その実体だけDenoでサポートできるか確認すればいいのでは？
+  - A: Inspected fixed runner Worker.cs: value encoders are fixed, MaskHints values supplied in job messages; actual patterns and generator were unavailable. Withdrew .NET recommendation.
+- U8: つまりエンジンではなくパターンがわからないから対応できないのではないか？
+  - A: Confirmed unknown pattern generation, not established engine incompatibility, was the evidence gap.
+- U9: add-maskはyamlのauthroing側だよな？
+  - A: Clarified add-mask is a runtime workflow command, not a YAML field; scenarios do not run steps.
+- U10: じゃあadd-mask対応しても意味ないじゃん。run内のadd-maskをfixtureとして書かせて評価してoutputがmaskされるのは回りくどい。最初から抑制をfixutureにするほうが筋が通っている
+  - A: Changed scope to output-name suppression result fixture after evaluation, rejecting complete output-map override.
+- U11: A
+  - A: Asked omission contract: no suppression versus mandatory explicit empty list.
+- U12: A
+  - A: Accepted omitted suppression as none. Investigated absent-output assertion capability.
+- U13: asseertionの統一感はあるか？ assertEqualsを使うAPIもあれば、expectを定義しているものの両方が混在していないか？ なぜそうなっている？
+  - A: Audited mixed expect APIs and normal assertions: expectations also enabled settings evaluation. Dedicated absence assertion recommendation withdrawn.
+- U14: 混在をやめたい
+  - A: Offered ordinary assertion versus expectation DSL unification.
+- U15: A
+  - A: Accepted ordinary assertions; audited all expectation capabilities and asked removal versus deprecation.
+- U16: A
+  - A: Accepted immediate public expect removal; examined explicit settings enablement versus automatic evaluation.
+- U17: fixtureがあれば値を提供する
+  - A: Accepted automatic obtainable settings with no enablement APIs; discussed optional-setting shortages versus strict propagation shortages.
+- U18: A
+  - A: Accepted independent optional-field evaluation; offered native task values plus wire outputs versus replacing wire output API.
+- U19: A. 名前はtypedOutputsのほうがいい
+  - A: Accepted typedOutputs spelling; examined representation of missing optional-setting evaluation.
+- U20: Aの意味ある？ testはresolveを期待して書くからunresolvedに分けた値をassertすることは絶対に有り得ないだろ
+  - A: Rejected public unresolved list/state containers, initially proposed omitted failed fields.
+- U21: B. resultはgetterにしてfixture不足はundefinedではなく理由付き例外エラーとかにすれば親切では？
+  - A: Accepted getter errors distinguishing shortage from absence; proposed eagerly retained outcomes at lifecycle boundaries versus lazy evaluation.
+- U22: A. つまりresultは評価結果モナドにするが、利用者にコンテナの存在を意識させないAPIってことだ。テストだからそれでいい
+  - A: Accepted transparent perfield getters over internal outcomes, strict malformed/propagation failures and no callback reruns. Summarized confirmed design.
+- U23: A
+  - A: Produced complete implementation request containing purposes, success criteria, decisions, hard constraints, exclusions and audit points.
+- U24:
+    # 実装依頼
+    
+    ## 依頼
+    `/Users/a13400/src/atty303/tsugiori` の現在の checkout で、scenario の output 抑制結果 fixture を実装し、利用者向け検証 API を通常の assertion に統一してください。
+    
+    公開 `expect*` を削除し、既存の検証能力を戻り値へ移してください。評価結果は内部に保持し、利用者がコンテナを意識せず値を取得できる getter API にしてください。
+    
+    ## 目的
+    - runner が job output を抑制した場合の downstream、matrix 集約、reusable workflow の振る舞いを検証できる。
+    - scenario の検証を `assertEquals` など通常の assertion で一貫して書ける。
+    - 値の取得に必要な fixture が不足している場合、参照箇所で具体的な理由が分かる。
+    
+    ## 成功条件
+    - job／matrix instance ごとに、抑制された output 名を fixture として指定できる。省略時は抑制なし。
+    - output 評価後、matrix 集約前に指定された output が伝播対象から除外される。step output は変更されない。
+    - 抑制によるキーの不在と、存在する空文字 output を区別できる。
+    - 通常 job、matrix、local reusable workflow、downstream の値伝播を検証できる。
+    - 公開 `expect*` と、それらによる期待値登録・比較処理が削除されている。
+    - 既存 `expect*` で検証できた情報を通常の assertion で検証できる。step の到達・skip、outcome／conclusion、入力、出力、到達順、matrix、依存関係、call の引数・secret 伝播、各種設定も監査対象とする。
+    - task step の戻り値に、契約に従う型付きの `typedOutputs` と GitHub wire string の `outputs` がある。
+    - 設定評価の有効化 API を追加せず、評価可能な設定を取得できる。
+    - fixture 不足の設定を参照すると、field の位置と不足した参照先を示す例外が発生する。他の取得可能な field は参照できる。
+    - 未指定・非適用と fixture 不足を区別できる。
+    - テスト、実際の公開例、JSDoc、設計文書が新しい API に移行している。
+    - inventory に抑制結果 fixture の対応を反映し、検出規則の未対応と区別している。
+    
+    ## 決定事項
+    - 抑制結果として output 名を fixture で供給する。
+      - 理由: scenario は step を実行しないため、runner が決めた抑制結果を入力し、その後の値伝播を検証するのが責務に合う。
+      - 主な棄却案: secret／mask の検出モデル。正規表現の実体・生成規則が確認できず、add-mask の登録を fixture で再構成することも遠回りになる。送信後 outputs 全体の置き換えは、通常の式評価まで置き換えるため採用しない。
+    - 抑制 fixture の省略時は抑制なしとする。
+      - 理由: 必要な scenario に結果を供給する方針を維持する。
+      - 主な棄却案: 全 output job に空リストを含む指定を必須にする方式。
+    - 公開 `expect*` は今回まとめて削除する。
+      - 理由: assertion の混在を今回解消する。
+      - 主な棄却案: deprecated として残す段階移行。混在が残るため採用しない。
+    - 独自の欠落 assertion API は追加しない。
+      - 理由: output の不在は通常の assertion で検証できる。
+      - 主な棄却案: `expectAbsentOutputs()` の追加。
+    - 評価は本来の lifecycle 上の時点で行い、値または失敗理由を内部に保持する。getter はそれを取り出す。
+      - 理由: 後続 step の context が混ざることや、参照順による差を避けながら、fixture 不足を必要な参照時に報告できる。
+      - 主な棄却案: getter 初回参照時の式評価。
+    - 追加の設定情報は fixture 不足でも scenario を直ちに失敗させず、その field の getter が理由付き例外を投げる。
+      - 理由: 検証しない設定の fixture を要求せず、検証したい値が取得できない場合は親切に失敗させる。
+      - 主な棄却案: `undefined` への置き換え、公開 `unresolved` 一覧、状態コンテナを利用者に分岐・unwrap させる API。
+    - 不正式などのエラー、および workflow の値伝播に必要な評価の fixture 不足は、scenario 実行時のエラーを維持する。
+      - 理由: 任意の設定情報を取得できないことと、scenario の解釈を成立させられないことを区別する。
+      - 主な棄却案: あらゆる評価失敗を getter 参照時まで遅らせる方式。
+    - task の `typedOutputs` と文字列 `outputs` を両方公開する。
+      - 理由: task の契約値と GitHub への文字列化をそれぞれ検証できる。
+      - 主な棄却案: `outputs` を型付き値に変更する方式。追加プロパティ名は `nativeOutputs` ではなく `typedOutputs` とする。
+    
+    ## 制約
+    - 公開 `expect*` の削除に伴う破壊的変更は承認済み。リポジトリ内の利用箇所も同じ変更で移行する。
+    - getter の取得は field 単位とし、一つの設定の fixture 不足が別の取得可能な設定を妨げない。
+    - getter は式評価や fixture callback を再実行しない。本来の評価時点の意味を保持する。
+    - 不足理由の例外や診断には secret、fixture 値、output 値を含めない。
+    - 型付き結果は readonly 情報、推論、補完、取得可能性を正しく表す。
+    - 通常の assertion に統一する対象は利用者向け scenario API とその利用例。Tsugiori 自身の実装テストで通常の assertion を使うことは維持する。
+    
+    ## 対象外
+    - secret／正規表現 mask の検出、add-mask command の再現。
+    - .NET helper、正規表現互換エンジン、外部 runtime の追加。
+    - step、Action、task の実行や hosted runner の再現。
+    - 他の GitHub spec 未実装項目への対応。
+    - GitHub spec の基準更新、release、push、PR 作成。
+    
+    ## 未検証の前提
+    - `expect*` の全利用箇所と、比較以外の副作用の完全な一覧。
+    - 戻り値へ追加が必要な観測情報と、現在の result 型が保持している task 契約情報。
+    - local／external reusable call の境界で、抑制済み output が渡される正確な経路。
+    - getter を持つ result に対する既存の列挙・コピー・serialization・snapshot 処理の影響。
+    
+    ## 実装時の指示
+    - 主な調査起点は `src/testing/mod.ts`、`src/testing/run.ts`、`src/testing/expression.ts`、scenario／reusable workflow 関連テスト、`src/github_actions/github_spec.json`。
+    - 最初に既存 `expect*` の検証能力と評価の副作用を監査し、情報を失わず移行する。
+    - 抑制 fixture は評価値の override にしない。local reusable workflow の抑制は実行 job の出力境界で扱い、caller 側で二重適用しない。external call fixture は既に渡された最終結果との関係を整理する。
+    - job 共通 fixture と matrix instance ごとの指定の継承・上書き、未知の output 名、重複指定の検証を、既存 fixture 契約と整合させる。
+    - `typedOutputs` は task 契約に基づく値を返し、文字列 `outputs` との整合を検証する。skip や未生成 output の型・取得動作を正しく扱う。
+    - getter の成功、未指定・非適用、fixture 不足、field 間の独立性、評価タイミング、不正式の即時失敗を検証する。
+    - inventory は「抑制結果 fixture」と「検出規則」を別の実装単位として評価する。既存行を無条件に全面 implemented に変更しない。
+  - A: Applied develop-repository, design-review and design-program-observability. Audited expectation side effects and observer privacy; confirmed current main checkout and clean base, fetched code and notes, asked minor local commit judgment.
+- U25: minor 判定で local commit
+  - A: Implemented suppression fixtures, captured field getters, typed result maps and native typedOutputs. Removed public expectations/comparison registration. Migrated tests/docs/examples/inventory. Investigated migration failures and verified 97 migrated tests, added seven direct acceptance tests, actual README source verification, public JSDoc compilation. Independent fresh read-only review found omitted task outputs represented as null and skipped steps included in launch order. Confirmed both, omitted empty wire keys from typedOutputs, registered launch order after conditions, and added regression cases. Delta review found no further actionable issues. Standard mise run check passed; mise run test passed 275 tests with 0 failures; focused scenario suite passed 129 tests; actual LSP completion/hover/signatures and 235 published JSDoc examples across six exports passed. Reviewed patch sha256 9fbf8036cee32b4da72a266926af49c71fe5374540f99985674ea5f4a86e6266 matched final source. Created the authorized local feat(testing) commit on main. Reacquired complete root thread and compared all 25 human messages before note creation; remote notes are an ancestor of local notes. No release, push or PR performed.
