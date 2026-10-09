@@ -1,0 +1,307 @@
+Task: Correct GitHub Actions coverage inventory classifications and evidence
+Anchor: a6d482c0d08beeaa061724b365c3b86d2d82b566
+Base: 4f96696e1cd03b5f9d5c1d98add0afe61690c82c
+Branch: main (existing checkout)
+Commits: a6d482c0d08beeaa061724b365c3b86d2d82b566 inventory schema, classifications, documentation, tests and regenerated CI identity
+Guidance: AGENTS.md; develop-repository; atty303 engineering policy; design-review; investigate-problem; design-program-observability; update-github-actions-spec; review; git-task-evidence; data-handling
+Conditions: Clean initial tree; managed mise/Deno on macOS JST; approved escalation for tool caches and Git writes; frozen GitHub.com basis retained; initial 1Password signing failure followed by explicit retry and successful signed commit; no push, release, PR or deploy; no authoring/interpreter/scenario behavior changes
+## Evidence
+
+- Coverage schema 2 has implemented 387, limited 5, unimplemented 8, excluded 6 and reference 47 (453 total). Implementation-scope denominator 400 excludes reference/excluded. Linked implementation units remain in one inventory.
+- All 199 fixed source files were fetched at docs revision 0b8c768bf0d5a13560ec82fd3daa414137e2e436 and their manifest digests verified. GitHub.com applicability audit removed GHES-only runs-on placeholder guidance. Frozen verifiedOn 2026-10-02 and manifests unchanged.
+- mise run fix/check/test passed; full test result 246 passed, 0 failed, including 249 distinct actual published JSDoc examples, actual LSP and runtime E2E. Focused classification, links, counts, native emission and current fixture override boundaries passed.
+- Fresh independent readonly review /root/inventory_review returned no findings for exact patch SHA256 e09d659b7738fe76cbb7aa9283b3609caae2aba0bf2bbfed3a264e3cc7b38e1e; staged patch matched. Metadata changed generated CI task artifact identity via standard generation.
+- Approved release impact is patch on 0.x; commit uses fix. Newly classified missing capabilities were not implemented.
+
+Authority: Current user implementation request and selections; repository AGENTS.md; current source/tests/docs; fixed GitHub.com source snapshot; applicable skills (history is descriptive).
+## Transcript
+- U1: もう未対応specは残ってないんだっけ？
+  - A: 現在の inventory と ROADMAP を確認し、未実装の仕様と GitHub 実行環境に依存する制限を分けて整理します。 **固定仕様（2026-10-02）に対する、製品範囲内の既知の実装不足は0件です。** 現在の inventory で確認しました。
+- U2: それらを未実装と将来にわたってもサポートしないが区別できるステータスにしたほうがよくないか？
+  - A: はい。**`status` だけで「未実装」と「サポート対象外」を区別できるほうが明確です。** 現在は `assessment` で区別していますが、`unsupported` だけでは将来対応する余地があるのか分かりません。
+- U3: /$di
+  - A: この入力への応答はなく、次の user 入力へ継続。
+- U4: $dig 1つずつどの分類にするか、根拠こみで提案してくれ
+  - A: `dig` を使い、各項目の根拠を確認して一つずつ分類を提案します。まず workflow template の配布から始めます。 Q7: workflow template の配布を `excluded` にしますか？
+- U5: workflow..properties.json のことか？
+  - A: workflow template の配布全体と `.properties.json` の metadata を分けて、固定出典の対象を確認します。 はい。`<workflow名>.properties.json` は workflow template の metadata です。例えば `ci.yml` に対する `ci.properties.json` です。固定出典 Q8: `.properties.json` の生成を `excluded` にしますか？
+- U6: A. 以後はgithubの機能の説明と、根拠は過去の決定ではなく、今なぜ実装しないかを説明してくれ
+  - A: `.properties.json` の生成は `excluded` で確定します。以後は、GitHub の機能と、現在その実装を持つ必要がない理由を説明します。 Q9: workflow template の利用可能範囲を `excluded` にしますか？
+- U7: A
+  - A: template の利用可能範囲も `excluded` で確定します。 Q10: private／internal template repository へのアクセス付与を `excluded` にしますか？
+- U8: A
+  - A: 次は `$default-branch` placeholder です。GitHub が template 作成時に置換する機能と、Tsugiori がその文字列を生成できるかを確認します。 private／internal repository へのアクセス付与も `excluded` で確定します。 Q11: `$default-branch` placeholder を `reference` にしますか？
+- U9: 出力できるならimplementedじゃない？
+  - A: そうですね。`$default-branch` をそのまま出力でき、GitHub が期待する処理につながるなら、`implemented` が適切です。専用 API の有無を判定基準にしたのは不適切でした。 Q12: `$default-branch` の行は `implemented` にしますか？
+- U10: A
+  - A: `$default-branch` は `implemented` として整理します。次は、テンプレートの `runs-on` 置換について、固定出典の適用範囲を確認します。 Q13: GHES 専用の `runs-on` 置換は `not-applicable`（対象仕様に非該当）にしますか？
+- U11: お前、templateのgithub側の責務とtemplate yamlを生成する責務を混ぜていないか？
+  - A: はい、混ぜていました。「Tsugiori で置換すると GitHub.com に GHES の変換を持ち込む」という説明は誤りです。Tsugiori はテンプレート YAML を生成し、コピー時の置換は GitHub が行います。 Q14: この行は出典の適用範囲に従って分類しますか？
+- U12: じゃあinventoryになぜその行があるのか？
+  - A: その行を inventory に取り込む処理と検証を確認します。GHES 条件をどう扱っているかを追います。 **GitHub.com 向け inventory に、GHES 専用の節が誤って残っているためです。**
+- U13: 修正対象として覚えておいて。
+  - A: このタスクの修正対象に加えます。
+- U14: 続けて
+  - A: Q15: `Example workflow template file` の行は `reference` にしますか？
+- U15: A
+  - A: `Example workflow template file` は `reference` として整理します。 Q16: 親行の `Workflow templates` も `reference` にしますか？
+- U16: A
+  - A: `Workflow templates` の親行は `reference` として整理します。次は YAML anchors / aliases について、GitHub の機能と現在の生成方法を照合します。 Q17: YAML anchors / aliases の出力は `excluded` にしますか？
+- U17: B
+  - A: YAML anchors / aliases は `unimplemented` として整理します。TypeScript による再利用は代替手段として記載し、native 構文の生成は将来の実装候補に残します。 Q18: scenario での `hashFiles()` のファイル計算は、将来も提供しない範囲にしますか？
+- U18: A
+  - A: `hashFiles()` のファイル計算は `excluded` として整理します。式の生成と明示 fixture による評価は、対応済みの範囲として分けて記載します。 Q19: 外部 reusable workflow の取得・解析は `unimplemented` にしますか？
+- U19: A
+  - A: 外部 reusable workflow の取得・解析は `unimplemented` として整理します。次に、残る `limited` 行から、生成対応と未実装の検証が混在している項目を確認します。 Q20: reusable workflow の実利用監視は `excluded` にしますか？
+- U20: A
+  - A: 実利用の監視は `excluded` として整理します。次は、reusable workflow を再実行するときの参照先の選び方を確認します。 Q21: reusable workflow の再実行モデルは `excluded` にしますか？
+- U21: A
+  - A: 再実行モデルは `excluded` として整理します。次は、ネストした reusable workflow のトークン権限について、明示した値で検証できる範囲を確認します。 Q22: ネスト呼び出しのトークン権限を検証する機能は `unimplemented` にしますか？
+- U22: A
+  - A: 明示した初期権限に基づく、ネスト先の権限検証は `unimplemented` として整理します。 Q23: 親行の `github` context は `implemented` にしますか？
+- U23: A
+  - A: `github` の親行は `implemented` として整理します。 Q24: `vars` context の親行も `implemented` にしますか？
+- U24: A
+  - A: `vars` の親行は `implemented` として整理します。 Q25: `job` context の親行も `implemented` にしますか？
+- U25: A
+  - A: `job` の親行は `implemented` として整理します。 Q26: `runner` context の親行も `implemented` にしますか？
+- U26: A
+  - A: `runner` の親行は `implemented` として整理します。 Q27: `secrets` context の親行も `implemented` にしますか？
+- U27: A
+  - A: `secrets` の親行は `implemented` として整理します。`strategy` は、`max-parallel` を省略した場合の scenario 評価に制約があるため、その経路を確認します。 Q28: `strategy` の親行は `limited` を維持しますか？
+- U28: A
+  - A: `strategy` の親行は `limited` とし、理由を `maxParallel` の明示要件に限定します。 Q29: 設定省略時の `strategy.max-parallel` を fixture で供給する機能は `unimplemented` にしますか？
+- U29: A
+  - A: 設定省略時の `strategy.max-parallel` を明示 fixture で供給する機能は、`unimplemented` として整理します。既定値の推測とは分けて記載します。 Q30: 式の親行 `Functions` は `reference` にしますか？
+- U30: A
+  - A: `Functions` の親行は `reference` として整理します。 Q31: `Supported keywords for jobs that call a reusable workflow` は `implemented` にしますか？
+- U31: A
+  - A: 呼び出し job のキー制約は `implemented` として整理します。次の runner に関する行は、YAML の設定と GitHub 側の割り当て規則のどちらを説明しているか、固定出典を確認します。 Q32: `How reusable workflows use runners` は `reference` にしますか？
+- U32: A
+  - A: `How reusable workflows use runners` は `reference` として整理します。 Q33: 親行の `Reusable workflows` も `reference` にしますか？
+- U33: A
+  - A: `Reusable workflows` の親行は `reference` として整理します。次は、secret を含む job output を GitHub が送信しない動作について、出典と scenario の出力処理を確認します。 Q34: secret を含む job output の抑止は `unimplemented` にしますか？
+- U34: A
+  - A: secret による job output の抑止は `unimplemented` として整理します。次は、matrix の複数実行が異なる出力値を返した場合の扱いを確認します。 Q35: matrix の完了順を明示して reusable workflow の出力を検証する機能は `unimplemented` にしますか？
+- U35: A
+  - A: matrix の完了順を明示した出力検証は `unimplemented` として整理します。 Q36: `Access to reusable workflows` は `reference` にしますか？
+- U36: A
+  - A: `Access to reusable workflows` は `reference` として整理します。 Q37: `Creating a reusable workflow` は `implemented` にしますか？
+- U37: A
+  - A: `Creating a reusable workflow` は `implemented` として整理します。 Q38: `Using inputs and secrets in a reusable workflow` は `implemented` にしますか？
+- U38: A
+  - A: `Using inputs and secrets in a reusable workflow` は `implemented` として整理します。 Q39: `Calling a reusable workflow` は `implemented` にしますか？
+- U39: B
+  - A: `Calling a reusable workflow` は `limited` とします。理由は外部 callee の契約・グラフを直接検証できないこととし、取得・解析の `unimplemented` 項目に結び付けます。 Q40: `Passing inputs and secrets to a reusable workflow` も `limited` にしますか？
+- U40: ん？さっきのはcontract解析がBのつもりだったが、それは別項目であったのか？
+  - A: 独立した既存行はありません。Q19 で `unimplemented` にすると合意した「外部 workflow の取得・解析」に、外部 callee の契約解析も含める意図でした。「別項目」とだけ説明し、既存行のように扱ったのは不明確でした。 Q41: 外部契約の解析を `unimplemented` として明示したうえで、呼び出し行はどう分類しますか？
+- U41: その独立行はinventoryに生成されるのか？ 別管理にならないのか？
+  - A: はい。独立行も **同じ `github_spec.json` の `coverage` に追加する**提案です。別の backlog や文書だけで管理する意図ではありません。
+- U42: ok
+  - A: 外部契約の解析は、同じ inventory に `unimplemented` の独立行として追加する方向で整理します。 Q42: その不足を、呼び出し行のステータスにも反映しますか？
+- U43: B
+  - A: `Calling a reusable workflow` は `implemented`、外部契約の解析・照合は独立行で `unimplemented` とします。 Q43: `Passing inputs and secrets to a reusable workflow` も `implemented` にしますか？
+- U44: A
+  - A: `Passing inputs and secrets to a reusable workflow` は `implemented` として整理します。 Q44: `Using a matrix strategy with a reusable workflow` は `implemented` にしますか？
+- U45: A
+  - A: `Using a matrix strategy with a reusable workflow` は `implemented` として整理します。 Q45: `Nesting reusable workflows` は `implemented` にしますか？
+- U46: A
+  - A: `Nesting reusable workflows` は `implemented` として整理します。 Q46: `Passing secrets to nested workflows` は `implemented` にしますか？
+- U47: A
+  - A: `Passing secrets to nested workflows` は `implemented` として整理します。 Q47: `Using outputs from a reusable workflow` は `implemented` にしますか？
+- U48: A
+  - A: `Using outputs from a reusable workflow` は `implemented` として整理します。次は reusable workflow の cache access について、生成・検証で対応している範囲を確認します。 Q48: `Controlling cache access in reusable workflows` は `implemented` にしますか？
+- U49: A
+  - A: cache access の制御は `implemented` として整理します。次に、workflow 全体の `env` で型付き context を使う authoring 経路を確認します。 Q49: workflow 全体の `env` に対する型付き callback は `unimplemented` にしますか？
+- U50: A
+  - A: workflow 全体の `env` の型付き callback は、同じ inventory の独立行で `unimplemented` として整理します。 Q50: reusable workflow における `github` context の行は `implemented` にしますか？
+- U51: A
+  - A: reusable workflow の `github` context の行は `implemented` として整理します。 Q51: `nesting-depth` の検証行は `limited` を維持しますか？
+- U52: A
+  - A: `nesting-depth` は `limited` として整理します。 Q52: `unique-workflow-count` の検証行も `limited` を維持しますか？
+- U53: A
+  - A: `unique-workflow-count` は `limited` として整理します。 Q53: `Access and permissions for nested workflows` の節の行は `reference` にしますか？
+- U54: A
+  - A: `Access and permissions for nested workflows` は `reference` として整理します。 Q54: 親行の `Limitations of reusable workflows` も `reference` にしますか？
+- U55: A
+  - A: `Limitations of reusable workflows` は `reference` として整理します。 Q55: `About YAML syntax for workflows` は `reference` にしますか？
+- U56: A
+  - A: `About YAML syntax for workflows` は `reference` として整理します。 Q56: context availability 表の行は `reference` にしますか？
+- U57: A
+  - A: context availability の各行は `reference` とし、許可範囲と実装行への参照を残します。`hashFiles()` は fixture が関数の戻り値を供給するのか、フィールド全体を置き換えるのかを確認します。 Q57: `hashFiles` の行は `limited` を維持しますか？
+- U58: unimplemented
+  - A: `unimplemented` とする対象を、生成対応と混ざらない形にしたいです。 Q58: `hashFiles()` は責務ごとの行に分けますか？
+- U59: A
+  - A: `hashFiles()` は生成・scenario 関数評価・ファイル計算の3行に分けます。残る `limited` 行について、実装上の制約なのか、GitHub 側の規則説明なのかを確認します。 Q59: `repository-variables` の行は `reference` にしますか？
+- U60: あとどのくらい残ってる？
+  - A: 今の Q59 を含め、**あと5問程度**です。
+- U61: A
+  - A: `repository-variables` は `reference` として整理します。 Q60: `Next steps` は `reference` にしますか？
+- U62: A
+  - A: `Next steps` は `reference` として整理します。最後の個別項目 `snapshot.if` は、固定出典で確認できる context の範囲を再確認します。 Q61: `jobs.<job_id>.snapshot.if` は `limited` を維持しますか？
+- U63: A
+  - A: `snapshot.if` は `limited` とし、実装不足と出典上の未確定範囲を区別して記載します。 Q62: ステータスを次の5種類に統一しますか？
+- U64: A
+  - A: Q63: この内容で共通理解に達しましたか？
+- U65: A
+  - A: 合意をまとめた実装依頼 prompt を提示。
+- U66:
+    # 実装依頼
+    
+    ## 依頼
+    /Users/a13400/src/atty303/tsugiori で、GitHub Actions coverage inventory の分類を修正し、関連文書・検証を整合させてください。
+    
+    実装済み、部分対応、未実装、製品として提供しない範囲、出典の説明行を区別してください。分類した未実装機能そのものの実装は、この依頼に含めません。
+    
+    ## 目的
+    - 利用者が、現在利用できる機能と未実装の機能を判断できるようにする。
+    - 未実装と、将来の提供を想定しない製品範囲を区別する。
+    - GitHub 側の処理を実装していないことと、必要な YAML を生成できないことを混同しない。
+    - 対応度の正本を一つの inventory に保つ。
+    
+    ## 成功条件
+    - `src/github_actions/github_spec.json` の `coverage` に、既存行と追加する実装単位の行をまとめて管理している。
+    - status は次の5種類になり、既存の `unsupported` が分類し直されている。
+      - `implemented`: その行が表す実装単位は対応済み。
+      - `limited`: 一部対応。具体的な対応範囲と制限を示す。
+      - `unimplemented`: 製品の対応範囲だが未実装。実装時期の約束を意味しない。
+      - `excluded`: 製品として提供しない範囲。
+      - `reference`: 出典の説明・案内行。機能の対応度集計には含めない。
+    - schema version を上げ、参照コード・テスト・文書が新しい分類を扱っている。
+    - `assessment`、`notes`、検証根拠が、各行の実装単位と status に整合している。
+    - 出典の見出しと実装単位が異なる場合も、固定出典への対応を追跡できる。
+    - 未実装項目を別の backlog や文書だけに置かず、同じ inventory に記録している。
+    - GHES 専用の収録誤りを修正し、同様の適用条件の取り違えがないか確認している。
+    - 個別行を実装・生成・scenario と照合し、無条件の一括昇格をしていない。
+    - repository の標準検証が通り、生成物と実際の公開 JSDoc の例も整合している。
+    
+    ## 決定事項
+    - status を上記の5種類へ変更する。
+      - 理由: status だけでも未実装と製品としての非対応を区別できるようにするため。
+      - 主な棄却案: 既存の3種類を維持し、区別を `assessment` だけに置く案。
+    
+    - `assessment` は fixture 依存、代替手段、出典の不確定などの補足理由として使う。`notes` は具体的な対応範囲を示す。
+      - 理由: 実装状態、制約の理由、利用条件を区別するため。
+      - 主な棄却案: 一律の説明で、異なる機能の制約をまとめて記載する案。
+    
+    - 次の既存行を `implemented` とする。
+      - `The $default-branch placeholder`
+      - context の親行 `github`、`vars`、`job`、`runner`、`secrets`
+      - `Supported keywords for jobs that call a reusable workflow`
+      - `Creating a reusable workflow`
+      - `Using inputs and secrets in a reusable workflow`
+      - `Calling a reusable workflow`
+      - `Passing inputs and secrets to a reusable workflow`
+      - `Using a matrix strategy with a reusable workflow`
+      - `Nesting reusable workflows`
+      - `Passing secrets to nested workflows`
+      - `Using outputs from a reusable workflow`
+      - `Controlling cache access in reusable workflows`
+      - reusable workflow の `github` context の行
+      - 理由: 各行が表す生成・参照・供給値の評価や伝播は実装されているため。
+      - 主な棄却案: GitHub の実値供給・認可・実行処理や、独立した未実装の解析を理由に、これらの行をすべて部分対応とする案。
+      - 外部契約の解析・照合などの不足は、独立した `unimplemented` 行で示す。関連する境界の説明は残す。
+    
+    - 次の既存行を `limited` のまま維持する。
+      - context の `strategy`
+      - `strategy.max-parallel`
+      - `reuse-constraint` の `nesting-depth`
+      - `reuse-constraint` の `unique-workflow-count`
+      - `jobs.<job_id>.snapshot.if`
+      - 理由: 実際に検証・評価できる範囲に制約があるため。
+      - 主な棄却案: 対象を狭く定義し直して、制限を notes だけに置く案。
+      - strategy の制限は、scenario で `maxParallel` の明示設定が必要なことに限定して説明する。
+      - 深さ・種類数はローカルグラフを検証できるが、外部部分を含む全体の上限内を保証しない。
+      - snapshot.if は固定の custom-image 文書が `github.ref` を例示する一方、固定 context availability 表には行がない。追加 context の許可範囲を確定できないことと、確認された実装不足を区別する。
+    
+    - 次の既存行を `reference` とする。
+      - `Workflow templates`
+      - `Example workflow template file`
+      - `Functions`
+      - `How reusable workflows use runners`
+      - `Reusable workflows`
+      - `Access to reusable workflows`
+      - `Access and permissions for nested workflows`
+      - `Limitations of reusable workflows`
+      - `About YAML syntax for workflows`
+      - context availability 表に対応する各行
+      - `reuse-constraint` の `repository-variables`
+      - `Next steps`
+      - 理由: 親節、規則説明、利用案内を機能として重複計数しないため。
+      - 主な棄却案: 説明行を総合的な `limited` として残す案。
+      - context availability の各行は許可範囲と実装行への参照を維持する。未実装の authoring 経路を説明行に埋没させない。
+    
+    - 次の範囲を `unimplemented` として同じ inventory に明示する。
+      - native YAML anchors / aliases の生成。
+      - 外部 reusable workflow の取得・解析。呼び出しグラフと実際の入力・secret・出力契約の解析／照合を含む。
+      - 明示した初期権限に基づく、ネスト先の `GITHUB_TOKEN` 権限縮小の検証。
+      - workflow の `maxParallel` 設定を省略した場合に、`strategy.max-parallel` を明示 fixture から供給する機能。
+      - secret を含む job output の抑止。
+      - 明示した matrix 完了順に基づく reusable workflow 出力の選択。
+      - workflow 全体の `env` に対する型付き callback。
+      - `hashFiles()` の戻り値を fixture で供給し、その外側の式も評価する scenario 機能。
+      - 理由: 定義の生成、静的検証、供給値に対する scenario 評価として有用な、未実装の範囲であるため。
+      - 主な棄却案: これらを製品としての非対応にする案、または別管理にする案。
+      - 現在の実装と不足を記録する。今この task で実装したり、実装時期を約束したりしない。
+    
+    - 次の範囲を `excluded` とする。
+      - workflow template の `.properties.json` メタデータ生成。
+      - workflow template の利用範囲・配布管理。
+      - private/internal template repository へのアクセス付与。
+      - `hashFiles()` のファイルシステム・glob・ハッシュ計算。
+      - GitHub の監査ログを使う reusable workflow の実利用監視。
+      - reusable workflow の初回・再実行時の参照選択を扱う scenario モデル。
+      - 理由: 定義の生成・供給値の評価から、配布運用、権限管理、実ファイル状態、実行履歴を扱う機能へ範囲が広がるため。
+      - 主な棄却案: すべてを将来の未実装候補として残す案。
+    
+    - `hashFiles()` は責務ごとに分けて記録する。
+      - 式の生成: `implemented`
+      - 戻り値 fixture による scenario 関数評価: `unimplemented`
+      - ファイルからのハッシュ計算: `excluded`
+      - 理由: 生成できること、式として評価できないこと、提供しない計算処理を status から区別するため。
+      - 主な棄却案: 既存の一行を `limited` または `unimplemented` にして全範囲を notes だけで説明する案。
+      - 現在の scenario は `hashFiles()` の戻り値を注入していない。未対応式のフィールド全体の結果を override する。この違いを正確に記載する。
+    
+    - GHES 専用の `Placeholder values in the runs-on key` を GitHub.com 向け coverage から除去する。
+      - 理由: 固定出典の `ghes` 条件内にあり、対象環境の収録誤りだから。
+      - 主な棄却案: 新しい非該当 status を追加して残す案、生成機能の未対応として扱う案。
+    
+    ## 制約
+    - 固定仕様の検証日 `2026-10-02` と github/docs revision `0b8c768bf0d5a13560ec82fd3daa414137e2e436` は変更しない。
+    - GitHub の意味は固定出典で確認する。追加の公式実装根拠を使う場合は、固定文書との関係を明示する。
+    - generation、validation、scenario に仕様取得のネットワーク処理を追加しない。
+    - 外部 workflow を取得して実装機能として解析する処理は追加しない。
+    - 公開 authoring DSL、interpreter、scenario の動作を変更しない。今回の変更対象は inventory の schema・分類と、その利用箇所・文書・検証である。
+    - template YAML を生成する責務と、GitHub がコピー時に置換・認可・実行する責務を混同しない。
+    - 現在なぜ実装しないかを説明し、過去の決定を理由の代わりに使わない。
+    - push、PR 作成、実際の release、deploy は行わない。
+    - commit を作成する場合、この修正の release 影響は patch とする。
+    
+    ## 対象外
+    - 分類した未実装機能の実装。
+    - GitHub 仕様 snapshot の最新版への更新。
+    - Actions、shell、task body の scenario 内での実行。
+    - runner、イベント配送、実効認可、実時間、スケジューリングの再現。
+    - 新しい provider、CI 実行基盤、運用管理ツール。
+    - 別の backlog や歴史的決定文書の新設。
+    
+    ## 未検証の前提
+    - 開始時の checkout と working tree を確認する。直近に確認した実装 commit は `4f96696e1cd03b5f9d5c1d98add0afe61690c82c`。
+    - 既存 coverage の実際のキー、schema 利用箇所、集計・検証コードを確認する。本文の表示名は既存の正確なキーと照合する。
+    - 既存の検証根拠が各実装単位を実際に検証しているか確認する。
+    - 固定出典の GitHub.com 条件を正しく適用しているか、GHES 専用行以外も確認する。
+    - metadata の変更が生成物の task artifact identity に影響するか確認する。
+    
+    ## 実装時の指示
+    - 主な対象は `src/github_actions/github_spec.json`、`src/github_actions/github_spec.ts`、`tests/github_spec_test.ts`、`docs/GITHUB_ACTIONS_SPEC.md` と関連する既存文書・公開 JSDoc。
+    - 既存の blanket notes を、各行の機能説明、対応範囲、現状の不足、検証境界に置き換える。
+    - 独立行には固定出典と実装単位を示す。元の節の行を残す場合は、実装単位の行へ案内する。
+    - 未実装の根拠を、未実装そのものを正当化する循環説明や「GitHub-owned」という一語で済ませない。
+    - `reference` は対応度の分母から除外する。`excluded` は未実装件数に混ぜず、集計の対象と意味を明示する。
+    - inventory の自己整合チェックだけを完了根拠にしない。対応済みの根拠は、公開 DSL から生成・解釈までの既存の実経路と照合する。
+    - 新しい未実装機能の先行実装や、その将来実装を要求するテストは追加しない。必要な検証は分類・参照・集計・現在の境界に絞る。
+    - 標準検証を実行し、必要なら生成物を再生成して差分を確認する。公開例を検証する場合は、実際の掲載コードを使う。
+    - 最終報告では、採用した分類、未実装・非対応の範囲、収録誤りの修正、検証結果を簡潔に示す。
+  - A: 合意した分類を inventory に反映します。まず checkout・関連 guidance・分類の利用箇所を確認し、固定出典との照合、文書と検証の更新まで進めます。 checkout は指定の commit と一致し、working tree は clean です。`develop-repository` と `design-review` を適用します。inventory の schema 変更として独立レビューを行い、commit の release 影響は承認済みの patch に収めます。 `investigate-problem` と固定仕様確認の skill で、収録条件と分類の根拠を確認します。観測面も適用判定しましたが、今回は同期的な metadata の変更なので、新しい telemetry は追加しません。未実装項目の機能コードは変更しません。 固定出典199ファイルの SHA-256 がすべて一致しました。記事見出しの条件を確認した範囲では、GHES 専用なのは指摘済みの `runs-on` 置換節でした。分類の根拠には、生成・受け渡しと、未実装の解析・scenario 評価を分けて記録します。 公開 DSL からの生成・scenario を含む関連検証は41件通りました。`hashFiles()` の override が関数の戻り値ではなくフィールド全体を置き換えることも確認できています。説明行と機能件数の整合を確認したところ、イベント導入見出しも `implemented` になっていたため、同じ基準で `reference` に直します。 分類は対応済み387、部分対応5、未実装8、非対応6、説明行47になりました。schema と固定仕様の識別情報は整合し、標準 fix/check も通っています。生成 CI YAML の差分はソース変更に伴う task artifact identity の更新だけです。これから独立レビューと全検証を並行して行います。 独立レビューは指摘なしで完了しました。標準の全検証は LSP の検証まで進んでいます。未実装8項目と非対応6項目は同じ inventory に残り、生成・scenario の機能追加はしていません。全検証の完了後にローカル commit と task evidence を保存します。 全検証が完了し、246件すべて通りました。公開 JSDoc の実際の249例、LSP、生成物検査、E2E も含めて成功しています。独立レビュー済みの差分と一致していることを確認して、ローカル commit を作成します。 分類修正は完了しました。schema 2・5分類へ更新し、未実装8項目と非対応6項目を同じ inventory に記録、GHES 専用行も除去しました。
+- U67: retry
+  - A: 検証済みの staged 変更を確認し、署名付きのローカル commit を再試行します。 署名付き commit `a6d482c` が成功しました。最後に、この変更の検証根拠と会話記録を Git note に保存します。 staged patch SHA256 e09d659b7738fe76cbb7aa9283b3609caae2aba0bf2bbfed3a264e3cc7b38e1e を照合し、既存署名設定で commit a6d482c0d08beeaa061724b365c3b86d2d82b566 成功。新 anchor の既存 note は absent。complete runtime history と67件の human 入力を照合して normalized note を準備。
