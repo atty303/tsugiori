@@ -22,22 +22,30 @@ documented in the [README](../README.md) and [architecture](ARCHITECTURE.md).
 
 ## Remaining GitHub specification work
 
-The frozen [coverage inventory](../src/github_actions/github_spec.json) records
-`assessment` separately from status. Trigger declarations, payload typing,
-activity guards, fixture-based filtering and native background/parallel steps
-with logical synchronization, native context references, pure expression
-interpretation and the local reusable unique-workflow limit are implemented and
-verified locally. Remaining context values require explicit external fixtures;
-`hashFiles()` requires a field-specific value. External reusable graphs are not
-fetched, so their nesting and unique count remain GitHub validation boundaries.
+The frozen [coverage inventory](../src/github_actions/github_spec.json) is the
+single list of GitHub capability assessments, including unfinished
+implementation units. `unimplemented` records product-scope work without
+delivery dates; `excluded` records capabilities this product does not provide.
+`limited` states the exact supported subset, while `reference` describes source
+guidance rather than another feature.
+[The specification basis](GITHUB_ACTIONS_SPEC.md) explains the schema and
+execution boundaries; this roadmap does not duplicate its backlog.
 
-YAML anchors/aliases are represented by TypeScript reuse. Workflow templates,
-template metadata, distribution and marketplace are outside this product.
-Reference headings and availability catalog rows are not additional unsupported
-features. GitHub owns event delivery, branch eligibility, webhook recursion
-suppression, release draft suppression, access, effective permissions,
-scheduling and runner behavior; these remain execution boundaries rather than
-requests to add a local CI platform.
+Native YAML anchors/aliases remain unimplemented; TypeScript reuse is an
+available alternative. Template YAML can preserve `$default-branch`, while
+template metadata generation and distribution/access administration are
+excluded. `hashFiles()` generation is implemented, return-value fixture
+interpretation is unimplemented, and filesystem hashing is excluded. Current
+scenario overrides replace the complete field result. External reusable
+definitions/contracts and graphs are not retrieved; their analysis is
+unimplemented and local graph limit checks do not establish complete external
+depth/count.
+
+GitHub owns event delivery, branch eligibility, webhook recursion suppression,
+release draft suppression, live access, effective authorization, scheduling and
+runner behavior. Supplied-value models such as nested permission ceilings or
+matrix output selection are separate unimplemented inventory units, not requests
+to add a local CI execution platform.
 
 ## Future candidates
 

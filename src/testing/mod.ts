@@ -35,10 +35,12 @@ import type {
  * step conclusion expectation.
  *
  * Typed expressions are evaluated by the interpreter. For an unsupported raw
- * expression or `hashFiles()`, give the value at its exact evaluation site, such
+ * expression or `hashFiles()`, give the complete field result at its exact evaluation site, such
  * as `job.step("build").expression("if", true)` or
  * `job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
- * an error. Generated task preparation steps succeed by default and can be
+ * an error. This replaces the field result, including surrounding functions,
+ * operators and interpolation; it does not inject a `hashFiles()` return value.
+ * Generated task preparation steps succeed by default and can be
  * overridden with `job.internal("prepare", "failure")`. Failures identify the
  * workflow, job, matrix, step, and field, and distinguish missing or invalid
  * fixtures, expression errors, and expectation mismatches.
@@ -648,7 +650,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
     this.rules.expectedConclusion = value;
     return this;
   }
-  /** Supply a value at this exact expression field for an unsupported raw expression or hashFiles(). The interpreter does not guess unspecified values; use the native field path, such as if or strategy.matrix.
+  /** Supply the complete result at this exact expression field for an unsupported raw expression or hashFiles(). Surrounding functions/operators/interpolation are replaced too; this is not a function-return fixture. The interpreter does not guess unspecified values; use the native field path, such as if or strategy.matrix.
    * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
    * ```ts
    * testStep.expression("if", true);
@@ -791,7 +793,7 @@ export class InstanceScenario<Job> {
     this.rules.expectedSettings = value;
     return this;
   }
-  /** Supply an exact job expression value for raw expressions or unsupported functions; native paths include runs-on.group, environment.url and defaults.run.shell. For settings fields, enable interpretation with expectSettings() or expectRunSettings(); condition and matrix overrides retain their existing behavior.
+  /** Supply a complete job expression field result for raw expressions or unsupported functions; native paths include runs-on.group, environment.url and defaults.run.shell. This replaces surrounding operations rather than injecting a function result. For settings fields, enable interpretation with expectSettings() or expectRunSettings(); condition and matrix overrides retain their existing behavior.
    * @example Given a typed job/instance scenario builder `testJob`.
    * ```ts
    * testJob.expression("environment.url", "https://example.com")

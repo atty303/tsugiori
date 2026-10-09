@@ -847,7 +847,10 @@ export const success = (): Expression<boolean, never, undefined, false> =>
 export const failure = (): Expression<boolean, never, undefined, false> =>
   call("failure");
 /** Returns a SHA-256 hash for files matching the supplied glob patterns within GITHUB_WORKSPACE. Individual file hashes are combined into a final hash; no matches returns an empty string. ! patterns exclude matches; Windows matching is case-insensitive.
- * Tsugiori scenarios require an explicit site value instead of reading runner files.
+ * Tsugiori emits this call without reading files. Scenarios require an explicit
+ * override of the complete expression field; it replaces surrounding operations
+ * too, rather than supplying this function's return value. Return-value fixtures
+ * are unimplemented; scenario filesystem hashing is excluded.
  * @see https://docs.github.com/en/actions/reference/workflows-and-actions/expressions#hashfiles
  * @example In a `workflow().job()` callback with `{ job }`.
  * ```ts

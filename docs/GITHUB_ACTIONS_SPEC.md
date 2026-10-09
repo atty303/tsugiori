@@ -11,20 +11,52 @@ snapshots; configuration does not select multiple baselines.
 
 The inventory includes workflow syntax sections, event names, context/property
 and availability rows, expression sections/operators and reusable workflow
-semantics. Each item records `implemented`, `limited` or `unsupported`, a
-limitation and an immutable source. The source manifest includes transitive
-Markdown templates, variables and feature gates at the same revision. Apply
-GitHub.com conditions when reading source templates; GHES branches are not
-Tsugiori targets. `publishedSources` records the corresponding published pages.
-The reconciliation field records differences in wording between official sources
-and Tsugiori's retained limits.
+semantics. Schema 2 distinguishes source guidance from implementation units:
 
-`assessment` distinguishes `supported`, `implementation-gap`, `alternative`,
-`outside-product`, `github-runtime` and `reference`; an item can have more than
-one assessment. `status` retains the existing capability summary. Headings,
-deprecated `pull_request_comment` guidance, templates and YAML sharing are
-classified explicitly instead of being counted as missing trigger events.
-Trigger rows link their compiler, type/scenario and actual LSP evidence.
+| Status          | Meaning                                                                              |
+| --------------- | ------------------------------------------------------------------------------------ |
+| `implemented`   | The implementation unit described by this row is supported.                          |
+| `limited`       | A concrete subset is supported; notes identify what cannot be evaluated or verified. |
+| `unimplemented` | Within product scope but absent; no delivery date is promised.                       |
+| `excluded`      | A capability the product does not provide, distinct from unfinished work.            |
+| `reference`     | Source explanation or navigation, not another implementation unit.                   |
+
+Count `implemented`, `limited` and `unimplemented` rows for implementation
+scope. Report `excluded` and `reference` counts separately; reference rows do
+not enter the capability denominator and excluded rows are not unfinished
+implementation. These are counts of inventory units, not a percentage of all
+GitHub behavior. Consumers of schema 1 must handle the new statuses before
+reading schema 2; the former `unsupported` category is no longer emitted.
+
+Each row retains an immutable source and anchor. `assessment` explains evidence
+or boundaries such as native authoring, fixture dependence, alternatives and
+source uncertainty; `notes` defines the exact supported/missing scope.
+`evidence` links current source/tests, including evidence of a limitation rather
+than implying an absent feature passes. Optional `related` entries use
+`domain:key` identifiers to link other rows in this same inventory.
+Unimplemented analysis and scenario units live here, not in a separate backlog.
+A reference heading can guide readers to its independently assessed
+implementation units.
+
+The source manifest includes transitive Markdown templates, variables and
+feature gates at the same revision. Apply GitHub.com conditions when reading
+source templates; GHES branches are not Tsugiori targets. `publishedSources`
+records the corresponding published pages. The reconciliation field records
+differences in wording between official sources and Tsugiori's retained limits.
+
+Context availability rows retain field-scope information and links to syntax
+rows; catalog presence alone does not establish public callback support.
+Workflow-level env's missing typed callback has its own unimplemented unit.
+Trigger rows link compiler, type/scenario and actual LSP evidence. Existing
+implemented rows do not claim hosted event delivery or authorization.
+
+Template YAML can preserve `$default-branch`; GitHub replaces it when copying
+the template into a target repository. No generation-time substitution is
+required. Metadata generation and distribution/access administration are
+excluded: catalog assets and repository visibility/user/team access are separate
+from the CI job graph. The template `runs-on` replacement section is GHES-only
+and is not part of this GitHub.com coverage. YAML anchor/alias emission is
+unimplemented; TypeScript reuse is an alternative, not native alias generation.
 
 ## Payload type basis
 
@@ -118,9 +150,14 @@ supplied values. A quoted function name does not remove the implicit success
 gate. Computed JSON values are closed: missing properties yield null, which
 converts to an empty string. Partial external fixtures remain strict, including
 nested event values; missing data is not evidence of native absence.
-`hashFiles()` continues to require a field-specific scenario value and never
-reads files. Native function argument counts and malformed JSON/format strings
-fail with a location-aware scenario error.
+`hashFiles()` generation, result-fixture interpretation and filesystem hashing
+are separate inventory units: implemented, unimplemented and excluded,
+respectively. The current scenario override replaces the complete field result;
+it does not inject a hashFiles return value or evaluate the surrounding
+functions/operators/interpolation. Missing overrides fail. Local files cannot
+establish the runner workspace after actions/steps that scenarios do not
+execute. Native function argument counts and malformed JSON/format strings fail
+with a location-aware scenario error.
 
 Where prose is ambiguous (JSON numbers versus hexadecimal examples, missing
 access versus its string conversion), the supplemental pinned runner
@@ -140,6 +177,17 @@ is the registered local definition/output path; repeated calls and matrix
 members do not increase the count. External graph resolution is an explicit
 assertion: external references are not fetched, so their unique count and
 nesting cannot be preflighted.
+
+External retrieval/graph/contract analysis remains unimplemented: it requires
+ref resolution, authorized retrieval, pinned content and an offline validation
+handoff. Native call/input/secret/output generation and supplied-value
+propagation remain implemented units. Likewise, validation from explicit initial
+token permissions, secret-output suppression and output selection from supplied
+matrix completion order are unimplemented value models, distinct from live
+GitHub authorization and scheduling. Secret detection must be grounded in
+official runner behavior; an ad hoc string check is not equivalent. Usage
+monitoring and rerun history models are excluded because they add organization
+audit operations or time-varying execution history to definition validation.
 
 Background, wait, wait-all, cancel and parallel use the fixed Actions NGA
 GitHub.com feature gate. Native run/uses and task-backed run steps retain
@@ -187,8 +235,8 @@ Use the repository's
 [specification update skill](../.agents/skills/update-github-actions-spec/SKILL.md)
 only for an explicit specification refresh. It fixes the new sources before
 changing coverage and asks whether newly discovered capabilities should be
-implemented. Unsupported fields can remain unsupported when advancing the basis.
-Ordinary workflow authoring and generation do not invoke this process.
+implemented. Unimplemented or excluded units can remain so when advancing the
+basis. Ordinary workflow authoring and generation do not invoke this process.
 
 Public API Doc comments explain how to author the supported GitHub capability in
 Tsugiori: what to write, prerequisites, callback context and returned values,

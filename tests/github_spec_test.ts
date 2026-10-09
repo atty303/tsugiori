@@ -1,11 +1,23 @@
 import { activities } from "../src/github_actions/events.ts";
-import { assert, assertEquals } from "@std/assert";
+import { assert, assertEquals, assertRejects } from "@std/assert";
 import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
 import { githubExpressionScopes } from "../src/github_actions/expression_scope.ts";
 import manifest from "../deno.json" with { type: "json" };
+import {
+  contains,
+  format,
+  hashFiles,
+  project,
+  scenario,
+  workflow,
+} from "../src/github_actions.ts";
+import { lowerProject } from "../src/compiler/authoring.ts";
+import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
+import { parse } from "../src/deps.ts";
 
 Deno.test("fixed spec identity, coverage and source manifest are internally consistent offline", () => {
   assertEquals(githubActionsSpec.tsugioriVersion, manifest.version);
+  assertEquals(githubActionsSpec.schemaVersion, 2);
   assert(/^[a-f0-9]{40}$/.test(githubActionsSpec.docsRevision));
   assert(/^\d{4}-\d{2}-\d{2}$/.test(githubActionsSpec.verifiedOn));
   const sources: Readonly<Record<string, { sha256: string; url: string }>> =
@@ -13,12 +25,27 @@ Deno.test("fixed spec identity, coverage and source manifest are internally cons
   const entries = new Set<string>();
   for (const item of githubActionsSpec.coverage) {
     assert(sources[item.source]);
-    assert(["implemented", "limited", "unsupported"].includes(item.status));
+    assert(
+      ["implemented", "limited", "unimplemented", "excluded", "reference"]
+        .includes(item.status),
+      item.key,
+    );
     assert(item.notes.trim());
     const id = `${item.domain}:${item.key}`;
     assert(!entries.has(id), id);
     entries.add(id);
   }
+  for (const item of githubActionsSpec.coverage) {
+    for (const related of item.related ?? []) {
+      assert(entries.has(related), related);
+    }
+    for (const evidence of item.evidence ?? []) {
+      assert(Deno.statSync(evidence).isFile, evidence);
+    }
+  }
+  assert(
+    !entries.has("reuse-reference:Placeholder values in the `runs-on` key"),
+  );
   for (const key of Object.keys(githubExpressionScopes)) {
     assert(githubActionsSpec.coverage.some((e) => e.key === key), key);
   }
@@ -95,8 +122,111 @@ Deno.test("fixed spec identity, coverage and source manifest are internally cons
   ) assert(entries.has(`expression-operator:${operator}`));
 });
 
+Deno.test("coverage separates implementation scope, exclusions and references within one inventory", () => {
+  const items = githubActionsSpec.coverage;
+  const implementationScope = items.filter((item) =>
+    ["implemented", "limited", "unimplemented"].includes(item.status)
+  );
+  const excluded = items.filter((item) => item.status === "excluded");
+  const references = items.filter((item) => item.status === "reference");
+  assertEquals(
+    implementationScope.length + excluded.length + references.length,
+    items.length,
+  );
+  assert(items.some((item) => item.status === "unimplemented"));
+  for (
+    const item of items.filter((item) => item.domain === "context-availability")
+  ) {
+    assertEquals(item.status, "reference", item.key);
+    assert(item.related?.some((id) => id.startsWith("syntax:")), item.key);
+  }
+  const hashUnits = [
+    ["expression", "hashFiles", "implemented"],
+    ["scenario-capability", "hashFiles-result-fixture", "unimplemented"],
+    ["execution-capability", "hashFiles-filesystem", "excluded"],
+  ];
+  for (const [domain, key, status] of hashUnits) {
+    const row = items.find((item) =>
+      item.domain === domain && item.key === key
+    );
+    assert(row, key);
+    assertEquals(row.status, status, key);
+    assert(row.related?.length, key);
+  }
+});
+
+Deno.test("template default-branch support preserves the placeholder through public authoring and emission", () => {
+  const template = workflow("template.yml", {
+    on: { push: { branches: ["$default-branch"] } },
+  }).job(
+    "build",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").run({ name: "Build", run: "true" }),
+  );
+  const lowered = lowerProject(
+    project({ workflows: [template] }),
+    "./workflows.ts",
+  );
+  const emitted = parse(emitWorkflow(lowered.workflows[0].workflow));
+  assertEquals(emitted.on.push.branches, ["$default-branch"]);
+  assertEquals(
+    githubActionsSpec.coverage.find((item) =>
+      item.key === "The `$default-branch` placeholder"
+    )?.status,
+    "implemented",
+  );
+});
+
+Deno.test("hashFiles emits natively but scenario overrides replace the complete expression field", async () => {
+  const flow = workflow("hash.yml", { on: { push: {} } }).job(
+    "check",
+    ({ job }) =>
+      job.runsOn("ubuntu-latest").run({
+        id: "read",
+        name: "Read hash field",
+        run: "true",
+        if: () => contains(hashFiles("deno.lock"), "abc"),
+        env: () => ({ HASH: format("prefix-{0}", hashFiles("deno.lock")) }),
+      }),
+  );
+  const lowered = lowerProject(
+    project({ workflows: [flow] }),
+    "./workflows.ts",
+  );
+  const step =
+    parse(emitWorkflow(lowered.workflows[0].workflow)).jobs.check.steps[0];
+  assertEquals(step.if, "${{ contains(hashFiles('deno.lock'), 'abc') }}");
+  assertEquals(
+    step.env.HASH,
+    "${{ format('prefix-{0}', hashFiles('deno.lock')) }}",
+  );
+  const missing = await assertRejects(() =>
+    scenario(flow, (test) => test.github({ event_name: "push", event: {} }))
+  );
+  assertEquals((missing as { kind?: string }).kind, "expression_unsupported");
+  await scenario(flow, (test) => {
+    test.github({ event_name: "push", event: {} });
+    test.job("check", (job) => {
+      job.step("read")
+        .expression("if", true)
+        .expression("env.HASH", "complete-field")
+        .fixture(({ env }) => {
+          assertEquals(env.HASH, "complete-field");
+          return {};
+        }).expectRun();
+    });
+  });
+});
+
 Deno.test("trigger coverage agrees with the supported frozen event and activity catalog", () => {
   const items = githubActionsSpec.coverage;
+  assertEquals(
+    items.filter((item) =>
+      item.domain === "event" && item.status === "implemented"
+    )
+      .map((item) => item.key).sort(),
+    Object.keys(activities).sort(),
+  );
   for (const [event, types] of Object.entries(activities)) {
     assert(
       items.some((item) =>

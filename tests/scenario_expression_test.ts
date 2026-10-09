@@ -191,7 +191,10 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
     const row = githubActionsSpec.coverage.find((row) =>
       row.domain === "context" && row.key === `strategy.${key}`
     )!;
-    assertEquals(row.assessment.includes("implementation-gap"), false);
+    assertEquals(
+      row.status,
+      key === "max-parallel" ? "limited" : "implemented",
+    );
   }
   assertEquals(env.VALUE, `\${{ toJSON(fromJSON('{"version":22}').version) }}`);
   const result = await scenario(flow, (test) => {

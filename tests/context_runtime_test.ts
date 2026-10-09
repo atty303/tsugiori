@@ -619,7 +619,7 @@ Deno.test("every frozen github property traverses typed authoring, native emissi
   );
   for (const row of propertyRows) {
     assertEquals(row.status, "implemented", row.key);
-    assert(!row.assessment.includes("implementation-gap"), row.key);
+    assert(row.assessment.includes("native-authoring"), row.key);
   }
   const flow = workflow("all-context.yml", { on: { push: {} } }).job(
     "build",

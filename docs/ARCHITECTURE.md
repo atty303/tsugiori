@@ -317,9 +317,10 @@ built-ins, object filters and suffix/dynamic access on supplied values. Known
 absence on closed computed values yields native null/empty conversion; partial
 external fixtures remain strict. Status detection excludes quoted function
 names. `hashFiles()` and unknown asserted forms need a field-specific scenario
-value; unsupported forms never silently succeed. The pinned runner
-reconciliation and execution boundaries are documented in
-[the spec basis](GITHUB_ACTIONS_SPEC.md).
+override of the complete result, including surrounding operations. A hashFiles
+return-value fixture is unimplemented; filesystem hashing is excluded. Missing
+overrides never silently succeed. The pinned runner reconciliation and execution
+boundaries are documented in [the spec basis](GITHUB_ACTIONS_SPEC.md).
 
 Job container and named service declarations retain their native settings in
 YAML. Each setting uses its frozen expression scope; the service map's names
