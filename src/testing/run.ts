@@ -65,34 +65,38 @@ function cachePolicy(
   workflowMode: CacheMode | undefined,
   callerMode: CacheMode | undefined,
   context: Context,
-  interpret: boolean,
 ): CachePolicy {
   const explicit = job.cacheMode ?? workflowMode ?? callerMode;
-  if (!interpret) return { explicit };
   const event = (context.github as Record<string, unknown> | undefined)
     ?.event_name;
-  if (
-    explicit === undefined &&
-    (typeof event !== "string" || event === "workflow_call")
-  ) {
-    throw new ScenarioError(
-      "fixture_missing",
-      `${job.id}.cache-mode`,
-      "Trigger-dependent cache defaults require the original github.event_name fixture.",
-    );
-  }
+  const mode = () => {
+    if (
+      explicit === undefined &&
+      (typeof event !== "string" || event === "workflow_call")
+    ) {
+      throw new ScenarioError(
+        "fixture_missing",
+        `${job.id}.cache-mode`,
+        "Trigger-dependent cache defaults require the original github.event_name fixture.",
+      );
+    }
+    return explicit ?? defaultCacheMode(event as string);
+  };
   return {
     explicit,
-    settings: {
-      cacheMode: explicit ?? defaultCacheMode(event as string),
-      cacheModeSource: job.cacheMode !== undefined
-        ? "job"
-        : workflowMode !== undefined
-        ? "workflow"
-        : callerMode !== undefined
-        ? "caller"
-        : "trigger",
-    },
+    settings: captured<Pick<JobSettings, "cacheMode" | "cacheModeSource">>({
+      cacheMode: mode,
+      cacheModeSource: () => {
+        mode();
+        return job.cacheMode !== undefined
+          ? "job"
+          : workflowMode !== undefined
+          ? "workflow"
+          : callerMode !== undefined
+          ? "caller"
+          : "trigger";
+      },
+    }),
   };
 }
 type Status = Readonly<{
@@ -101,48 +105,46 @@ type Status = Readonly<{
   cancelled: boolean;
 }>;
 
-function same(left: unknown, right: unknown): boolean {
-  if (Object.is(left, right)) return true;
-  if (
-    !left || !right || typeof left !== "object" || typeof right !== "object"
-  ) return false;
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return Array.isArray(left) && Array.isArray(right) &&
-      left.length === right.length && left.every((v, i) => same(v, right[i]));
+/** Capture at the evaluation boundary; property reads only unwrap retained outcomes. */
+function captured<T extends object>(
+  fields: { [K in keyof T]?: () => T[K] },
+): T {
+  const descriptors: PropertyDescriptorMap = {};
+  for (
+    const [key, compute] of Object.entries(fields) as [string, () => unknown][]
+  ) {
+    let value: unknown;
+    let missing: ScenarioError | undefined;
+    try {
+      value = compute();
+    } catch (error) {
+      if (
+        !(error instanceof ScenarioError) || error.kind !== "fixture_missing"
+      ) throw error;
+      missing = error;
+    }
+    descriptors[key] = {
+      enumerable: true,
+      get: () => {
+        if (missing) throw missing;
+        return value;
+      },
+    };
   }
-  const a = Object.keys(left);
-  const b = Object.keys(right);
-  return a.length === b.length &&
-    a.every((key) =>
-      Object.hasOwn(right, key) && same(
-        (left as Record<string, unknown>)[key],
-        (right as Record<string, unknown>)[key],
-      )
-    );
+  return Object.freeze(Object.defineProperties({}, descriptors)) as T;
 }
-
-function expectValue(
-  actual: unknown,
-  expected: unknown,
-  location: string,
-): void {
-  if (!same(actual, expected)) {
-    throw new ScenarioError(
-      "expectation_failed",
-      location,
-      "Expected value differs from the interpreted workflow value.",
-    );
-  }
-}
-
-function expectSubset(
-  actual: Readonly<Record<string, unknown>>,
-  expected: Readonly<Record<string, unknown>>,
-  location: string,
-): void {
-  for (const [name, value] of Object.entries(expected)) {
-    expectValue(actual[name], value, `${location}.${name}`);
-  }
+function retained<T extends object>(...objects: (Partial<T> | undefined)[]): T {
+  return Object.freeze(
+    Object.defineProperties(
+      {},
+      Object.assign(
+        {},
+        ...objects.filter((v) => v !== undefined).map((v) =>
+          Object.getOwnPropertyDescriptors(v!)
+        ),
+      ),
+    ),
+  ) as T;
 }
 
 function evaluateAt(
@@ -317,9 +319,6 @@ function mergeStep(
   for (
     const key of [
       "github",
-      "expectedRunSettings",
-      "expectedInputs",
-      "expectedOutputs",
     ] as const
   ) {
     if (base[key] !== undefined || specific[key] !== undefined) {
@@ -345,22 +344,36 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
       ),
     ]),
     internals: new Map([...base.internals, ...instance.internals]),
-    expectedResult: instance.expectedResult,
+    suppressedOutputs: instance.suppressedOutputs ?? base.suppressedOutputs,
     containerInitialization: instance.containerInitialization ??
       base.containerInitialization,
     containerRuntime: instance.containerRuntime ?? base.containerRuntime,
     environmentProtection: instance.environmentProtection ??
       base.environmentProtection,
-    expectedSettings: instance.expectedSettings ?? base.expectedSettings,
-    expectedStepOrder: instance.expectedStepOrder ?? base.expectedStepOrder,
     call: instance.call ?? base.call,
     callFixture: instance.callFixture ?? base.callFixture,
-    expectedCallInputs: instance.expectedCallInputs ?? base.expectedCallInputs,
-    expectedCallSecrets: instance.expectedCallSecrets ??
-      base.expectedCallSecrets,
   };
 }
 
+function validateSuppression(
+  rules: InstanceRules,
+  job: Job,
+  location: string,
+): void {
+  if (rules.suppressedOutputs === undefined) return;
+  if (
+    job.uses !== undefined ||
+    rules.suppressedOutputs.some((name) =>
+      !Object.hasOwn(job.outputs ?? {}, name)
+    )
+  ) {
+    throw new ScenarioError(
+      "fixture_invalid",
+      `${location}.suppressedOutputs`,
+      "Suppression names must identify declared execution-job outputs.",
+    );
+  }
+}
 function internalKind(
   step: Step,
 ): "cache" | "prepare" | undefined {
@@ -433,39 +446,32 @@ function resolvedConcurrency(
   location: string,
 ): ResolvedConcurrency | undefined {
   if (!value) return undefined;
-  const cancelInProgress = typeof value.cancelInProgress === "boolean"
-    ? value.cancelInProgress
-    : evaluateAt(
-      value.cancelInProgress,
-      context,
-      status,
-      location,
-      "concurrency.cancel-in-progress",
-    );
-  if (
-    typeof cancelInProgress !== "boolean" ||
-    (value.queue === "max" && cancelInProgress)
-  ) {
-    throw new ScenarioError(
-      "expression_error",
-      `${location}.concurrency.cancel-in-progress`,
-      "Cancellation must resolve to boolean; queue max requires false.",
-    );
-  }
-  return {
-    group: stringValue(
-      evaluateAt(
-        value.group,
+  return captured<ResolvedConcurrency>({
+    group: () =>
+      stringValue(
+        evaluateAt(value.group, context, status, location, "concurrency.group"),
+      ),
+    cancelInProgress: () => {
+      const cancel = booleanSetting(
+        value.cancelInProgress,
         context,
         status,
         location,
-        "concurrency.group",
-      ),
-    ),
-    cancelInProgress,
-    ...(value.queue === undefined ? {} : { queue: value.queue }),
-  };
+        "concurrency.cancel-in-progress",
+      );
+      if (value.queue === "max" && cancel) {
+        throw new ScenarioError(
+          "expression_error",
+          `${location}.concurrency.cancel-in-progress`,
+          "queue max requires false cancellation.",
+        );
+      }
+      return cancel;
+    },
+    ...(value.queue === undefined ? {} : { queue: () => value.queue }),
+  });
 }
+
 function resolvedContainerSettings(
   value: unknown,
   context: Context,
@@ -474,35 +480,43 @@ function resolvedContainerSettings(
   field: string,
 ): unknown {
   if (typeof value === "string") {
-    return stringValue(
-      evaluateAt(value, context, status, location, field),
-    );
+    return stringValue(evaluateAt(value, context, status, location, field));
   }
   if (Array.isArray(value)) {
-    return value.map((v, i) =>
-      resolvedContainerSettings(
-        v,
-        context,
-        status,
-        location,
-        `${field}.${i}`,
-      )
-    );
+    const result: unknown[] = [];
+    for (let i = 0; i < value.length; i++) {
+      const entry = captured({
+        value: () =>
+          resolvedContainerSettings(
+            value[i],
+            context,
+            status,
+            location,
+            `${field}.${i}`,
+          ),
+      });
+      Object.defineProperty(result, i, {
+        enumerable: true,
+        get: () => entry.value,
+      });
+    }
+    return Object.freeze(result);
   }
   if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map((
-        [k, v],
-      ) => [
-        k,
-        resolvedContainerSettings(
-          v,
-          context,
-          status,
-          location,
-          `${field}.${k}`,
+    return captured(
+      Object.fromEntries(
+        Object.entries(value).map((
+          [key, v],
+        ) => [key, () =>
+          resolvedContainerSettings(
+            v,
+            context,
+            status,
+            location,
+            `${field}.${key}`,
+          )]
         ),
-      ]),
+      ),
     );
   }
   return value;
@@ -515,119 +529,124 @@ function resolvedSettings(
   location: string,
 ): JobSettings {
   const server = serverContext(context);
-  const scalar = (value: string, field: string) =>
-    stringValue(evaluateAt(value, server, status, location, field));
-  const labels = (values: readonly string[], field: string) =>
-    values.map((v, i) =>
-      scalar(v, `${field}.${i}`)
-    ) as unknown as import("../github_actions/mod.ts").NonEmptyReadonlyArray<
-      string
-    >;
+  const scalar = (v: string, field: string) =>
+    stringValue(evaluateAt(v, server, status, location, field));
   const selection = job.runsOn;
   const environment = job.environment;
-  const deployment =
-    typeof environment === "object" && environment.deployment !== undefined
-      ? typeof environment.deployment === "boolean"
-        ? environment.deployment
-        : evaluateAt(
-          environment.deployment,
+  return captured<JobSettings>({
+    ...(job.container === undefined ? {} : {
+      container: () =>
+        resolvedContainerSettings(
+          job.container,
+          context,
+          status,
+          location,
+          "container",
+        ) as JobSettings["container"],
+    }),
+    ...(job.services === undefined ? {} : {
+      services: () =>
+        resolvedContainerSettings(
+          job.services,
+          context,
+          status,
+          location,
+          "services",
+        ) as JobSettings["services"],
+    }),
+    ...(selection === undefined ? {} : {
+      runsOn: () =>
+        selection.type === "group"
+          ? captured({
+            group: () => scalar(selection.group, "runs-on.group"),
+            ...(selection.labels === undefined ? {} : {
+              labels: () =>
+                resolvedContainerSettings(
+                  selection.labels,
+                  server,
+                  status,
+                  location,
+                  "runs-on.labels",
+                ) as import("../github_actions/mod.ts").NonEmptyReadonlyArray<
+                  string
+                >,
+            }),
+          })
+          : selection.labels.length === 1
+          ? scalar(selection.labels[0], "runs-on")
+          : resolvedContainerSettings(
+            selection.labels,
+            server,
+            status,
+            location,
+            "runs-on",
+          ) as import("../github_actions/mod.ts").NonEmptyReadonlyArray<
+            string
+          >,
+    }),
+    ...(environment === undefined ? {} : {
+      environment: () =>
+        captured({
+          name: () =>
+            scalar(
+              typeof environment === "string" ? environment : environment.name,
+              "environment.name",
+            ),
+          ...(typeof environment === "string" ||
+              environment.deployment === undefined
+            ? {}
+            : {
+              deployment: () =>
+                booleanSetting(
+                  environment.deployment,
+                  server,
+                  status,
+                  location,
+                  "environment.deployment",
+                ),
+            }),
+        }),
+    }),
+    ...(job.concurrency === undefined ? {} : {
+      concurrency: () =>
+        resolvedConcurrency(job.concurrency, server, status, location),
+    }),
+    ...(job.strategy === undefined ? {} : {
+      strategy: () =>
+        captured({
+          ...(job.strategy?.failFast === undefined ? {} : {
+            failFast: () =>
+              (context.strategy as Context)["fail-fast"] as boolean,
+          }),
+          ...(job.strategy?.maxParallel === undefined ? {} : {
+            maxParallel: () =>
+              (context.strategy as Context)["max-parallel"] as number,
+          }),
+        }),
+    }),
+    ...(job.continueOnError === undefined ? {} : {
+      continueOnError: () =>
+        booleanSetting(
+          job.continueOnError,
           server,
           status,
           location,
-          "environment.deployment",
-        )
-      : undefined;
-  if (deployment !== undefined && typeof deployment !== "boolean") {
-    throw new ScenarioError(
-      "expression_error",
-      `${location}.environment.deployment`,
-      "Deployment must resolve to boolean.",
-    );
-  }
-  const concurrency = resolvedConcurrency(
-    job.concurrency,
-    server,
-    status,
-    location,
-  );
-  return {
-    ...(job.container === undefined ? {} : {
-      container: resolvedContainerSettings(
-        job.container,
-        context,
-        status,
-        location,
-        "container",
-      ) as JobSettings["container"],
-    }),
-    ...(job.services === undefined ? {} : {
-      services: resolvedContainerSettings(
-        job.services,
-        context,
-        status,
-        location,
-        "services",
-      ) as JobSettings["services"],
-    }),
-    ...(selection === undefined ? {} : {
-      runsOn: selection.type === "group"
-        ? {
-          group: scalar(selection.group, "runs-on.group"),
-          ...(selection.labels === undefined
-            ? {}
-            : { labels: labels(selection.labels, "runs-on.labels") }),
-        }
-        : selection.labels.length === 1
-        ? scalar(selection.labels[0], "runs-on")
-        : labels(selection.labels, "runs-on"),
-    }),
-    ...(environment === undefined ? {} : {
-      environment: {
-        name: scalar(
-          typeof environment === "string" ? environment : environment.name,
-          "environment.name",
+          "continue-on-error",
         ),
-        ...(typeof environment === "string" ||
-            deployment === undefined
-          ? {}
-          : { deployment: deployment as boolean }),
-      },
-    }),
-    ...(job.strategy === undefined ? {} : {
-      strategy: {
-        ...(job.strategy.failFast === undefined ? {} : {
-          failFast: (context.strategy as Record<string, unknown>)[
-            "fail-fast"
-          ] as boolean,
-        }),
-        ...(job.strategy.maxParallel === undefined ? {} : {
-          maxParallel: (context.strategy as Record<string, unknown>)[
-            "max-parallel"
-          ] as number,
-        }),
-      },
-    }),
-    ...(job.continueOnError === undefined ? {} : {
-      continueOnError: booleanSetting(
-        job.continueOnError,
-        server,
-        status,
-        location,
-        "continue-on-error",
-      ),
     }),
     ...(job.timeoutMinutes === undefined ? {} : {
-      timeoutMinutes: integerSetting(
-        job.timeoutMinutes,
-        server,
-        status,
-        location,
-        "timeout-minutes",
-      ),
+      timeoutMinutes: () =>
+        integerSetting(
+          job.timeoutMinutes!,
+          server,
+          status,
+          location,
+          "timeout-minutes",
+        ),
     }),
-    ...(concurrency === undefined ? {} : { concurrency }),
-  };
+  });
 }
+
 async function runInstance(
   job: Job,
   authorJob: AuthoringJob,
@@ -635,7 +654,6 @@ async function runInstance(
   base: Context,
   rules: InstanceRules,
   workflowPath: string,
-  defaultResult?: Result,
   workflowDefaults: import("../github_actions/mod.ts").RunDefaults | undefined =
     undefined,
   observation: ScenarioObservationState = { nextId: 0 },
@@ -645,7 +663,9 @@ async function runInstance(
   githubFixture: Readonly<Record<string, unknown>> = {},
   tokenPermissions?: TokenPermissions,
 ): Promise<JobInstanceResult> {
-  const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
+  const location = `${workflowPath}.${job.id}[${
+    base.strategy && (base.strategy as ResolvedStrategy)["job-index"]
+  }]`;
   validateRules(rules, authorJob, location);
   const strategy = base.strategy as ResolvedStrategy;
   const steps: Record<string, StepResult> = {};
@@ -722,15 +742,10 @@ async function runInstance(
       "Initialization fixture requires container/services declarations and success/failure.",
     );
   }
-  let settings = rules.expectedSettings === undefined
-    ? undefined
-    : resolvedSettings(
-      job,
-      context,
-      initialStatus,
-      location,
-    );
-  if (settings !== undefined) settings = { ...settings, ...cacheSettings };
+  let settings = retained<JobSettings>(
+    resolvedSettings(job, context, initialStatus, location),
+    cacheSettings,
+  );
   if (
     rules.environmentProtection !== undefined &&
     (!job.environment ||
@@ -743,38 +758,6 @@ async function runInstance(
     );
   }
   if (rules.environmentProtection === "rejected") {
-    for (const [id, rule] of rules.steps) {
-      const authored = flattenSteps(authorJob.steps).find((step) =>
-        step.id === id
-      );
-      checkStep(
-        {
-          id,
-          outcome: "skipped",
-          conclusion: "skipped",
-          inputs: {},
-          outputs: {},
-          env: {},
-        },
-        rule,
-        `${location}.${id}`,
-        undefined,
-        authored,
-      );
-    }
-    if (rules.expectedStepOrder !== undefined) {
-      expectValue([], rules.expectedStepOrder, `${location}.stepOrder`);
-    }
-    if (rules.expectedResult !== undefined) {
-      expectValue(
-        tolerateFailure ? "success" : "failure",
-        rules.expectedResult,
-        `${location}.result`,
-      );
-    }
-    if (rules.expectedSettings) {
-      expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
-    }
     return {
       matrix,
       strategy,
@@ -784,7 +767,8 @@ async function runInstance(
         ? {}
         : { outcome: "failure" as const }),
       steps: {},
-      ...(settings === undefined ? {} : { settings }),
+      stepOrder: [],
+      settings,
       environmentProtection: "rejected",
       outputs: {},
     };
@@ -921,7 +905,6 @@ async function runInstance(
         continue;
       }
       const id = step.id ?? `#${++anonymousOrdinal}`;
-      startedOrder.push(id);
       const stepLocation = `${location}.${id}`;
       const authorStep = step.id === undefined
         ? undefined
@@ -947,15 +930,16 @@ async function runInstance(
           outcome: "skipped",
           conclusion: "skipped",
           outputs: {},
+          typedOutputs: {},
           inputs: {},
           env: {},
         };
         steps[id] = skipped;
         if (step.id) (context.steps as Record<string, unknown>)[id] = skipped;
-        checkStep(skipped, rule, stepLocation, defaultResult, authorStep);
         continue;
       }
 
+      startedOrder.push(id);
       if (!isInternal && !authorStep?.id) {
         throw new ScenarioError(
           "fixture_missing",
@@ -995,16 +979,15 @@ async function runInstance(
             [key, value],
           ) => [key, stringValue(value)]),
         );
-        run = step.type === "run" && rule?.expectedRunSettings !== undefined
-          ? Object.fromEntries(
+        run = step.type === "run"
+          ? captured(Object.fromEntries(
             Object.entries({
               shell: step.shell ?? defaults.shell,
               workingDirectory: step.workingDirectory ??
                 defaults.workingDirectory,
             }).filter(([, value]) => value !== undefined).map((
               [key, value],
-            ) => [
-              key,
+            ) => [key, () =>
               stringValue(
                 evaluateAt(
                   value!,
@@ -1019,9 +1002,9 @@ async function runInstance(
                       key === "workingDirectory" ? "working-directory" : key
                     }`,
                 ),
-              ),
-            ]),
-          )
+              )]
+            ),
+          ))
           : undefined;
         if (authorStep?.type === "task") {
           for (const [name, input] of Object.entries(authorStep.inputs)) {
@@ -1119,6 +1102,18 @@ async function runInstance(
         outcome,
         conclusion,
         outputs,
+        typedOutputs: Object.freeze(
+          authorStep?.type === "task"
+            ? Object.fromEntries(
+              Object.entries(outputs).filter(([, wire]) => wire !== "").map((
+                [name, wire],
+              ) => [
+                name,
+                parseWireValue(authorStep.outputs[name].contract, wire),
+              ]),
+            )
+            : { ...outputs },
+        ),
         inputs,
         env,
         ...(run === undefined ? {} : { run }),
@@ -1139,21 +1134,11 @@ async function runInstance(
           ...changes,
         };
       }
-      checkStep(result, rule, stepLocation, defaultResult, authorStep);
     }
   };
   await execute(job.steps);
   if (pending.size) join([...pending.keys()]);
-  if (rules.expectedStepOrder !== undefined) {
-    const authoredOrder = startedOrder.filter((id) =>
-      flattenSteps(authorJob.steps).some((step) => step.id === id)
-    );
-    expectValue(
-      authoredOrder,
-      rules.expectedStepOrder,
-      `${location}.stepOrder`,
-    );
-  }
+
   const status = stepStatus(steps, initializationFailed);
   const outcome: Result = status.failure
     ? "failure"
@@ -1161,64 +1146,55 @@ async function runInstance(
     ? "cancelled"
     : "success";
   const result = outcome === "failure" && tolerateFailure ? "success" : outcome;
-  if (rules.expectedResult !== undefined) {
-    expectValue(result, rules.expectedResult, `${location}.result`);
-  }
+
   updateJobStatus(outcome);
-  if (
-    settings !== undefined && job.snapshot !== undefined &&
-    outcome === "success"
-  ) {
+  if (job.snapshot !== undefined && outcome === "success") {
     const snapshot = typeof job.snapshot === "string"
       ? { imageName: job.snapshot }
       : job.snapshot;
-    const allowed = snapshot.if === undefined
-      ? true
-      : typeof snapshot.if === "boolean"
-      ? snapshot.if
-      : truthy(
-        evaluateAt(
-          snapshot.if,
-          context,
-          status,
-          location,
-          "snapshot.if",
-        ),
-      );
-    if (allowed) {
-      settings = {
-        ...settings,
-        snapshot: {
-          imageName: snapshot.imageName,
-          ...(snapshot.version === undefined
-            ? {}
-            : { version: snapshot.version }),
+    settings = retained(
+      settings,
+      captured<JobSettings>({
+        snapshot: () => {
+          const allowed = snapshot.if === undefined
+            ? true
+            : typeof snapshot.if === "boolean"
+            ? snapshot.if
+            : truthy(
+              evaluateAt(snapshot.if, context, status, location, "snapshot.if"),
+            );
+          return allowed
+            ? Object.freeze({
+              imageName: snapshot.imageName,
+              ...(snapshot.version === undefined
+                ? {}
+                : { version: snapshot.version }),
+            })
+            : undefined;
         },
-      };
-    }
+      }),
+    );
   }
   if (
-    settings !== undefined && typeof job.environment === "object" &&
-    job.environment.url !== undefined
+    typeof job.environment === "object" && job.environment.url !== undefined
   ) {
-    settings = {
-      ...settings,
-      environment: {
-        ...settings.environment!,
-        url: stringValue(
-          evaluateAt(
-            job.environment.url,
-            context,
-            status,
-            location,
-            "environment.url",
-          ),
-        ),
-      },
-    };
-  }
-  if (rules.expectedSettings) {
-    expectSubset(settings!, rules.expectedSettings, `${location}.settings`);
+    settings = retained(settings, {
+      environment: retained<NonNullable<JobSettings["environment"]>>(
+        settings.environment!,
+        captured({
+          url: () =>
+            stringValue(
+              evaluateAt(
+                (job.environment as { url: string }).url,
+                context,
+                status,
+                location,
+                "environment.url",
+              ),
+            ),
+        }),
+      ),
+    });
   }
   const instance: JobInstanceResult = {
     matrix,
@@ -1230,7 +1206,8 @@ async function runInstance(
       : { containerInitialization: rules.containerInitialization }),
     ...(job.continueOnError === undefined ? {} : { outcome }),
     steps,
-    ...(settings === undefined ? {} : { settings }),
+    stepOrder: Object.freeze(startedOrder.filter((id) => source.has(id))),
+    settings,
     ...(rules.environmentProtection === undefined
       ? {}
       : { environmentProtection: rules.environmentProtection }),
@@ -1296,69 +1273,6 @@ function fixtureOutputs(
   return result;
 }
 
-function checkStep(
-  result: StepResult,
-  rules: StepRules | undefined,
-  location: string,
-  defaultResult?: Result,
-  authorStep?: AuthoringJob["steps"][number],
-): void {
-  if (rules?.expectedRunSettings !== undefined) {
-    if (!result.run) {
-      throw new ScenarioError(
-        "expectation_failed",
-        `${location}.run`,
-        "Run settings require a reached run step.",
-      );
-    }
-    expectSubset(result.run, rules.expectedRunSettings, `${location}.run`);
-  }
-  if (rules?.expectedRun !== undefined) {
-    expectValue(
-      result.outcome !== "skipped",
-      rules.expectedRun,
-      `${location}.reached`,
-    );
-  }
-  if (rules?.expectedOutcome !== undefined) {
-    expectValue(result.outcome, rules.expectedOutcome, `${location}.outcome`);
-  }
-  if (rules?.expectedConclusion !== undefined) {
-    expectValue(
-      result.conclusion,
-      rules.expectedConclusion,
-      `${location}.conclusion`,
-    );
-  }
-  if (rules?.expectedInputs !== undefined) {
-    if (result.outcome === "skipped") {
-      throw new ScenarioError(
-        "expectation_failed",
-        `${location}.inputs`,
-        "Step was skipped before receiving inputs.",
-      );
-    }
-    expectSubset(result.inputs, rules.expectedInputs, `${location}.inputs`);
-  }
-  if (rules?.expectedOutputs !== undefined) {
-    const native = authorStep?.type === "task"
-      ? Object.fromEntries(
-        Object.entries(result.outputs).map(([name, wire]) => [
-          name,
-          parseWireValue(authorStep.outputs[name].contract, wire),
-        ]),
-      )
-      : result.outputs;
-    expectSubset(native, rules.expectedOutputs, `${location}.outputs`);
-  }
-  if (
-    defaultResult !== undefined && result.outcome !== "skipped" &&
-    rules?.expectedOutcome === undefined
-  ) {
-    expectValue(result.conclusion, defaultResult, `${location}.defaultResult`);
-  }
-}
-
 function triggered(config: ProjectConfig, program: Program): boolean {
   const workflow =
     config.workflows.find((p) => p.path === program.workflowPath) ??
@@ -1378,9 +1292,6 @@ async function interpretScenario(
     config.workflows.find((p) => p.path === program.workflowPath) ??
       config.workflows[0];
   if (!called && !triggered(config, program)) {
-    if (program.expectedResult !== undefined) {
-      expectValue("skipped", program.expectedResult, `${author.path}.result`);
-    }
     return { result: "skipped", jobs: {} };
   }
   if (callerTokenPolicy && program.tokenPermissions !== undefined) {
@@ -1413,21 +1324,13 @@ async function interpretScenario(
   const lowered = await lowerProject(config, "./tsugiori.ts");
   const workflow =
     lowered.workflows.find((p) => p.path === author.path)!.workflow;
-  const concurrency = program.expectedConcurrency === undefined
-    ? undefined
-    : resolvedConcurrency(
-      workflow.concurrency,
-      external,
-      { success: true, failure: false, cancelled: false },
-      author.path,
-    );
-  if (program.expectedConcurrency) {
-    expectValue(
-      concurrency,
-      program.expectedConcurrency,
-      `${author.path}.concurrency`,
-    );
-  }
+  const concurrency = resolvedConcurrency(
+    workflow.concurrency,
+    external,
+    { success: true, failure: false, cancelled: false },
+    author.path,
+  );
+
   const authoredJobs = new Map(author.jobs.map((job) => [job.id, job]));
   for (const name of program.jobs.keys()) {
     if (!authoredJobs.has(name)) {
@@ -1438,25 +1341,11 @@ async function interpretScenario(
       );
     }
   }
-  for (const [left, right] of program.expectedBefore) {
-    const first = workflow.jobs.findIndex((job) => job.id === left);
-    const second = workflow.jobs.findIndex((job) => job.id === right);
-    if (first < 0 || second < 0) {
-      throw new ScenarioError(
-        "fixture_invalid",
-        author.path,
-        "Expected job order names an unknown job.",
-      );
-    }
-    if (first >= second || !workflow.jobs[second].needs.includes(left)) {
-      throw new ScenarioError(
-        "expectation_failed",
-        `${author.path}.${left}->${right}`,
-        "Job dependency order does not match the expectation.",
-      );
-    }
-  }
   const executionContexts = new Map<JobInstanceResult, Context>();
+  const suppression = new Map<
+    JobInstanceResult,
+    readonly string[] | undefined
+  >();
   const results: Record<string, JobResult> = {};
   const ancestorStatus = new Map<string, Status>();
   for (const job of workflow.jobs) {
@@ -1465,6 +1354,7 @@ async function interpretScenario(
       steps: new Map(),
       internals: new Map(),
     } as JobRules;
+    validateSuppression(rules, job, location);
     const needs: Record<string, unknown> = {};
     for (const dependency of job.needs) {
       const result = results[dependency];
@@ -1496,10 +1386,13 @@ async function interpretScenario(
     ancestorStatus.set(job.id, status);
 
     if (!condition(job.if, context, status, location)) {
-      results[job.id] = { result: "skipped", outputs: {}, instances: [] };
-      if (rules.expectedResult !== undefined) {
-        expectValue("skipped", rules.expectedResult, `${location}.result`);
-      }
+      results[job.id] = {
+        result: "skipped",
+        outputs: {},
+        instances: [],
+        needs: Object.freeze([...job.needs]),
+      };
+
       continue;
     }
     const failFast = booleanSetting(
@@ -1526,9 +1419,6 @@ async function interpretScenario(
       "max-parallel": maxParallel ?? matrices.length,
     };
 
-    if (rules.expectedMatrix !== undefined) {
-      expectValue(matrices, rules.expectedMatrix, `${location}.matrix`);
-    }
     if (
       rules.completionOrder !== undefined &&
       (rules.completionOrder.length !== matrices.length ||
@@ -1573,26 +1463,30 @@ async function interpretScenario(
       validateRules(rules, authoredJob, location);
       validateRules(specific, authoredJob, location);
       const merged = mergedRules(rules, specific);
+      validateSuppression(merged, job, location);
       const cache = cachePolicy(
         job,
         workflow.cacheMode,
         callerCacheMode,
         context,
-        merged.expectedSettings !== undefined,
       );
       if (job.uses !== undefined) {
-        const location = `${author.path}.${job.id}[${JSON.stringify(matrix)}]`;
+        const location = `${author.path}.${job.id}[${
+          (context.strategy as ResolvedStrategy)["job-index"]
+        }]`;
         const callContext = { ...context, matrix };
 
-        const settings = merged.expectedSettings === undefined ? undefined : {
-          ...resolvedSettings(
-            job,
-            callContext,
-            status,
-            location,
-          ),
-          ...cache.settings,
-        };
+        const settings = retained<JobSettings>(
+          resolvedSettings(job, callContext, status, location),
+          cache.settings,
+        );
+        if (merged.suppressedOutputs !== undefined) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            `${location}.suppressedOutputs`,
+            "Reusable call fixtures already contain delivered outputs; configure suppression on callee execution jobs.",
+          );
+        }
         if (
           merged.jobRuntime !== undefined || merged.runner !== undefined ||
           merged.containerRuntime !== undefined ||
@@ -1617,13 +1511,7 @@ async function interpretScenario(
             "Reusable caller jobs cannot declare environments; apply protection fixtures to the callee's environment job.",
           );
         }
-        if (merged.expectedSettings) {
-          expectSubset(
-            settings!,
-            merged.expectedSettings,
-            `${location}.settings`,
-          );
-        }
+
         const inputs = evaluateMap(
           job.with,
           callContext,
@@ -1665,7 +1553,7 @@ async function interpretScenario(
             throw new ScenarioError(
               "fixture_invalid",
               location,
-              "Callee contexts are provided by the caller; use call expectations instead of overriding contexts.",
+              "Callee contexts are provided by the caller; inspect callInputs/callSecrets on the result.",
             );
           }
           for (
@@ -1782,58 +1670,46 @@ async function interpretScenario(
             outputs: fixture.outputs as Record<string, string> ?? {},
           };
         }
-        if (merged.expectedCallInputs) {
-          expectSubset(inputs, merged.expectedCallInputs, `${location}.with`);
-        }
-        if (merged.expectedCallSecrets) {
-          expectSubset(
-            secrets,
-            merged.expectedCallSecrets,
-            `${location}.secrets`,
-          );
-        }
-        if (merged.expectedResult !== undefined) {
-          expectValue(
-            child.result,
-            merged.expectedResult,
-            `${location}.result`,
-          );
-        }
+
         instances.push({
           matrix,
           strategy: context.strategy as ResolvedStrategy,
           tokenPermissions: permissions,
           result: child.result,
           steps: {},
+          stepOrder: [],
           call: child,
-          ...(settings === undefined ? {} : { settings }),
+          settings,
           outputs: child.outputs ?? {},
+          callInputs: Object.freeze({ ...inputs }),
+          callSecrets: Object.freeze({ ...secrets }),
         });
         continue;
       }
-      instances.push(
-        await runInstance(
-          job,
-          authoredJob,
-          matrix,
-          context,
-          merged,
-          author.path,
-          program.defaultResult,
-          workflow.defaults,
-          observation,
-          executionContexts,
-          cache.settings,
-          author.env,
-          githubFixture,
-          permissions,
-        ),
+      const instance = await runInstance(
+        job,
+        authoredJob,
+        matrix,
+        context,
+        merged,
+        author.path,
+        workflow.defaults,
+        observation,
+        executionContexts,
+        cache.settings,
+        author.env,
+        githubFixture,
+        permissions,
       );
+      Object.defineProperty(instance, "outputs", {
+        value: {},
+        enumerable: true,
+      });
+      suppression.set(instance, merged.suppressedOutputs);
+      instances.push(instance);
     }
     const result = aggregate(instances);
-    if (rules.expectedResult !== undefined) {
-      expectValue(result, rules.expectedResult, `${location}.result`);
-    }
+
     const outputs: Record<string, string> = {};
     for (
       const matrixIndex of rules.completionOrder ??
@@ -1868,10 +1744,14 @@ async function interpretScenario(
               failure: (instance.outcome ?? instance.result) === "failure",
               cancelled: (instance.outcome ?? instance.result) === "cancelled",
             },
-            `${location}[${JSON.stringify(instance.matrix)}]`,
+            `${location}[${matrixIndex}]`,
             `outputs.${name}`,
           ),
         );
+        if (!job.uses && suppression.get(instance)?.includes(name)) continue;
+        if (!job.uses) {
+          (instance.outputs as Record<string, string>)[name] = value;
+        }
         if (
           rules.completionOrder === undefined && outputs[name] && value &&
           outputs[name] !== value
@@ -1887,10 +1767,13 @@ async function interpretScenario(
         }
       }
     }
-    results[job.id] = { result, outputs, instances };
-    if (rules.expectedOutputs !== undefined) {
-      expectSubset(outputs, rules.expectedOutputs, `${location}.outputs`);
-    }
+    for (const instance of instances) Object.freeze(instance.outputs);
+    results[job.id] = {
+      result,
+      outputs,
+      instances,
+      needs: Object.freeze([...job.needs]),
+    };
   }
   const values = Object.values(results).map((job) => job.result);
   const result: Result = values.includes("failure")
@@ -1898,9 +1781,7 @@ async function interpretScenario(
     : values.includes("cancelled")
     ? "cancelled"
     : "success";
-  if (program.expectedResult !== undefined) {
-    expectValue(result, program.expectedResult, `${author.path}.result`);
-  }
+
   const outputs: Record<string, string> = {};
   for (
     const [name, d] of Object.entries(author.on.workflow_call?.outputs ?? {})

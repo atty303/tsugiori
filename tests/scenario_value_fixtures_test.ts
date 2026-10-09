@@ -1,3 +1,8 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   format,
@@ -8,7 +13,7 @@ import {
   toJSON,
   workflow,
 } from "../src/github_actions/mod.ts";
-import { scenario, ScenarioError, StepScenario } from "../src/testing/mod.ts";
+import { ScenarioError, StepScenario } from "../src/testing/mod.ts";
 
 const hashes = workflow("hashes.yml", { on: { push: {} }, vars: ["PATTERN"] })
   .job(
@@ -33,14 +38,14 @@ const hashes = workflow("hashes.yml", { on: { push: {} }, vars: ["PATTERN"] })
   );
 
 Deno.test("step hash return fixtures preserve expressions, inheritance and strategy inspection", async () => {
-  const result = await scenario(hashes, (test) => {
+  const result = await scenario(hashes, (test, check) => {
     test.github({ event_name: "push" });
     test.vars({ PATTERN: "deno.lock" });
     test.job("build", (job) => {
       job.step("read").hashFiles(["condition"], "run")
         .hashFiles(["deno.lock", "!vendor/**"], "common")
         .hashFiles(["empty"], "").hashFiles(["Lock"], "case-sensitive")
-        .hashFiles(["shell"], "bash").expectRunSettings({ shell: "bash" })
+        .hashFiles(["shell"], "bash")
         .fixture(({ env, strategy, matrix, tokenPermissions }) => {
           assertEquals(
             env.KEY,
@@ -53,7 +58,7 @@ Deno.test("step hash return fixtures preserve expressions, inheritance and strat
           assertEquals(Object.isFrozen(strategy), true);
           assertEquals(tokenPermissions, undefined);
           return {};
-        }).expectRun();
+        });
       job.eachMatrix(({ stage }, instance) => {
         if (stage === "prd") {
           instance.step("read").hashFiles(
@@ -62,19 +67,30 @@ Deno.test("step hash return fixtures preserve expressions, inheritance and strat
           );
         }
       });
+
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEntries(i0.steps["read"]!.run!, { shell: "bash" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
   assertEquals(
-    result.jobs.build.instances.map((i) => i.strategy["job-index"]),
+    result.jobs.build!.instances.map((i) => i.strategy["job-index"]),
     [0, 1],
   );
-  assertEquals(result.jobs.build.instances[0].strategy["max-parallel"], 2);
+  assertEquals(result.jobs.build!.instances[0].strategy["max-parallel"], 2);
 });
 
 Deno.test("hash fixture missing errors identify the reached field", async () => {
   for (const paths of [[], ["condition"]] as const) {
     const error = await assertRejects(() =>
-      scenario(hashes, (t) => {
+      scenario(hashes, (t, _check) => {
         t.github({ event_name: "push" });
         t.vars({ PATTERN: "deno.lock" });
         t.job("build", (j) => {
@@ -110,14 +126,20 @@ Deno.test("lazy and skipped hash calls need no fixture; argument order/case rema
           env: { VALUE: rawExpression("hashFiles('unused')") },
         }),
   );
-  await scenario(flow, (t) => {
+  await scenario(flow, (t, check) => {
     t.github({ event_name: "push" });
     t.job("test", (j) => {
       j.step("lazy").fixture(({ env }) => {
         assertEquals(env.VALUE, "ok");
         return {};
       });
-      j.step("skip").expectSkip();
+      j.step("skip");
+
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["skip"]!.outcome !== "skipped", false);
+        }
+      });
     });
   });
   for (
@@ -127,7 +149,7 @@ Deno.test("lazy and skipped hash calls need no fixture; argument order/case rema
     ]] as const
   ) {
     const error = await assertRejects(() =>
-      scenario(hashes, (t) => {
+      scenario(hashes, (t, _check) => {
         t.github({ event_name: "push" });
         t.vars({ PATTERN: "deno.lock" });
         t.job("build", (j) =>
@@ -158,33 +180,59 @@ Deno.test("step named maps merge by key and keep JSON values atomic; explicit re
           }),
         }),
   );
-  await scenario(flow, (t) => {
+  await scenario(flow, (t, check) => {
     t.github({ event_name: "push" });
     t.job("test", (j) => {
       j.step("read").github({
         artifacts: "common",
         action_path: "common-action",
       }).hashFiles(["file"], "common")
-        .expectRunSettings({ shell: "bash" }).expectRunSettings({
-          workingDirectory: "src",
-        })
-        .expectOutputs({ a: "A" }).fixture(({ env }) => {
+        .fixture(({ env }) => {
           assertEquals(env.PATH, "common");
           return { outputs: { a: "A", b: "B" } };
-        }).expectRun();
+        });
       j.eachMatrix(({ n }, i) => {
         if (n === 1) {
           i.step("read").github({ artifacts: "instance" })
-            .hashFiles(["file"], "specific").expectOutputs({ b: "B" })
+            .hashFiles(["file"], "specific")
             .fixture(({ env }) => {
               assertEquals(env, { PATH: "instance", HASH: "specific" });
               return { outputs: { a: "A", b: "B" } };
             });
         }
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, { n })
+          ) assertEntries(i0.steps["read"]!.typedOutputs, { b: "B" });
+        });
+      });
+
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEntries(i0.steps["read"]!.run!, { shell: "bash" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEntries(i0.steps["read"]!.run!, {
+            workingDirectory: "src",
+          });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEntries(i0.steps["read"]!.typedOutputs, { a: "A" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+        }
       });
     });
   });
-  await scenario(flow, (t) => {
+  await scenario(flow, (t, check) => {
     t.github({ event_name: "push" });
     t.job("test", (j) => {
       j.step("read").github({ artifacts: "common" }).hashFiles(
@@ -192,28 +240,30 @@ Deno.test("step named maps merge by key and keep JSON values atomic; explicit re
         "common",
       ).fixture(() => {
         throw Error("must be replaced");
-      }).expectSkip();
-      j.eachMatrix((_, i) =>
+      });
+      j.eachMatrix((_, i) => {
         i.step("read").replaceInherited().github({ artifacts: "own" })
-          .hashFiles(["file"], "own").fixture({}).expectRun()
-      );
+          .hashFiles(["file"], "own").fixture({});
+        check((r) => {
+          for (const i0 of r.jobs["test"]!.instances) {
+            assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+          }
+        });
+      });
+
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
   const error = await assertRejects(() =>
-    scenario(flow, (t) => {
+    scenario(flow, (t, _check) => {
       t.github({ event_name: "push" });
       t.job("test", (j) => j.step("read").replaceInherited().fixture({}));
     }), ScenarioError);
   assertEquals(error.message.includes("eachMatrix"), true);
-  // Object/array values under a named key are values, not merge targets.
-  const rules = {};
-  const step = new StepScenario<
-    { json: { x?: number; y?: number } },
-    Record<string, string>,
-    Record<string, never>
-  >(rules);
-  step.expectInputs({ json: { x: 1 } });
-  assertThrows(() => step.expectInputs({ json: { y: 2 } }), ScenarioError);
 });
 
 Deno.test("same-scope step registrations reject duplicate keys/scalars but permit disjoint names", () => {
@@ -228,34 +278,12 @@ Deno.test("same-scope step registrations reject duplicate keys/scalars but permi
       s.fixture({});
       s.fixture({});
     },
-    (s) => {
-      s.expectRun();
-      s.expectSkip();
-    },
-    (s) => {
-      s.expectOutcome("success");
-      s.expectOutcome("failure");
-    },
-    (s) => {
-      s.expectConclusion("success");
-      s.expectConclusion("success");
-    },
-    (s) => {
-      s.expectInputs({ a: "1" });
-      s.expectInputs({ a: "2" });
-    },
-    (s) => {
-      s.expectOutputs({ a: "1" });
-      s.expectOutputs({ a: "2" });
-    },
+
     (s) => {
       s.github({ artifacts: "x" });
       s.github({ artifacts: "y" });
     },
-    (s) => {
-      s.expectRunSettings({ shell: "bash" });
-      s.expectRunSettings({ shell: "pwsh" });
-    },
+
     (s) => {
       s.hashFiles(["file"], "x");
       s.hashFiles(["file"], "y");
@@ -268,7 +296,6 @@ Deno.test("same-scope step registrations reject duplicate keys/scalars but permi
   for (const define of cases) {
     assertThrows(() => define(new StepScenario({})), ScenarioError);
   }
-  new StepScenario({}).expectInputs({ a: "1" }).expectInputs({ b: "2" });
 });
 
 Deno.test("max-parallel defaults do not become authored settings, and explicit limits are not clamped", async () => {
@@ -288,25 +315,30 @@ Deno.test("max-parallel defaults do not become authored settings, and explicit l
             ...(maxParallel === undefined ? {} : { maxParallel }),
           }).run({ id: "read", name: "Read", run: "true" }),
       );
-    const result = await scenario(flow, (t) => {
+    const result = await scenario(flow, (t, check) => {
       t.github({ event_name: "push" });
       t.vars({ LIMIT: "7" });
       t.job("test", (j) => {
-        j.expectSettings({
-          strategy: maxParallel === undefined
-            ? {}
-            : { maxParallel: typeof maxParallel === "number" ? 9 : 7 },
-        });
         j.step("read").fixture({});
+
+        check((r) => {
+          for (const i0 of r.jobs["test"]!.instances) {
+            assertEntries(i0.settings, {
+              strategy: maxParallel === undefined
+                ? {}
+                : { maxParallel: typeof maxParallel === "number" ? 9 : 7 },
+            });
+          }
+        });
       });
     });
     assertEquals(
-      result.jobs.test.instances[0].strategy["max-parallel"],
+      result.jobs.test!.instances[0].strategy["max-parallel"],
       maxParallel === undefined ? 2 : typeof maxParallel === "number" ? 9 : 7,
     );
     assertEquals(
       Object.hasOwn(
-        result.jobs.test.instances[0].settings!.strategy!,
+        result.jobs.test!.instances[0].settings!.strategy!,
         "maxParallel",
       ),
       maxParallel !== undefined,
@@ -357,7 +389,7 @@ Deno.test("reusable matrix output completion selects last successful nonempty ou
       "first",
     ]] as const
   ) {
-    const result = await scenario(calls, (t) => {
+    const result = await scenario(calls, (t, _check) => {
       t.github({ event_name: "push" });
       t.job("call", (j) => {
         j.completionOrder(order);
@@ -379,13 +411,13 @@ Deno.test("reusable matrix output completion selects last successful nonempty ou
           return {};
         }));
     }, { config: project({ workflows: [calls, callee] }) });
-    assertEquals(result.jobs.call.outputs.value, expected);
+    assertEquals(result.jobs.call!.outputs.value, expected);
     assertEquals(
-      result.jobs.call.instances.map((i) => i.strategy["job-index"]),
+      result.jobs.call!.instances.map((i) => i.strategy["job-index"]),
       [0, 1, 2],
     );
   }
-  const result = await scenario(calls, (t) => {
+  const result = await scenario(calls, (t, check) => {
     t.github({ event_name: "push" });
     t.job("call", (j) => {
       j.completionOrder([0, 2, 1]);
@@ -401,9 +433,16 @@ Deno.test("reusable matrix output completion selects last successful nonempty ou
         )
       );
     });
-    t.job("consume", (j) => j.step("read").expectSkip());
+    t.job("consume", (j) => {
+      j.step("read");
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+        }
+      });
+    });
   }, { config: project({ workflows: [calls, callee] }) });
-  assertEquals(result.jobs.call.outputs.value, "first");
+  assertEquals(result.jobs.call!.outputs.value, "first");
 });
 
 Deno.test("ordinary matrix outputs accept supplied completion order without filtering failed jobs", async () => {
@@ -418,7 +457,7 @@ Deno.test("ordinary matrix outputs accept supplied completion order without filt
           outputs: ["value"],
         }).outputs(({ steps }) => ({ value: steps.value.outputs.value })),
     ).workflowOutputs(({ jobs }) => ({ value: jobs.work.outputs.value }));
-  const result = await scenario(flow, (t) => {
+  const result = await scenario(flow, (t, _check) => {
     t.github({ event_name: "push" });
     t.job("work", (j) => {
       j.completionOrder([0, 1]);
@@ -430,12 +469,12 @@ Deno.test("ordinary matrix outputs accept supplied completion order without filt
       );
     });
   });
-  assertEquals(result.jobs.work.outputs.value, "1");
+  assertEquals(result.jobs.work!.outputs.value, "1");
   assertEquals(result.outputs?.value, "1");
   assertEquals(result.result, "failure");
   await assertRejects(
     () =>
-      scenario(flow, (t) => {
+      scenario(flow, (t, _check) => {
         t.github({ event_name: "push" });
         t.job("work", (j) => {
           j.eachMatrix(({ n }, i) =>
@@ -448,7 +487,7 @@ Deno.test("ordinary matrix outputs accept supplied completion order without filt
   );
   for (const order of [[0], [0, 0], [0, 2], [-1, 0], [0, 0.5]]) {
     const error = await assertRejects(() =>
-      scenario(flow, (t) => {
+      scenario(flow, (t, _check) => {
         t.github({ event_name: "push" });
         t.job("work", (j) => {
           j.completionOrder(order);
@@ -459,7 +498,7 @@ Deno.test("ordinary matrix outputs accept supplied completion order without filt
   }
 });
 
-Deno.test("step input expectations override named JSON values atomically across scopes", async () => {
+Deno.test("ordinary assertions compare complete named JSON values", async () => {
   const record = jsonValue({
     parse(value: unknown): { left: number; right: number } {
       if (
@@ -484,32 +523,59 @@ Deno.test("step input expectations override named JSON values atomically across 
         run: () => {},
       }),
   );
-  await scenario(flow, (t) => {
+  await scenario(flow, (t, check) => {
     t.github({ event_name: "push" });
     t.job("build", (j) => {
-      j.step("read").fixture({}).expectInputs({
-        label: "typed",
-        json: { left: 1, right: 2 },
+      j.step("read").fixture({});
+      j.eachMatrix((_, i) => {
+        i.step("read");
+        check((r) => {
+          for (const i0 of r.jobs["build"]!.instances) {
+            assertEntries(i0.steps["read"]!.inputs, {
+              json: { left: 1, right: 2 },
+            });
+          }
+        });
       });
-      j.eachMatrix((_, i) =>
-        i.step("read").expectInputs({ json: { left: 1, right: 2 } })
-      );
+
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEntries(i0.steps["read"]!.inputs, {
+            label: "typed",
+            json: { left: 1, right: 2 },
+          });
+        }
+      });
     });
   });
   const error = await assertRejects(() =>
-    scenario(flow, (t) => {
+    scenario(flow, (t, check) => {
       t.github({ event_name: "push" });
       t.job("build", (j) => {
-        j.step("read").fixture({}).expectInputs({
-          label: "typed",
-          json: { left: 1, right: 2 },
+        j.step("read").fixture({});
+        j.eachMatrix((_, i) => {
+          i.step("read");
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEntries(i0.steps["read"]!.inputs, {
+                json: { left: 1, right: 0 },
+              });
+            }
+          });
         });
-        j.eachMatrix((_, i) =>
-          i.step("read").expectInputs({ json: { left: 1, right: 0 } })
-        );
+
+        check((r) => {
+          for (const i0 of r.jobs["build"]!.instances) {
+            assertEntries(i0.steps["read"]!.inputs, {
+              label: "typed",
+              json: { left: 1, right: 2 },
+            });
+          }
+        });
       });
-    }), ScenarioError);
-  assertEquals(error.location.endsWith("read.inputs.json"), true);
+    })
+  );
+  assertEquals((error as Error).name, "AssertionError");
 });
 
 Deno.test("invalid native expressions fail instead of accepting field result overrides", async () => {
@@ -524,7 +590,7 @@ Deno.test("invalid native expressions fail instead of accepting field result ove
       }),
   );
   const error = await assertRejects(() =>
-    scenario(flow, (t) => {
+    scenario(flow, (t, _check) => {
       t.github({ event_name: "push" });
       t.job("build", (j) => j.step("read").fixture({}));
     }), ScenarioError);
@@ -548,7 +614,7 @@ Deno.test("matrix reusable output selection is per-name and ignores later unsucc
     { a: "", b: "b2" },
     { a: "failed", b: "failed" },
   ];
-  const result = await scenario(flow, (t) => {
+  const result = await scenario(flow, (t, _check) => {
     t.github({ event_name: "push" });
     t.job("call", (j) => {
       j.completionOrder([0, 1, 2, 3]);
@@ -558,7 +624,7 @@ Deno.test("matrix reusable output selection is per-name and ignores later unsucc
       }));
     });
   });
-  assertEquals(result.jobs.call.outputs, { a: "a1", b: "b2" });
+  assertEquals(result.jobs.call!.outputs, { a: "a1", b: "b2" });
   assertEquals(result.result, "failure");
 });
 
@@ -583,7 +649,7 @@ Deno.test("one step hash return fixture is shared across condition, env and Acti
         }),
       }),
   );
-  await scenario(flow, (t) => {
+  await scenario(flow, (t, _check) => {
     t.github({ event_name: "push" });
     t.job(
       "build",

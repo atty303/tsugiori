@@ -56,7 +56,7 @@ Deno.test("root permissions use native replacement rules, shorthands and explici
           }));
       });
       assertEquals(
-        Object.keys(result.jobs.test.instances[0].tokenPermissions!).length,
+        Object.keys(result.jobs.test!.instances[0].tokenPermissions!).length,
         16,
       );
     }
@@ -83,7 +83,7 @@ Deno.test("root permissions use native replacement rules, shorthands and explici
     t.job("test", (j) => j.step("read").fixture({}));
   });
   assertEquals(
-    result.jobs.test.instances[0].tokenPermissions?.contents,
+    result.jobs.test!.instances[0].tokenPermissions?.contents,
     "write",
   );
   const legacy = await scenario(flow, (t) => {
@@ -94,7 +94,7 @@ Deno.test("root permissions use native replacement rules, shorthands and explici
         return {};
       }));
   });
-  assertEquals(legacy.jobs.test.instances[0].tokenPermissions, undefined);
+  assertEquals(legacy.jobs.test!.instances[0].tokenPermissions, undefined);
 });
 
 const leaf = (permissions?: WorkflowPermissions) =>
@@ -168,11 +168,11 @@ Deno.test("nested local calls inherit authority, reduce it and reject effective 
     } else {
       const result = await run();
       assertEquals(
-        result.jobs.middle.instances[0].tokenPermissions?.contents,
+        result.jobs.middle!.instances[0].tokenPermissions?.contents,
         "write",
       );
       assertEquals(
-        result.jobs.middle.instances[0].call?.jobs.leaf.instances[0]
+        result.jobs.middle!.instances[0].call!.jobs.leaf!.instances[0]
           .tokenPermissions?.contents,
         "read",
       );
@@ -235,7 +235,7 @@ Deno.test("nested initial fixtures are rejected, while standalone callee assumpt
     e.job("read", (r) => r.step("read").fixture({}));
   });
   assertEquals(
-    result.jobs.read.instances[0].tokenPermissions?.contents,
+    result.jobs.read!.instances[0].tokenPermissions?.contents,
     "read",
   );
 });
@@ -266,10 +266,10 @@ Deno.test("external call callbacks expose incoming permissions and strategy, wit
       }));
   }, { observe: (event) => events.push(event) });
   assertEquals(
-    result.jobs.call.instances[0].tokenPermissions?.packages,
+    result.jobs.call!.instances[0].tokenPermissions?.packages,
     "read",
   );
-  assertEquals(result.jobs.call.instances[0].call?.jobs, {});
+  assertEquals(result.jobs.call!.instances[0].call!.jobs, {});
   assertEquals(JSON.stringify(events).includes("contents"), false);
   // Host observation failures leave modeled public results intact.
   await scenario(flow, (t) => {

@@ -260,8 +260,8 @@ standard GITHUB_TOKEN fixture crosses calls without forwarding unpassed custom
 secrets. Callee execution jobs supply their own job identity and runner
 fixtures. Call results and workflow outputs retain their native boundaries. The
 interpreter builds `steps`, `needs`, and `matrix` contexts, evaluates supported
-expressions, serializes typed task outputs to GitHub wire values, and checks
-independent expectations against the resulting state. Generated task preparation
+expressions, serializes typed task outputs to GitHub wire values, and returns
+typed observations for ordinary test assertions. Generated task preparation
 steps default to success and support an explicit outcome override.
 
 The interpreter defers background fixture results, environment writes and status
@@ -281,9 +281,8 @@ conclusions remain separate from the effective dependency/workflow result.
 Positive integer job timeouts retain runner-owned execution limits, while step
 timeouts cannot exceed 360 minutes. It does not call authored step or task
 bodies. It does not model runner behavior, live authorization, protection-rule
-decisions, timeouts, concurrency effects, or actual parallel execution. Explicit
-expectSettings(), expectConcurrency() and expectRunSettings() calls enable
-interpretation of runner requests, concurrency expressions and effective run
+decisions, timeouts, concurrency effects, or actual parallel execution. Settings
+automatically capture runner requests, concurrency expressions and effective run
 settings from explicit workflow/job/step values; platform shell defaults and
 filesystem existence are not inferred. Environment name resolves before steps
 and URL after steps. An optional per-instance environment protection fixture
@@ -291,15 +290,18 @@ supplies the aggregate passed/rejected result. Rejection runs no steps, produces
 job failure and omits step-derived job outputs; failure flows through
 dependencies and local reusable calls. Omission retains ungated interpretation
 and does not prove actual approval. Pending, reviewer eligibility, timers and
-protection-rule calculation are not modeled. Opt-in settings also expose
-effective cache access and its job/workflow/caller/trigger source, keeping
-explicit caller ceilings separate from trigger defaults through nested local
-calls. Snapshot generation requests are exposed after actual job execution
-success and a truthy condition; tolerated job failure does not request an image.
-Rejected environments, failed initialization, failure and cancellation produce
-no request. This interpretation performs no cache operations or image
-generation. Without settings expectations, snapshot expressions require no new
-fixtures.
+protection-rule calculation are not modeled. Settings also expose effective
+cache access and its job/workflow/caller/trigger source, keeping explicit caller
+ceilings separate from trigger defaults through nested local calls. Snapshot
+generation requests are exposed after actual job execution success and a truthy
+condition; tolerated job failure does not request an image. Rejected
+environments, failed initialization, failure and cancellation produce no
+request. This interpretation performs no cache operations or image generation.
+Each optional setting captures its evaluation value or fixture shortage at its
+native lifecycle boundary. Field getters return values or throw location-aware
+fixture errors, without rerunning interpretation. Unspecified settings remain
+absent; required execution expressions and malformed expressions still fail
+during interpretation. Copying or serializing settings reads their getters.
 
 Runner-owned context values are explicit test fixtures: jobRuntime() supplies
 check run and job-defining workflow identity, and runner() supplies assigned
@@ -323,23 +325,30 @@ expressions fail; scenario fields cannot be replaced by expression overrides.
 The pinned runner reconciliation is documented in
 [the spec basis](GITHUB_ACTIONS_SPEC.md).
 
-Job-wide step settings are inherited by eachMatrix() instances. Named
-expectation and github/run-setting maps merge by key, while each named value and
-fixture is atomic. Instance scalars replace only explicitly registered common
-settings; replaceInherited() excludes all common settings for that step.
-Duplicate scalar, fixture, hash argument tuple or named-key registrations within
-one scope fail. Use one registration per key or move a deliberate difference
-into eachMatrix().
+Job-wide step settings are inherited by eachMatrix() instances. Named github
+maps merge by key, while each named value and fixture is atomic. Instance
+scalars replace only explicitly registered common settings; replaceInherited()
+excludes all common settings for that step. Duplicate scalar, fixture, hash
+argument tuple or named-key registrations within one scope fail. Use one
+registration per key or move a deliberate difference into eachMatrix().
 
 Fixture callbacks and instance results expose readonly native strategy. Explicit
 maxParallel is evaluated unchanged; omission uses expanded instance count under
 the interpreter's sufficient-runner assumption. This does not predict GitHub's
-selected default. Authored settings expectations do not include model defaults.
+selected default. Authored strategy settings do not include model defaults.
 completionOrder() supplies all zero-based job indices exactly once for output
 aggregation, without reordering instance results or executing fixtures in that
 order. Ordinary jobs retain native output merging; reusable matrix calls select
 the last successful nonempty value per output. Omission retains conflict errors.
 No completion times or scheduler are modeled.
+
+Execution-job suppression fixtures withhold named outputs after evaluation and
+before matrix aggregation. Lists are inherited and replaced per instance; an
+empty list clears inherited suppression. Step outputs remain unchanged. Local
+callee execution jobs own suppression; external fixtures supply delivered
+outputs. Secret detection and add-mask registration are not modeled. Results
+retain dependencies, authored launch order, call inputs/secrets and parsed
+typedOutputs alongside wire outputs. No expectation DSL is retained.
 
 Root tokenPermissions() assumptions opt into native default/workflow/job
 permission replacement followed by an explicit write restriction. Defaults are
@@ -358,10 +367,10 @@ health checks and port assignment. Task preparation retains its existing Bash
 and GNU-compatible Linux runtime requirements; container declarations do not
 install dependencies or expand supported task platforms.
 
-Scenarios interpret requested container/service settings through
-expectSettings(). containerRuntime() supplies partial per-instance runtime
-identities and ports; only reached reads require values, and whole-object reads
-require the complete object. Service-only jobs expose the shared network through
+Scenarios capture requested container/service settings automatically.
+containerRuntime() supplies partial per-instance runtime identities and ports;
+only reached reads require values, and whole-object reads require the complete
+object. Service-only jobs expose the shared network through
 job.container.network without a container ID. Image expressions resolving to an
 empty string disable service startup and leave no service context.
 containerInitialization() supplies the aggregate initialization pre-step result.

@@ -295,10 +295,11 @@ function access(
   base: Value,
   key: unknown,
   wildcard: boolean,
+  diagnosticKey?: string,
 ): Value | undefined {
   if (base.filtered) {
     const items = base.filtered.flatMap((item) => {
-      const selected = access(item, key, wildcard);
+      const selected = access(item, key, wildcard, diagnosticKey);
       return selected?.filtered ?? (selected ? [selected] : []);
     });
     return { value: items.map((v) => v.value), filtered: items };
@@ -306,15 +307,15 @@ function access(
   const value = base.value;
   if (wildcard) {
     const items = value !== null && typeof value === "object"
-      ? Object.entries(value).map(([name, value]) => ({
+      ? Object.values(value).map((value) => ({
         value,
-        ...(base.path ? { path: [...base.path, name] } : {}),
+        ...(base.path ? { path: [...base.path, "*"] } : {}),
       }))
       : [];
     return { value: items.map((v) => v.value), filtered: items };
   }
   const name = stringValue(key);
-  const path = base.path ? [...base.path, name] : undefined;
+  const path = base.path ? [...base.path, diagnosticKey ?? name] : undefined;
   if (value !== null && typeof value === "object") {
     if (Array.isArray(value)) {
       const index = numberValue(key);
@@ -418,6 +419,9 @@ function evalNode(
         base,
         node.key === "*" ? null : evaluate(node.key),
         node.key === "*",
+        node.key !== "*" && node.key.kind !== "literal"
+          ? "<computed>"
+          : undefined,
       ) ?? { value: null };
     }
     case "unary":

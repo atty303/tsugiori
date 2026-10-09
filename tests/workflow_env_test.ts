@@ -152,7 +152,7 @@ Deno.test("workflow env expressions evaluate with initialized contexts and nativ
     });
     test.job("other", (job) => job.step("read").fixture({}));
   });
-  assertEquals(result.jobs.read.instances[0].steps.first.env, {
+  assertEquals(result.jobs.read!.instances[0].steps.first!.env, {
     SHA: "fixture-sha",
     JOB: "read",
     TOKEN: "fixture-only-standard",
@@ -163,10 +163,13 @@ Deno.test("workflow env expressions evaluate with initialized contexts and nativ
     COUNT: "7",
     OVERRIDE: "job",
   });
-  assertEquals(result.jobs.read.instances[0].steps.second.env.OVERRIDE, "step");
-  assertEquals(result.jobs.other.instances[0].steps.read.env.JOB, "other");
   assertEquals(
-    result.jobs.other.instances[0].steps.read.env.OVERRIDE,
+    result.jobs.read!.instances[0].steps.second!.env.OVERRIDE,
+    "step",
+  );
+  assertEquals(result.jobs.other!.instances[0].steps.read!.env.JOB, "other");
+  assertEquals(
+    result.jobs.other!.instances[0].steps.read!.env.OVERRIDE,
     "workflow",
   );
   await assertRejects(

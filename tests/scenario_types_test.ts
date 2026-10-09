@@ -8,7 +8,7 @@ import {
   workflow,
 } from "../src/github_actions.ts";
 
-function assertNamedHandlerScenarioInputs(): void {
+async function assertNamedHandlerScenarioInputs(): Promise<void> {
   const consume = (_: { inputs: Record<string, unknown> }) => {};
   const flow = workflow("named-map.yml", { on: { push: {} } }).job(
     "test",
@@ -20,19 +20,21 @@ function assertNamedHandlerScenarioInputs(): void {
         run: consume,
       }),
   );
-  void scenario(flow, (test) => {
-    test.job("test", (job) => {
-      job.step("consume").expectInputs({ text: "text" });
-      // @ts-expect-error broad handler annotations retain the declared text value type
-      job.step("consume").expectInputs({ text: 1 });
-      // @ts-expect-error broad handler annotations do not declare arbitrary input names
-      job.step("consume").expectInputs({ missing: "text" });
-    });
+  const result = await scenario(flow, (test) => {
+    test.job("test", (job) => job.step("consume").fixture({}));
   });
+  const step = result.jobs.test!.instances[0].steps.consume!;
+  const text: string | null | undefined = step.inputs.text;
+  void text;
+  // @ts-expect-error declared text inputs are not numbers
+  const number: number = step.inputs.text;
+  void number;
+  // @ts-expect-error named input maps do not expose arbitrary names
+  void step.inputs.missing;
 }
 void assertNamedHandlerScenarioInputs;
 
-function assertScenarioTypes(): void {
+async function assertScenarioTypes(): Promise<void> {
   const numberValue = jsonValue({
     parse(value: unknown): number {
       if (typeof value !== "number") throw new TypeError();
@@ -51,27 +53,34 @@ function assertScenarioTypes(): void {
         outputs: { value: { contract: numberValue, required: true } },
         run: () => {},
       }));
-  void scenario(flow, (test) => {
+  const result = await scenario(flow, (test) => {
     // @ts-expect-error job IDs come from the workflow
     test.job("unknown", () => {});
     test.job("count", (job) => {
-      // @ts-expect-error matrix keys come from the strategy
-      job.expectMatrix([{ wrong: "dev" }]);
       job.eachMatrix(({ stage }, run) => {
         const value: "dev" | "prd" = stage;
         void value;
         // @ts-expect-error step IDs come from the job
         run.step("unknown");
         run.step("produce")
-          .fixture({ outputs: { value: 1 } })
-          .expectInputs({ value: 1 });
+          .fixture({ outputs: { value: 1 } });
         // @ts-expect-error task fixture outputs follow the output contract
         run.step("produce").fixture({ outputs: { value: "1" } });
-        // @ts-expect-error task input expectations follow the input contract
-        run.step("produce").expectInputs({ value: "1" });
       });
     });
   });
+  const step = result.jobs.count!.instances[0].steps.produce!;
+  const count: number | undefined = step.typedOutputs.value;
+  void count;
+  // @ts-expect-error task output is a number, not a wire string
+  const wire: string = step.typedOutputs.value;
+  void wire;
+  // @ts-expect-error step IDs are inferred on results
+  void result.jobs.count!.instances[0].steps.unknown;
+  // @ts-expect-error output keys are inferred on results
+  void step.typedOutputs.unknown;
+  // @ts-expect-error output properties are readonly
+  step.typedOutputs.value = 2;
 }
 void assertScenarioTypes;
 

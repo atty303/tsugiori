@@ -1,3 +1,8 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
@@ -8,7 +13,7 @@ import {
 } from "../src/github_actions/mod.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
-import { scenario } from "../src/testing/mod.ts";
+import {} from "../src/testing/mod.ts";
 
 const platform = workflow(".github/workflows/platform.yml", {
   on: {
@@ -252,19 +257,17 @@ jobs:
 
 for (const fail of [false, true]) {
   Deno.test(`nested scenario propagates outputs, secrets and failure (${fail})`, async () => {
-    const result = await scenario(main, (test) => {
+    const result = await scenario(main, (test, check) => {
       test.github({ event_name: "push", ref: "refs/heads/master", event: {} })
         .secrets({ token: "fixture-only" });
-      test.job("ci", (j) =>
-        j.expectCallInputs({ module: "app" }).expectCallSecrets({
-          token: "fixture-only",
-        }).call(ci, (test) => {
-          test.job("platform", (j) =>
-            j.expectCallInputs({ module: "app", enabled: true })
-              .expectCallSecrets({ token: "fixture-only" }).call(
+      test.job("ci", (j) => {
+        j.call(ci, (test) => {
+          test.job("platform", (j) => {
+            j
+              .call(
                 platform,
                 (test) => {
-                  test.job("build", (j) =>
+                  test.job("build", (j) => {
                     j.eachMatrix(({ target }, i) =>
                       i.step("check").fixture(({ env }) => {
                         assertEquals(env.ISOLATED, "callee");
@@ -277,22 +280,79 @@ for (const fail of [false, true]) {
                           outputs: { result: "done" },
                         };
                       })
-                    ).expectResult(fail ? "failure" : "success"));
+                    );
+                    check((r) => {
+                      for (const i0 of r.jobs["ci"]!.instances) {
+                        for (const i1 of i0.call!.jobs["platform"]!.instances) {
+                          assertEquals(
+                            i1.call!.jobs["build"]!.result,
+                            fail ? "failure" : "success",
+                          );
+                        }
+                      }
+                    });
+                  });
                 },
-              ));
-        }).expectResult(fail ? "failure" : "success").expectOutputs({
-          result: "done",
-        }));
-      test.job("notify", (j) =>
+              );
+            check((r) => {
+              for (const i0 of r.jobs["ci"]!.instances) {
+                for (const i1 of i0.call!.jobs["platform"]!.instances) {
+                  assertEntries(i1.callInputs!, {
+                    module: "app",
+                    enabled: true,
+                  });
+                }
+              }
+            });
+            check((r) => {
+              for (const i0 of r.jobs["ci"]!.instances) {
+                for (const i1 of i0.call!.jobs["platform"]!.instances) {
+                  assertEntries(i1.callSecrets!, { token: "fixture-only" });
+                }
+              }
+            });
+          });
+        });
+        check((r) => {
+          for (const i0 of r.jobs["ci"]!.instances) {
+            assertEntries(i0.callInputs!, { module: "app" });
+          }
+        });
+        check((r) => {
+          for (const i0 of r.jobs["ci"]!.instances) {
+            assertEntries(i0.callSecrets!, {
+              token: "fixture-only",
+            });
+          }
+        });
+        check((r) => {
+          assertEquals(r.jobs["ci"]!.result, fail ? "failure" : "success");
+        });
+        check((r) => {
+          assertEntries(r.jobs["ci"]!.outputs, {
+            result: "done",
+          });
+        });
+      });
+      test.job("notify", (j) => {
         j.step("notify").fixture(({ env }) => {
           assertEquals(env.RESULT, "done");
           return {};
-        }).expectRun());
-      test.expectResult(fail ? "failure" : "success");
+        });
+        check((r) => {
+          for (const i0 of r.jobs["notify"]!.instances) {
+            assertEquals(i0.steps["notify"]!.outcome !== "skipped", true);
+          }
+        });
+      });
+
+      check((r) => {
+        assertEquals(r.result, fail ? "failure" : "success");
+      });
     }, { config });
     assertEquals(
-      result.jobs.ci.instances[0].call?.jobs.platform.instances[0].call?.jobs
-        .build.instances.length,
+      result.jobs.ci!.instances[0].call!.jobs.platform!.instances[0].call!.jobs
+        .build!.instances.length,
       4,
     );
   });
@@ -317,7 +377,7 @@ Deno.test("local references require config membership and input contracts", asyn
     );
   await assertRejects(
     () =>
-      scenario(invalid, (t) => {
+      scenario(invalid, (t, _check) => {
         t.github({ event_name: "push" }).secrets({ token: "fixture" });
         t.job("ci", (j) => j.call(ci, () => {}));
       }, { config: project({ workflows: [invalid, ci, platform] }) }),
@@ -337,13 +397,17 @@ Deno.test("external workflow call uses explicit fixture", async () => {
           with: { target: "linux" },
         }),
     );
-  const result = await scenario(p, (t) => {
+  const result = await scenario(p, (t, check) => {
     t.github({ event_name: "push" });
-    t.job("call", (j) =>
+    t.job("call", (j) => {
       j.callFixture(({ inputs }) => {
         assertEquals(inputs, { target: "linux" });
         return { outcome: "failure", outputs: { message: "failed" } };
-      }).expectOutputs({ message: "failed" }));
+      });
+      check((r) => {
+        assertEntries(r.jobs["call"]!.outputs, { message: "failed" });
+      });
+    });
   });
   assertEquals(result.result, "failure");
 });
@@ -412,7 +476,7 @@ Deno.test("host scenario observation preserves results and never exposes fixture
         run: "echo run",
       }),
   );
-  const result = await scenario(p, (t) => {
+  const result = await scenario(p, (t, _check) => {
     t.github({ event_name: "push" }).secrets({
       token: "private-fixture-value",
     });
@@ -437,7 +501,7 @@ Deno.test("host scenario observation preserves results and never exposes fixture
   }]);
   const errors: unknown[] = [];
   await assertRejects(() =>
-    scenario(p, (t) => t.github({ event_name: "push" }), {
+    scenario(p, (t, _check) => t.github({ event_name: "push" }), {
       observe: (e) => errors.push(e),
     })
   );
@@ -549,7 +613,7 @@ Deno.test("dispatch scenarios expose workflow env to steps", async () => {
         timeoutMinutes: 10,
       }),
   );
-  await scenario(dispatch, (t) => {
+  await scenario(dispatch, (t, _check) => {
     t.github({ event_name: "workflow_dispatch" });
     t.job("release", (j) =>
       j.step("release").fixture(({ env }) => {
@@ -568,14 +632,14 @@ Deno.test("PR-target scenarios filter activity types", async () => {
       job.runsOn("ubuntu-latest").run({ id: "run", name: "Run", run: "true" }),
   );
   assertEquals(
-    (await scenario(pr, (t) =>
+    (await scenario(pr, (t, _check) =>
       t.github({
         event_name: "pull_request_target",
         event: { action: "closed" },
       }))).result,
     "skipped",
   );
-  await scenario(pr, (t) => {
+  await scenario(pr, (t, _check) => {
     t.github({
       event_name: "pull_request_target",
       event: { action: "opened" },
@@ -594,12 +658,15 @@ Deno.test("push scenarios honor ordered tag filters", async () => {
   );
   for (const ref of ["refs/heads/v1", "refs/tags/v1-alpha"]) {
     assertEquals(
-      (await scenario(tags, (t) => t.github({ event_name: "push", ref })))
+      (await scenario(
+        tags,
+        (t, _check) => t.github({ event_name: "push", ref }),
+      ))
         .result,
       "skipped",
     );
   }
-  await scenario(tags, (t) => {
+  await scenario(tags, (t, _check) => {
     t.github({ event_name: "push", ref: "refs/tags/v1" });
     t.job("job", (j) => j.step("run").fixture({}));
   });
@@ -683,7 +750,7 @@ jobs:
     { serializer: (yaml) => yaml },
   );
 });
-Deno.test("caller matrix instance expectations are checked independently", async () => {
+Deno.test("caller matrix instance results are checked independently", async () => {
   const callee = workflow(".github/workflows/callee.yml", {
     on: { workflow_call: {} },
   }).job(
@@ -702,16 +769,22 @@ Deno.test("caller matrix instance expectations are checked independently", async
   );
   await assertRejects(
     () =>
-      scenario(caller, (t) => {
+      scenario(caller, (t, check) => {
         t.github({ event_name: "push" });
         t.job("call", (j) =>
-          j.eachMatrix((_m, i) =>
-            i.expectResult("failure").call(callee, (t) =>
-              t.job("job", (j) =>
-                j.step("run").fixture({})))
-          ));
+          j.eachMatrix((_m, i) => {
+            i.call(
+              callee,
+              (t) => t.job("job", (j) => j.step("run").fixture({})),
+            );
+            check((r) => {
+              for (
+                const i0 of matchingInstances(r.jobs["call"]!.instances, _m)
+              ) assertEquals(i0.result, "failure");
+            });
+          }));
       }, { config: project({ workflows: [caller, callee] }) }),
     Error,
-    "Expected value differs",
+    "Values are not equal",
   );
 });

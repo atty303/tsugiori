@@ -1,3 +1,8 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   always,
@@ -8,7 +13,7 @@ import {
   workflow,
   type WorkflowPermissions,
 } from "../src/github_actions/mod.ts";
-import { scenario, ScenarioError } from "../src/testing/mod.ts";
+import { ScenarioError } from "../src/testing/mod.ts";
 import {
   AuthoringValidationError,
   lowerProject,
@@ -62,15 +67,15 @@ Deno.test("fixed settings reach native YAML, preserving both permission shorthan
         .workflow;
     const yaml = parse(emitWorkflow(native));
     assertEquals(yaml.permissions, value);
-    assertEquals(yaml.jobs.deploy.permissions, value);
+    assertEquals(yaml.jobs.deploy!.permissions, value);
     assertEquals(yaml.defaults, {
       run: { shell: "bash", "working-directory": "root" },
     });
-    assertEquals(yaml.jobs.deploy["runs-on"], {
+    assertEquals(yaml.jobs.deploy!["runs-on"], {
       group: "deploy",
       labels: ["linux", "x64"],
     });
-    assertEquals(yaml.jobs.deploy.environment, {
+    assertEquals(yaml.jobs.deploy!.environment, {
       name: "production",
       deployment: false,
       url: "${{ steps.deploy.outputs.url }}",
@@ -80,7 +85,7 @@ Deno.test("fixed settings reach native YAML, preserving both permission shorthan
       "${{ (github.ref != 'refs/heads/main') }}",
     );
     assertEquals(
-      yaml.jobs.deploy.concurrency["cancel-in-progress"],
+      yaml.jobs.deploy!.concurrency["cancel-in-progress"],
       "${{ false }}",
     );
   }
@@ -144,41 +149,67 @@ Deno.test("scenario interprets requested settings and defaults without assigning
         deployment: rawExpression("matrix.stage == 'production'"),
         url: ({ steps }) => steps.build.outputs.url,
       }));
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/main" });
-    test.expectConcurrency({
-      group: "refs/heads/main",
-      cancelInProgress: true,
-    });
+
     test.job("build", (job) =>
       job.eachMatrix(({ stage }, instance) => {
-        instance.environmentProtection("passed").expectSettings({
-          runsOn: { group: stage, labels: ["linux"] },
-          environment: {
-            name: stage,
-            deployment: stage === "production",
-            url: `https://example.com/${stage}`,
-          },
-          concurrency: { group: stage, cancelInProgress: stage === "dev" },
-        });
-        instance.step("build").expectRunSettings({
-          shell: "bash",
-          workingDirectory: stage,
-        }).fixture(({ run }) => {
+        instance.environmentProtection("passed");
+        instance.step("build").fixture(({ run }) => {
           assertEquals(run, { shell: "bash", workingDirectory: stage });
           return { outputs: { url: `https://example.com/${stage}` } };
         });
-        instance.step("other").expectRunSettings({
-          shell: "sh",
-          workingDirectory: "step",
-        }).fixture({});
+        instance.step("other").fixture({});
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["build"]!.instances, { stage })
+          ) {
+            assertEntries(i0.settings, {
+              runsOn: { group: stage, labels: ["linux"] },
+              environment: {
+                name: stage,
+                deployment: stage === "production",
+                url: `https://example.com/${stage}`,
+              },
+              concurrency: { group: stage, cancelInProgress: stage === "dev" },
+            });
+          }
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["build"]!.instances, { stage })
+          ) {
+            assertEntries(i0.steps["build"]!.run!, {
+              shell: "bash",
+              workingDirectory: stage,
+            });
+          }
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["build"]!.instances, { stage })
+          ) {
+            assertEntries(i0.steps["other"]!.run!, {
+              shell: "sh",
+              workingDirectory: "step",
+            });
+          }
+        });
       }));
+
+    check((r) => {
+      assertEquals(r.concurrency, {
+        group: "refs/heads/main",
+        cancelInProgress: true,
+      });
+    });
   });
   assertEquals(result.concurrency, {
     group: "refs/heads/main",
     cancelInProgress: true,
   });
-  assertEquals(result.jobs.build.result, "success");
+  assertEquals(result.jobs.build!.result, "success");
 });
 
 Deno.test("environment rejection skips all steps and outputs, propagating failure through needs and status checks", async () => {
@@ -231,25 +262,56 @@ Deno.test("environment rejection skips all steps and outputs, propagating failur
         job.needs(jobs.normal).runsOn("ubuntu-latest").when(() => failure())
           .run({ id: "report", name: "Report", run: "true" }),
     );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
-    test.expectResult("failure");
+
     test.job("deploy", (job) => {
-      job.environmentProtection("rejected").expectResult("failure")
-        .expectOutputs({}).expectStepOrder();
-      job.step("deploy").expectSkip().fixture(() => {
+      job.environmentProtection("rejected");
+      job.step("deploy").fixture(() => {
         fixtures++;
         return { outputs: { url: "unexpected" } };
       });
+
+      check((r) => {
+        assertEquals(r.jobs["deploy"]!.result, "failure");
+      });
+      check((r) => {
+        assertEntries(r.jobs["deploy"]!.outputs, {});
+      });
+      check((r) => {
+        for (const i0 of r.jobs["deploy"]!.instances) {
+          assertEquals(i0.stepOrder, []);
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["deploy"]!.instances) {
+          assertEquals(i0.steps["deploy"]?.outcome ?? "skipped", "skipped");
+        }
+      });
     });
-    test.job("normal", (job) => job.expectResult("skipped"));
+    test.job("normal", (_job) => {
+      check((r) => {
+        assertEquals(r.jobs["normal"]!.result, "skipped");
+      });
+    });
     for (const id of ["failure", "always", "ancestor"] as const) {
-      test.job(id, (job) => job.step("report").expectRun().fixture({}));
+      test.job(id, (job) => {
+        job.step("report").fixture({});
+        check((r) => {
+          for (const i0 of r.jobs[id]!.instances) {
+            assertEquals(i0.steps["report"]!.outcome !== "skipped", true);
+          }
+        });
+      });
     }
+
+    check((r) => {
+      assertEquals(r.result, "failure");
+    });
   });
   assertEquals(fixtures, 0);
-  assertEquals(result.jobs.deploy.instances[0].steps, {});
-  assertEquals(result.jobs.deploy.outputs, {});
+  assertEquals(result.jobs.deploy!.instances[0].steps, {});
+  assertEquals(result.jobs.deploy!.outputs, {});
 });
 
 Deno.test("environment fixtures follow matrix instances, job conditions and optional gate omission", async () => {
@@ -271,25 +333,66 @@ Deno.test("environment fixtures follow matrix instances, job conditions and opti
           "production",
         ).run({ id: "never", name: "Never", run: "true" }),
     );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("deploy", (job) =>
       job.eachMatrix(({ stage }, instance) => {
         if (stage === "production") {
-          instance.environmentProtection("rejected").expectResult("failure")
-            .step("deploy").expectSkip();
-        } else {instance.expectResult("success").step("deploy").fixture(() => {
+          instance.environmentProtection("rejected")
+            .step("deploy");
+        } else {instance.step("deploy").fixture(() => {
             fixtures++;
             return { outputs: { url: "https://dev.example.com" } };
           });}
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["deploy"]!.instances, {
+              stage,
+            })
+          ) {
+            assertEquals(
+              i0.result,
+              stage === "production" ? "failure" : "success",
+            );
+          }
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["deploy"]!.instances, {
+              stage,
+            })
+          ) {
+            assertEquals(
+              i0.steps["deploy"]?.outcome ?? "skipped",
+              stage === "production" ? "skipped" : "success",
+            );
+          }
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["deploy"]!.instances, {
+              stage,
+            })
+          ) {
+            assertEquals(
+              i0.result,
+              stage === "production" ? "failure" : "success",
+            );
+          }
+        });
       }));
-    test.job("skipped", (job) =>
-      job.environmentProtection("passed").expectResult("skipped"));
+    test.job("skipped", (job) => {
+      job.environmentProtection("passed");
+      check((r) => {
+        assertEquals(r.jobs["skipped"]!.result, "skipped");
+      });
+    });
   });
   assertEquals(fixtures, 1);
-  assertEquals(result.jobs.deploy.outputs, { url: "https://dev.example.com" });
+  assertEquals(result.jobs.deploy!.outputs, { url: "https://dev.example.com" });
   assertEquals(
-    result.jobs.deploy.instances.map((instance) => instance.result),
+    result.jobs.deploy!.instances.map((instance) => instance.result),
     ["success", "failure"],
   );
 });
@@ -323,29 +426,59 @@ Deno.test("environment rejection inside a local reusable workflow propagates wit
         })).call("./.github/workflows/callee.yml", callee, {}),
     );
   for (const decision of ["passed", "rejected"] as const) {
-    const result = await scenario(caller, (test) => {
+    const result = await scenario(caller, (test, check) => {
       test.github({ event_name: "push", ref: "refs/heads/main" });
-      test.job("call", (job) =>
-        job.expectSettings({
-          concurrency: { group: "push", cancelInProgress: true },
-        }).call(callee, (child) =>
+      test.job("call", (job) => {
+        job.call(callee, (child) =>
           child.job("deploy", (deploy) => {
             deploy.environmentProtection(decision);
             if (decision === "passed") {
-              deploy.step("deploy").expectRunSettings({ shell: "sh" }).fixture(
+              deploy.step("deploy").fixture(
                 ({ run }) => {
                   assertEquals(run, { shell: "sh" });
                   return { outputs: { url: "https://example.com" } };
                 },
               );
-            } else deploy.step("deploy").expectSkip();
-          })));
+            } else deploy.step("deploy");
+
+            check((r) => {
+              for (const i0 of r.jobs["call"]!.instances) {
+                for (
+                  const i1 of i0.call!.jobs["deploy"]!.instances
+                ) {
+                  if (decision === "passed") {
+                    assertEntries(i1.steps["deploy"]!.run!, { shell: "sh" });
+                  }
+                }
+              }
+            });
+            check((r) => {
+              for (const i0 of r.jobs["call"]!.instances) {
+                for (
+                  const i1 of i0.call!.jobs["deploy"]!.instances
+                ) {
+                  assertEquals(
+                    i1.steps["deploy"]?.outcome ?? "skipped",
+                    decision === "passed" ? "success" : "skipped",
+                  );
+                }
+              }
+            });
+          }));
+        check((r) => {
+          for (const i0 of r.jobs["call"]!.instances) {
+            assertEntries(i0.settings, {
+              concurrency: { group: "push", cancelInProgress: true },
+            });
+          }
+        });
+      });
     }, { config: project({ workflows: [caller, callee] }) });
     assertEquals(
-      result.jobs.call.result,
+      result.jobs.call!.result,
       decision === "passed" ? "success" : "failure",
     );
-    assertEquals(result.jobs.call.outputs, {
+    assertEquals(result.jobs.call!.outputs, {
       url: decision === "passed" ? "https://example.com" : "",
     });
   }
@@ -397,25 +530,32 @@ Deno.test("workflow defaults forbid contexts and invalid maps, and dynamic queue
         }),
     );
   assert(lowerProject(project({ workflows: [ci] }), "./tsugiori.ts"));
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.vars({ CANCEL: "false" });
-    test.expectConcurrency({
-      group: "ci",
-      cancelInProgress: false,
-      queue: "max",
-    });
+
     test.job("build", (job) => job.step("build").fixture({}));
+
+    check((r) => {
+      assertEquals(r.concurrency, {
+        group: "ci",
+        cancelInProgress: false,
+        queue: "max",
+      });
+    });
   });
   await assertRejects(
     () =>
-      scenario(ci, (test) => {
+      scenario(ci, (test, check) => {
         test.github({ event_name: "push" });
         test.vars({ CANCEL: "true" });
-        test.expectConcurrency({
-          group: "ci",
-          cancelInProgress: true,
-          queue: "max",
+
+        check((r) => {
+          assertEquals(r.concurrency, {
+            group: "ci",
+            cancelInProgress: true,
+            queue: "max",
+          });
         });
       }),
     ScenarioError,
@@ -441,20 +581,30 @@ Deno.test("run settings use the explicit step env and environment URL observes f
           env: { DIR: "step" },
           workingDirectory: "${{ env.DIR }}",
         }));
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("build", (job) => {
-      job.expectSettings({
-        runsOn: { group: "build", labels: ["linux"] },
-        environment: { name: "dev", url: "failure" },
+      job.step("build").fixture({ outcome: "failure" });
+
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEntries(i0.settings, {
+            runsOn: { group: "build", labels: ["linux"] },
+            environment: { name: "dev", url: "failure" },
+          });
+        }
       });
-      job.step("build").expectRunSettings({
-        shell: "bash",
-        workingDirectory: "step",
-      }).fixture({ outcome: "failure" });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEntries(i0.steps["build"]!.run!, {
+            shell: "bash",
+            workingDirectory: "step",
+          });
+        }
+      });
     });
   });
-  assertEquals(result.jobs.build.result, "failure");
+  assertEquals(result.jobs.build!.result, "failure");
 });
 
 Deno.test("matrix instance settings evaluate native expressions with instance context", async () => {
@@ -481,83 +631,73 @@ Deno.test("matrix instance settings evaluate native expressions with instance co
           })
           .run({ id: "build", name: "Build", run: "never executed" }),
     );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("build", (job) =>
       job.eachMatrix(({ stage }, instance) => {
-        instance.expectSettings({
-          runsOn: { group: stage, labels: ["linux"] },
-          concurrency: {
-            group: stage,
-            cancelInProgress: false,
-            queue: "max",
-          },
-          environment: { name: stage, deployment: false },
+        instance;
+        instance.step("build").fixture({});
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["build"]!.instances, { stage })
+          ) {
+            assertEntries(i0.settings, {
+              runsOn: { group: stage, labels: ["linux"] },
+              concurrency: {
+                group: stage,
+                cancelInProgress: false,
+                queue: "max",
+              },
+              environment: { name: stage, deployment: false },
+            });
+          }
         });
-        instance.step("build").expectRunSettings({ shell: "bash" }).fixture({});
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["build"]!.instances, { stage })
+          ) assertEntries(i0.steps["build"]!.run!, { shell: "bash" });
+        });
       }));
   });
 });
 
-Deno.test("existing scenarios do not require contexts for settings they do not validate", async () => {
+Deno.test("settings capture fixture shortages and report them only when read", async () => {
   const ci = workflow("ci.yml", {
     on: { push: {} },
-    vars: ["RUNNER", "DIR", "GROUP"],
-    concurrency: ({ vars, github }) => ({
-      group: vars.GROUP,
-      cancelInProgress: github.ref.eq("refs/heads/main"),
-    }),
-  })
-    .job(
-      "build",
-      ({ job }) =>
-        job.runsOn("ubuntu-latest").runsOn(({ vars }) => vars.RUNNER)
-          .defaultsRun(({ vars }) => ({ workingDirectory: vars.DIR }))
-          .concurrency(({ vars }) => ({
-            group: vars.GROUP,
-            cancelInProgress: false,
-          }))
-          .run({
-            id: "build",
-            name: "Build",
-            run: "never executed",
-            shell: "${{ runner.shell }}",
-          }),
-    );
-  const result = await scenario(ci, (test) => {
-    test.github({ event_name: "push" });
-    test.job("build", (job) =>
-      job.step("build").fixture(({ run }) => {
-        assertEquals(run, undefined);
-        return {};
+    vars: ["GROUP", "RUNNER", "DIR"],
+    concurrency: ({ vars }) => ({ group: vars.GROUP, cancelInProgress: false }),
+  }).job("build", ({ job }) =>
+    job.runsOn("ubuntu-latest")
+      .runsOn(({ vars }) => vars.RUNNER)
+      .defaultsRun(({ vars }) => ({ workingDirectory: vars.DIR }))
+      .run({
+        id: "build",
+        name: "Build",
+        run: "true",
+        shell: "${{ runner.shell }}",
       }));
+  const result = await scenario(ci, (test, _check) => {
+    test.github({ event_name: "push" });
+    test.job("build", (job) => job.step("build").fixture({}));
   });
-  assertEquals(result.jobs.build.result, "success");
-  assertEquals(result.concurrency, undefined);
-  assertEquals(result.jobs.build.instances[0].settings, undefined);
-  await assertRejects(
-    () =>
-      scenario(ci, (test) => {
-        test.github({ event_name: "push" });
-        test.job("build", (job) =>
-          job.expectSettings({}).step("build").fixture({}));
-      }),
+  assertEquals(result.jobs.build!.result, "success");
+  assertEquals(result.concurrency!.cancelInProgress, false);
+  assertThrows(
+    () => result.concurrency!.group,
     ScenarioError,
-    "missing referenced context",
+    "missing referenced context vars",
   );
-  await assertRejects(() =>
-    scenario(ci, (test) => {
-      test.github({ event_name: "push" });
-      test.job("build", (job) =>
-        job.step("build").expectRunSettings({}).fixture({}));
-    }), ScenarioError);
-  await assertRejects(
-    () =>
-      scenario(ci, (test) => {
-        test.github({ event_name: "push" });
-        test.expectConcurrency({ group: "ci", cancelInProgress: false });
-      }),
+  const instance = result.jobs.build!.instances[0];
+  assertThrows(() => instance.settings.runsOn, ScenarioError);
+  assertThrows(
+    () => instance.steps.build!.run!.shell,
     ScenarioError,
-    "concurrency",
+    "runner.shell",
+  );
+  assertThrows(
+    () => instance.steps.build!.run!.workingDirectory,
+    ScenarioError,
+    "vars",
   );
 });

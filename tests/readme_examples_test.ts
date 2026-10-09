@@ -69,6 +69,8 @@ const snippetSources = [
   "examples/03-actions-add/.github/workflows/src/ci.ts",
   "examples/04-task/.github/workflows/src/ci.ts",
   "examples/05-typed-io/.github/workflows/src/ci.ts",
+  "examples/06-testing/.github/workflows/src/ci_test.ts",
+  "examples/06-testing/.github/workflows/src/ci_test.ts",
 ] as const;
 
 function lines(text: string): string {
@@ -94,8 +96,8 @@ async function run(directory: string, args: string[]): Promise<void> {
 Deno.test("README TypeScript blocks are checked chapter source", async () => {
   const readme = await Deno.readTextFile(new URL("README.md", root));
   const blocks = [...readme.matchAll(/```ts\n([\s\S]*?)```/g)];
-  assertEquals(blocks.length, 6);
-  const sourceBlockIndexes = [0, 1, 3, 4, 5];
+  assertEquals(blocks.length, 8);
+  const sourceBlockIndexes = [0, 1, 3, 4, 5, 6, 7];
   for (const [index, sourcePath] of snippetSources.entries()) {
     const source = await Deno.readTextFile(
       new URL(sourcePath, root),

@@ -1,10 +1,14 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assertEquals, assertRejects } from "@std/assert";
 import {
   always,
   jsonValue,
   project,
   rawExpression,
-  scenario,
   textValue,
   workflow,
 } from "../src/github_actions.ts";
@@ -85,40 +89,68 @@ const wired = workflow(".github/workflows/wired.yml", {
   );
 
 Deno.test("harness wires typed task values, action strings, and evaluated inputs", async () => {
-  const result = await scenario(wired, (test) => {
+  const result = await scenario(wired, (test, check) => {
     test.github({ event_name: "workflow_dispatch", event: {} });
     test.inputs({ value: "request" });
     test.job("produce", (job) => {
       job.step("number").fixture({ outputs: { count: 7 } });
-      job.expectOutputs({ count: "7", label: "" });
+
+      check((r) => {
+        assertEntries(r.jobs["produce"]!.outputs, { count: "7", label: "" });
+      });
     });
     test.job("consume", (job) => {
       job.step("read").fixture(({ inputs }) => {
         assertEquals(inputs.count, 7);
         assertEquals(inputs.label, null);
         return { outputs: { reply: "ok" } };
-      }).expectInputs({ count: 7, label: null }).expectOutputs({ reply: "ok" });
+      });
       job.step("action").fixture(({ inputs }) => {
         assertEquals(inputs.value, "request");
         return { outputs: { token: "literal-token" } };
-      }).expectInputs({ value: "request" });
-      job.step("after").fixture({}).expectInputs({ token: "literal-token" });
-      job.expectStepOrder("read", "action", "after");
+      });
+      job.step("after").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEntries(i0.steps["read"]!.inputs, { count: 7, label: null });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEntries(i0.steps["read"]!.typedOutputs, { reply: "ok" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEntries(i0.steps["action"]!.inputs, { value: "request" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEntries(i0.steps["after"]!.inputs, { token: "literal-token" });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["consume"]!.instances) {
+          assertEquals(i0.stepOrder, ["read", "action", "after"]);
+        }
+      });
     });
   });
-  assertEquals(result.jobs.produce.outputs.count, "7");
+  assertEquals(result.jobs.produce!.outputs.count, "7");
 });
 
 Deno.test("harness rejects missing dispatch inputs and invalid task output contracts", async () => {
   const missing = await assertRejects(() =>
-    scenario(wired, (test) => {
+    scenario(wired, (test, _check) => {
       test.github({ event_name: "workflow_dispatch", event: {} });
     })
   );
   assertEquals((missing as { kind?: string }).kind, "fixture_missing");
 
   const invalid = await assertRejects(() =>
-    scenario(wired, (test) => {
+    scenario(wired, (test, _check) => {
       test.github({ event_name: "workflow_dispatch", event: {} });
       test.inputs({ value: "request" });
       test.job("produce", (job) => {
@@ -159,22 +191,47 @@ const statuses = workflow(".github/workflows/statuses.yml", {
   );
 
 Deno.test("harness keeps outcome and conclusion distinct while evaluating native conditions", async () => {
-  const result = await scenario(statuses, (test) => {
+  const result = await scenario(statuses, (test, check) => {
     test.github({ event_name: "push", event: {} });
     test.job("first", (job) => {
-      job.step("fallible").fixture({ outcome: "failure" }).expectOutcome(
-        "failure",
-      ).expectConclusion("success");
-      job.step("normal").fixture({}).expectRun();
-      job.expectResult("success");
+      job.step("fallible").fixture({ outcome: "failure" });
+      job.step("normal").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["first"]!.instances) {
+          assertEquals(i0.steps["fallible"]!.outcome, "failure");
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["first"]!.instances) {
+          assertEquals(i0.steps["fallible"]!.conclusion, "success");
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["first"]!.instances) {
+          assertEquals(i0.steps["normal"]!.outcome !== "skipped", true);
+        }
+      });
+      check((r) => {
+        assertEquals(r.jobs["first"]!.result, "success");
+      });
     });
     test.job("second", (job) => {
-      job.step("check").fixture({}).expectRun();
+      job.step("check").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["second"]!.instances) {
+          assertEquals(i0.steps["check"]!.outcome !== "skipped", true);
+        }
+      });
     });
-    test.expectResult("success");
+
+    check((r) => {
+      assertEquals(r.result, "success");
+    });
   });
   assertEquals(
-    result.jobs.first.instances[0].steps.fallible.conclusion,
+    result.jobs.first!.instances[0].steps.fallible!.conclusion,
     "success",
   );
 });
@@ -194,19 +251,36 @@ const matrix = workflow(".github/workflows/matrix.yml", {
       run: taskMustNotRun,
     }));
 
-Deno.test("harness chooses fixture and expectation independently for each matrix value", async () => {
-  await scenario(matrix, (test) => {
+Deno.test("harness chooses fixture and assertions independently for each matrix value", async () => {
+  await scenario(matrix, (test, check) => {
     test.github({ event_name: "push", event: {} });
     test.job("split", (job) => {
-      job.expectMatrix([{ stage: "dev" }, { stage: "prd" }]);
       job.eachMatrix(({ stage }, instance) => {
         instance.step("execute").fixture({
           outcome: stage === "prd" ? "failure" : "success",
-        })
-          .expectInputs({ stage });
-        instance.expectResult(stage === "prd" ? "failure" : "success");
+        });
+        instance;
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["split"]!.instances, { stage })
+          ) assertEntries(i0.steps["execute"]!.inputs, { stage });
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["split"]!.instances, { stage })
+          ) assertEquals(i0.result, stage === "prd" ? "failure" : "success");
+        });
       });
-      job.expectResult("failure");
+
+      check((r) => {
+        assertEquals(r.jobs["split"]!.instances.map((i) => i.matrix), [{
+          stage: "dev",
+        }, { stage: "prd" }]);
+      });
+      check((r) => {
+        assertEquals(r.jobs["split"]!.result, "failure");
+      });
     });
   });
 });
@@ -220,7 +294,7 @@ const includedMatrix = workflow(".github/workflows/included-matrix.yml", {
     .run({ id: "execute", name: "Execute", run: "true" }));
 
 Deno.test("harness applies matrix include to every compatible original combination", async () => {
-  const result = await scenario(includedMatrix, (test) => {
+  const result = await scenario(includedMatrix, (test, check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       test.vars({
@@ -229,17 +303,21 @@ Deno.test("harness applies matrix include to every compatible original combinati
           include: [{ region: "us" }],
         }),
       });
-      job.expectMatrix([
-        { stage: "dev", region: "us" },
-        { stage: "prd", region: "us" },
-      ]);
+
       job.eachMatrix((_matrix, instance) => {
         instance.step("execute").fixture({});
       });
+
+      check((r) => {
+        assertEquals(r.jobs["split"]!.instances.map((i) => i.matrix), [
+          { stage: "dev", region: "us" },
+          { stage: "prd", region: "us" },
+        ]);
+      });
     });
   });
-  assertEquals(result.jobs.split.instances.length, 2);
-  const includeOnly = await scenario(includedMatrix, (test) => {
+  assertEquals(result.jobs.split!.instances.length, 2);
+  const includeOnly = await scenario(includedMatrix, (test, check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       test.vars({
@@ -247,14 +325,20 @@ Deno.test("harness applies matrix include to every compatible original combinati
           include: [{ stage: "dev" }, { stage: "prd" }],
         }),
       });
-      job.expectMatrix([{ stage: "dev" }, { stage: "prd" }]);
+
       job.eachMatrix((_matrix, instance) => {
         instance.step("execute").fixture({});
       });
+
+      check((r) => {
+        assertEquals(r.jobs["split"]!.instances.map((i) => i.matrix), [{
+          stage: "dev",
+        }, { stage: "prd" }]);
+      });
     });
   });
-  assertEquals(includeOnly.jobs.split.instances.length, 2);
-  const excludedThenIncluded = await scenario(includedMatrix, (test) => {
+  assertEquals(includeOnly.jobs.split!.instances.length, 2);
+  const excludedThenIncluded = await scenario(includedMatrix, (test, check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       test.vars({
@@ -264,13 +348,19 @@ Deno.test("harness applies matrix include to every compatible original combinati
           include: [{ stage: "dev", region: "us" }],
         }),
       });
-      job.expectMatrix([{ stage: "prd" }, { stage: "dev", region: "us" }]);
+
       job.eachMatrix((_matrix, instance) => {
         instance.step("execute").fixture({});
       });
+
+      check((r) => {
+        assertEquals(r.jobs["split"]!.instances.map((i) => i.matrix), [{
+          stage: "prd",
+        }, { stage: "dev", region: "us" }]);
+      });
     });
   });
-  assertEquals(excludedThenIncluded.jobs.split.instances.length, 2);
+  assertEquals(excludedThenIncluded.jobs.split!.instances.length, 2);
 });
 
 const mergedOutputs = workflow(".github/workflows/merged-outputs.yml", {
@@ -289,22 +379,31 @@ const mergedOutputs = workflow(".github/workflows/merged-outputs.yml", {
       }));
 
 Deno.test("harness propagates deterministic matrix job outputs to needs", async () => {
-  const result = await scenario(mergedOutputs, (test) => {
+  const result = await scenario(mergedOutputs, (test, check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       job.eachMatrix((_matrix, instance) => {
         instance.step("emit").fixture({ outputs: { value: "shared" } });
       });
-      job.expectOutputs({ value: "shared" });
+
+      check((r) => {
+        assertEntries(r.jobs["split"]!.outputs, { value: "shared" });
+      });
     });
     test.job("after", (job) => {
-      job.step("consume").fixture({}).expectInputs({ value: "shared" });
+      job.step("consume").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["after"]!.instances) {
+          assertEntries(i0.steps["consume"]!.inputs, { value: "shared" });
+        }
+      });
     });
   });
-  assertEquals(result.jobs.split.outputs.value, "shared");
+  assertEquals(result.jobs.split!.outputs.value, "shared");
 
   const ambiguous = await assertRejects(() =>
-    scenario(mergedOutputs, (test) => {
+    scenario(mergedOutputs, (test, _check) => {
       test.github({ event_name: "push" });
       test.job("split", (job) => {
         job.eachMatrix(({ stage }, instance) => {
@@ -331,7 +430,7 @@ const distinctOutputs = workflow(
     })));
 
 Deno.test("harness combines distinct nonempty matrix output names", async () => {
-  const result = await scenario(distinctOutputs, (test) => {
+  const result = await scenario(distinctOutputs, (test, check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       job.eachMatrix(({ stage }, instance) => {
@@ -341,10 +440,16 @@ Deno.test("harness combines distinct nonempty matrix output names", async () => 
             : { prd: "prd-value" },
         });
       });
-      job.expectOutputs({ dev: "dev-value", prd: "prd-value" });
+
+      check((r) => {
+        assertEntries(r.jobs["split"]!.outputs, {
+          dev: "dev-value",
+          prd: "prd-value",
+        });
+      });
     });
   });
-  assertEquals(result.jobs.split.outputs, {
+  assertEquals(result.jobs.split!.outputs, {
     dev: "dev-value",
     prd: "prd-value",
   });
@@ -365,17 +470,27 @@ const filtered = workflow(".github/workflows/filtered.yml", {
     .run({ id: "inspect", name: "Inspect", run: "true" }));
 
 Deno.test("harness respects ordered positive and negative branch filters", async () => {
-  const excluded = await scenario(filtered, (test) => {
+  const excluded = await scenario(filtered, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/releases/next-alpha" });
-    test.expectResult("skipped");
+
+    check((r) => {
+      assertEquals(r.result, "skipped");
+    });
   });
   assertEquals(excluded.result, "skipped");
-  const included = await scenario(filtered, (test) => {
+  const included = await scenario(filtered, (test, check) => {
     test.github({
       event_name: "push",
       ref: "refs/heads/releases/reinclude-alpha",
     });
-    test.job("check", (job) => job.step("inspect").fixture({}).expectRun());
+    test.job("check", (job) => {
+      job.step("inspect").fixture({});
+      check((r) => {
+        for (const i0 of r.jobs["check"]!.instances) {
+          assertEquals(i0.steps["inspect"]!.outcome !== "skipped", true);
+        }
+      });
+    });
   });
   assertEquals(included.result, "success");
 });
@@ -390,9 +505,16 @@ const versionFiltered = workflow(
     .run({ id: "inspect", name: "Inspect", run: "true" }));
 
 Deno.test("harness evaluates GitHub branch character classes and repetition", async () => {
-  const result = await scenario(versionFiltered, (test) => {
+  const result = await scenario(versionFiltered, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/v2.10.1" });
-    test.job("check", (job) => job.step("inspect").fixture({}).expectRun());
+    test.job("check", (job) => {
+      job.step("inspect").fixture({});
+      check((r) => {
+        for (const i0 of r.jobs["check"]!.instances) {
+          assertEquals(i0.steps["inspect"]!.outcome !== "skipped", true);
+        }
+      });
+    });
   });
   assertEquals(result.result, "success");
 });
@@ -410,22 +532,21 @@ const matrixRaw = workflow(".github/workflows/matrix-raw.yml", {
     }));
 
 Deno.test("harness evaluates native expressions at each matrix step", async () => {
-  const result = await scenario(matrixRaw, (test) => {
+  const result = await scenario(matrixRaw, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       job.eachMatrix(({ stage }, instance) => {
         const step = instance.step("conditional");
-        if (stage === "dev") step.fixture({}).expectRun();
-        else step.expectSkip();
+        if (stage === "dev") step.fixture({});
       });
     });
   });
   assertEquals(
-    result.jobs.split.instances[0].steps.conditional.outcome,
+    result.jobs.split!.instances[0].steps.conditional!.outcome,
     "success",
   );
   assertEquals(
-    result.jobs.split.instances[1].steps.conditional.outcome,
+    result.jobs.split!.instances[1].steps.conditional!.outcome,
     "skipped",
   );
 });
@@ -472,7 +593,7 @@ Deno.test("common input references follow each trigger and call defaults", async
       count: "",
     }]] as const
   ) {
-    await scenario(mixed, (test) => {
+    await scenario(mixed, (test, _check) => {
       test.github({ event_name: event });
       test.inputs({});
       test.job("read", (job) =>
@@ -490,7 +611,7 @@ Deno.test("common input references follow each trigger and call defaults", async
       ({ job }) =>
         job.reusable().call("./.github/workflows/mixed.yml", mixed, {}),
     );
-  await scenario(caller, (test) => {
+  await scenario(caller, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("call", (job) =>
       job.call(mixed, (child) => {

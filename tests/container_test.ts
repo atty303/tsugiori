@@ -1,3 +1,8 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   always,
@@ -13,11 +18,7 @@ import {
 } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { parse } from "../src/deps.ts";
-import {
-  scenario,
-  ScenarioError,
-  type ScenarioObservation,
-} from "../src/testing/mod.ts";
+import { ScenarioError, type ScenarioObservation } from "../src/testing/mod.ts";
 
 Deno.test("container/services preserve native fields and immutable declarations in generated YAML", () => {
   const ci = workflow("containers.yml", { on: { push: {} } }).job(
@@ -61,7 +62,7 @@ Deno.test("container/services preserve native fields and immutable declarations 
     lowerProject(project({ workflows: [ci] }), "./workflows.ts").workflows[0]
       .workflow;
   const yaml = parse(emitWorkflow(native));
-  assertEquals(yaml.jobs.test.container, {
+  assertEquals(yaml.jobs.test!.container, {
     image: "${{ matrix.image }}",
     credentials: {
       username: "${{ github.actor }}",
@@ -72,7 +73,7 @@ Deno.test("container/services preserve native fields and immutable declarations 
     volumes: ["cache:/cache"],
     options: "--cpus 1",
   });
-  assertEquals(yaml.jobs.test.services.db, {
+  assertEquals(yaml.jobs.test!.services.db, {
     image: "postgres:17",
     credentials: { username: "fixture-user", password: "fixture-password" },
     env: { POSTGRES_PASSWORD: "fixture" },
@@ -96,7 +97,7 @@ Deno.test("container/services preserve native fields and immutable declarations 
         lowerProject(project({ workflows: [shorthand] }), "./w.ts").workflows[0]
           .workflow,
       ),
-    ).jobs.test.container,
+    ).jobs.test!.container,
     "node:22",
   );
 });
@@ -162,16 +163,11 @@ Deno.test("matrix settings and runtime service ports require only read fixture v
         })
         .outputs(({ job }) => ({ port: job.services.db.ports["5432"] })),
   );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" }).secrets({ DB_PASSWORD: "fixture" });
     test.job("test", (job) =>
       job.eachMatrix(({ version }, instance) => {
-        instance.expectSettings({
-          container: { image: version },
-          services: {
-            db: { image: version, ports: [5432], env: { PASSWORD: "fixture" } },
-          },
-        });
+        instance;
         instance.containerRuntime({
           services: { db: { ports: Object.freeze({ "5432": "32768" }) } },
         });
@@ -180,13 +176,32 @@ Deno.test("matrix settings and runtime service ports require only read fixture v
           assertEquals(env.UPPER, "32768");
           return {};
         });
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, {
+              version,
+            })
+          ) {
+            assertEntries(i0.settings, {
+              container: { image: version },
+              services: {
+                db: {
+                  image: version,
+                  ports: [5432],
+                  env: { PASSWORD: "fixture" },
+                },
+              },
+            });
+          }
+        });
       }));
   });
-  assertEquals(result.jobs.test.outputs, { port: "32768" });
-  assertEquals(result.jobs.test.instances.length, 2);
+  assertEquals(result.jobs.test!.outputs, { port: "32768" });
+  assertEquals(result.jobs.test!.instances.length, 2);
   await assertRejects(
     () =>
-      scenario(ci, (test) => {
+      scenario(ci, (test, _check) => {
         test.github({ event_name: "push" });
         test.job("test", (job) => {
           job.containerRuntime({
@@ -218,7 +233,7 @@ Deno.test("unused settings require no extra contexts; disabled services use nati
           run: "true",
         }),
   );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => job.step("test").fixture({}));
   });
@@ -236,7 +251,7 @@ Deno.test("unused settings require no extra contexts; disabled services use nati
           }),
         }),
   );
-  await scenario(disabled, (test) => {
+  await scenario(disabled, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) =>
       job.step("test").fixture(({ env }) => {
@@ -246,7 +261,7 @@ Deno.test("unused settings require no extra contexts; disabled services use nati
   });
   await assertRejects(
     () =>
-      scenario(disabled, (test) => {
+      scenario(disabled, (test, _check) => {
         test.github({ event_name: "push" });
         test.job("test", (job) => {
           job.containerRuntime({ services: { db: { id: "fixture" } } });
@@ -272,7 +287,7 @@ Deno.test("whole runtime object reads require complete fixtures instead of fabri
   );
   await assertRejects(
     () =>
-      scenario(ci, (test) => {
+      scenario(ci, (test, _check) => {
         test.github({ event_name: "push" });
         test.job("test", (job) => {
           job.containerRuntime({ services: { db: { ports: {} } } });
@@ -282,7 +297,7 @@ Deno.test("whole runtime object reads require complete fixtures instead of fabri
     ScenarioError,
     "job.services.db.id",
   );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => {
       job.containerRuntime({
@@ -338,31 +353,67 @@ Deno.test("initialization failure preserves failure/always gates, job tolerance,
           }),
       );
     const events: ScenarioObservation[] = [];
-    const result = await scenario(ci, (test) => {
+    const result = await scenario(ci, (test, check) => {
       test.github({ event_name: "push" });
       test.job("test", (job) => {
-        job.containerInitialization("failure").expectResult(
-          tolerated ? "success" : "failure",
-        );
-        job.step("normal").expectSkip();
-        job.step("failed").fixture({ outputs: { value: "after-failure" } })
-          .expectRun();
+        job.containerInitialization("failure");
+        job.step("normal");
+        job.step("failed").fixture({ outputs: { value: "after-failure" } });
         job.step("always").fixture(({ env }) => {
           assertEquals(env.STATUS, "failure");
           return {};
         });
+
+        check((r) => {
+          assertEquals(
+            r.jobs["test"]!.result,
+            tolerated ? "success" : "failure",
+          );
+        });
+        check((r) => {
+          for (const i0 of r.jobs["test"]!.instances) {
+            assertEquals(i0.steps["normal"]!.outcome !== "skipped", false);
+          }
+        });
+        check((r) => {
+          for (const i0 of r.jobs["test"]!.instances) {
+            assertEquals(i0.steps["failed"]!.outcome !== "skipped", true);
+          }
+        });
       });
       test.job("dependent", (job) => {
-        if (tolerated) job.step("next").fixture({}).expectRun();
-        else job.step("next").expectSkip();
+        if (tolerated) job.step("next").fixture({});
+        else job.step("next");
+
+        check((r) => {
+          for (const i0 of r.jobs["dependent"]!.instances) {
+            assertEquals(
+              i0.steps["next"]?.outcome !== undefined &&
+                i0.steps["next"]?.outcome !== "skipped",
+              tolerated,
+            );
+          }
+        });
+        check((r) => {
+          for (const i0 of r.jobs["dependent"]!.instances) {
+            assertEquals(
+              i0.steps["next"]?.outcome !== undefined &&
+                i0.steps["next"]?.outcome !== "skipped",
+              tolerated,
+            );
+          }
+        });
       });
-      test.expectResult(tolerated ? "success" : "failure");
+
+      check((r) => {
+        assertEquals(r.result, tolerated ? "success" : "failure");
+      });
     }, { observe: (event) => events.push(event) });
-    assertEquals(result.jobs.test.outputs, {
+    assertEquals(result.jobs.test!.outputs, {
       value: "after-failure",
       missing: "",
     });
-    assertEquals(result.jobs.test.instances[0].outcome, "failure");
+    assertEquals(result.jobs.test!.instances[0].outcome, "failure");
     assert(
       events.some((e) =>
         e.stage === "container-initialization" && e.status === "failure" &&
@@ -387,14 +438,28 @@ Deno.test("initialization fixtures are per-matrix and observers cannot interfere
         }),
   );
   const run = (observe?: () => void) =>
-    scenario(ci, (test) => {
+    scenario(ci, (test, check) => {
       test.github({ event_name: "push" });
       test.job("test", (job) =>
         job.eachMatrix(({ broken }, instance) => {
-          instance.containerInitialization(broken ? "failure" : "success")
-            .expectResult(broken ? "failure" : "success");
-          if (broken) instance.step("test").expectSkip();
+          instance.containerInitialization(broken ? "failure" : "success");
+          if (broken) instance.step("test");
           else instance.step("test").fixture({});
+
+          check((r) => {
+            for (
+              const i0 of matchingInstances(r.jobs["test"]!.instances, {
+                broken,
+              })
+            ) assertEquals(i0.result, broken ? "failure" : "success");
+          });
+          check((r) => {
+            for (
+              const i0 of matchingInstances(r.jobs["test"]!.instances, {
+                broken,
+              })
+            ) assertEquals(i0.steps["test"]!.outcome !== "skipped", !broken);
+          });
         }));
     }, { observe });
   assertEquals(
@@ -424,14 +489,14 @@ Deno.test("service-only jobs expose the runner network with no job container ID"
   );
   await assertRejects(
     () =>
-      scenario(ci, (test) => {
+      scenario(ci, (test, _check) => {
         test.github({ event_name: "push" });
         test.job("test", (job) => job.step("test").fixture({}));
       }),
     ScenarioError,
     "job.container.network",
   );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => {
       job.containerRuntime({

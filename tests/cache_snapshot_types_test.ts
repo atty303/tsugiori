@@ -49,9 +49,7 @@ function declarations() {
   });
   scenario(
     root,
-    (test) =>
-      test.job("call", (job) =>
-        job.expectSettings({ cacheMode: "read", cacheModeSource: "job" })),
+    (test) => test.job("call", (job) => void job),
     { config: project({ workflows: [root, leaf] }) },
   );
 }

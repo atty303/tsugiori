@@ -5,7 +5,7 @@ import { ci } from "./ci.ts";
 
 Deno.test("scenario reaches the consumer when files are present", async () => {
   // Run a workflow scenario with supplied step results.
-  await scenario(ci, (test) => {
+  const result = await scenario(ci, (test) => {
     // Supply the dispatch event context.
     test.github({ event_name: "workflow_dispatch", event: {} });
     // Inspect the one job and its ordered steps.
@@ -18,11 +18,12 @@ Deno.test("scenario reaches the consumer when files are present", async () => {
         outputs: { files: ["one.ts"], hasFiles: "true" },
       });
       // Check execution and typed input forwarding to count.
-      job.step("count").fixture({}).expectRun().expectInputs({
-        files: ["one.ts"],
-      });
+      job.step("count").fixture({});
     });
   });
+  const consumer = result.jobs.inspect!.instances[0].steps.count!;
+  assert.equal(consumer.outcome, "success");
+  assert.deepEqual(consumer.inputs.files, ["one.ts"]);
 });
 
 Deno.test("scenario skips the consumer when no files are present", async () => {
@@ -39,9 +40,11 @@ Deno.test("scenario skips the consumer when no files are present", async () => {
         // Declare the outputs visible to later steps.
         outputs: { files: [], hasFiles: "false" },
       });
-      // Confirm the typed condition skips the consumer.
-      job.step("count").expectSkip();
     });
   });
-  assert.equal(result.jobs.inspect.result, "success");
+  assert.equal(result.jobs.inspect!.result, "success");
+  assert.equal(
+    result.jobs.inspect!.instances[0].steps.count!.outcome,
+    "skipped",
+  );
 });

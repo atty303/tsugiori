@@ -1,3 +1,8 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   type CacheMode,
@@ -13,7 +18,7 @@ import {
 import { validateWorkflow } from "../src/compiler/github_actions/validation.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { parse } from "../src/deps.ts";
-import { scenario, ScenarioError } from "../src/testing/mod.ts";
+import { ScenarioError } from "../src/testing/mod.ts";
 
 Deno.test("cache modes and snapshot forms survive immutable lowering to native YAML, including task preparation", () => {
   const image = {
@@ -60,21 +65,21 @@ Deno.test("cache modes and snapshot forms survive immutable lowering to native Y
     >;
   };
   assertEquals(yaml["cache-mode"], "read");
-  assertEquals(yaml.jobs.image["cache-mode"], "write-only");
-  assertEquals(yaml.jobs.image.snapshot, {
+  assertEquals(yaml.jobs.image!["cache-mode"], "write-only");
+  assertEquals(yaml.jobs.image!.snapshot, {
     "image-name": "ci-image",
     version: "2.*",
     if: "${{ !startsWith(github.ref, 'refs/tags/') }}",
   });
-  assertEquals(yaml.jobs.short.snapshot, "other-image");
-  assertEquals(yaml.jobs.task["cache-mode"], "none");
+  assertEquals(yaml.jobs.short!.snapshot, "other-image");
+  assertEquals(yaml.jobs.task!["cache-mode"], "none");
   assert(
-    yaml.jobs.task.steps.some((s: { uses?: string }) =>
+    yaml.jobs.task!.steps.some((s: { uses?: string }) =>
       s.uses?.startsWith("actions/cache@")
     ),
   );
   assert(
-    yaml.jobs.task.steps.some((s: { name?: string; if?: string }) =>
+    yaml.jobs.task!.steps.some((s: { name?: string; if?: string }) =>
       s.name === "Prepare task artifact" && s.if === undefined
     ),
   );
@@ -191,25 +196,51 @@ Deno.test("cache access defaults stay distinct from explicit ceilings through ne
       ({ job }) =>
         job.reusable().call("./.github/workflows/leaf.yml", leaf, {}),
     );
-  const result = await scenario(root, (test) => {
+  const result = await scenario(root, (test, check) => {
     test.github({ event_name: "issue_comment", event: { action: "created" } });
-    test.job("call", (job) =>
-      job.expectSettings({ cacheMode: "read", cacheModeSource: "trigger" })
+    test.job("call", (job) => {
+      job
         .call(leaf, (child) => {
           child.job("inherited", (job) => {
-            job.expectSettings({
-              cacheMode: "read",
-              cacheModeSource: "trigger",
-            });
             job.step("build").fixture({});
+
+            check((r) => {
+              for (const i0 of r.jobs["call"]!.instances) {
+                for (const i1 of i0.call!.jobs["inherited"]!.instances) {
+                  assertEntries(i1.settings, {
+                    cacheMode: "read",
+                    cacheModeSource: "trigger",
+                  });
+                }
+              }
+            });
           });
           child.job("override", (job) => {
-            job.expectSettings({ cacheMode: "write", cacheModeSource: "job" });
             job.step("build").fixture({});
+
+            check((r) => {
+              for (const i0 of r.jobs["call"]!.instances) {
+                for (const i1 of i0.call!.jobs["override"]!.instances) {
+                  assertEntries(i1.settings, {
+                    cacheMode: "write",
+                    cacheModeSource: "job",
+                  });
+                }
+              }
+            });
           });
-        }));
+        });
+      check((r) => {
+        for (const i0 of r.jobs["call"]!.instances) {
+          assertEntries(i0.settings, {
+            cacheMode: "read",
+            cacheModeSource: "trigger",
+          });
+        }
+      });
+    });
   }, { config: project({ workflows: [root, leaf] }) });
-  assertEquals(result.jobs.call.result, "success");
+  assertEquals(result.jobs.call!.result, "success");
   const cappedLeaf = workflow(".github/workflows/capped.yml", {
     on: { workflow_call: {} },
   })
@@ -243,35 +274,61 @@ Deno.test("cache access defaults stay distinct from explicit ceilings through ne
           {},
         ),
     );
-  await scenario(cappedRoot, (test) => {
+  await scenario(cappedRoot, (test, check) => {
     test.github({ event_name: "push" });
-    test.job("call", (job) =>
-      job.expectSettings({ cacheMode: "none", cacheModeSource: "job" }).call(
+    test.job("call", (job) => {
+      job.call(
         middle,
         (child) => {
           child.job(
             "call",
-            (job) =>
-              job.expectSettings({
-                cacheMode: "none",
-                cacheModeSource: "caller",
-              })
+            (job) => {
+              job
                 .call(cappedLeaf, (child) => {
                   child.job("build", (job) => {
-                    job.expectSettings({
+                    job.step("build").fixture({});
+
+                    check((r) => {
+                      for (const i0 of r.jobs["call"]!.instances) {
+                        for (const i1 of i0.call!.jobs["call"]!.instances) {
+                          for (const i2 of i1.call!.jobs["build"]!.instances) {
+                            assertEntries(i2.settings, {
+                              cacheMode: "none",
+                              cacheModeSource: "caller",
+                            });
+                          }
+                        }
+                      }
+                    });
+                  });
+                });
+              check((r) => {
+                for (const i0 of r.jobs["call"]!.instances) {
+                  for (const i1 of i0.call!.jobs["call"]!.instances) {
+                    assertEntries(i1.settings, {
                       cacheMode: "none",
                       cacheModeSource: "caller",
                     });
-                    job.step("build").fixture({});
-                  });
-                }),
+                  }
+                }
+              });
+            },
           );
         },
-      ));
+      );
+      check((r) => {
+        for (const i0 of r.jobs["call"]!.instances) {
+          assertEntries(i0.settings, {
+            cacheMode: "none",
+            cacheModeSource: "job",
+          });
+        }
+      });
+    });
   }, { config: project({ workflows: [cappedRoot, middle, cappedLeaf] }) });
 });
 
-Deno.test("snapshot requests follow actual success, conditions and opt-in settings without running images", async () => {
+Deno.test("snapshot requests follow actual success, conditions and captured settings without running images", async () => {
   let bodies = 0;
   const ci = workflow("snapshots.yml", { on: { push: {} } })
     .job("image", ({ job }) =>
@@ -291,23 +348,45 @@ Deno.test("snapshot requests follow actual success, conditions and opt-in settin
           },
         }));
   for (const ref of ["refs/heads/main", "refs/tags/v1"]) {
-    const result = await scenario(ci, (test) => {
+    const result = await scenario(ci, (test, check) => {
       test.github({ event_name: "push", ref });
       test.job("image", (job) =>
         job.eachMatrix(({ outcome }, instance) => {
-          instance.expectSettings({
-            cacheMode: "write",
-            cacheModeSource: "trigger",
-            snapshot: outcome === "success" && ref === "refs/heads/main"
-              ? { imageName: "ci-image", version: "2.*" }
-              : undefined,
-          });
+          instance;
           instance.step("setup").fixture({
             outcome: outcome as "success" | "failure" | "cancelled",
-          }).expectOutcome(outcome as "success" | "failure" | "cancelled");
+          });
+
+          check((r) => {
+            for (
+              const i0 of matchingInstances(r.jobs["image"]!.instances, {
+                outcome,
+              })
+            ) {
+              assertEntries(i0.settings, {
+                cacheMode: "write",
+                cacheModeSource: "trigger",
+                snapshot: outcome === "success" && ref === "refs/heads/main"
+                  ? { imageName: "ci-image", version: "2.*" }
+                  : undefined,
+              });
+            }
+          });
+          check((r) => {
+            for (
+              const i0 of matchingInstances(r.jobs["image"]!.instances, {
+                outcome,
+              })
+            ) {
+              assertEquals(
+                i0.steps["setup"]!.outcome,
+                outcome as "success" | "failure" | "cancelled",
+              );
+            }
+          });
         }));
     });
-    assertEquals(result.jobs.image.instances.length, 3);
+    assertEquals(result.jobs.image!.instances.length, 3);
   }
   assertEquals(bodies, 0);
   const unused = workflow("unused.yml", { on: { push: {} } }).job(
@@ -317,18 +396,26 @@ Deno.test("snapshot requests follow actual success, conditions and opt-in settin
         .snapshot({ imageName: "ci", if: rawExpression("vars.MAKE_IMAGE") })
         .run({ id: "setup", name: "Setup", run: "true" }),
   );
-  const result = await scenario(unused, (test) => {
+  const result = await scenario(unused, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("image", (job) => job.step("setup").fixture({}));
   });
-  assertEquals(result.jobs.image.instances[0].settings, undefined);
+  assertThrows(
+    () => result.jobs.image!.instances[0].settings.snapshot,
+    ScenarioError,
+  );
   await assertRejects(
     () =>
-      scenario(unused, (test) => {
+      scenario(unused, (test, check) => {
         test.github({ event_name: "push" });
         test.job("image", (job) => {
-          job.expectSettings({});
           job.step("setup").fixture({});
+
+          check((r) => {
+            for (const i0 of r.jobs["image"]!.instances) {
+              assertEquals(i0.settings.snapshot, undefined);
+            }
+          });
         });
       }),
     ScenarioError,
@@ -389,7 +476,7 @@ Deno.test("trigger cache defaults and explicit overrides retain native precedenc
           run: "true",
         }),
     );
-    await scenario(ci, (test) => {
+    await scenario(ci, (test, check) => {
       if (event === "push") test.github({ event_name: "push" });
       else if (event === "pull_request") {
         test.github({
@@ -401,11 +488,16 @@ Deno.test("trigger cache defaults and explicit overrides retain native precedenc
           event: { action: "opened" },
         });}
       test.job("build", (job) => {
-        job.expectSettings({
-          cacheMode: event === "pull_request_target" ? "read" : "write",
-          cacheModeSource: "trigger",
-        });
         job.step("build").fixture({});
+
+        check((r) => {
+          for (const i0 of r.jobs["build"]!.instances) {
+            assertEntries(i0.settings, {
+              cacheMode: event === "pull_request_target" ? "read" : "write",
+              cacheModeSource: "trigger",
+            });
+          }
+        });
       });
     });
   }
@@ -431,18 +523,34 @@ Deno.test("trigger cache defaults and explicit overrides retain native precedenc
           run: "true",
         }),
     );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, check) => {
     test.github({
       event_name: "pull_request_target",
       event: { action: "opened" },
     });
     test.job("inherited", (job) => {
-      job.expectSettings({ cacheMode: "read", cacheModeSource: "workflow" });
       job.step("build").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["inherited"]!.instances) {
+          assertEntries(i0.settings, {
+            cacheMode: "read",
+            cacheModeSource: "workflow",
+          });
+        }
+      });
     });
     test.job("override", (job) => {
-      job.expectSettings({ cacheMode: "write-only", cacheModeSource: "job" });
       job.step("build").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["override"]!.instances) {
+          assertEntries(i0.settings, {
+            cacheMode: "write-only",
+            cacheModeSource: "job",
+          });
+        }
+      });
     });
   });
 });
@@ -465,20 +573,46 @@ Deno.test("snapshot is absent after environment rejection and initialization fai
           if: rawExpression("vars.UNREAD"),
         }).run({ id: "build", name: "Build", run: "true" }),
     );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
-    test.expectResult("failure");
+
     test.job("rejected", (job) => {
-      job.environmentProtection("rejected").expectSettings({
-        snapshot: undefined,
+      job.environmentProtection("rejected");
+      job.step("build");
+
+      check((r) => {
+        for (const i0 of r.jobs["rejected"]!.instances) {
+          assertEntries(i0.settings, {
+            snapshot: undefined,
+          });
+        }
       });
-      job.step("build").expectSkip();
+      check((r) => {
+        for (const i0 of r.jobs["rejected"]!.instances) {
+          assertEquals(i0.steps["build"]?.outcome ?? "skipped", "skipped");
+        }
+      });
     });
     test.job("initialization", (job) => {
-      job.containerInitialization("failure").expectSettings({
-        snapshot: undefined,
+      job.containerInitialization("failure");
+      job.step("build");
+
+      check((r) => {
+        for (const i0 of r.jobs["initialization"]!.instances) {
+          assertEntries(i0.settings, {
+            snapshot: undefined,
+          });
+        }
       });
-      job.step("build").expectSkip();
+      check((r) => {
+        for (const i0 of r.jobs["initialization"]!.instances) {
+          assertEquals(i0.steps["build"]?.outcome ?? "skipped", "skipped");
+        }
+      });
+    });
+
+    check((r) => {
+      assertEquals(r.result, "failure");
     });
   });
 });

@@ -106,15 +106,16 @@ success result to dependencies and workflow aggregation; it does not resume
 steps skipped by their success gate. An optional per-job-instance environment
 fixture supplies the aggregate passed/rejected protection result. Rejection
 prevents steps and propagates job failure without step-derived outputs; omission
-continues interpretation without proving approval. Explicit scenario
-expectations enable interpretation of requested runner/concurrency settings and
-run defaults; existing scenarios do not require their expression contexts.
-Values are interpreted, without runner assignment, platform defaults or
-filesystem checks. They do not emulate GitHub's suppression of outputs that
-contain secrets. Conflicting nonempty matrix output values fail locally because
-GitHub's completion order cannot be predicted. A full job-index permutation can
-be supplied with completionOrder() for output aggregation; instance results stay
-in expansion order.
+continues interpretation without proving approval. Scenario results capture
+requested runner/concurrency settings and run defaults; field getters report
+unavailable fixture values when read. Unread optional settings do not require
+additional fixture contexts. Values are interpreted, without runner assignment,
+platform defaults or filesystem checks. Execution-job fixtures can specify
+outputs withheld by the runner, without emulating secret detection. Conflicting
+nonempty matrix output values fail locally because GitHub's completion order
+cannot be predicted. A full job-index permutation can be supplied with
+completionOrder() for output aggregation; instance results stay in expansion
+order.
 
 Context authoring includes workflow artifact declaration/metadata file paths,
 job check-run and job-defining workflow identity, assigned runner environment,
@@ -192,11 +193,12 @@ supplied-value model of environment defaults, native workflow/job replacements,
 explicit write restrictions and local caller ceilings. Effective excess demands
 fail; external internals are not verified. Supplied matrix completion order
 selects outputs using native ordinary/reusable rules without a scheduler.
-Secret-output suppression remains unimplemented, distinct from these value
-models and live GitHub authorization. Secret detection must be grounded in
-official runner behavior; an ad hoc string check is not equivalent. Usage
-monitoring and rerun history models are excluded because they add organization
-audit operations or time-varying execution history to definition validation.
+Secret-output suppression result fixtures are implemented separately from secret
+detection, which remains unimplemented, and live GitHub authorization. Secret
+detection must be grounded in official runner behavior; an ad hoc string check
+is not equivalent. Usage monitoring and rerun history models are excluded
+because they add organization audit operations or time-varying execution history
+to definition validation.
 
 Background, wait, wait-all, cancel and parallel use the fixed Actions NGA
 GitHub.com feature gate. Native run/uses and task-backed run steps retain

@@ -1,3 +1,7 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+} from "./scenario_checks.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import {
   eventIs,
@@ -9,7 +13,7 @@ import {
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { parse } from "../src/deps.ts";
-import { scenario, ScenarioError } from "../src/testing/mod.ts";
+import { ScenarioError } from "../src/testing/mod.ts";
 import { validateTriggers } from "../src/compiler/github_actions/triggers.ts";
 import { activities } from "../src/github_actions/events.ts";
 
@@ -122,7 +126,7 @@ Deno.test("ordered branch and path filters use explicit bounded diff facts", asy
       ], "skipped"],
     ] as const
   ) {
-    const result = await scenario(flow, (test) => {
+    const result = await scenario(flow, (test, _check) => {
       test.github({ event_name: "push", ref: `refs/heads/${branch}` });
       test.changedFiles(files);
       test.job("test", (job) => job.step("run").fixture({}));
@@ -131,7 +135,7 @@ Deno.test("ordered branch and path filters use explicit bounded diff facts", asy
   }
   for (const reason of ["timeout", "over-1000-commits"] as const) {
     assertEquals(
-      (await scenario(flow, (test) => {
+      (await scenario(flow, (test, _check) => {
         test.github({ event_name: "push", ref: "refs/heads/main" });
         test.changedFiles(reason);
         test.job("test", (job) => job.step("run").fixture({}));
@@ -143,14 +147,15 @@ Deno.test("ordered branch and path filters use explicit bounded diff facts", asy
     () =>
       scenario(
         flow,
-        (test) => test.github({ event_name: "push", ref: "refs/heads/main" }),
+        (test, _check) =>
+          test.github({ event_name: "push", ref: "refs/heads/main" }),
       ),
     ScenarioError,
   );
   assertEquals((missing as ScenarioError).kind, "fixture_missing");
   const tag = make({ push: { paths: ["src/**"] } });
   assertEquals(
-    (await scenario(tag, (test) => {
+    (await scenario(tag, (test, _check) => {
       test.github({ event_name: "push", ref: "refs/tags/v1" });
       test.job("test", (job) => job.step("run").fixture({}));
     })).result,
@@ -170,7 +175,7 @@ Deno.test("PR base filters, activity defaults and ignored paths determine admiss
       ["labeled", "main", ["src/main.ts"], "skipped"],
     ] as const
   ) {
-    const result = await scenario(flow, (test) => {
+    const result = await scenario(flow, (test, _check) => {
       test.github({
         event_name: "pull_request",
         event: { action, pull_request: { base: { ref: branch } } },
@@ -184,7 +189,8 @@ Deno.test("PR base filters, activity defaults and ignored paths determine admiss
     () =>
       scenario(
         flow,
-        (test) => test.github({ event_name: "pull_request", event: {} }),
+        (test, _check) =>
+          test.github({ event_name: "pull_request", event: {} }),
       ),
     ScenarioError,
   );
@@ -227,7 +233,7 @@ Deno.test("workflow_run, merge_group, custom dispatch, images and delivered sche
   ] as const;
   for (const fixture of fixtures) {
     assertEquals(
-      (await scenario(flow, (test) => {
+      (await scenario(flow, (test, _check) => {
         test.github(fixture);
         test.imageVersion({ name: "MyImage", version: "1.0.0" });
         test.job("test", (job) => job.step("run").fixture({}));
@@ -236,7 +242,7 @@ Deno.test("workflow_run, merge_group, custom dispatch, images and delivered sche
     );
   }
   assertEquals(
-    (await scenario(flow, (test) =>
+    (await scenario(flow, (test, _check) =>
       test.github({
         event_name: "schedule",
         event: { schedule: "0 5 * * MON" },
@@ -244,7 +250,7 @@ Deno.test("workflow_run, merge_group, custom dispatch, images and delivered sche
     "skipped",
   );
   assertEquals(
-    (await scenario(flow, (test) =>
+    (await scenario(flow, (test, _check) =>
       test.github({
         event_name: "repository_dispatch",
         event: { action: "preview" },
@@ -280,7 +286,7 @@ Deno.test("dispatch inputs preserve native values and provide string payload inp
           }),
         }),
     );
-  const result = await scenario(flow, (test) => {
+  const result = await scenario(flow, (test, _check) => {
     test.github({ event_name: "workflow_dispatch" });
     test.job("test", (job) =>
       job.step("run").fixture(({ env }) => {
@@ -290,7 +296,7 @@ Deno.test("dispatch inputs preserve native values and provide string payload inp
   });
   assertEquals(result.result, "success");
   await assertRejects(() =>
-    scenario(flow, (test) => {
+    scenario(flow, (test, _check) => {
       test.github({ event_name: "workflow_dispatch" });
       // @ts-expect-error runtime validation also rejects an untyped fixture
       test.inputs({ enabled: "yes" });
@@ -314,7 +320,7 @@ Deno.test("event guards emit native conditions and remain enforced across later 
   assertEquals(
     (await scenario(
       flow,
-      (test) =>
+      (test, _check) =>
         test.github({ event_name: "push", event: { ref: "refs/heads/main" } }),
     ))
       .result,
@@ -322,11 +328,11 @@ Deno.test("event guards emit native conditions and remain enforced across later 
   );
   const skipped = await scenario(
     flow,
-    (test) =>
+    (test, _check) =>
       test.github({ event_name: "push", event: { ref: "refs/heads/main" } }),
   );
-  assertEquals(skipped.jobs.test.result, "skipped");
-  const result = await scenario(flow, (test) => {
+  assertEquals(skipped.jobs.test!.result, "skipped");
+  const result = await scenario(flow, (test, _check) => {
     test.github({
       event_name: "issues",
       event: { action: "opened", issue: { title: "fixture" } },
@@ -339,7 +345,7 @@ Deno.test("event guards emit native conditions and remain enforced across later 
   });
   assertEquals(result.result, "success");
   const missing = await assertRejects(() =>
-    scenario(flow, (test) => {
+    scenario(flow, (test, _check) => {
       test.github({ event_name: "issues", event: { action: "opened" } });
       test.job("test", (job) => job.step("run").fixture({}));
     }), ScenarioError);
@@ -390,14 +396,13 @@ Deno.test("reusable defaults evaluate in inherited context without changing even
       ({ job }) =>
         job.reusable().call("./.github/workflows/callee.yml", callee, {}),
     );
-  const result = await scenario(caller, (test) => {
+  const result = await scenario(caller, (test, check) => {
     test.github({
       event_name: "push",
       sha: "abc",
       event: { ref: "refs/heads/main" },
     });
     test.job("call", (job) => {
-      job.expectCallInputs({ sha: "abc", enabled: true, count: 2 });
       job.call(
         callee,
         (child) =>
@@ -407,6 +412,16 @@ Deno.test("reusable defaults evaluate in inherited context without changing even
               return {};
             })),
       );
+
+      check((r) => {
+        for (const i0 of r.jobs["call"]!.instances) {
+          assertEntries(i0.callInputs!, {
+            sha: "abc",
+            enabled: true,
+            count: 2,
+          });
+        }
+      });
     });
   }, { config: project({ workflows: [caller, callee] }) });
   assertEquals(result.result, "success");
@@ -427,7 +442,7 @@ Deno.test("every frozen activity is accepted and an unselected activity skips", 
           "skipped",
         ]] as const
       ) {
-        const result = await scenario(make(on), (test) => {
+        const result = await scenario(make(on), (test, _check) => {
           // Exercise the runtime oracle for a dynamically enumerated catalog; static fixtures are checked separately.
           test.program.external.github = {
             event_name: event,
@@ -450,7 +465,7 @@ Deno.test("escaped literal filter atoms can be repeated", async () => {
       "success",
     ], ["file**.txt", "skipped"]] as const
   ) {
-    const result = await scenario(make(on), (test) => {
+    const result = await scenario(make(on), (test, _check) => {
       test.github({ event_name: "push", ref: "refs/heads/main" });
       test.changedFiles([file]);
       test.job("test", (job) => job.step("run").fixture({}));
@@ -482,7 +497,7 @@ Deno.test("reusable workflows preserve arbitrary caller dispatch input strings",
     ({ job }) =>
       job.reusable().call("./.github/workflows/callee.yml", callee, {}),
   );
-  const result = await scenario(caller, (test) => {
+  const result = await scenario(caller, (test, _check) => {
     test.github({ event_name: "workflow_dispatch" });
     test.job("call", (job) =>
       job.call(

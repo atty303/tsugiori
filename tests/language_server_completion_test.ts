@@ -559,7 +559,7 @@ const flow = workflow("empty.yml", { on: { push: {} } });`;
         stream,
         83,
         "inherited-json-input",
-        `import { workflow, jsonValue } from "../src/github_actions/mod.ts";
+        `import { workflow, jsonValue } from "../src/github_actions.ts";
 const items = jsonValue({ parse(value: unknown): string[] { return value as string[]; } });
 workflow("json.yml", { on: { push: {} } }).job("test", ({ job }) => job.runsOn("ubuntu-latest").task({ id: "make", name: "Make", if: undefined, outputs: { items: { contract: items, required: true } }, run: () => {} }).task({ name: "Read", inputs: ({ steps }) => ({ items: { from: steps.make.outputs.at("items") } }), run: ({ inputs }) => { const value = inputs.items; value/*completion*/; } }));`,
         true,
@@ -1258,6 +1258,8 @@ scenario(flow, test => { test.job("build", job => { `;
               prefix + `job./*completion*/; }); });`,
             );
             assert(jobLabels.includes("completionOrder"));
+            assert(jobLabels.includes("suppressedOutputs"));
+            assert(!jobLabels.some((label) => label.startsWith("expect")));
             assert(!jobLabels.includes("expression"));
             const stepLabels = await sourceCompletionLabels(
               writer,
@@ -1267,6 +1269,7 @@ scenario(flow, test => { test.job("build", job => { `;
               prefix + `job.step("read")./*completion*/; }); });`,
             );
             assert(stepLabels.includes("hashFiles"));
+            assert(!stepLabels.some((label) => label.startsWith("expect")));
             assert(stepLabels.includes("replaceInherited"));
             assert(!stepLabels.includes("expression"));
             for (
@@ -1312,6 +1315,47 @@ scenario(flow, test => { test.job("build", job => { `;
               );
               assert(signature.includes(expected), signature);
             }
+            const resultPrefix =
+              `import { workflow, jsonValue } from "../src/github_actions.ts";
+import { scenario } from "../src/testing/mod.ts";
+const number = jsonValue({parse(value: unknown): number { if (typeof value !== "number") throw new TypeError(); return value; }});
+const flow = workflow("result.yml", {on:{push:{}}}).job("build", ({job}) => job.runsOn("ubuntu-latest").task({id:"read",name:"Read",inputs:{},outputs:{count:{contract:number,required:true}},run:()=>{}}));
+const result = await scenario(flow, test => { test.github({event_name:"push"}); test.job("build", job => job.step("read").fixture({outputs:{count:1}})); });
+`;
+            const typedLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6023,
+              "scenario-typed-output",
+              resultPrefix +
+                `result.jobs.build!.instances[0].steps.read!.typedOutputs./*completion*/;`,
+            );
+            assertEquals(typedLabels, ["count"]);
+            const typedHover = await sourceHover(
+              writer,
+              stream,
+              6024,
+              "scenario-typed-output-hover",
+              resultPrefix +
+                `const count = result.jobs.build!.instances[0].steps.read!.typedOutputs.count/*completion*/;`,
+              true,
+            );
+            assert(typedHover.includes("number"), typedHover);
+            assert(typedHover.includes("undefined"), typedHover);
+            assert(!typedHover.includes("..."), typedHover);
+            const suppressionSignature = await sourceHover(
+              writer,
+              stream,
+              6025,
+              "scenario-suppression-signature",
+              prefix + `job.suppressedOutputs(/*completion*/[]); }); });`,
+              true,
+              "signatureHelp",
+            );
+            assert(
+              suppressionSignature.includes("readonly string[]"),
+              suppressionSignature,
+            );
             const permissionSignature = await sourceHover(
               writer,
               stream,

@@ -1,11 +1,15 @@
-import { assertEquals, assertRejects } from "@std/assert";
+import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
+import { assertEquals, AssertionError, assertRejects } from "@std/assert";
 import {
   always,
   fromJSON,
   hashFiles,
   jsonValue,
   present,
-  scenario,
   textValue,
   toJSON,
   workflow,
@@ -96,7 +100,7 @@ const sample = deployed.job(
 
 Deno.test("scenario interprets matrix failure and downstream inputs without executing tasks", async () => {
   const commits = ["a".repeat(40)];
-  const result = await scenario(sample, (test) => {
+  const result = await scenario(sample, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
     test.job("detect", (job) => {
       job.step("plan").fixture({
@@ -104,43 +108,86 @@ Deno.test("scenario interprets matrix failure and downstream inputs without exec
       });
     });
     test.job("deploy", (job) => {
-      job.expectMatrix([{ stage: "dev" }, { stage: "prd" }]);
       job.eachMatrix(({ stage }, run) => {
         run.step("run-deploy")
-          .fixture({ outcome: stage === "prd" ? "failure" : "success" })
-          .expectRun()
-          .expectInputs({ commits, stage });
+          .fixture({ outcome: stage === "prd" ? "failure" : "success" });
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["deploy"]!.instances, {
+              stage,
+            })
+          ) assertEquals(i0.steps["run-deploy"]!.outcome !== "skipped", true);
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["deploy"]!.instances, {
+              stage,
+            })
+          ) assertEntries(i0.steps["run-deploy"]!.inputs, { commits, stage });
+        });
       });
-      job.expectResult("failure");
+
+      check((r) => {
+        assertEquals(r.jobs["deploy"]!.instances.map((i) => i.matrix), [{
+          stage: "dev",
+        }, { stage: "prd" }]);
+      });
+      check((r) => {
+        assertEquals(r.jobs["deploy"]!.result, "failure");
+      });
     });
     test.job("complete", (job) => {
-      job.step("notify").fixture({}).expectRun().expectInputs({
-        deployResult: "failure",
+      job.step("notify").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["complete"]!.instances) {
+          assertEquals(i0.steps["notify"]!.outcome !== "skipped", true);
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["complete"]!.instances) {
+          assertEntries(i0.steps["notify"]!.inputs, {
+            deployResult: "failure",
+          });
+        }
       });
     });
   });
   assertEquals(result.result, "failure");
-  assertEquals(result.jobs.deploy.instances.length, 2);
+  assertEquals(result.jobs.deploy!.instances.length, 2);
 });
 
 Deno.test("scenario requires fixtures only for reached steps", async () => {
-  const result = await scenario(sample, (test) => {
+  const result = await scenario(sample, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
     test.job("detect", (job) => {
       job.step("plan").fixture({ outputs: { commits: [], stages: undefined } });
     });
-    test.job("deploy", (job) => job.expectResult("skipped"));
+    test.job("deploy", (_job) => {
+      check((r) => {
+        assertEquals(r.jobs["deploy"]!.result, "skipped");
+      });
+    });
     test.job("complete", (job) => {
-      job.step("notify").fixture({}).expectInputs({ deployResult: "skipped" });
+      job.step("notify").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["complete"]!.instances) {
+          assertEntries(i0.steps["notify"]!.inputs, {
+            deployResult: "skipped",
+          });
+        }
+      });
     });
   });
-  assertEquals(result.jobs.deploy.result, "skipped");
+  assertEquals(result.jobs.deploy!.result, "skipped");
 });
 
 Deno.test("scenario reports an absent reached fixture", async () => {
   await assertRejects(
     () =>
-      scenario(sample, (test) => {
+      scenario(sample, (test, _check) => {
         test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
       }),
     Error,
@@ -148,25 +195,29 @@ Deno.test("scenario reports an absent reached fixture", async () => {
   );
 });
 
-Deno.test("scenario distinguishes expectation failures from fixture errors", async () => {
+Deno.test("ordinary assertions are distinct from fixture errors", async () => {
   const commits = ["a".repeat(40)];
   const mismatch = await assertRejects(() =>
-    scenario(sample, (test) => {
+    scenario(sample, (test, check) => {
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
+      test.job("complete", (job) => job.step("notify").fixture({}));
       test.job("detect", (job) => {
-        job.step("plan").fixture({ outputs: { commits, stages: undefined } })
-          .expectOutputs({ commits: ["b".repeat(40)] });
+        job.step("plan").fixture({ outputs: { commits, stages: undefined } });
+
+        check((r) => {
+          for (const i0 of r.jobs["detect"]!.instances) {
+            assertEntries(i0.steps["plan"]!.typedOutputs, {
+              commits: ["b".repeat(40)],
+            });
+          }
+        });
       });
     })
   );
-  assertEquals((mismatch as { kind?: string }).kind, "expectation_failed");
-  assertEquals(
-    (mismatch as { location?: string }).location?.includes("detect"),
-    true,
-  );
+  assertEquals(mismatch instanceof AssertionError, true);
 
   const invalid = await assertRejects(() =>
-    scenario(sample, (test) => {
+    scenario(sample, (test, _check) => {
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
       test.job("detect", (job) => {
         job.step("plan").fixture({ outputs: { commits, stages: ["dev"] } });
@@ -193,7 +244,7 @@ const unsupported = workflow(".github/workflows/unsupported.yml", {
 
 Deno.test("hashFiles requires a return-value fixture", async () => {
   const error = await assertRejects(() =>
-    scenario(unsupported, (test) => {
+    scenario(unsupported, (test, _check) => {
       test.github({ event_name: "push", event: {} });
     })
   );
@@ -202,18 +253,27 @@ Deno.test("hashFiles requires a return-value fixture", async () => {
     (error as { location?: string }).location?.endsWith("inspect.if"),
     true,
   );
-  await scenario(unsupported, (test) => {
+  await scenario(unsupported, (test, check) => {
     test.github({ event_name: "push", event: {} });
     test.job("check", (job) => {
-      job.step("inspect").hashFiles(["**/*.ts"], "abc").fixture({}).expectRun();
+      job.step("inspect").hashFiles(["**/*.ts"], "abc").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["check"]!.instances) {
+          assertEquals(i0.steps["inspect"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
 });
 
 Deno.test("branch filters skip the workflow without requiring step fixtures", async () => {
-  const result = await scenario(sample, (test) => {
+  const result = await scenario(sample, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/other", event: {} });
-    test.expectResult("skipped");
+
+    check((r) => {
+      assertEquals(r.result, "skipped");
+    });
   });
   assertEquals(result.jobs, {});
 });

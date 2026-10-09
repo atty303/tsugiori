@@ -1,4 +1,9 @@
 import {
+  assertEntries,
+  checkedScenario as scenario,
+  matchingInstances,
+} from "./scenario_checks.ts";
+import {
   assertEquals,
   assertRejects,
   assertStringIncludes,
@@ -11,7 +16,6 @@ import {
   literal,
   project,
   rawExpression,
-  scenario,
   workflow,
 } from "../src/github_actions.ts";
 import {
@@ -153,26 +157,52 @@ Deno.test("object matrix controls generate native YAML and interpret per-member 
       "experimental: true",
     ]
   ) assertStringIncludes(yaml, field);
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("build", (job) => {
-      job.expectMatrix([{
-        target: { runner: "macos-latest", experimental: true },
-      }]).expectResult("success")
-        .expectSettings({
-          runsOn: "macos-latest",
-          strategy: { failFast: false, maxParallel: 2 },
-          continueOnError: true,
-          timeoutMinutes: 720,
-        });
+      job;
       job.step("probe").fixture({
         outcome: "failure",
         outputs: { version: "v1" },
-      }).expectOutcome("failure").expectConclusion("failure");
-      job.step("skipped").expectSkip();
+      });
+      job.step("skipped");
       job.step("recover").fixture(({ env }) => {
         assertEquals(env.STATUS, "failure");
         return {};
+      });
+
+      check((r) => {
+        assertEquals(r.jobs["build"]!.instances.map((i) => i.matrix), [{
+          target: { runner: "macos-latest", experimental: true },
+        }]);
+      });
+      check((r) => {
+        assertEquals(r.jobs["build"]!.result, "success");
+      });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEntries(i0.settings, {
+            runsOn: "macos-latest",
+            strategy: { failFast: false, maxParallel: 2 },
+            continueOnError: true,
+            timeoutMinutes: 720,
+          });
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEquals(i0.steps["probe"]!.outcome, "failure");
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEquals(i0.steps["probe"]!.conclusion, "failure");
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["build"]!.instances) {
+          assertEquals(i0.steps["skipped"]!.outcome !== "skipped", false);
+        }
       });
     });
     test.job("next", (job) =>
@@ -181,10 +211,13 @@ Deno.test("object matrix controls generate native YAML and interpret per-member 
         assertEquals(env.VERSION, "v1");
         return {};
       }));
-    test.expectResult("success");
+
+    check((r) => {
+      assertEquals(r.result, "success");
+    });
   });
-  assertEquals(result.jobs.build.instances[0].outcome, "failure");
-  assertEquals(result.jobs.build.instances[0].result, "success");
+  assertEquals(result.jobs.build!.instances[0].outcome, "failure");
+  assertEquals(result.jobs.build!.instances[0].result, "success");
 });
 
 Deno.test("step failure tolerance evaluates boolean expressions rather than expression-string truthiness", async () => {
@@ -207,19 +240,47 @@ Deno.test("step failure tolerance evaluates boolean expressions rather than expr
           if: () => always(),
         }),
   );
-  await scenario(ci, (test) => {
+  await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) =>
       job.eachMatrix(({ tolerant }, member) => {
-        member.expectResult(tolerant ? "success" : "failure");
-        member.step("probe").fixture({ outcome: "failure" }).expectConclusion(
-          tolerant ? "success" : "failure",
-        );
+        member;
+        member.step("probe").fixture({ outcome: "failure" });
         if (tolerant) member.step("next").fixture({});
-        else member.step("next").expectSkip();
+        else member.step("next");
         member.step("cleanup").fixture({});
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, {
+              tolerant,
+            })
+          ) assertEquals(i0.result, tolerant ? "success" : "failure");
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, {
+              tolerant,
+            })
+          ) {
+            assertEquals(
+              i0.steps["probe"]!.conclusion,
+              tolerant ? "success" : "failure",
+            );
+          }
+        });
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, {
+              tolerant,
+            })
+          ) assertEquals(i0.steps["next"]!.outcome !== "skipped", tolerant);
+        });
       }));
-    test.expectResult("failure");
+
+    check((r) => {
+      assertEquals(r.result, "failure");
+    });
   });
 });
 
@@ -236,7 +297,7 @@ Deno.test("resolved strategy controls, timeout and matrix shapes reject invalid 
   );
   await assertRejects(
     () =>
-      scenario(dynamic, (test) => {
+      scenario(dynamic, (test, _check) => {
         test.github({ event_name: "push" });
       }),
     Error,
@@ -258,7 +319,7 @@ Deno.test("resolved strategy controls, timeout and matrix shapes reject invalid 
     );
     await assertRejects(
       () =>
-        scenario(ci, (test) => {
+        scenario(ci, (test, _check) => {
           test.github({ event_name: "push" });
         }),
       Error,
@@ -316,23 +377,33 @@ Deno.test("task and uses failure policies retain scoped expressions through lowe
         })
         .run({ id: "cancel", name: "Cancel", run: "true" }),
   );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => {
-      job.step("probe").fixture({ outcome: "failure" }).expectConclusion(
-        "success",
-      );
-      job.step("uses").fixture({ outcome: "failure" }).expectConclusion(
-        "success",
-      );
+      job.step("probe").fixture({ outcome: "failure" });
+      job.step("uses").fixture({ outcome: "failure" });
       job.step("cancel").fixture({ outcome: "cancelled" });
+
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["probe"]!.conclusion, "success");
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["uses"]!.conclusion, "success");
+        }
+      });
     });
-    test.expectResult("cancelled");
+
+    check((r) => {
+      assertEquals(r.result, "cancelled");
+    });
   });
-  assertEquals(result.jobs.test.instances[0].outcome, "cancelled");
+  assertEquals(result.jobs.test!.instances[0].outcome, "cancelled");
 });
 
-Deno.test("job failure tolerance expressions must resolve to boolean, and explicit timeout expectations validate resolved requests", async () => {
+Deno.test("job failure tolerance expressions must resolve to boolean, and timeout getters expose resolved requests", async () => {
   for (
     const field of [
       "continue-on-error",
@@ -358,13 +429,16 @@ Deno.test("job failure tolerance expressions must resolve to boolean, and explic
     );
     await assertRejects(
       () =>
-        scenario(ci, (test) => {
+        scenario(ci, (test, check) => {
           test.github({ event_name: "push" });
           test.job("test", (job) => {
-            if (field === "timeout-minutes") {
-              job.expectSettings({ timeoutMinutes: 1 });
-            }
             job.step("probe").fixture({});
+
+            check((r) => {
+              for (const i0 of r.jobs["test"]!.instances) {
+                assertEntries(i0.settings, { timeoutMinutes: 1 });
+              }
+            });
           });
         }),
       Error,
@@ -386,12 +460,23 @@ Deno.test("missing matrix properties are native empty values, not missing extern
         .continueOnError(({ matrix }) => matrix.target.experimental.or(false))
         .run({ id: "probe", name: "Probe", run: "true" }),
   );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) =>
       job.eachMatrix(({ target }, instance) => {
         instance.step("probe").fixture({ outcome: "failure" });
-        instance.expectResult(target.experimental ? "success" : "failure");
+        instance;
+
+        check((r) => {
+          for (
+            const i0 of matchingInstances(r.jobs["test"]!.instances, { target })
+          ) {
+            assertEquals(
+              i0.result,
+              target.experimental ? "success" : "failure",
+            );
+          }
+        });
       }));
   });
   assertEquals(result.result, "failure");
@@ -413,9 +498,9 @@ Deno.test("matrix outputs evaluate the corresponding member's strategy context",
           ),
         })),
   );
-  const result = await scenario(ci, (test) => {
+  const result = await scenario(ci, (test, _check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => job.step("probe").fixture({}));
   });
-  assertEquals(result.jobs.test.outputs, { a: "0", b: "1" });
+  assertEquals(result.jobs.test!.outputs, { a: "0", b: "1" });
 });

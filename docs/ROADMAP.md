@@ -45,7 +45,8 @@ GitHub owns event delivery, branch eligibility, webhook recursion suppression,
 release draft suppression, live access, effective authorization, scheduling and
 runner behavior. Root permission assumptions and supplied matrix completion
 order support local value validation without proving authorization or
-scheduling. Secret-output suppression remains an unimplemented value-model unit.
+scheduling. Secret-output suppression result fixtures are implemented; secret
+detection remains unimplemented.
 
 ## Future candidates
 

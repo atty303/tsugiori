@@ -1329,7 +1329,7 @@
       "domain": "syntax",
       "key": "cache-mode",
       "status": "implemented",
-      "notes": "Native enum declarations and YAML emission; opt-in scenarios resolve job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
+      "notes": "Native enum declarations and YAML emission; scenarios capture job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "cache-mode",
       "assessment": [
@@ -1476,7 +1476,7 @@
       "domain": "syntax",
       "key": "jobs.<job_id>.cache-mode",
       "status": "implemented",
-      "notes": "Native enum declarations and YAML emission; opt-in scenarios resolve job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
+      "notes": "Native enum declarations and YAML emission; scenarios capture job/workflow/caller precedence and trigger defaults. Local reusable graphs reject requests beyond explicit restore/save ceilings. Cache operations, external graphs and token enforcement remain GitHub-owned.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idcache-mode",
       "assessment": [
@@ -1818,7 +1818,7 @@
       "domain": "syntax",
       "key": "jobs.<job_id>.timeout-minutes",
       "status": "implemented",
-      "notes": "Positive integer or scoped number expression. Runner/token limits remain GitHub-owned; explicit scenario timeout expectations validate the request without measuring time.",
+      "notes": "Positive integer or scoped number expression. Runner/token limits remain GitHub-owned; scenario timeout getters expose the request without measuring time.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idtimeout-minutes",
       "assessment": [
@@ -2921,7 +2921,8 @@
       ],
       "related": [
         "scenario-capability:nested-token-permissions",
-        "scenario-capability:secret-output-suppression"
+        "scenario-capability:secret-output-suppression-fixture",
+        "scenario-capability:secret-output-detection"
       ]
     },
     {
@@ -5351,7 +5352,7 @@
       "domain": "reuse",
       "key": "Using outputs from a reusable workflow",
       "status": "implemented",
-      "notes": "Declares workflow_call outputs, emits caller needs references and propagates local callee output values. Supplied matrix completion order selects the last successful nonempty output per name. Secret-based suppression remains a separate unimplemented scenario behavior.",
+      "notes": "Declares workflow_call outputs, emits caller needs references and propagates local callee output values. Supplied matrix completion order selects the last successful nonempty output per name. Execution-job suppression results are supplied by a separate fixture capability; secret detection rules remain unimplemented.",
       "source": "content/actions/how-tos/reuse-automations/reuse-workflows.md",
       "anchor": "using-outputs-from-a-reusable-workflow",
       "assessment": [
@@ -5364,7 +5365,8 @@
         "tests/scenario_value_fixtures_test.ts"
       ],
       "related": [
-        "scenario-capability:secret-output-suppression",
+        "scenario-capability:secret-output-suppression-fixture",
+        "scenario-capability:secret-output-detection",
         "scenario-capability:matrix-output-completion-order"
       ]
     },
@@ -7979,7 +7981,7 @@
       "domain": "syntax",
       "key": "jobs.<job_id>.snapshot.if",
       "status": "limited",
-      "notes": "Native snapshot condition generation and opt-in scenario evaluation are supported. The fixed custom-image example evidences github.ref, but the fixed context availability table has no snapshot row; typed callbacks therefore expose github only. Other context eligibility is unconfirmed, not an established implementation gap. Raw expressions remain explicit assertions; image creation is not simulated.",
+      "notes": "Native snapshot condition generation and captured scenario evaluation are supported. The fixed custom-image example evidences github.ref, but the fixed context availability table has no snapshot row; typed callbacks therefore expose github only. Other context eligibility is unconfirmed, not an established implementation gap. Raw expressions remain explicit assertions; image creation is not simulated.",
       "source": "content/actions/how-tos/manage-runners/larger-runners/use-custom-images.md",
       "anchor": "conditionals",
       "assessment": [
@@ -8040,7 +8042,7 @@
       "domain": "scenario-capability",
       "key": "strategy-max-parallel-fixture",
       "status": "implemented",
-      "notes": "Scenarios use the evaluated authored maxParallel or default to expanded instance count under a sufficient-runner model. Readonly strategy is exposed in fixture callbacks and instance results. The default is interpreter-owned, not a user registration or a prediction of GitHub runner availability; authored settings expectations remain separate.",
+      "notes": "Scenarios use the evaluated authored maxParallel or default to expanded instance count under a sufficient-runner model. Readonly strategy is exposed in fixture callbacks and instance results. The default is interpreter-owned, not a user registration or a prediction of GitHub runner availability; authored settings retain only explicit strategy declarations.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
@@ -8061,9 +8063,9 @@
     },
     {
       "domain": "scenario-capability",
-      "key": "secret-output-suppression",
+      "key": "secret-output-detection",
       "status": "unimplemented",
-      "notes": "Scenarios currently propagate job output values without runner secret-based suppression. GitHub can withhold outputs containing secrets, changing downstream values. A model needs official runner detection evidence and explicit secret/mask inputs; plain string matching must not be claimed equivalent to unspecified runner detection.",
+      "notes": "Secret/mask detection is not modeled. Execution-job suppression result fixtures supply withheld output names separately; supplied secrets and add-mask commands do not trigger runner detection. Actual regex mask hints and their server generation rules are unconfirmed.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "jobsjob_idoutputs",
       "assessment": [
@@ -8074,6 +8076,7 @@
         "tests/reusable_workflow_test.ts"
       ],
       "related": [
+        "scenario-capability:secret-output-suppression-fixture",
         "reuse:Using outputs from a reusable workflow"
       ]
     },
@@ -8164,6 +8167,26 @@
       "related": [
         "expression:hashFiles",
         "scenario-capability:hashFiles-result-fixture"
+      ]
+    },
+    {
+      "domain": "scenario-capability",
+      "key": "secret-output-suppression-fixture",
+      "status": "implemented",
+      "notes": "Execution-job fixtures withhold declared output names after expression evaluation and before matrix aggregation. Omission means no suppression; instance lists replace common lists, including empty lists. Step outputs are unchanged, local callee execution jobs own suppression, and external call fixtures already supply delivered values. Does not model secret detection or add-mask registration.",
+      "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
+      "anchor": "jobsjob_idoutputs",
+      "assessment": [
+        "supplied-value-model",
+        "execution-boundary"
+      ],
+      "evidence": [
+        "src/testing/mod.ts",
+        "src/testing/run.ts",
+        "tests/scenario_result_test.ts"
+      ],
+      "related": [
+        "scenario-capability:secret-output-detection"
       ]
     }
   ],

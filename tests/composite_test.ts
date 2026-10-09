@@ -1,3 +1,4 @@
+import { checkedScenario as scenario } from "./scenario_checks.ts";
 import { assertInlineSnapshot } from "@std/testing/unstable-snapshot";
 import {
   assert,
@@ -12,7 +13,7 @@ import {
   project as makeProject,
   workflow as makeWorkflow,
 } from "../src/github_actions/mod.ts";
-import { scenario } from "../src/testing/mod.ts";
+import {} from "../src/testing/mod.ts";
 import { generateFiles } from "../src/compiler/generator.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { parse } from "../src/deps.ts";
@@ -551,15 +552,26 @@ Deno.test("scenario accepts an automatically collected Composite with native fix
         env: ({ steps }) => ({ VALUE: steps.call.outputs.value }),
       }),
   );
-  const result = await scenario(workflow, (test) => {
+  const result = await scenario(workflow, (test, check) => {
     test.github({ event_name: "push", ref: "refs/heads/main", event: {} });
     test.job("ci", (job) => {
-      job.step("call").fixture({ outputs: { value: "" } }).expectRun();
-      job.step("consume").fixture({}).expectRun();
+      job.step("call").fixture({ outputs: { value: "" } });
+      job.step("consume").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["ci"]!.instances) {
+          assertEquals(i0.steps["call"]!.outcome !== "skipped", true);
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["ci"]!.instances) {
+          assertEquals(i0.steps["consume"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
   assertEquals(result.result, "success");
-  assertEquals(result.jobs.ci.instances[0].steps.consume.env, { VALUE: "" });
+  assertEquals(result.jobs.ci!.instances[0].steps.consume!.env, { VALUE: "" });
 });
 
 Deno.test("workflow and composite YAML preserve scalar values with natural quoting", async () => {

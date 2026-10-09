@@ -1,3 +1,7 @@
+import {
+  assertEntries,
+  checkedScenario as scenario,
+} from "./scenario_checks.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   compositeAction,
@@ -13,11 +17,7 @@ import {
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
 import { validateWorkflow } from "../src/compiler/github_actions/validation.ts";
 import { parse } from "../src/deps.ts";
-import {
-  scenario,
-  ScenarioError,
-  type ScenarioObservation,
-} from "../src/testing/mod.ts";
+import { ScenarioError, type ScenarioObservation } from "../src/testing/mod.ts";
 
 Deno.test("native parallel/task lowering prepares once outside groups and keeps IDs and action annotations", () => {
   const action = compositeAction("actions/value/action.yml", {
@@ -73,7 +73,7 @@ Deno.test("native parallel/task lowering prepares once outside groups and keeps 
   const yaml = parse(emitted) as {
     jobs: { build: { steps: Record<string, unknown>[] } };
   };
-  const steps = yaml.jobs.build.steps;
+  const steps = yaml.jobs.build!.steps;
   const groupIndex = steps.findIndex((step) => "parallel" in step);
   assert(groupIndex >= 2);
   assertEquals(
@@ -147,7 +147,7 @@ Deno.test("selective synchronization publishes outputs and environment only at j
   const observations: ScenarioObservation[] = [];
   const result = await scenario(
     ci,
-    (test) =>
+    (test, check) =>
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
         .job("build", (job) => {
           job.step("one").fixture({
@@ -167,16 +167,29 @@ Deno.test("selective synchronization publishes outputs and environment only at j
             assertEquals(env, { FLAG: "ready", OTHER: "" });
             return {};
           });
-          job.expectStepOrder("one", "two", "early", "middle", "late");
-          job.expectOutputs({ two: "two" });
+
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEquals(i0.stepOrder, [
+                "one",
+                "two",
+                "early",
+                "middle",
+                "late",
+              ]);
+            }
+          });
+          check((r) => {
+            assertEntries(r.jobs["build"]!.outputs, { two: "two" });
+          });
         }),
     { observe: (event) => observations.push(event) },
   );
   assertEquals(
-    result.jobs.build.instances[0].steps.two.cancellationRequested,
+    result.jobs.build!.instances[0].steps.two!.cancellationRequested,
     true,
   );
-  assertEquals(result.jobs.build.instances[0].steps.two.outcome, "success");
+  assertEquals(result.jobs.build!.instances[0].steps.two!.outcome, "success");
   assert(observations.some((event) => event.stage === "background-cancel"));
   assert(!JSON.stringify(observations).includes("ready"));
   const launches = observations.filter((event) =>
@@ -204,7 +217,7 @@ Deno.test("selective synchronization publishes outputs and environment only at j
   );
   const withoutSink = await scenario(
     ci,
-    (test) =>
+    (test, _check) =>
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
         .job("build", (job) => {
           for (
@@ -242,14 +255,41 @@ Deno.test("background failure is deferred until wait, with producer tolerance an
     );
     await scenario(
       ci,
-      (test) =>
+      (test, check) =>
         test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
           .job("build", (job) => {
             job.step("bad").fixture({ outcome: "failure" });
-            job.step("before").fixture({}).expectRun();
-            if (tolerated) job.step("after").fixture({}).expectRun();
-            else job.step("after").expectSkip();
-            job.expectResult(tolerated ? "success" : "failure");
+            job.step("before").fixture({});
+            if (tolerated) job.step("after").fixture({});
+            else job.step("after");
+
+            check((r) => {
+              for (const i0 of r.jobs["build"]!.instances) {
+                assertEquals(i0.steps["before"]!.outcome !== "skipped", true);
+              }
+            });
+            check((r) => {
+              for (const i0 of r.jobs["build"]!.instances) {
+                assertEquals(
+                  i0.steps["after"]!.outcome !== "skipped",
+                  tolerated,
+                );
+              }
+            });
+            check((r) => {
+              for (const i0 of r.jobs["build"]!.instances) {
+                assertEquals(
+                  i0.steps["after"]!.outcome !== "skipped",
+                  tolerated,
+                );
+              }
+            });
+            check((r) => {
+              assertEquals(
+                r.jobs["build"]!.result,
+                tolerated ? "success" : "failure",
+              );
+            });
           }),
     );
   }
@@ -280,16 +320,29 @@ Deno.test("parallel siblings share pre-group inputs and group failure does not p
   );
   await scenario(
     ci,
-    (test) =>
+    (test, check) =>
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
         .job("build", (job) => {
           job.step("one").fixture({ outcome: "failure" });
           job.step("two").fixture(({ env }) => {
             assertEquals(env.SIBLING, "");
             return { outputs: { value: "two" } };
-          }).expectRun();
-          job.step("after").expectSkip();
-          job.expectResult("failure");
+          });
+          job.step("after");
+
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEquals(i0.steps["two"]!.outcome !== "skipped", true);
+            }
+          });
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEquals(i0.steps["after"]!.outcome !== "skipped", false);
+            }
+          });
+          check((r) => {
+            assertEquals(r.jobs["build"]!.result, "failure");
+          });
         }),
   );
 });
@@ -319,13 +372,26 @@ Deno.test("skipped background work and cancellation outcomes retain their fixtur
   );
   await scenario(
     ci,
-    (test) =>
+    (test, check) =>
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
         .job("build", (job) => {
-          job.step("skip").expectSkip();
+          job.step("skip");
           job.step("cancelled").fixture({ outcome: "cancelled" });
-          job.step("after").expectSkip();
-          job.expectResult("cancelled");
+          job.step("after");
+
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEquals(i0.steps["skip"]!.outcome !== "skipped", false);
+            }
+          });
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEquals(i0.steps["after"]!.outcome !== "skipped", false);
+            }
+          });
+          check((r) => {
+            assertEquals(r.jobs["build"]!.result, "cancelled");
+          });
         }),
   );
 });
@@ -343,7 +409,7 @@ Deno.test("ambiguous parallel environment writes fail without assuming completio
     () =>
       scenario(
         ci,
-        (test) =>
+        (test, _check) =>
           test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
             .job("build", (job) => {
               job.step("one").fixture({ environmentChanges: { FLAG: "one" } });
@@ -439,13 +505,21 @@ Deno.test("parallel task outputs preserve native contracts through joined inputs
   );
   await scenario(
     ci,
-    (test) =>
+    (test, check) =>
       test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
         .job("build", (job) => {
           job.step("producer").fixture({ outputs: { value: "value" } });
           job.step("shell").fixture({});
-          job.step("consumer").fixture({}).expectInputs({ value: "value" });
-          job.expectOutputs({ value: "value" });
+          job.step("consumer").fixture({});
+
+          check((r) => {
+            for (const i0 of r.jobs["build"]!.instances) {
+              assertEntries(i0.steps["consumer"]!.inputs, { value: "value" });
+            }
+          });
+          check((r) => {
+            assertEntries(r.jobs["build"]!.outputs, { value: "value" });
+          });
         }),
   );
 });
@@ -476,13 +550,16 @@ Deno.test("uncertain background settings synchronize both runtime branches with 
     );
     const result = await scenario(
       ci,
-      (test) =>
+      (test, check) =>
         test.github({ event_name: "push", ref: "refs/heads/main", event: {} })
           .job("build", (job) => {
             job.step("producer").fixture({ outputs: { value: "ready" } });
-            job.expectOutputs({ value: "ready" });
+
+            check((r) => {
+              assertEntries(r.jobs["build"]!.outputs, { value: "ready" });
+            });
           }),
     );
-    assertEquals(result.jobs.build.outputs, { value: "ready" });
+    assertEquals(result.jobs.build!.outputs, { value: "ready" });
   }
 });

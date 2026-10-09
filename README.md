@@ -25,27 +25,27 @@ decisions locally without a GitHub Actions runner. The file-list workflow later
 in this guide is a smaller learning example: it collects tracked TypeScript
 files rather than detecting changes.
 
-Any one of these pressures—passing structured values, maintaining conditions
-and job dependencies, or growing shell steps—can make Tsugiori worth trying. For
-a straightforward workflow with a few steps, plain GitHub Actions YAML is
-usually enough. The main changes are authoring the workflow in TypeScript and
-using Deno. Commit the generated YAML and Deno's lockfile; you do not maintain
-a second, handwritten workflow definition.
+Any one of these pressures—passing structured values, maintaining conditions and
+job dependencies, or growing shell steps—can make Tsugiori worth trying. For a
+straightforward workflow with a few steps, plain GitHub Actions YAML is usually
+enough. The main changes are authoring the workflow in TypeScript and using
+Deno. Commit the generated YAML and Deno's lockfile; you do not maintain a
+second, handwritten workflow definition.
 
 ## How Tsugiori helps
 
-- **Catch wiring mistakes while authoring.** Typed job and step builders,
-  Action contracts, GitHub expressions, and task inputs and outputs let
-  TypeScript reject invalid references before CI runs.
+- **Catch wiring mistakes while authoring.** Typed job and step builders, Action
+  contracts, GitHub expressions, and task inputs and outputs let TypeScript
+  reject invalid references before CI runs.
 
 - **Test task code as TypeScript.** Write a Deno task body as a named function
   that you can call directly from a standard `Deno.test`. Keep task code and
   workflow definitions in the same Deno project without a separate task build
   and packaging pipeline.
 
-- **Test workflow decisions locally.** `scenario()` uses fixtures to check
-  typed conditions and value flow, including run and skip paths, without
-  executing Actions, shell steps, or task bodies.
+- **Test workflow decisions locally.** `scenario()` uses fixtures to check typed
+  conditions and value flow, including run and skip paths, without executing
+  Actions, shell steps, or task bodies.
 
 - **Keep GitHub Actions in control.** Generated YAML retains native jobs and
   steps. Put tasks between existing `uses` and `run` steps, and keep using
@@ -100,8 +100,7 @@ The initializer creates `.github/deno.json`:
 }
 ```
 
-It also creates `.github/workflows.ts`, a complete workflow with one shell
-step:
+It also creates `.github/workflows.ts`, a complete workflow with one shell step:
 
 ```ts
 // Import the project runner and typed workflow builder.
@@ -178,15 +177,16 @@ jobs:
         run: echo 'Hello from Tsugiori!'
 ```
 
-See the [complete initialization example](examples/01-init/.github/workflows.ts),
-its [Deno configuration](examples/01-init/.github/deno.json), and its
+See the
+[complete initialization example](examples/01-init/.github/workflows.ts), its
+[Deno configuration](examples/01-init/.github/deno.json), and its
 [generated YAML](examples/01-init/.github/workflows/tsugiori.yml).
 
 ### 2. Add typed jobs, steps, and conditions
 
-Beyond the initial sample, keep each workflow in its own source file and
-import it from the project entrypoint. This CI workflow adds a second job and
-typed runtime expressions.
+Beyond the initial sample, keep each workflow in its own source file and import
+it from the project entrypoint. This CI workflow adds a second job and typed
+runtime expressions.
 
 The `hello` job gives a shell step an `id` for later references. Its declared
 `outputs` make `message` available as `steps.greet.outputs.message`:
@@ -205,9 +205,9 @@ The `hello` job gives a shell step an `id` for later references. Its declared
 })
 ```
 
-Another step uses a typed GitHub expression for its `if` condition. The ref
-is evaluated by GitHub Actions when the workflow runs, not while TypeScript
-defines it:
+Another step uses a typed GitHub expression for its `if` condition. The ref is
+evaluated by GitHub Actions when the workflow runs, not while TypeScript defines
+it:
 
 ```javascript
 // Build the condition from typed runtime values.
@@ -226,12 +226,12 @@ The `hello` job then promotes the step output to a job output:
 .outputs(({ steps }) => ({ message: steps.greet.outputs.message })))
 ```
 
-In `follow-up`, the callback's `jobs` parameter contains the earlier
-`hello` job. `needs()` creates the dependency:
+In `follow-up`, the callback's `jobs` parameter contains the earlier `hello`
+job. `needs()` creates the dependency:
 
 ```javascript
 // needs adds the hello dependency before choosing the runner.
-job.needs(jobs.hello).runsOn("ubuntu-24.04")
+job.needs(jobs.hello).runsOn("ubuntu-24.04");
 ```
 
 The later step reads the promoted output from its typed `needs` context:
@@ -241,8 +241,8 @@ The later step reads the promoted output from its typed `needs` context:
 env: ({ needs }) => ({ MESSAGE: needs.hello.outputs.message }),
 ```
 
-These typed expressions can also be evaluated by `scenario()` without a
-runner in Chapter 6.
+These typed expressions can also be evaluated by `scenario()` without a runner
+in Chapter 6.
 
 The DSL rejects invalid references while TypeScript checks the source. For
 example, `hello` exports `message`, so reading `greeting` in `follow-up` fails:
@@ -257,17 +257,18 @@ TS2339 [ERROR]: Property 'greeting' does not exist on type 'Ref<Readonly<{ messa
 
 IDE completion follows the same state-specific types:
 
-| At the cursor after | Offered | Unavailable |
-| --- | --- | --- |
-| `job.` in a new job | `runsOn` | `run`, `task`, `uses` |
-| `job.runsOn(...).` | `run`, `task`, `uses` | `needs` |
-| `jobs.` in `follow-up` | `hello` | `follow-up` (the current job) |
-| `needs.hello.outputs.` in `follow-up` | `message` | `greeting` |
+| At the cursor after                   | Offered               | Unavailable                   |
+| ------------------------------------- | --------------------- | ----------------------------- |
+| `job.` in a new job                   | `runsOn`              | `run`, `task`, `uses`         |
+| `job.runsOn(...).`                    | `run`, `task`, `uses` | `needs`                       |
+| `jobs.` in `follow-up`                | `hello`               | `follow-up` (the current job) |
+| `needs.hello.outputs.` in `follow-up` | `message`             | `greeting`                    |
 
-See the [complete workflow source](examples/02-typed-dsl/.github/workflows/src/ci.ts),
+See the
+[complete workflow source](examples/02-typed-dsl/.github/workflows/src/ci.ts),
 its [project entrypoint](examples/02-typed-dsl/.github/workflows.ts), and the
-[generated YAML](examples/02-typed-dsl/.github/workflows/ci.yml) with two visible
-jobs, a `needs` edge, a job output, and a step `if`.
+[generated YAML](examples/02-typed-dsl/.github/workflows/ci.yml) with two
+visible jobs, a `needs` edge, a job output, and a step `if`.
 
 ### 3. Add an existing Action
 
@@ -289,8 +290,8 @@ When `deno install -P` resolves that import, Tsugiori's official type service
 redirects the `v7` tag to its current commit SHA, reads the Action's
 `action.yml` or `action.yaml` at that commit, and provides a TypeScript contract
 for its inputs and outputs. Deno records the redirect and module checksum in
-`deno.lock`, fixing the resolved Action version. With a tag like `v7`, use Deno's
-usual lockfile workflow: commit `deno.json` and `deno.lock` together, and
+`deno.lock`, fixing the resolved Action version. With a tag like `v7`, use
+Deno's usual lockfile workflow: commit `deno.json` and `deno.lock` together, and
 refresh the locked resolution when you intend to pick up a moved tag. You can
 instead give `actions add` a full 40-character commit SHA to select that
 revision explicitly in `deno.json`. Both routes give `uses()` a SHA-pinned
@@ -315,10 +316,10 @@ Pass it to `uses()`. The contract checks the names and types in `with`:
 })
 ```
 
-The [complete example](examples/03-actions-add/.github/workflows/src/ci.ts)
-and its [generated YAML](examples/03-actions-add/.github/workflows/ci.yml)
-show the typed `with` map and the resulting ordinary checkout step. Commit the
-source and generated YAML alongside the Deno configuration and lockfile.
+The [complete example](examples/03-actions-add/.github/workflows/src/ci.ts) and
+its [generated YAML](examples/03-actions-add/.github/workflows/ci.yml) show the
+typed `with` map and the resulting ordinary checkout step. Commit the source and
+generated YAML alongside the Deno configuration and lockfile.
 
 ### 4. Run a Deno task
 
@@ -331,11 +332,10 @@ without fetching Deno or task dependencies again when the cache hits. The
 generated `actions/cache` step restores that artifact.
 
 This workflow adds a `workflow_dispatch` text input named `format`, defaulting
-to `%h %s`.
-Task inputs and outputs default to non-empty plain text, so their `contract`
-can be omitted: use `{ from }` for inputs and `{ required }` for outputs.
-The next chapter introduces `jsonValue()` as an opt-in for structured data.
-The task runs Git and writes the result:
+to `%h %s`. Task inputs and outputs default to non-empty plain text, so their
+`contract` can be omitted: use `{ from }` for inputs and `{ required }` for
+outputs. The next chapter introduces `jsonValue()` as an opt-in for structured
+data. The task runs Git and writes the result:
 
 ```ts
 // Pass the dispatch format as one Git argument.
@@ -364,10 +364,10 @@ invocation steps.
 
 ### 5. Pass typed data between tasks
 
-`jsonValue()` defines a typed, runtime-validated contract for JSON values
-passed between tasks. It accepts a shape-preserving `parse(value: unknown)`
-adapter from any JSON schema or serde library, or one you write yourself.
-Tsugiori handles the JSON encoding across GitHub Actions' string channels.
+`jsonValue()` defines a typed, runtime-validated contract for JSON values passed
+between tasks. It accepts a shape-preserving `parse(value: unknown)` adapter
+from any JSON schema or serde library, or one you write yourself. Tsugiori
+handles the JSON encoding across GitHub Actions' string channels.
 
 [Zod](https://zod.dev/) is this example's choice, not a Tsugiori requirement.
 Here it defines the shared array of TypeScript paths:
@@ -395,15 +395,15 @@ The next task inherits the contract from the typed output reference:
 
 ```javascript
 // Bind the collector's output as the next task's typed input.
-inputs: ({ steps }) => ({
+inputs: (({ steps }) => ({
   // Inherit the collector's JSON contract.
   files: { from: steps.collect.outputs.files },
-})
+}));
 ```
 
 For a direct typed output reference, the input can omit `contract` and inherit
-it from the source. Computed expressions do not retain that contract and
-default to text when `contract` is omitted.
+it from the source. Computed expressions do not retain that contract and default
+to text when `contract` is omitted.
 
 Inside the task body, `inputs.files` is already parsed and typed as `string[]`:
 
@@ -416,10 +416,10 @@ Tsugiori validates the JSON at the task boundary, so the task does not call
 `parse()` itself.
 
 The first task also sets the `hasFiles` flag. The second runs only when files
-are present, reads each file, and reports file and line counts. Both task
-bodies are inline lambdas, so the full value flow is visible in one file.
-The [complete workflow source](examples/05-typed-io/.github/workflows/src/ci.ts)
-and [generated YAML](examples/05-typed-io/.github/workflows/ci.yml) show JSON
+are present, reads each file, and reports file and line counts. Both task bodies
+are inline lambdas, so the full value flow is visible in one file. The
+[complete workflow source](examples/05-typed-io/.github/workflows/src/ci.ts) and
+[generated YAML](examples/05-typed-io/.github/workflows/ci.yml) show JSON
 passing through ordinary step outputs and environment values; the task runtime
 parses and validates it at both ends.
 
@@ -461,45 +461,59 @@ if: ({ steps }) =>
   ),
 ```
 
-The scenario supplies the collector's outputs as a fixture, then checks that
-the consumer runs and receives the file array:
+The scenario supplies the collector's outputs as a fixture, then checks that the
+consumer runs and receives the file array:
 
-```javascript
-// Select the collector step without running its task body.
-job.step("collect")
-  // Supply the outputs that the task would write.
-  .fixture({
-    outputs: {
-      files: ["one.ts"],
-      hasFiles: "true",
-    },
+```ts
+Deno.test("scenario reaches the consumer when files are present", async () => {
+  // Run a workflow scenario with supplied step results.
+  const result = await scenario(ci, (test) => {
+    // Supply the dispatch event context.
+    test.github({ event_name: "workflow_dispatch", event: {} });
+    // Inspect the one job and its ordered steps.
+    test.job("inspect", (job) => {
+      // Let the checkout step succeed without running the Action.
+      job.step("checkout").fixture({});
+      // Supply the collector's outputs without calling collectFiles.
+      job.step("collect").fixture({
+        // Declare the outputs visible to later steps.
+        outputs: { files: ["one.ts"], hasFiles: "true" },
+      });
+      // Check execution and typed input forwarding to count.
+      job.step("count").fixture({});
+    });
   });
-// Select the consumer step.
-job.step("count")
-  // Supply its step result without running countLines.
-  .fixture({})
-  // Assert that the condition lets it run.
-  .expectRun()
-  // Assert that the file array reaches its typed input.
-  .expectInputs({ files: ["one.ts"] });
+  const consumer = result.jobs.inspect!.instances[0].steps.count!;
+  assert.equal(consumer.outcome, "success");
+  assert.deepEqual(consumer.inputs.files, ["one.ts"]);
+});
 ```
 
 With no files, the same condition skips the consumer:
 
-```javascript
-// Select the collector step.
-job.step("collect")
-  // Supply an empty file list and its presence flag.
-  .fixture({
-    outputs: {
-      files: [],
-      hasFiles: "false",
-    },
+```ts
+Deno.test("scenario skips the consumer when no files are present", async () => {
+  // Evaluate the same workflow with an empty collector output.
+  const result = await scenario(ci, (test) => {
+    // Supply the dispatch event context.
+    test.github({ event_name: "workflow_dispatch", event: {} });
+    // Select the job whose steps the scenario interprets.
+    test.job("inspect", (job) => {
+      // Let checkout succeed without running it.
+      job.step("checkout").fixture({});
+      // Simulate an empty file list from the collector.
+      job.step("collect").fixture({
+        // Declare the outputs visible to later steps.
+        outputs: { files: [], hasFiles: "false" },
+      });
+    });
   });
-// Select the consumer step.
-job.step("count")
-  // Assert that the typed condition skips it.
-  .expectSkip();
+  assert.equal(result.jobs.inspect!.result, "success");
+  assert.equal(
+    result.jobs.inspect!.instances[0].steps.count!.outcome,
+    "skipped",
+  );
+});
 ```
 
 Scenarios interpret workflow logic; they do not run Actions, shell steps, or
@@ -521,14 +535,17 @@ See the [task functions](examples/06-testing/.github/workflows/src/tasks.ts),
 Define one composite Action containing a Deno task, then call it from two
 workflows in the same repository. Each caller checks out the repository so the
 local Action is available. Tsugiori generates its `action.yml`, task payload,
-and both workflow YAML files. See the [Action source](examples/07-local-action/.github/actions/greet/src/mod.ts),
+and both workflow YAML files. See the
+[Action source](examples/07-local-action/.github/actions/greet/src/mod.ts),
 [project entrypoint](examples/07-local-action/.github/workflows.ts),
 [first](examples/07-local-action/.github/workflows/src/first.ts) and
 [second](examples/07-local-action/.github/workflows/src/second.ts) workflow
-sources, [generated `action.yml`](examples/07-local-action/.github/actions/greet/action.yml),
+sources,
+[generated `action.yml`](examples/07-local-action/.github/actions/greet/action.yml),
 and [first](examples/07-local-action/.github/workflows/first.yml) and
 [second](examples/07-local-action/.github/workflows/second.yml) workflow YAML.
-See the [authoring API](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring)
+See the
+[authoring API](https://jsr.io/@atty303/tsugiori/doc/github-actions/authoring)
 for Action metadata and output mapping details.
 
 ## API documentation
@@ -544,7 +561,7 @@ usage, contracts, examples and supported limits:
 - [Generation and CLI](https://jsr.io/@atty303/tsugiori/doc/github-actions/run):
   commands, paths, Action import mappings, task preparation and diagnostics.
 - [Scenario testing](https://jsr.io/@atty303/tsugiori/doc/github-actions/testing):
-  fixtures, expectations, reusable calls and verification limits.
+  fixtures, observed results, reusable calls and verification limits.
 - [Task contracts](https://jsr.io/@atty303/tsugiori/doc/task): native inputs,
   output writers, text/JSON validation and serialization.
 

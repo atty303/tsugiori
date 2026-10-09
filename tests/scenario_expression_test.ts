@@ -1,3 +1,4 @@
+import { checkedScenario as scenario } from "./scenario_checks.ts";
 import { project } from "../src/github_actions/mod.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
 import { emitWorkflow } from "../src/compiler/github_actions/emitter.ts";
@@ -7,7 +8,6 @@ import {
   fromJSON,
   literal,
   rawExpression,
-  scenario,
   toJSON,
   workflow,
 } from "../src/github_actions.ts";
@@ -180,7 +180,7 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
   const lowered =
     lowerProject(project({ workflows: [flow] }), "./workflows.ts").workflows[0]
       .workflow;
-  const env = parse(emitWorkflow(lowered)).jobs.test.steps[0].env;
+  const env = parse(emitWorkflow(lowered)).jobs.test!.steps[0].env;
   for (
     const [name, key] of [["INDEX", "job-index"], ["TOTAL", "job-total"], [
       "MAX",
@@ -197,7 +197,7 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
     );
   }
   assertEquals(env.VALUE, `\${{ toJSON(fromJSON('{"version":22}').version) }}`);
-  const result = await scenario(flow, (test) => {
+  const result = await scenario(flow, (test, check) => {
     test.github({ event_name: "push" });
     test.job("test", (job) => {
       job.eachMatrix(({ n }, instance) =>
@@ -212,10 +212,26 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
           return {};
         })
       );
-      job.step("null").expectSkip();
+      job.step("null");
       job.step("failed").fixture({ outcome: "failure" });
-      job.step("quoted").expectSkip();
-      job.step("recover").fixture({}).expectRun();
+      job.step("quoted");
+      job.step("recover").fixture({});
+
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["null"]!.outcome !== "skipped", false);
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["quoted"]!.outcome !== "skipped", false);
+        }
+      });
+      check((r) => {
+        for (const i0 of r.jobs["test"]!.instances) {
+          assertEquals(i0.steps["recover"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
   assertEquals(result.result, "failure");
@@ -233,7 +249,7 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
       }),
   );
   const error = await assertRejects(() =>
-    scenario(missing, (t) => {
+    scenario(missing, (t, _check) => {
       t.github({ event_name: "push" });
       t.vars({});
       t.job("test", (j) => j.step("read").fixture({}));

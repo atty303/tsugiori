@@ -1,3 +1,4 @@
+import { checkedScenario as scenario } from "./scenario_checks.ts";
 import { activities } from "../src/github_actions/events.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
@@ -8,7 +9,6 @@ import {
   format,
   hashFiles,
   project,
-  scenario,
   workflow,
 } from "../src/github_actions.ts";
 import { lowerProject } from "../src/compiler/authoring.ts";
@@ -194,17 +194,20 @@ Deno.test("hashFiles emits natively and return fixtures preserve surrounding exp
     "./workflows.ts",
   );
   const step =
-    parse(emitWorkflow(lowered.workflows[0].workflow)).jobs.check.steps[0];
+    parse(emitWorkflow(lowered.workflows[0].workflow)).jobs.check!.steps[0];
   assertEquals(step.if, "${{ contains(hashFiles('deno.lock'), 'abc') }}");
   assertEquals(
     step.env.HASH,
     "${{ format('prefix-{0}', hashFiles('deno.lock')) }}",
   );
   const missing = await assertRejects(() =>
-    scenario(flow, (test) => test.github({ event_name: "push", event: {} }))
+    scenario(
+      flow,
+      (test, _check) => test.github({ event_name: "push", event: {} }),
+    )
   );
   assertEquals((missing as { kind?: string }).kind, "fixture_missing");
-  await scenario(flow, (test) => {
+  await scenario(flow, (test, check) => {
     test.github({ event_name: "push", event: {} });
     test.job("check", (job) => {
       job.step("read")
@@ -212,7 +215,13 @@ Deno.test("hashFiles emits natively and return fixtures preserve surrounding exp
         .fixture(({ env }) => {
           assertEquals(env.HASH, "prefix-abc");
           return {};
-        }).expectRun();
+        });
+
+      check((r) => {
+        for (const i0 of r.jobs["check"]!.instances) {
+          assertEquals(i0.steps["read"]!.outcome !== "skipped", true);
+        }
+      });
     });
   });
 });
