@@ -102,7 +102,7 @@ calculating authorization. The public `rawExpression()` emits an explicit
 operators, built-in calls, and opaque `rawNode<T>()` nodes. Field callbacks
 derive their available contexts from the provider scope catalog. Settings
 sharing that scope accept a static object or one authoring callback returning
-the complete object. Step/job env, job run defaults and concurrency, and task
+the complete object. Workflow/job/step env, job run defaults and concurrency, and task
 input bindings use this form; individual values do not accept callbacks.
 Reusable caller inputs and secrets have separate map callbacks because only the
 secrets scope exposes secrets. Caller arguments remain an object, preserving

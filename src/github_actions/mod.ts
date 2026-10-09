@@ -1823,7 +1823,10 @@ export type WorkflowOptions<
    * ```
    */
   runName?: string;
-  /** Environment variables available to all steps in this scope. A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
+  /** Environment variables available to all steps in this scope. Accepts a static map or one authoring callback returning the complete map, like job and step env.
+   * The callback runs during definition construction with github, declared vars/secrets and trigger inputs; GitHub evaluates the emitted expressions at runner initialization. Values accept strings or expressions of any result type, not number/boolean literals or per-value callbacks.
+   * github.job and github.token are runner-initialized string references. Scenarios derive job identity and require an explicit token fixture when the token is read.
+   * A step value overrides a job value, which overrides a workflow value. Values in the same map cannot refer to each other. Workflow env is not forwarded to reusable workflows.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#env
    * @example
    * ```ts
@@ -1832,8 +1835,21 @@ export type WorkflowOptions<
    *   env: { CI: "true" },
    * });
    * ```
+   * @example
+   * ```ts
+   * workflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   *   vars: ["REGION"],
+   *   env: ({ github, vars, secrets }) => ({
+   *     SHA: github.sha,
+   *     REGION: vars.REGION,
+   *     TOKEN: secrets.GITHUB_TOKEN,
+   *     CI: "true",
+   *   }),
+   * });
+   * ```
    */
-  env?: EnvironmentVariables;
+  env?: WorkflowEnv<Names<Vars>, Names<Secrets>, WorkflowInputs<On>>;
   /** Limits simultaneous workflow runs that share a group in this repository, independently of runner availability. See group, cancelInProgress and queue for replacement/cancellation behavior.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#concurrency
    * @example
@@ -2383,6 +2399,15 @@ type EnvironmentValue<
      */
     deployment?: boolean | Expression<boolean> | RawExpression;
   }>;
+/** Workflow environment map or definition-time callback in the native env scope. */
+type WorkflowEnv<
+  Vars extends string,
+  Secrets extends string,
+  InputValues extends object,
+> = AuthoringValue<
+  Readonly<Record<string, string | Expression<unknown>>>,
+  Scope<"env", E, E, E, Vars, Secrets, InputValues>
+>;
 type StepEnv<
   Needs extends Record<string, readonly string[]>,
   Steps extends StepReferences,
@@ -6965,6 +6990,34 @@ type JobDraft = Readonly<{
   parallelOrigin?: symbol;
 }>;
 
+/** Workflow options with literal-name declarations inferred by workflow(). */
+interface WorkflowArgs<
+  On extends WorkflowTriggers,
+  Vars extends readonly string[] | undefined,
+  Secrets extends readonly string[] | undefined,
+> extends WorkflowOptions<On, Vars, Secrets> {
+  /** Declared names available in expression callbacks.
+   * @example
+   * ```ts
+   * workflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   *   vars: ["REGION"],
+   * });
+   * ```
+   */
+  readonly vars?: Vars & LiteralNames<Vars>;
+  /** Declared names available in expression callbacks.
+   * @example
+   * ```ts
+   * workflow(".github/workflows/ci.yml", {
+   *   on: { push: {} },
+   *   secrets: ["DEPLOY_TOKEN"],
+   * });
+   * ```
+   */
+  readonly secrets?: Secrets & LiteralNames<Secrets>;
+}
+
 /** A workflow defines event triggers and jobs. Its project-relative YAML path is its sole identity.
  * Tsugiori callers own GitHub workflow placement; generation imposes no output directory.
  * Tsugiori constructs immutable authoring state; expressions and step bodies are not executed during generation.
@@ -6988,30 +7041,7 @@ export function workflow<
 >(
   /** Output path relative to the invocation’s Deno project directory. */
   path: WorkflowPath,
-  options:
-    & WorkflowOptions<On, Vars, Secrets>
-    & Readonly<{
-      /** Declared names available in expression callbacks.
-       * @example
-       * ```ts
-       * workflow(".github/workflows/ci.yml", {
-       *   on: { push: {} },
-       *   vars: ["REGION"],
-       * });
-       * ```
-       */
-      vars?: LiteralNames<Vars>;
-      /** Declared names available in expression callbacks.
-       * @example
-       * ```ts
-       * workflow(".github/workflows/ci.yml", {
-       *   on: { push: {} },
-       *   secrets: ["DEPLOY_TOKEN"],
-       * });
-       * ```
-       */
-      secrets?: LiteralNames<Secrets>;
-    }>,
+  options: WorkflowArgs<On, Vars, Secrets>,
 ): WorkflowStartOf<
   WorkflowPath,
   Names<Vars>,
@@ -7061,7 +7091,7 @@ export function workflow<
     on: materializeTriggers(options.on),
     runName: options.runName,
     cacheMode: options.cacheMode,
-    env: options.env && Object.freeze({ ...options.env }),
+    env: evaluateEnv(options.env, "env"),
     defaults: options.defaults && Object.freeze({ ...options.defaults }),
     ...(options.concurrency === undefined ? {} : {
       concurrency: renderConcurrency(options.concurrency, "concurrency"),

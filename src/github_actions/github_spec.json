@@ -1234,11 +1234,19 @@
       "domain": "syntax",
       "key": "env",
       "status": "implemented",
-      "notes": "Native YAML is emitted. Scenario covers value wiring only; GitHub owns execution.",
+      "notes": "Workflow env accepts a static string/expression map or a typed callback in the native env scope and emits normal YAML. Scenarios evaluate supplied values with step-over-job-over-workflow precedence; workflow env is not forwarded to reusable workflows. GitHub owns execution.",
       "source": "content/actions/reference/workflows-and-actions/workflow-syntax.md",
       "anchor": "env",
       "assessment": [
         "native-authoring"
+      ],
+      "evidence": [
+        "tests/workflow_env_test.ts",
+        "tests/workflow_env_types_test.ts",
+        "tests/language_server_completion_test.ts"
+      ],
+      "related": [
+        "authoring-capability:workflow-env-callback"
       ]
     },
     {
@@ -5595,7 +5603,7 @@
       "domain": "context-availability",
       "key": "env",
       "status": "reference",
-      "notes": "Records the frozen contexts allowed in workflow env. Job/step env have field-scoped callbacks; workflow env accepts string values/raw expressions without a typed callback. Native emission and the missing callback are assessed separately.",
+      "notes": "Records the frozen contexts allowed in workflow env: github, vars, secrets and inputs. Workflow/job/step env have field-scoped callbacks. Public workflow callback support and native emission are assessed by the related implementation units.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "context-availability",
       "assessment": [
@@ -5603,7 +5611,10 @@
       ],
       "evidence": [
         "src/github_actions/expression_scope.ts",
-        "tests/expression_types_test.ts"
+        "tests/expression_types_test.ts",
+        "tests/workflow_env_test.ts",
+        "tests/workflow_env_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "syntax:env",
@@ -8073,16 +8084,20 @@
     {
       "domain": "authoring-capability",
       "key": "workflow-env-callback",
-      "status": "unimplemented",
-      "notes": "Workflow env accepts string values/raw expression strings, while job/step env have typed callbacks. A workflow-level callback with field/phase-appropriate contexts and declared-name inference is absent. Raw emission remains available; callback typing and immutable authoring inference need implementation.",
+      "status": "implemented",
+      "notes": "Workflow env accepts a static string/expression map or one definition-time callback returning the complete map. The native env scope exposes github, vars, secrets and inputs with declared-name/input inference and runner-initialized github.job/token types. Scenarios evaluate supplied values with native env override order and no forwarding to reusable callees; GitHub owns runtime availability and execution.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "context-availability",
       "assessment": [
-        "authoring-gap"
+        "native-authoring",
+        "fixture-dependent",
+        "execution-boundary"
       ],
       "evidence": [
         "src/github_actions/mod.ts",
-        "tests/reusable_workflow_test.ts"
+        "tests/workflow_env_test.ts",
+        "tests/workflow_env_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "syntax:env",

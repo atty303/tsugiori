@@ -46,7 +46,8 @@ differences in wording between official sources and Tsugiori's retained limits.
 
 Context availability rows retain field-scope information and links to syntax
 rows; catalog presence alone does not establish public callback support.
-Workflow-level env's missing typed callback has its own unimplemented unit.
+Workflow-level env has a typed map callback in its native scope, with
+declared-name/input inference and supplied-value scenario evaluation.
 Trigger rows link compiler, type/scenario and actual LSP evidence. Existing
 implemented rows do not claim hosted event delivery or authorization.
 

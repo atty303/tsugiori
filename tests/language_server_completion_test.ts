@@ -1093,6 +1093,107 @@ scenario(flow, test => test.job("build", job => { `;
       assert(stepSignature.includes("StepGitHub"), stepSignature);
       assert(!stepSignature.includes("..."), stepSignature);
       await t.assertSnapshot(displays);
+      assert(
+        await t.step(
+          "workflow env completion, hover and signature",
+          async () => {
+            const workflowEnvPrefix =
+              `import { workflow } from "../src/github_actions/mod.ts";
+  workflow("env.yml", {
+    on: { workflow_dispatch: { inputs: {
+      dry_run: { type: "boolean", default: false },
+      count: { type: "number", default: 1 },
+    } } },
+    vars: ["REGION"],
+    secrets: ["DEPLOY_TOKEN"],
+    env: (context) => { `;
+            const workflowEnvLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              430,
+              "workflow-env-context",
+              workflowEnvPrefix + `context./*completion*/; return {}; } });`,
+            );
+            assertIncludesExactly(workflowEnvLabels, [
+              "github",
+              "vars",
+              "secrets",
+              "inputs",
+            ]);
+            for (
+              const [index, [namespace, names]] of ([
+                ["vars", ["REGION"]],
+                ["secrets", ["DEPLOY_TOKEN", "GITHUB_TOKEN"]],
+                ["inputs", ["dry_run", "count"]],
+              ] as const).entries()
+            ) {
+              const labels = await sourceCompletionLabels(
+                writer,
+                stream,
+                431 + index,
+                `workflow-env-${namespace}`,
+                workflowEnvPrefix +
+                  `context.${namespace}./*completion*/; return {}; } });`,
+              );
+              assertRelevantExactly(labels, names, [...names, "UNKNOWN"]);
+            }
+            for (
+              const [index, [property, expected]] of ([
+                ["inputs.dry_run", "boolean"],
+                ["inputs.count", "number"],
+                ["vars.REGION", "string"],
+                ["secrets.DEPLOY_TOKEN", "string"],
+                ["secrets.GITHUB_TOKEN", "string"],
+                ["github.job", "string"],
+                ["github.token", "string"],
+              ] as const).entries()
+            ) {
+              const hover = await sourceHover(
+                writer,
+                stream,
+                435 + index,
+                `workflow-env-hover-${index}`,
+                workflowEnvPrefix +
+                  `return { VALUE: context.${property}/*completion*/ }; } });`,
+                true,
+              );
+              assert(hover.includes(expected), hover);
+              assert(!hover.includes("..."), hover);
+            }
+            const workflowEnvSignature = await sourceHover(
+              writer,
+              stream,
+              442,
+              "workflow-env-signature",
+              `import { workflow } from "../src/github_actions/mod.ts";
+workflow(/*completion*/"env.yml", {
+  on: { push: {} },
+  vars: ["REGION"],
+  secrets: ["DEPLOY_TOKEN"],
+  env: ({ github, vars, secrets }) => ({
+    SHA: github.sha, REGION: vars.REGION, TOKEN: secrets.DEPLOY_TOKEN,
+  }),
+});`,
+              true,
+              "signatureHelp",
+            );
+            assert(
+              workflowEnvSignature.includes("WorkflowArgs"),
+              workflowEnvSignature,
+            );
+            assert(
+              workflowEnvSignature.includes('"REGION"'),
+              workflowEnvSignature,
+            );
+            assert(
+              workflowEnvSignature.includes('"DEPLOY_TOKEN"'),
+              workflowEnvSignature,
+            );
+            assert(!workflowEnvSignature.includes("..."), workflowEnvSignature);
+          },
+        ),
+      );
+
       for (
         const [index, [name, expected]] of ([
           ["composite-start", ["run", "uses", "task"]],
