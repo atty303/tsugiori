@@ -102,16 +102,16 @@ calculating authorization. The public `rawExpression()` emits an explicit
 operators, built-in calls, and opaque `rawNode<T>()` nodes. Field callbacks
 derive their available contexts from the provider scope catalog. Settings
 sharing that scope accept a static object or one authoring callback returning
-the complete object. Workflow/job/step env, job run defaults and concurrency, and task
-input bindings use this form; individual values do not accept callbacks.
-Reusable caller inputs and secrets have separate map callbacks because only the
-secrets scope exposes secrets. Caller arguments remain an object, preserving
-these field boundaries. All these callbacks run during authoring and retain
-typed references and task presence proofs. The AST is built at each field; it is
-not a host-language evaluation of GitHub runtime values. `rawNode<T>()` and
-`.as<T>()` contain caller assertions, not runtime validation. Typed task JSON
-references give `fromJSON()` an inferred result type while preserving its
-ordinary GitHub expression rendering.
+the complete object. Workflow/job/step env, job run defaults and concurrency,
+and task input bindings use this form; individual values do not accept
+callbacks. Reusable caller inputs and secrets have separate map callbacks
+because only the secrets scope exposes secrets. Caller arguments remain an
+object, preserving these field boundaries. All these callbacks run during
+authoring and retain typed references and task presence proofs. The AST is built
+at each field; it is not a host-language evaluation of GitHub runtime values.
+`rawNode<T>()` and `.as<T>()` contain caller assertions, not runtime validation.
+Typed task JSON references give `fromJSON()` an inferred result type while
+preserving its ordinary GitHub expression rendering.
 
 Generated property references prefer GitHub-native dot syntax, including
 hyphenated names, and use brackets when required. Explicit raw expressions
@@ -280,26 +280,26 @@ tolerance resolve without scheduling; job execution outcomes and step
 conclusions remain separate from the effective dependency/workflow result.
 Positive integer job timeouts retain runner-owned execution limits, while step
 timeouts cannot exceed 360 minutes. It does not call authored step or task
-bodies. It does not model runner behavior, effective permissions,
-protection-rule decisions, timeouts, concurrency effects, or actual parallel
-execution. Explicit expectSettings(), expectConcurrency() and
-expectRunSettings() calls enable interpretation of runner requests, concurrency
-expressions and effective run settings from explicit workflow/job/step values;
-platform shell defaults and filesystem existence are not inferred. Environment
-name resolves before steps and URL after steps. An optional per-instance
-environment protection fixture supplies the aggregate passed/rejected result.
-Rejection runs no steps, produces job failure and omits step-derived job
-outputs; failure flows through dependencies and local reusable calls. Omission
-retains ungated interpretation and does not prove actual approval. Pending,
-reviewer eligibility, timers and protection-rule calculation are not modeled.
-Opt-in settings also expose effective cache access and its
-job/workflow/caller/trigger source, keeping explicit caller ceilings separate
-from trigger defaults through nested local calls. Snapshot generation requests
-are exposed after actual job execution success and a truthy condition; tolerated
-job failure does not request an image. Rejected environments, failed
-initialization, failure and cancellation produce no request. This interpretation
-performs no cache operations or image generation. Without settings expectations,
-snapshot expressions require no new fixtures.
+bodies. It does not model runner behavior, live authorization, protection-rule
+decisions, timeouts, concurrency effects, or actual parallel execution. Explicit
+expectSettings(), expectConcurrency() and expectRunSettings() calls enable
+interpretation of runner requests, concurrency expressions and effective run
+settings from explicit workflow/job/step values; platform shell defaults and
+filesystem existence are not inferred. Environment name resolves before steps
+and URL after steps. An optional per-instance environment protection fixture
+supplies the aggregate passed/rejected result. Rejection runs no steps, produces
+job failure and omits step-derived job outputs; failure flows through
+dependencies and local reusable calls. Omission retains ungated interpretation
+and does not prove actual approval. Pending, reviewer eligibility, timers and
+protection-rule calculation are not modeled. Opt-in settings also expose
+effective cache access and its job/workflow/caller/trigger source, keeping
+explicit caller ceilings separate from trigger defaults through nested local
+calls. Snapshot generation requests are exposed after actual job execution
+success and a truthy condition; tolerated job failure does not request an image.
+Rejected environments, failed initialization, failure and cancellation produce
+no request. This interpretation performs no cache operations or image
+generation. Without settings expectations, snapshot expressions require no new
+fixtures.
 
 Runner-owned context values are explicit test fixtures: jobRuntime() supplies
 check run and job-defining workflow identity, and runner() supplies assigned
@@ -316,11 +316,39 @@ Pure expressions interpret the frozen literals, operators/conversions,
 built-ins, object filters and suffix/dynamic access on supplied values. Known
 absence on closed computed values yields native null/empty conversion; partial
 external fixtures remain strict. Status detection excludes quoted function
-names. `hashFiles()` and unknown asserted forms need a field-specific scenario
-override of the complete result, including surrounding operations. A hashFiles
-return-value fixture is unimplemented; filesystem hashing is excluded. Missing
-overrides never silently succeed. The pinned runner reconciliation and execution
-boundaries are documented in [the spec basis](GITHUB_ACTIONS_SPEC.md).
+names. Step hashFiles() fixtures supply return values by evaluated string
+argument sequence, preserving surrounding expression evaluation without
+filesystem reads. Only reached calls require a matching fixture. Invalid
+expressions fail; scenario fields cannot be replaced by expression overrides.
+The pinned runner reconciliation is documented in
+[the spec basis](GITHUB_ACTIONS_SPEC.md).
+
+Job-wide step settings are inherited by eachMatrix() instances. Named
+expectation and github/run-setting maps merge by key, while each named value and
+fixture is atomic. Instance scalars replace only explicitly registered common
+settings; replaceInherited() excludes all common settings for that step.
+Duplicate scalar, fixture, hash argument tuple or named-key registrations within
+one scope fail. Use one registration per key or move a deliberate difference
+into eachMatrix().
+
+Fixture callbacks and instance results expose readonly native strategy. Explicit
+maxParallel is evaluated unchanged; omission uses expanded instance count under
+the interpreter's sufficient-runner assumption. This does not predict GitHub's
+selected default. Authored settings expectations do not include model defaults.
+completionOrder() supplies all zero-based job indices exactly once for output
+aggregation, without reordering instance results or executing fixtures in that
+order. Ordinary jobs retain native output merging; reusable matrix calls select
+the last successful nonempty value per output. Omission retains conflict errors.
+No completion times or scheduler are modeled.
+
+Root tokenPermissions() assumptions opt into native default/workflow/job
+permission replacement followed by an explicit write restriction. Defaults are
+not a ceiling. Each local call inherits its caller's resolved authority;
+effective callee demands exceeding it fail with the call path. Callee initial
+assumptions are rejected under inherited validation. Callbacks and instance
+results expose complete readonly token maps; absence means validation was not
+enabled. External call fixtures expose incoming authority only. No tokens, API
+authorization or external callee declarations are verified.
 
 Job container and named service declarations retain their native settings in
 YAML. Each setting uses its frozen expression scope; the service map's names

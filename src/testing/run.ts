@@ -1,4 +1,9 @@
 import {
+  expandPermissions,
+  resolvePermissions,
+  type TokenPolicy,
+} from "./permissions.ts";
+import {
   validateJobRuntime,
   validateRunnerRuntime,
   validateStepGitHub,
@@ -17,8 +22,8 @@ import {
   evaluateExpression,
   hasStatusFunction,
   MissingContextError,
+  MissingHashFilesError,
   truthy,
-  UnsupportedExpressionError,
 } from "./expression.ts";
 import {
   type Fixture,
@@ -29,6 +34,7 @@ import {
   type JobSettings,
   type Program,
   type ResolvedConcurrency,
+  type ResolvedStrategy,
   type Result,
   ScenarioError,
   type ScenarioObservationState,
@@ -36,9 +42,13 @@ import {
   type StepOutcome,
   type StepResult,
   type StepRules,
+  type TokenPermissions,
 } from "./mod.ts";
 
-type Context = Record<string, unknown>;
+const stepHashes = Symbol("stepHashFiles");
+type Context = Record<string, unknown> & {
+  [stepHashes]?: ReadonlyMap<string, string>;
+};
 
 function serverContext(context: Context): Context {
   return {
@@ -141,14 +151,21 @@ function evaluateAt(
   status: Status,
   location: string,
   field: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): unknown {
   try {
-    return evaluateExpression(value, context, status);
+    return evaluateExpression(value, context, status, context[stepHashes]);
   } catch (error) {
     if (error instanceof ScenarioError) {
       throw new ScenarioError(
         error.kind,
+        `${location}.${field}`,
+        error.message,
+        { cause: error },
+      );
+    }
+    if (error instanceof MissingHashFilesError) {
+      throw new ScenarioError(
+        "fixture_missing",
         `${location}.${field}`,
         error.message,
         { cause: error },
@@ -159,17 +176,6 @@ function evaluateAt(
         "fixture_missing",
         `${location}.${field}`,
         error.message,
-        { cause: error },
-      );
-    }
-    if (error instanceof UnsupportedExpressionError && overrides.has(field)) {
-      return overrides.get(field);
-    }
-    if (error instanceof UnsupportedExpressionError) {
-      throw new ScenarioError(
-        "expression_unsupported",
-        `${location}.${field}`,
-        "Expression is unsupported; provide a value at this field.",
         { cause: error },
       );
     }
@@ -187,11 +193,10 @@ function condition(
   context: Context,
   status: Status,
   location: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): boolean {
   if (!status.success && (!value || !hasStatusFunction(value))) return false;
   if (!value) return true;
-  return truthy(evaluateAt(value, context, status, location, "if", overrides));
+  return truthy(evaluateAt(value, context, status, location, "if"));
 }
 
 function stringValue(value: unknown): string {
@@ -211,7 +216,6 @@ function evaluateMap(
   status: Status,
   location: string,
   prefix: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(values ?? {})) {
@@ -222,7 +226,6 @@ function evaluateMap(
         status,
         location,
         `${prefix}.${key}`,
-        overrides,
       )
       : value;
   }
@@ -234,7 +237,6 @@ function expandMatrix(
   context: Context,
   status: Status,
   location: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): readonly Record<string, unknown>[] {
   const definition = job.strategy?.matrix;
   if (definition === undefined) return [{}];
@@ -245,7 +247,6 @@ function expandMatrix(
       status,
       location,
       "strategy.matrix",
-      overrides,
     )
     : evaluateMap(
       definition,
@@ -253,7 +254,6 @@ function expandMatrix(
       status,
       location,
       "strategy.matrix",
-      overrides,
     );
   try {
     return matrixRows(value)!;
@@ -294,7 +294,7 @@ function validateRules(
   }
   const ids = new Set(flattenSteps(authorJob.steps).map((step) => step.id));
   for (const id of rules.steps.keys()) {
-    if (id !== "__job__" && !ids.has(id)) {
+    if (!ids.has(id)) {
       throw new ScenarioError(
         "fixture_invalid",
         `${location}.${id}`,
@@ -304,6 +304,30 @@ function validateRules(
   }
 }
 
+function mergeStep(
+  base: StepRules | undefined,
+  specific: StepRules,
+): StepRules {
+  if (!base || specific.inherit === false) return specific;
+  const merged: StepRules = {
+    ...base,
+    ...specific,
+    hashFiles: new Map([...base.hashFiles ?? [], ...specific.hashFiles ?? []]),
+  };
+  for (
+    const key of [
+      "github",
+      "expectedRunSettings",
+      "expectedInputs",
+      "expectedOutputs",
+    ] as const
+  ) {
+    if (base[key] !== undefined || specific[key] !== undefined) {
+      merged[key] = { ...base[key], ...specific[key] };
+    }
+  }
+  return merged;
+}
 function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
   return {
     jobRuntime:
@@ -313,7 +337,13 @@ function mergedRules(base: JobRules, instance: InstanceRules): InstanceRules {
     runner: base.runner === undefined && instance.runner === undefined
       ? undefined
       : { ...base.runner, ...instance.runner },
-    steps: new Map([...base.steps, ...instance.steps]),
+    steps: new Map([
+      ...base.steps,
+      ...Array.from(
+        instance.steps,
+        ([id, rule]) => [id, mergeStep(base.steps.get(id), rule)] as const,
+      ),
+    ]),
     internals: new Map([...base.internals, ...instance.internals]),
     expectedResult: instance.expectedResult,
     containerInitialization: instance.containerInitialization ??
@@ -358,13 +388,12 @@ function booleanSetting(
   status: Status,
   location: string,
   field: string,
-  overrides: ReadonlyMap<string, unknown>,
   fallback = false,
 ): boolean {
   if (value === undefined) return fallback;
   const resolved = typeof value === "boolean"
     ? value
-    : evaluateAt(value, context, status, location, field, overrides);
+    : evaluateAt(value, context, status, location, field);
   if (typeof resolved !== "boolean") {
     throw new ScenarioError(
       "expression_error",
@@ -380,12 +409,11 @@ function integerSetting(
   status: Status,
   location: string,
   field: string,
-  overrides: ReadonlyMap<string, unknown>,
   maximum = Infinity,
 ): number {
   const resolved = typeof value === "number"
     ? value
-    : evaluateAt(value, context, status, location, field, overrides);
+    : evaluateAt(value, context, status, location, field);
   if (
     typeof resolved !== "number" || !Number.isInteger(resolved) ||
     resolved < 1 || resolved > maximum
@@ -403,7 +431,6 @@ function resolvedConcurrency(
   context: Context,
   status: Status,
   location: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): ResolvedConcurrency | undefined {
   if (!value) return undefined;
   const cancelInProgress = typeof value.cancelInProgress === "boolean"
@@ -414,7 +441,6 @@ function resolvedConcurrency(
       status,
       location,
       "concurrency.cancel-in-progress",
-      overrides,
     );
   if (
     typeof cancelInProgress !== "boolean" ||
@@ -434,7 +460,6 @@ function resolvedConcurrency(
         status,
         location,
         "concurrency.group",
-        overrides,
       ),
     ),
     cancelInProgress,
@@ -447,11 +472,10 @@ function resolvedContainerSettings(
   status: Status,
   location: string,
   field: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): unknown {
   if (typeof value === "string") {
     return stringValue(
-      evaluateAt(value, context, status, location, field, overrides),
+      evaluateAt(value, context, status, location, field),
     );
   }
   if (Array.isArray(value)) {
@@ -462,7 +486,6 @@ function resolvedContainerSettings(
         status,
         location,
         `${field}.${i}`,
-        overrides,
       )
     );
   }
@@ -478,7 +501,6 @@ function resolvedContainerSettings(
           status,
           location,
           `${field}.${k}`,
-          overrides,
         ),
       ]),
     );
@@ -491,11 +513,10 @@ function resolvedSettings(
   context: Context,
   status: Status,
   location: string,
-  overrides: ReadonlyMap<string, unknown>,
 ): JobSettings {
   const server = serverContext(context);
   const scalar = (value: string, field: string) =>
-    stringValue(evaluateAt(value, server, status, location, field, overrides));
+    stringValue(evaluateAt(value, server, status, location, field));
   const labels = (values: readonly string[], field: string) =>
     values.map((v, i) =>
       scalar(v, `${field}.${i}`)
@@ -514,7 +535,6 @@ function resolvedSettings(
           status,
           location,
           "environment.deployment",
-          overrides,
         )
       : undefined;
   if (deployment !== undefined && typeof deployment !== "boolean") {
@@ -529,7 +549,6 @@ function resolvedSettings(
     server,
     status,
     location,
-    overrides,
   );
   return {
     ...(job.container === undefined ? {} : {
@@ -539,7 +558,6 @@ function resolvedSettings(
         status,
         location,
         "container",
-        overrides,
       ) as JobSettings["container"],
     }),
     ...(job.services === undefined ? {} : {
@@ -549,7 +567,6 @@ function resolvedSettings(
         status,
         location,
         "services",
-        overrides,
       ) as JobSettings["services"],
     }),
     ...(selection === undefined ? {} : {
@@ -597,7 +614,6 @@ function resolvedSettings(
         status,
         location,
         "continue-on-error",
-        overrides,
       ),
     }),
     ...(job.timeoutMinutes === undefined ? {} : {
@@ -607,7 +623,6 @@ function resolvedSettings(
         status,
         location,
         "timeout-minutes",
-        overrides,
       ),
     }),
     ...(concurrency === undefined ? {} : { concurrency }),
@@ -628,9 +643,11 @@ async function runInstance(
   cacheSettings: CachePolicy["settings"] = undefined,
   workflowEnv: Readonly<Record<string, unknown>> | undefined = undefined,
   githubFixture: Readonly<Record<string, unknown>> = {},
+  tokenPermissions?: TokenPermissions,
 ): Promise<JobInstanceResult> {
   const location = `${workflowPath}.${job.id}[${JSON.stringify(matrix)}]`;
   validateRules(rules, authorJob, location);
+  const strategy = base.strategy as ResolvedStrategy;
   const steps: Record<string, StepResult> = {};
   const context: Context = {
     ...base,
@@ -654,7 +671,6 @@ async function runInstance(
       { success: true, failure: false, cancelled: false },
       workflowPath,
       "env",
-      new Map(),
     ),
     ...evaluateMap(
       job.env,
@@ -662,10 +678,9 @@ async function runInstance(
       { success: true, failure: false, cancelled: false },
       location,
       "env",
-      rules.steps.get("__job__")?.expressions ?? new Map(),
     ),
   };
-  const jobOverrides = rules.steps.get("__job__")?.expressions ?? new Map();
+
   const initialStatus: Status = {
     success: true,
     failure: false,
@@ -677,7 +692,6 @@ async function runInstance(
     initialStatus,
     location,
     "continue-on-error",
-    jobOverrides,
   );
   validateContainerRuntime(job, rules.containerRuntime, location);
   const runtimeContext = containerContext(
@@ -685,7 +699,7 @@ async function runInstance(
     rules.containerRuntime,
     (v, field) =>
       stringValue(
-        evaluateAt(v, context, initialStatus, location, field, jobOverrides),
+        evaluateAt(v, context, initialStatus, location, field),
       ),
   );
   const updateJobStatus = (status: string) => {
@@ -715,7 +729,6 @@ async function runInstance(
       context,
       initialStatus,
       location,
-      jobOverrides,
     );
   if (settings !== undefined) settings = { ...settings, ...cacheSettings };
   if (
@@ -731,7 +744,6 @@ async function runInstance(
   }
   if (rules.environmentProtection === "rejected") {
     for (const [id, rule] of rules.steps) {
-      if (id === "__job__") continue;
       const authored = flattenSteps(authorJob.steps).find((step) =>
         step.id === id
       );
@@ -765,6 +777,8 @@ async function runInstance(
     }
     return {
       matrix,
+      strategy,
+      tokenPermissions,
       result: tolerateFailure ? "success" : "failure",
       ...(job.continueOnError === undefined
         ? {}
@@ -920,13 +934,14 @@ async function runInstance(
       );
       const stepContext: Context = {
         ...context,
+        [stepHashes]: rule?.hashFiles ?? new Map(),
         github: {
           ...(context.github as Record<string, unknown>),
           ...rule?.github,
         },
       };
-      const overrides = rule?.expressions ?? new Map<string, unknown>();
-      if (!condition(step.if, stepContext, status, stepLocation, overrides)) {
+
+      if (!condition(step.if, stepContext, status, stepLocation)) {
         const skipped: StepResult = {
           id,
           outcome: "skipped",
@@ -973,7 +988,6 @@ async function runInstance(
             status,
             stepLocation,
             "env",
-            overrides,
           ),
         };
         env = Object.fromEntries(
@@ -1004,9 +1018,6 @@ async function runInstance(
                     : `defaults.run.${
                       key === "workingDirectory" ? "working-directory" : key
                     }`,
-                  step[key as "shell" | "workingDirectory"] !== undefined
-                    ? overrides
-                    : jobOverrides,
                 ),
               ),
             ]),
@@ -1035,7 +1046,6 @@ async function runInstance(
             status,
             stepLocation,
             "with",
-            overrides,
           );
         }
         let provided: Fixture<Record<string, unknown>>;
@@ -1045,6 +1055,8 @@ async function runInstance(
               inputs: inputs as never,
               env,
               matrix: matrix as never,
+              strategy,
+              tokenPermissions,
               ...(run === undefined ? {} : { run }),
             })
             : rule.fixture;
@@ -1099,7 +1111,6 @@ async function runInstance(
             status,
             stepLocation,
             "continue-on-error",
-            overrides,
           )
         ? "success"
         : outcome;
@@ -1172,7 +1183,6 @@ async function runInstance(
           status,
           location,
           "snapshot.if",
-          jobOverrides,
         ),
       );
     if (allowed) {
@@ -1202,7 +1212,6 @@ async function runInstance(
             status,
             location,
             "environment.url",
-            jobOverrides,
           ),
         ),
       },
@@ -1213,6 +1222,8 @@ async function runInstance(
   }
   const instance: JobInstanceResult = {
     matrix,
+    strategy,
+    tokenPermissions,
     result,
     ...(rules.containerInitialization === undefined
       ? {}
@@ -1361,6 +1372,7 @@ async function interpretScenario(
   called: boolean,
   observation: ScenarioObservationState,
   callerCacheMode?: CacheMode,
+  callerTokenPolicy?: TokenPolicy,
 ): Promise<ScenarioResult> {
   const author =
     config.workflows.find((p) => p.path === program.workflowPath) ??
@@ -1371,6 +1383,28 @@ async function interpretScenario(
     }
     return { result: "skipped", jobs: {} };
   }
+  if (callerTokenPolicy && program.tokenPermissions !== undefined) {
+    throw new ScenarioError(
+      "fixture_invalid",
+      `${author.path}.permissions`,
+      "Nested local scenarios cannot supply initial tokenPermissions; authority comes from the caller.",
+    );
+  }
+  const assumptions = program.tokenPermissions;
+  if (assumptions && typeof assumptions.restrictWrites !== "boolean") {
+    throw new ScenarioError(
+      "fixture_invalid",
+      `${author.path}.permissions`,
+      "Explicit restrictWrites boolean is required.",
+    );
+  }
+  const permissionDefaults = callerTokenPolicy?.permissions ??
+    (assumptions
+      ? expandPermissions(
+        assumptions.defaults,
+        `${author.path}.permissions.defaults`,
+      )
+      : undefined);
   const githubFixture = program.external.github as Context | undefined ?? {};
   const external: Context = serverContext({
     ...program.external,
@@ -1386,7 +1420,6 @@ async function interpretScenario(
       external,
       { success: true, failure: false, cancelled: false },
       author.path,
-      program.expressions ?? new Map(),
     );
   if (program.expectedConcurrency) {
     expectValue(
@@ -1461,9 +1494,8 @@ async function interpretScenario(
         job.needs.some((id) => ancestorStatus.get(id)?.cancelled),
     };
     ancestorStatus.set(job.id, status);
-    const overrides = rules.steps.get("__job__")?.expressions ??
-      new Map<string, unknown>();
-    if (!condition(job.if, context, status, location, overrides)) {
+
+    if (!condition(job.if, context, status, location)) {
       results[job.id] = { result: "skipped", outputs: {}, instances: [] };
       if (rules.expectedResult !== undefined) {
         expectValue("skipped", rules.expectedResult, `${location}.result`);
@@ -1476,7 +1508,6 @@ async function interpretScenario(
       status,
       location,
       "strategy.fail-fast",
-      overrides,
       true,
     );
     const maxParallel = job.strategy?.maxParallel === undefined
@@ -1487,28 +1518,58 @@ async function interpretScenario(
         status,
         location,
         "strategy.max-parallel",
-        overrides,
       );
-    const matrices = expandMatrix(job, context, status, location, overrides);
+    const matrices = expandMatrix(job, context, status, location);
     context.strategy = {
-      ...(context.strategy as object ?? {}),
       "fail-fast": failFast,
       "job-total": matrices.length,
-      ...(maxParallel === undefined ? {} : { "max-parallel": maxParallel }),
+      "max-parallel": maxParallel ?? matrices.length,
     };
 
     if (rules.expectedMatrix !== undefined) {
       expectValue(matrices, rules.expectedMatrix, `${location}.matrix`);
     }
+    if (
+      rules.completionOrder !== undefined &&
+      (rules.completionOrder.length !== matrices.length ||
+        new Set(rules.completionOrder).size !== matrices.length ||
+        rules.completionOrder.some((index) =>
+          !Number.isInteger(index) || index < 0 || index >= matrices.length
+        ))
+    ) {
+      throw new ScenarioError(
+        "fixture_invalid",
+        `${location}.completionOrder`,
+        "Supply every expanded job-index exactly once.",
+      );
+    }
+    const permissions = permissionDefaults === undefined
+      ? undefined
+      : resolvePermissions(
+        job.permissions ?? workflow.permissions,
+        permissionDefaults,
+        assumptions?.restrictWrites ?? false,
+        `${location}.permissions`,
+        callerTokenPolicy,
+      );
     const instances: JobInstanceResult[] = [];
     for (const [matrixIndex, matrix] of matrices.entries()) {
-      context.strategy = {
+      context.strategy = Object.freeze({
         ...(context.strategy as object),
         "job-index": matrixIndex,
-      };
+      });
       const specific = rules.matrixRules?.(matrix) ??
         { steps: new Map(), internals: new Map() };
       const authoredJob = authoredJobs.get(job.id)!;
+      for (const [id, rule] of rules.steps) {
+        if (rule.inherit === false) {
+          throw new ScenarioError(
+            "fixture_invalid",
+            `${location}.${id}`,
+            "replaceInherited() requires an eachMatrix instance scope.",
+          );
+        }
+      }
       validateRules(rules, authoredJob, location);
       validateRules(specific, authoredJob, location);
       const merged = mergedRules(rules, specific);
@@ -1522,15 +1583,13 @@ async function interpretScenario(
       if (job.uses !== undefined) {
         const location = `${author.path}.${job.id}[${JSON.stringify(matrix)}]`;
         const callContext = { ...context, matrix };
-        const callOverrides = merged.steps.get("__job__")?.expressions ??
-          new Map<string, unknown>();
+
         const settings = merged.expectedSettings === undefined ? undefined : {
           ...resolvedSettings(
             job,
             callContext,
             status,
             location,
-            callOverrides,
           ),
           ...cache.settings,
         };
@@ -1571,7 +1630,6 @@ async function interpretScenario(
           status,
           location,
           "with",
-          overrides,
         );
         const standardToken =
           (context.secrets as Record<string, unknown> | undefined)
@@ -1588,7 +1646,6 @@ async function interpretScenario(
               status,
               location,
               "secrets",
-              overrides,
             )),
         };
         const callee = authoredJob.callee;
@@ -1632,7 +1689,6 @@ async function interpretScenario(
                     status,
                     `${callee.path}.on.workflow_call.inputs.${name}`,
                     "default",
-                    new Map(),
                   )
                   : d.default ??
                     (d.type === "boolean"
@@ -1684,6 +1740,10 @@ async function interpretScenario(
             true,
             observation,
             cache.explicit,
+            permissions === undefined ? undefined : {
+              permissions,
+              path: [...callerTokenPolicy?.path ?? [], location],
+            },
           );
         } else {
           if (!merged.callFixture || merged.call) {
@@ -1694,7 +1754,13 @@ async function interpretScenario(
             );
           }
           const fixture = typeof merged.callFixture === "function"
-            ? await merged.callFixture({ inputs, env: {}, matrix })
+            ? await merged.callFixture({
+              inputs,
+              env: {},
+              matrix,
+              strategy: context.strategy as ResolvedStrategy,
+              tokenPermissions: permissions,
+            })
             : merged.callFixture;
           if (
             !fixture ||
@@ -1735,6 +1801,8 @@ async function interpretScenario(
         }
         instances.push({
           matrix,
+          strategy: context.strategy as ResolvedStrategy,
+          tokenPermissions: permissions,
           result: child.result,
           steps: {},
           call: child,
@@ -1758,6 +1826,7 @@ async function interpretScenario(
           cache.settings,
           author.env,
           githubFixture,
+          permissions,
         ),
       );
     }
@@ -1766,8 +1835,16 @@ async function interpretScenario(
       expectValue(result, rules.expectedResult, `${location}.result`);
     }
     const outputs: Record<string, string> = {};
-    for (const [matrixIndex, instance] of instances.entries()) {
+    for (
+      const matrixIndex of rules.completionOrder ??
+        instances.map((_, index) => index)
+    ) {
+      const instance = instances[matrixIndex];
       if (instance.environmentProtection === "rejected") continue;
+      if (
+        job.uses && job.strategy?.matrix !== undefined &&
+        instance.result !== "success"
+      ) continue;
       const jobContext = {
         ...context,
         ...executionContexts.get(instance),
@@ -1793,12 +1870,14 @@ async function interpretScenario(
             },
             `${location}[${JSON.stringify(instance.matrix)}]`,
             `outputs.${name}`,
-            overrides,
           ),
         );
-        if (outputs[name] && value && outputs[name] !== value) {
+        if (
+          rules.completionOrder === undefined && outputs[name] && value &&
+          outputs[name] !== value
+        ) {
           throw new ScenarioError(
-            "expression_unsupported",
+            "fixture_missing",
             `${location}.outputs.${name}`,
             "Matrix instances produce different values for the same job output; GitHub's merge order is unspecified.",
           );
@@ -1837,7 +1916,6 @@ async function interpretScenario(
         },
         author.path,
         `workflow.paths.${name}`,
-        new Map(),
       ),
     );
   }
@@ -1855,6 +1933,7 @@ export async function runScenario(
   called = false,
   observation: ScenarioObservationState = { nextId: 0 },
   callerCacheMode?: CacheMode,
+  callerTokenPolicy?: TokenPolicy,
 ): Promise<ScenarioResult> {
   const operationId = ++observation.nextId;
   const parentId = observation.parentId;
@@ -1881,6 +1960,7 @@ export async function runScenario(
       called,
       observation,
       callerCacheMode,
+      callerTokenPolicy,
     );
     emit("success");
     return result;

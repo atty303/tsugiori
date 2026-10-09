@@ -383,7 +383,7 @@ Deno.test("workflow defaults forbid contexts and invalid maps, and dynamic queue
     on: { push: {} },
     concurrency: {
       group: "ci",
-      cancelInProgress: rawExpression("unsupported()"),
+      cancelInProgress: rawExpression("fromJSON(vars.CANCEL)"),
       queue: "max",
     },
   })
@@ -399,7 +399,7 @@ Deno.test("workflow defaults forbid contexts and invalid maps, and dynamic queue
   assert(lowerProject(project({ workflows: [ci] }), "./tsugiori.ts"));
   await scenario(ci, (test) => {
     test.github({ event_name: "push" });
-    test.expression("concurrency.cancel-in-progress", false);
+    test.vars({ CANCEL: "false" });
     test.expectConcurrency({
       group: "ci",
       cancelInProgress: false,
@@ -411,7 +411,7 @@ Deno.test("workflow defaults forbid contexts and invalid maps, and dynamic queue
     () =>
       scenario(ci, (test) => {
         test.github({ event_name: "push" });
-        test.expression("concurrency.cancel-in-progress", true);
+        test.vars({ CANCEL: "true" });
         test.expectConcurrency({
           group: "ci",
           cancelInProgress: true,
@@ -457,7 +457,7 @@ Deno.test("run settings use the explicit step env and environment URL observes f
   assertEquals(result.jobs.build.result, "failure");
 });
 
-Deno.test("matrix instance settings accept scoped overrides for unsupported raw expressions", async () => {
+Deno.test("matrix instance settings evaluate native expressions with instance context", async () => {
   const ci = workflow("ci.yml", { on: { push: {} } })
     .job(
       "build",
@@ -466,18 +466,18 @@ Deno.test("matrix instance settings accept scoped overrides for unsupported raw 
           matrix: { stage: ["dev", "prod"] },
         })
           .runsOn({
-            group: rawExpression("unknownRunnerGroup()"),
+            group: rawExpression("matrix.stage"),
             labels: ["linux"],
           })
           .concurrency({
-            group: rawExpression("unknownGroup()"),
-            cancelInProgress: rawExpression("unknownCancellation()"),
+            group: rawExpression("matrix.stage"),
+            cancelInProgress: rawExpression("false"),
             queue: "max",
           })
-          .defaultsRun({ shell: rawExpression("unknownShell()") })
+          .defaultsRun({ shell: rawExpression("'bash'") })
           .environment({
-            name: rawExpression("unknownEnvironment()"),
-            deployment: rawExpression("unknownDeployment()"),
+            name: rawExpression("matrix.stage"),
+            deployment: rawExpression("false"),
           })
           .run({ id: "build", name: "Build", run: "never executed" }),
     );
@@ -485,27 +485,15 @@ Deno.test("matrix instance settings accept scoped overrides for unsupported raw 
     test.github({ event_name: "push" });
     test.job("build", (job) =>
       job.eachMatrix(({ stage }, instance) => {
-        instance.expression("runs-on.group", stage).expression(
-          "concurrency.group",
-          stage,
-        )
-          .expression("concurrency.cancel-in-progress", false).expression(
-            "environment.name",
-            stage,
-          )
-          .expression("environment.deployment", false).expression(
-            "defaults.run.shell",
-            "bash",
-          )
-          .expectSettings({
-            runsOn: { group: stage, labels: ["linux"] },
-            concurrency: {
-              group: stage,
-              cancelInProgress: false,
-              queue: "max",
-            },
-            environment: { name: stage, deployment: false },
-          });
+        instance.expectSettings({
+          runsOn: { group: stage, labels: ["linux"] },
+          concurrency: {
+            group: stage,
+            cancelInProgress: false,
+            queue: "max",
+          },
+          environment: { name: stage, deployment: false },
+        });
         instance.step("build").expectRunSettings({ shell: "bash" }).fixture({});
       }));
   });

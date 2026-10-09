@@ -142,7 +142,7 @@ Deno.test("coverage separates implementation scope, exclusions and references wi
   }
   const hashUnits = [
     ["expression", "hashFiles", "implemented"],
-    ["scenario-capability", "hashFiles-result-fixture", "unimplemented"],
+    ["scenario-capability", "hashFiles-result-fixture", "implemented"],
     ["execution-capability", "hashFiles-filesystem", "excluded"],
   ];
   for (const [domain, key, status] of hashUnits) {
@@ -177,7 +177,7 @@ Deno.test("template default-branch support preserves the placeholder through pub
   );
 });
 
-Deno.test("hashFiles emits natively but scenario overrides replace the complete expression field", async () => {
+Deno.test("hashFiles emits natively and return fixtures preserve surrounding expressions", async () => {
   const flow = workflow("hash.yml", { on: { push: {} } }).job(
     "check",
     ({ job }) =>
@@ -203,15 +203,14 @@ Deno.test("hashFiles emits natively but scenario overrides replace the complete 
   const missing = await assertRejects(() =>
     scenario(flow, (test) => test.github({ event_name: "push", event: {} }))
   );
-  assertEquals((missing as { kind?: string }).kind, "expression_unsupported");
+  assertEquals((missing as { kind?: string }).kind, "fixture_missing");
   await scenario(flow, (test) => {
     test.github({ event_name: "push", event: {} });
     test.job("check", (job) => {
       job.step("read")
-        .expression("if", true)
-        .expression("env.HASH", "complete-field")
+        .hashFiles(["deno.lock"], "abc")
         .fixture(({ env }) => {
-          assertEquals(env.HASH, "complete-field");
+          assertEquals(env.HASH, "prefix-abc");
           return {};
         }).expectRun();
     });

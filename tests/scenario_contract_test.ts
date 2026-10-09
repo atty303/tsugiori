@@ -154,33 +154,11 @@ const statuses = workflow(".github/workflows/statuses.yml", {
           id: "check",
           name: "Check",
           run: "true",
-          if: rawExpression("unknownPredicate(github.event_name)"),
+          if: rawExpression("github.event_name == 'push'"),
         }),
   );
 
-Deno.test("harness keeps outcome and conclusion distinct and overrides raw fields by ID", async () => {
-  const unsupported = await assertRejects(() =>
-    scenario(statuses, (test) => {
-      test.github({ event_name: "push", event: {} });
-      test.job("first", (job) => {
-        job.step("fallible").fixture({ outcome: "failure" }).expectOutcome(
-          "failure",
-        ).expectConclusion("success");
-        job.step("normal").fixture({}).expectRun();
-      });
-    })
-  );
-  assertEquals(
-    (unsupported as { kind?: string }).kind,
-    "expression_unsupported",
-  );
-  assertEquals(
-    (unsupported as { location?: string }).location?.endsWith(
-      "second[{}].check.if",
-    ),
-    true,
-  );
-
+Deno.test("harness keeps outcome and conclusion distinct while evaluating native conditions", async () => {
   const result = await scenario(statuses, (test) => {
     test.github({ event_name: "push", event: {} });
     test.job("first", (job) => {
@@ -191,7 +169,7 @@ Deno.test("harness keeps outcome and conclusion distinct and overrides raw field
       job.expectResult("success");
     });
     test.job("second", (job) => {
-      job.step("check").expression("if", true).fixture({}).expectRun();
+      job.step("check").fixture({}).expectRun();
     });
     test.expectResult("success");
   });
@@ -235,18 +213,21 @@ Deno.test("harness chooses fixture and expectation independently for each matrix
 
 const includedMatrix = workflow(".github/workflows/included-matrix.yml", {
   on: { push: {} },
+  vars: ["MATRIX"],
 }).job("split", ({ job }) =>
   job.runsOn("ubuntu-latest")
-    .strategy(() => ({ matrix: rawExpression("customMatrix()") }))
+    .strategy(() => ({ matrix: rawExpression("fromJSON(vars.MATRIX)") }))
     .run({ id: "execute", name: "Execute", run: "true" }));
 
 Deno.test("harness applies matrix include to every compatible original combination", async () => {
   const result = await scenario(includedMatrix, (test) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
-      job.expression("strategy.matrix", {
-        stage: ["dev", "prd"],
-        include: [{ region: "us" }],
+      test.vars({
+        MATRIX: JSON.stringify({
+          stage: ["dev", "prd"],
+          include: [{ region: "us" }],
+        }),
       });
       job.expectMatrix([
         { stage: "dev", region: "us" },
@@ -261,8 +242,10 @@ Deno.test("harness applies matrix include to every compatible original combinati
   const includeOnly = await scenario(includedMatrix, (test) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
-      job.expression("strategy.matrix", {
-        include: [{ stage: "dev" }, { stage: "prd" }],
+      test.vars({
+        MATRIX: JSON.stringify({
+          include: [{ stage: "dev" }, { stage: "prd" }],
+        }),
       });
       job.expectMatrix([{ stage: "dev" }, { stage: "prd" }]);
       job.eachMatrix((_matrix, instance) => {
@@ -274,10 +257,12 @@ Deno.test("harness applies matrix include to every compatible original combinati
   const excludedThenIncluded = await scenario(includedMatrix, (test) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
-      job.expression("strategy.matrix", {
-        stage: ["dev", "prd"],
-        exclude: [{ stage: "dev" }],
-        include: [{ stage: "dev", region: "us" }],
+      test.vars({
+        MATRIX: JSON.stringify({
+          stage: ["dev", "prd"],
+          exclude: [{ stage: "dev" }],
+          include: [{ stage: "dev", region: "us" }],
+        }),
       });
       job.expectMatrix([{ stage: "prd" }, { stage: "dev", region: "us" }]);
       job.eachMatrix((_matrix, instance) => {
@@ -328,7 +313,7 @@ Deno.test("harness propagates deterministic matrix job outputs to needs", async 
       });
     })
   );
-  assertEquals((ambiguous as { kind?: string }).kind, "expression_unsupported");
+  assertEquals((ambiguous as { kind?: string }).kind, "fixture_missing");
 });
 
 const distinctOutputs = workflow(
@@ -421,18 +406,15 @@ const matrixRaw = workflow(".github/workflows/matrix-raw.yml", {
       id: "conditional",
       name: "Conditional",
       run: "true",
-      if: rawExpression("custom(matrix.stage)"),
+      if: rawExpression("matrix.stage == 'dev'"),
     }));
 
-Deno.test("harness selects unsupported expression values at each matrix step", async () => {
+Deno.test("harness evaluates native expressions at each matrix step", async () => {
   const result = await scenario(matrixRaw, (test) => {
     test.github({ event_name: "push" });
     test.job("split", (job) => {
       job.eachMatrix(({ stage }, instance) => {
-        const step = instance.step("conditional").expression(
-          "if",
-          stage === "dev",
-        );
+        const step = instance.step("conditional");
         if (stage === "dev") step.fixture({}).expectRun();
         else step.expectSkip();
       });

@@ -47,9 +47,9 @@ differences in wording between official sources and Tsugiori's retained limits.
 Context availability rows retain field-scope information and links to syntax
 rows; catalog presence alone does not establish public callback support.
 Workflow-level env has a typed map callback in its native scope, with
-declared-name/input inference and supplied-value scenario evaluation.
-Trigger rows link compiler, type/scenario and actual LSP evidence. Existing
-implemented rows do not claim hosted event delivery or authorization.
+declared-name/input inference and supplied-value scenario evaluation. Trigger
+rows link compiler, type/scenario and actual LSP evidence. Existing implemented
+rows do not claim hosted event delivery or authorization.
 
 Template YAML can preserve `$default-branch`; GitHub replaces it when copying
 the template into a target repository. No generation-time substitution is
@@ -96,7 +96,7 @@ Generation, validation and scenarios consume local code and the frozen basis;
 they perform no specification network requests. Raw expressions and external
 workflow references remain explicit assertions. GitHub validates their actual
 semantics, access and execution. Scenarios do not execute actions/scripts,
-simulate runner environments, protection-rule decisions, effective permissions,
+simulate runner environments, protection-rule decisions, live authorization,
 elapsed time, concurrency, fail-fast cancellation or actual scheduling. Static
 and evaluated matrices support scalar/object axes and include/exclude with a
 256-member limit. Strategy controls and failure tolerance expressions are
@@ -112,7 +112,9 @@ run defaults; existing scenarios do not require their expression contexts.
 Values are interpreted, without runner assignment, platform defaults or
 filesystem checks. They do not emulate GitHub's suppression of outputs that
 contain secrets. Conflicting nonempty matrix output values fail locally because
-GitHub's completion order cannot be predicted.
+GitHub's completion order cannot be predicted. A full job-index permutation can
+be supplied with completionOrder() for output aggregation; instance results stay
+in expansion order.
 
 Context authoring includes workflow artifact declaration/metadata file paths,
 job check-run and job-defining workflow identity, assigned runner environment,
@@ -130,9 +132,11 @@ alone does not prove a runtime value.
 
 `strategy` uses the native `fail-fast`, `job-index`, `job-total` and
 `max-parallel` names (TypeScript bracket access); the former underscore names
-are removed. Scenarios derive indices, totals and authored controls. Reading
-`max-parallel` requires an explicit setting: GitHub's default and actual runner
-parallelism are not inferred.
+are removed. Scenarios derive indices, totals and authored controls. Omitted
+max-parallel uses expanded instance count under an explicit sufficient-runner
+model. Readonly strategy is exposed in callbacks and results; authored settings
+remain separate. GitHub's selected default and actual parallelism are not
+inferred.
 
 `github.job` and `github.token` are null in server-evaluated fields such as job
 conditions, concurrency and runner selection. Initialized runner settings
@@ -151,11 +155,12 @@ supplied values. A quoted function name does not remove the implicit success
 gate. Computed JSON values are closed: missing properties yield null, which
 converts to an empty string. Partial external fixtures remain strict, including
 nested event values; missing data is not evidence of native absence.
-`hashFiles()` generation, result-fixture interpretation and filesystem hashing
-are separate inventory units: implemented, unimplemented and excluded,
-respectively. The current scenario override replaces the complete field result;
-it does not inject a hashFiles return value or evaluate the surrounding
-functions/operators/interpolation. Missing overrides fail. Local files cannot
+`hashFiles()` generation and return-value fixtures are implemented as separate
+units; filesystem hashing is excluded. Step hashFiles() matches evaluated string
+argument tuples in exact order and injects only the return value. Surrounding
+functions/operators/interpolation still evaluate; short-circuited or skipped
+calls need no fixture. Missing reached values fail at their field.
+Complete-field expression overrides are not supported. Local files cannot
 establish the runner workspace after actions/steps that scenarios do not
 execute. Native function argument counts and malformed JSON/format strings fail
 with a location-aware scenario error.
@@ -182,10 +187,13 @@ nesting cannot be preflighted.
 External retrieval/graph/contract analysis remains unimplemented: it requires
 ref resolution, authorized retrieval, pinned content and an offline validation
 handoff. Native call/input/secret/output generation and supplied-value
-propagation remain implemented units. Likewise, validation from explicit initial
-token permissions, secret-output suppression and output selection from supplied
-matrix completion order are unimplemented value models, distinct from live
-GitHub authorization and scheduling. Secret detection must be grounded in
+propagation remain implemented units. Root tokenPermissions() enables a
+supplied-value model of environment defaults, native workflow/job replacements,
+explicit write restrictions and local caller ceilings. Effective excess demands
+fail; external internals are not verified. Supplied matrix completion order
+selects outputs using native ordinary/reusable rules without a scheduler.
+Secret-output suppression remains unimplemented, distinct from these value
+models and live GitHub authorization. Secret detection must be grounded in
 official runner behavior; an ad hoc string check is not equivalent. Usage
 monitoring and rerun history models are excluded because they add organization
 audit operations or time-varying execution history to definition validation.

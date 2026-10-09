@@ -1194,6 +1194,145 @@ workflow(/*completion*/"env.yml", {
         ),
       );
 
+      assert(
+        await t.step(
+          "scenario value fixture completion, hover and signatures",
+          async () => {
+            const prefix =
+              `import { workflow } from "../src/github_actions/mod.ts";
+import { scenario } from "../src/testing/mod.ts";
+const flow = workflow("fixtures.yml", { on: { push: {} } }).job("build", ({job}) =>
+  job.runsOn("ubuntu-latest").strategy({matrix:{stage:["dev", "prd"]}})
+    .task({id:"read",name:"Read",inputs:({github})=>({text:{from:github.sha}}),outputs:{},run:()=>{}}));
+scenario(flow, test => { test.job("build", job => { `;
+            const contextPrefix = prefix +
+              `job.step("read").fixture(context => { `;
+            const end = `return {}; }); }); });`;
+            const labels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6000,
+              "scenario-fixture-context",
+              contextPrefix + `context./*completion*/; ` + end,
+            );
+            assertEquals(
+              [...labels].sort(),
+              [
+                "inputs",
+                "env",
+                "matrix",
+                "run",
+                "strategy",
+                "tokenPermissions",
+              ].sort(),
+            );
+            const strategyLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6001,
+              "scenario-fixture-strategy",
+              contextPrefix + `context.strategy./*completion*/; ` + end,
+            );
+            assertEquals(
+              [...strategyLabels].sort(),
+              [
+                "fail-fast",
+                "job-index",
+                "job-total",
+                "max-parallel",
+              ].sort(),
+            );
+            const matrixLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6002,
+              "scenario-fixture-matrix",
+              contextPrefix + `context.matrix./*completion*/; ` + end,
+            );
+            assertEquals(matrixLabels, ["stage"]);
+            const jobLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6003,
+              "scenario-fixture-job",
+              prefix + `job./*completion*/; }); });`,
+            );
+            assert(jobLabels.includes("completionOrder"));
+            assert(!jobLabels.includes("expression"));
+            const stepLabels = await sourceCompletionLabels(
+              writer,
+              stream,
+              6004,
+              "scenario-fixture-step",
+              prefix + `job.step("read")./*completion*/; }); });`,
+            );
+            assert(stepLabels.includes("hashFiles"));
+            assert(stepLabels.includes("replaceInherited"));
+            assert(!stepLabels.includes("expression"));
+            for (
+              const [i, [property, expected]] of ([
+                ["strategy", "ResolvedStrategy"],
+                ["tokenPermissions", "TokenPermissions"],
+                ["inputs.text", "string"],
+                ["matrix.stage", '"dev" | "prd"'],
+              ] as const).entries()
+            ) {
+              const hover = await sourceHover(
+                writer,
+                stream,
+                6010 + i,
+                `scenario-fixture-hover-${i}`,
+                contextPrefix +
+                  `const value = context.${property}/*completion*/; ` + end,
+                true,
+              );
+              assert(hover.includes(expected), hover);
+              assert(!hover.includes("..."), hover);
+            }
+            for (
+              const [i, [call, expected]] of ([
+                [
+                  `job.step("read").hashFiles(/*completion*/["deno.lock"], "hash");`,
+                  "readonly [string, ...string[]]",
+                ],
+                [
+                  `job.completionOrder(/*completion*/[1,0]);`,
+                  "readonly number[]",
+                ],
+              ] as const).entries()
+            ) {
+              const signature = await sourceHover(
+                writer,
+                stream,
+                6020 + i,
+                `scenario-fixture-signature-${i}`,
+                prefix + call + ` }); });`,
+                true,
+                "signatureHelp",
+              );
+              assert(signature.includes(expected), signature);
+            }
+            const permissionSignature = await sourceHover(
+              writer,
+              stream,
+              6022,
+              "scenario-permissions-signature",
+              `import { workflow } from "../src/github_actions/mod.ts";
+import { scenario } from "../src/testing/mod.ts";
+const flow = workflow("permission.yml", {on:{push:{}}}).job("build",({job})=>job.runsOn("ubuntu-latest").run({id:"read",name:"Read",run:"true"}));
+scenario(flow, test => { test.tokenPermissions(/*completion*/{defaults:{contents:"read"},restrictWrites:false}); });`,
+              true,
+              "signatureHelp",
+            );
+            assert(
+              permissionSignature.includes("TokenPermissionFixture"),
+              permissionSignature,
+            );
+            assert(!permissionSignature.includes("..."), permissionSignature);
+          },
+        ),
+      );
+
       for (
         const [index, [name, expected]] of ([
           ["composite-start", ["run", "uses", "task"]],

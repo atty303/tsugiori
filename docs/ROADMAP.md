@@ -34,18 +34,18 @@ execution boundaries; this roadmap does not duplicate its backlog.
 Native YAML anchors/aliases remain unimplemented; TypeScript reuse is an
 available alternative. Template YAML can preserve `$default-branch`, while
 template metadata generation and distribution/access administration are
-excluded. `hashFiles()` generation is implemented, return-value fixture
-interpretation is unimplemented, and filesystem hashing is excluded. Current
-scenario overrides replace the complete field result. External reusable
-definitions/contracts and graphs are not retrieved; their analysis is
-unimplemented and local graph limit checks do not establish complete external
-depth/count.
+excluded. `hashFiles()` generation and step-scoped return-value fixtures are
+implemented; filesystem hashing remains excluded. Native expressions evaluate
+with supplied contexts; invalid expressions fail without field overrides.
+External reusable definitions/contracts and graphs are not retrieved; their
+analysis is unimplemented and local graph limit checks do not establish complete
+external depth/count.
 
 GitHub owns event delivery, branch eligibility, webhook recursion suppression,
 release draft suppression, live access, effective authorization, scheduling and
-runner behavior. Supplied-value models such as nested permission ceilings or
-matrix output selection are separate unimplemented inventory units, not requests
-to add a local CI execution platform.
+runner behavior. Root permission assumptions and supplied matrix completion
+order support local value validation without proving authorization or
+scheduling. Secret-output suppression remains an unimplemented value-model unit.
 
 ## Future candidates
 

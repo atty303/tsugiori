@@ -503,9 +503,8 @@ job.step("count")
 ```
 
 Scenarios interpret workflow logic; they do not run Actions, shell steps, or
-task bodies. Use typed DSL expressions for conditions you want to test:
-`rawExpression()` is opaque to `scenario()`. A field-specific override can
-stand in for a raw expression's result, but does not test that expression.
+task bodies. Both typed DSL expressions and native `rawExpression()` expressions
+are evaluated with the supplied contexts and fixtures. Invalid expressions fail.
 Run both kinds of tests from this chapter's `.github` directory:
 
 ```sh

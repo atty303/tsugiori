@@ -15,7 +15,7 @@ import { githubActionsSpec } from "../src/github_actions/github_spec.ts";
 import {
   evaluateExpression,
   MissingContextError,
-  UnsupportedExpressionError,
+  MissingHashFilesError,
 } from "../src/testing/expression.ts";
 
 const status = { success: true, failure: false, cancelled: false };
@@ -123,7 +123,7 @@ Deno.test("native dereferences and filtered arrays distinguish known absence fro
   for (
     const source of ["github.missing", "github.event.missing", "vars.MISSING"]
   ) assertThrows(() => evaluate(source), MissingContextError);
-  assertThrows(() => evaluate("hashFiles('file')"), UnsupportedExpressionError);
+  assertThrows(() => evaluate("hashFiles('file')"), MissingHashFilesError);
   assertEquals(
     evaluateExpression("a${{ '}}' }}${{ 'x' }}z", context, status),
     "a}}xz",
@@ -193,7 +193,7 @@ Deno.test("public DSL dereferences parsed values and native strategy, while quot
     )!;
     assertEquals(
       row.status,
-      key === "max-parallel" ? "limited" : "implemented",
+      "implemented",
     );
   }
   assertEquals(env.VALUE, `\${{ toJSON(fromJSON('{"version":22}').version) }}`);

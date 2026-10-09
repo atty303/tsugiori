@@ -1,8 +1,10 @@
 import type {
   JobEnvironment,
+  PermissionLevel,
   RunDefaults,
   RunnerRequest,
   WorkflowInputValues,
+  WorkflowPermissions,
 } from "../github_actions/mod.ts";
 import type {
   EventPayload,
@@ -34,12 +36,17 @@ import type {
  * between independent jobs. `expectAllReached()` provides an optional common
  * step conclusion expectation.
  *
- * Typed expressions are evaluated by the interpreter. For an unsupported raw
- * expression or `hashFiles()`, give the complete field result at its exact evaluation site, such
- * as `job.step("build").expression("if", true)` or
- * `job.expression("strategy.matrix", { stage: ["dev"] })`. An omitted value is
- * an error. This replaces the field result, including surrounding functions,
- * operators and interpolation; it does not inject a `hashFiles()` return value.
+ * Typed and raw native expressions are evaluated by the interpreter. Invalid
+ * expressions fail at their evaluation location; fields cannot be overridden.
+ * Step hashFiles() supplies return values keyed by evaluated arguments without filesystem reads.
+ * Common step settings merge with eachMatrix() differences; named maps merge by key,
+ * fixtures/scalars replace atomically. replaceInherited() excludes all common step
+ * settings. Duplicate registrations in one scope fail instead of silently overwriting.
+ * completionOrder() supplies a full job-index permutation for output aggregation only.
+ * Fixture callbacks and instance results expose readonly strategy; omitted max-parallel
+ * assumes enough runners for all expanded instances in the scenario model.
+ * Root tokenPermissions() optionally models defaults, write restrictions and nested
+ * caller ceilings. It does not verify actual GitHub authorization.
  * Generated task preparation steps succeed by default and can be
  * overridden with `job.internal("prepare", "failure")`. Failures identify the
  * workflow, job, matrix, step, and field, and distinguish missing or invalid
@@ -161,6 +168,39 @@ export type Fixture<Outputs> = Readonly<{
    */
   outputs?: Partial<Outputs>;
 }>;
+/** Resolved native matrix strategy for one scenario instance. These modeled values do not observe scheduling. */
+export interface ResolvedStrategy {
+  /** Failure-cancellation declaration, default true; no cancellation scheduler is simulated. */
+  readonly "fail-fast": boolean;
+  /** Zero-based index in matrix expansion order, independent of completionOrder(). */
+  readonly "job-index": number;
+  /** Number of expanded instances. */
+  readonly "job-total": number;
+  /** Explicit evaluated limit, or the instance count under the scenario's sufficient-runner assumption. */
+  readonly "max-parallel": number;
+}
+type ResolvedTokenPermissionMap = Readonly<
+  {
+    [K in keyof Exclude<WorkflowPermissions, string>]-?:
+      & Exclude<WorkflowPermissions, string>[K]
+      & PermissionLevel;
+  }
+>;
+/** Complete readonly scenario token permission map, with native levels for each scope. Values describe fixture-based authority, not live authorization. */
+export interface TokenPermissions extends ResolvedTokenPermissionMap {}
+/** Root environment assumptions enabling permission interpretation. Declarations may increase defaults; restrictWrites is applied afterwards. */
+export interface TokenPermissionFixture {
+  /** Environment default permission map or native shorthand. Omitted map scopes become none.
+   * @example
+   * ```ts
+   * const assumptions: TokenPermissionFixture = { defaults: { contents: "read" }, restrictWrites: false };
+   * ```
+   */
+  readonly defaults: WorkflowPermissions;
+  /** Explicit environment restriction: write becomes read where supported, otherwise none. No event/repository settings are inferred. */
+  readonly restrictWrites: boolean;
+}
+
 /** Values resolved by the scenario for a fixture callback: native task inputs, step env and one concrete matrix instance. These are interpreted test values, not live runner observations.
  */
 export type FixtureContext<Inputs, Matrix> = Readonly<{
@@ -173,6 +213,10 @@ export type FixtureContext<Inputs, Matrix> = Readonly<{
   /** Concrete matrix row for this instance; fixtures may branch on its fields.
    */
   matrix: Matrix;
+  /** Resolved strategy; omitted max-parallel uses the expanded instance count, not a platform prediction. */
+  strategy: ResolvedStrategy;
+  /** Resolved complete token map when root tokenPermissions() enables validation; otherwise undefined. */
+  tokenPermissions?: TokenPermissions;
   /** Explicit/default run settings enabled by expectRunSettings(), without runner defaults or filesystem checks. Absent unless explicitly requested on a reached run step. */
   run?: RunDefaults;
 }>;
@@ -184,7 +228,7 @@ export type FixtureValue<Inputs, Outputs, Matrix> =
     context: FixtureContext<Inputs, Matrix>,
   ) => Fixture<Outputs> | Promise<Fixture<Outputs>>);
 
-/** Scenario failure with a stable kind and evaluation location. Missing/invalid fixtures, unsupported expressions, evaluation errors and expectation mismatches reject scenario(). No authored Action, script or task body is run.
+/** Scenario failure with a stable kind and evaluation location. Missing/invalid fixtures, invalid expressions, evaluation errors and expectation mismatches reject scenario(). No authored Action, script or task body is run.
  */
 export class ScenarioError extends Error {
   /** Construct ScenarioError. Usually obtained through scenario builders; constructing a builder does not run interpretation.
@@ -197,7 +241,6 @@ export class ScenarioError extends Error {
     readonly kind:
       | "fixture_missing"
       | "fixture_invalid"
-      | "expression_unsupported"
       | "expression_error"
       | "expectation_failed",
     readonly location: string,
@@ -335,6 +378,10 @@ export type JobInstanceResult = Readonly<{
   /** Concrete matrix row for this instance; fixtures may branch on its fields.
    */
   matrix: Readonly<Record<string, unknown>>;
+  /** Resolved strategy in expansion order; completion order does not renumber instances. */
+  strategy: ResolvedStrategy;
+  /** Fixture-based token authority for this job/call, present only when permission validation is enabled. */
+  tokenPermissions?: TokenPermissions;
   /** Aggregate interpreted result; not a live GitHub execution observation.
    */
   result: Result;
@@ -354,7 +401,7 @@ export type JobInstanceResult = Readonly<{
   /** Explicit aggregate gate fixture, when provided; omission preserves ungated interpretation. */
   environmentProtection?: EnvironmentProtection;
 }>;
-/** Aggregate scenario job result and string outputs across matrix instances. Conflicting nonempty output values fail because GitHub completion order cannot be predicted.
+/** Aggregate scenario job result and string outputs across matrix instances. Conflicting nonempty output values fail unless completionOrder() supplies an explicit order; scheduling is not predicted.
  */
 export type JobResult = Readonly<{
   /** Aggregate interpreted result; not a live GitHub execution observation.
@@ -412,9 +459,10 @@ export type StepRules = {
   /** Expected result after continue-on-error.
    */
   expectedConclusion?: Result;
-  /** Field-specific replacements for unsupported expressions.
-   */
-  expressions: Map<string, unknown>;
+  /** Step-scoped hashFiles return values keyed by JSON-encoded evaluated string argument tuples. Prefer hashFiles(). */
+  hashFiles?: Map<string, string>;
+  /** False explicitly excludes all inherited step settings. Prefer replaceInherited(). */
+  inherit?: false;
 };
 /** Mutable expectations for one job/matrix instance. Prefer {@link InstanceScenario} methods.
  */
@@ -467,6 +515,8 @@ export type InstanceRules = {
 /** Job-wide expectations plus per-instance rules. Prefer {@link JobScenario} methods.
  */
 export type JobRules = InstanceRules & {
+  /** Full permutation of expanded zero-based job indices for output aggregation, not execution scheduling. */
+  completionOrder?: readonly number[];
   /** Expected concrete matrix rows after expansion.
    */
   expectedMatrix?: readonly Readonly<Record<string, unknown>>[];
@@ -484,10 +534,10 @@ export type JobRules = InstanceRules & {
 /** Mutable scenario definition retained by {@link WorkflowScenario}. Prefer its methods to setting maps directly; interpretation begins in {@link scenario}.
  */
 export type Program = {
+  /** Root-only environment assumptions. Nested local calls inherit the caller authority instead. */
+  tokenPermissions?: TokenPermissionFixture;
   /** Expected resolved workflow concurrency request. */
   expectedConcurrency?: ResolvedConcurrency;
-  /** Exact workflow expression overrides, such as concurrency.group. */
-  expressions?: Map<string, unknown>;
   /** Ordered files considered by GitHub, or its diff bypass reason. */
   changedFiles?: readonly string[] | "timeout" | "over-1000-commits";
   /** Delivered image identity, independent of undocumented payload fields. */
@@ -529,7 +579,7 @@ type JobNames<Jobs> = keyof Jobs & string;
 type StepNames<Job> = keyof JobSteps<Job> & string;
 
 function newStepRules(): StepRules {
-  return { expressions: new Map() };
+  return {};
 }
 function newInstanceRules(): InstanceRules {
   return { steps: new Map(), internals: new Map() };
@@ -538,13 +588,41 @@ function newJobRules(): JobRules {
   return { ...newInstanceRules() };
 }
 
+function duplicate(setting: string): never {
+  throw new ScenarioError(
+    "fixture_invalid",
+    "scenario.step",
+    `Duplicate ${setting} registration in one scope.`,
+  );
+}
+function setStepValue<K extends keyof StepRules>(
+  rules: StepRules,
+  key: K,
+  value: StepRules[K],
+): void {
+  if (rules[key] !== undefined) duplicate(key);
+  rules[key] = value;
+}
+function addNamedValues<T extends object>(
+  previous: T | undefined,
+  value: T,
+  setting: string,
+): T {
+  for (const key of Object.keys(value)) {
+    if (previous && Object.hasOwn(previous, key)) {
+      duplicate(`${setting}.${key}`);
+    }
+  }
+  return Object.freeze({ ...previous, ...value });
+}
+
 /** Fixture and independent expectations for one named authored step. Obtain through {@link InstanceScenario.step}; expectations alone do not supply a fixture.
  */
 export class StepScenario<Inputs, Outputs, Matrix> {
   /** Construct StepScenario. Usually obtained through scenario builders; constructing a builder does not run interpretation.
    * @example
    * ```ts
-   * new StepScenario({ expressions: new Map() });
+   * new StepScenario({});
    * ```
    */
   constructor(private readonly rules: StepRules) {}
@@ -565,6 +643,40 @@ export class StepScenario<Inputs, Outputs, Matrix> {
     this.rules.fixture = value as StepRules["fixture"];
     return this;
   }
+  /** Exclude all job-wide settings for this instance's step, keeping only registrations in this scope. Call inside eachMatrix(); calling on common rules fails interpretation. Repeated calls fail. Does not delete individual keys.
+   * @example Given a typed job scenario builder `testJob`.
+   * ```ts
+   * testJob.eachMatrix((matrix, instance) => { instance.step("build").replaceInherited().fixture({}); });
+   * ```
+   */
+  replaceInherited(): this {
+    setStepValue(this.rules, "inherit", false);
+    return this;
+  }
+  /** Inject a hashFiles return value for this step's evaluated string arguments, preserving exact order/case. Shared across its expression fields; surrounding operations still evaluate. Duplicate tuples in one scope fail; instance tuples override common ones. Empty results are valid. No glob or filesystem hashing runs. Only reached calls require fixtures; unused registrations are allowed.
+   * @example Given a typed step scenario builder `testStep`.
+   * ```ts
+   * testStep.hashFiles(["deno.lock", "!vendor/**"], "fixture-hash").fixture({});
+   * ```
+   */
+  hashFiles(paths: readonly [string, ...string[]], value: string): this {
+    if (
+      !Array.isArray(paths) || !paths.length ||
+      !paths.every((path) => typeof path === "string") ||
+      typeof value !== "string"
+    ) {
+      throw new ScenarioError(
+        "fixture_invalid",
+        "scenario.step.hashFiles",
+        "Supply a nonempty string argument tuple and a string result.",
+      );
+    }
+    const key = JSON.stringify(paths);
+    const hashes = this.rules.hashFiles ??= new Map();
+    if (hashes.has(key)) duplicate("hashFiles arguments");
+    hashes.set(key, value);
+    return this;
+  }
   /** Supply runner-owned github values for this step, overriding matching
    * workflow fixture values only for this step's condition, env, inputs and run
    * settings. Event/caller identity and computed contexts cannot be overridden.
@@ -577,7 +689,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    */
   github(value: StepGitHub): this {
     validateStepGitHub(value, "scenario.step.github");
-    this.rules.github = value;
+    this.rules.github = addNamedValues(this.rules.github, value, "github");
     return this;
   }
   /** Compare only supplied input keys against resolved native input values; this expectation does not provide a fixture.
@@ -587,7 +699,11 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectInputs(value: Partial<Inputs>): this {
-    this.rules.expectedInputs = value as Readonly<Record<string, unknown>>;
+    this.rules.expectedInputs = addNamedValues(
+      this.rules.expectedInputs,
+      value as Readonly<Record<string, unknown>>,
+      "expectedInputs",
+    );
     return this;
   }
   /** Compare supplied output keys. Step task expectations use native contract values; job expectations use serialized strings.
@@ -597,7 +713,11 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectOutputs(value: Partial<Outputs>): this {
-    this.rules.expectedOutputs = value as Readonly<Record<string, unknown>>;
+    this.rules.expectedOutputs = addNamedValues(
+      this.rules.expectedOutputs,
+      value as Readonly<Record<string, unknown>>,
+      "expectedOutputs",
+    );
     return this;
   }
   /** Enable interpretation and compare effective shell/directory after workflow, job and step overrides. Only applies to reached run steps; does not verify commands or directory existence. Pass {} to expose the resolved values to the fixture callback without comparing properties. Without this call, existing scenarios do not evaluate shell/directory expressions or require their contexts.
@@ -607,7 +727,11 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectRunSettings(value: RunDefaults): this {
-    this.rules.expectedRunSettings = value;
+    this.rules.expectedRunSettings = addNamedValues(
+      this.rules.expectedRunSettings,
+      value,
+      "expectedRunSettings",
+    );
     return this;
   }
   /** Require the step to be reached. Still supply a fixture for its execution.
@@ -617,7 +741,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectRun(): this {
-    this.rules.expectedRun = true;
+    setStepValue(this.rules, "expectedRun", true);
     return this;
   }
   /** Require the step to be skipped; a skipped step needs no fixture.
@@ -627,7 +751,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectSkip(): this {
-    this.rules.expectedRun = false;
+    setStepValue(this.rules, "expectedRun", false);
     return this;
   }
   /** Require the outcome before continue-on-error handling.
@@ -637,7 +761,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectOutcome(value: Result): this {
-    this.rules.expectedOutcome = value;
+    setStepValue(this.rules, "expectedOutcome", value);
     return this;
   }
   /** Require the conclusion after continue-on-error handling; it may differ from outcome.
@@ -647,17 +771,7 @@ export class StepScenario<Inputs, Outputs, Matrix> {
    * ```
    */
   expectConclusion(value: Result): this {
-    this.rules.expectedConclusion = value;
-    return this;
-  }
-  /** Supply the complete result at this exact expression field for an unsupported raw expression or hashFiles(). Surrounding functions/operators/interpolation are replaced too; this is not a function-return fixture. The interpreter does not guess unspecified values; use the native field path, such as if or strategy.matrix.
-   * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
-   * ```ts
-   * testStep.expression("if", true);
-   * ```
-   */
-  expression(field: string, value: unknown): this {
-    this.rules.expressions.set(field, value);
+    setStepValue(this.rules, "expectedConclusion", value);
     return this;
   }
 }
@@ -793,19 +907,6 @@ export class InstanceScenario<Job> {
     this.rules.expectedSettings = value;
     return this;
   }
-  /** Supply a complete job expression field result for raw expressions or unsupported functions; native paths include runs-on.group, environment.url and defaults.run.shell. This replaces surrounding operations rather than injecting a function result. For settings fields, enable interpretation with expectSettings() or expectRunSettings(); condition and matrix overrides retain their existing behavior.
-   * @example Given a typed job/instance scenario builder `testJob`.
-   * ```ts
-   * testJob.expression("environment.url", "https://example.com")
-   *   .expectSettings({ environment: { name: "production", url: "https://example.com" } });
-   * ```
-   */
-  expression(field: string, value: unknown): this {
-    const rules = this.rules.steps.get("__job__") ?? newStepRules();
-    rules.expressions.set(field, value);
-    this.rules.steps.set("__job__", rules);
-    return this;
-  }
   /** Supply outputs and outcome for an external raw reusable call. A local typed call instead requires call() and rejects an external fixture.
    * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
    * ```ts
@@ -888,6 +989,28 @@ export class JobScenario<Job> extends InstanceScenario<Job> {
    */
   constructor(protected override readonly rules: JobRules) {
     super(rules);
+  }
+  /** Supply each expanded job-index exactly once, earliest completion first. Duplicates, missing/out-of-range indices and repeat registration fail. Changes output aggregation only, not fixture execution or result instance order. Omission retains conflict errors for differing nonempty values. Applies to ordinary jobs and reusable calls, with their respective native output rules.
+   * @example Given a two-instance job scenario builder `testJob`.
+   * ```ts
+   * testJob.completionOrder([1, 0]);
+   * ```
+   */
+  completionOrder(indices: readonly number[]): this {
+    if (this.rules.completionOrder !== undefined) duplicate("completionOrder");
+    if (
+      !Array.isArray(indices) ||
+      !indices.every((index) => Number.isInteger(index) && index >= 0) ||
+      new Set(indices).size !== indices.length
+    ) {
+      throw new ScenarioError(
+        "fixture_invalid",
+        "scenario.job.completionOrder",
+        "Completion order must contain unique nonnegative integer indices.",
+      );
+    }
+    this.rules.completionOrder = Object.freeze([...indices]);
+    return this;
   }
   /** Require the expanded concrete matrix rows. Compare after include/exclude and expression evaluation.
    * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
@@ -1085,6 +1208,34 @@ export class WorkflowScenario<
     this.program.external.inputs = value;
     return this;
   }
+  /** Enable token authority interpretation from root environment assumptions. Workflow/job declarations replace defaults; unspecified map scopes become none, then restrictWrites applies. Defaults are not a ceiling. Local callees inherit the caller ceiling and may reduce it; excess demands and nested initial fixtures fail. External calls expose only the incoming authority. Without this method permissions are not interpreted. No token/API authorization is performed.
+   * @example Given a workflow scenario builder `test`.
+   * ```ts
+   * test.tokenPermissions({ defaults: { contents: "read" }, restrictWrites: false });
+   * ```
+   */
+  tokenPermissions(value: TokenPermissionFixture): this {
+    if (this.program.tokenPermissions !== undefined) {
+      duplicate("tokenPermissions");
+    }
+    if (
+      !value || typeof value.restrictWrites !== "boolean" ||
+      value.defaults === undefined
+    ) {
+      throw new ScenarioError(
+        "fixture_invalid",
+        "scenario.permissions",
+        "Supply defaults and an explicit restrictWrites boolean.",
+      );
+    }
+    this.program.tokenPermissions = Object.freeze({
+      ...value,
+      defaults: typeof value.defaults === "string"
+        ? value.defaults
+        : Object.freeze({ ...value.defaults }),
+    });
+    return this;
+  }
   /** Supply referenced repository/organization variable context values.
    * @example Given typed scenario builders `test`, `testJob` or `testStep` for the selected workflow/job/step.
    * ```ts
@@ -1113,17 +1264,6 @@ export class WorkflowScenario<
    */
   expectConcurrency(value: ResolvedConcurrency): this {
     this.program.expectedConcurrency = value;
-    return this;
-  }
-  /** Supply an exact workflow expression override, such as concurrency.cancel-in-progress, for unsupported raw expressions. Enable interpretation with expectConcurrency().
-   * @example Given a workflow scenario builder `test`.
-   * ```ts
-   * test.expression("concurrency.group", "ci-main")
-   *   .expectConcurrency({ group: "ci-main", cancelInProgress: false });
-   * ```
-   */
-  expression(field: string, value: unknown): this {
-    (this.program.expressions ??= new Map()).set(field, value);
     return this;
   }
   /** Set a common expected conclusion for all reached authored steps. Explicit step expectations remain independent.

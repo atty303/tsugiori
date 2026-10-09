@@ -191,13 +191,13 @@ const unsupported = workflow(".github/workflows/unsupported.yml", {
       if: () => hashFiles("**/*.ts").eq("abc"),
     }));
 
-Deno.test("unsupported hashFiles requires a field override", async () => {
+Deno.test("hashFiles requires a return-value fixture", async () => {
   const error = await assertRejects(() =>
     scenario(unsupported, (test) => {
       test.github({ event_name: "push", event: {} });
     })
   );
-  assertEquals((error as { kind?: string }).kind, "expression_unsupported");
+  assertEquals((error as { kind?: string }).kind, "fixture_missing");
   assertEquals(
     (error as { location?: string }).location?.endsWith("inspect.if"),
     true,
@@ -205,7 +205,7 @@ Deno.test("unsupported hashFiles requires a field override", async () => {
   await scenario(unsupported, (test) => {
     test.github({ event_name: "push", event: {} });
     test.job("check", (job) => {
-      job.step("inspect").expression("if", true).fixture({}).expectRun();
+      job.step("inspect").hashFiles(["**/*.ts"], "abc").fixture({}).expectRun();
     });
   });
 });

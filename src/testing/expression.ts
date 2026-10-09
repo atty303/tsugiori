@@ -1,16 +1,15 @@
 // Fixed Docs semantics and supplemental actions/runner references are linked in
 // docs/GITHUB_ACTIONS_SPEC.md. External fixture reads remain deliberately strict.
-export class UnsupportedExpressionError extends Error {
-  constructor(readonly source: string) {
-    super(`Unsupported GitHub Actions expression: ${source}`);
-    this.name = "UnsupportedExpressionError";
-  }
-}
-
 export class MissingContextError extends Error {
   constructor(readonly path: string) {
     super(`Scenario fixture is missing referenced context ${path}.`);
     this.name = "MissingContextError";
+  }
+}
+
+export class MissingHashFilesError extends Error {
+  constructor() {
+    super("Reached hashFiles() has no matching step return-value fixture.");
   }
 }
 
@@ -71,7 +70,7 @@ function tokenize(source: string): Token[] {
         }
         value += rest[cursor++];
       }
-      if (rest[cursor] !== "'") throw new UnsupportedExpressionError(source);
+      if (rest[cursor] !== "'") throw new SyntaxError(source);
       tokens.push({ type: "string", value });
       offset += cursor + 1;
       continue;
@@ -79,7 +78,7 @@ function tokenize(source: string): Token[] {
     if (/^[+\-\d]/.test(rest) || /^\.\d/.test(rest)) {
       const text = /^[^\s!<>=&|(),\[\]*]+/.exec(rest)?.[0];
       if (!text || Number.isNaN(parseNumber(text))) {
-        throw new UnsupportedExpressionError(source);
+        throw new SyntaxError(source);
       }
       tokens.push({ type: "number", value: text });
       offset += text.length;
@@ -92,7 +91,7 @@ function tokenize(source: string): Token[] {
       continue;
     }
     const identifier = /^[A-Za-z_][A-Za-z0-9_-]*/.exec(rest);
-    if (!identifier) throw new UnsupportedExpressionError(source);
+    if (!identifier) throw new SyntaxError(source);
     tokens.push({ type: "identifier", value: identifier[0] });
     offset += identifier[0].length;
   }
@@ -129,7 +128,7 @@ class Parser {
   }
   private require(type: string): Token {
     const token = this.current();
-    if (!this.take(type)) throw new UnsupportedExpressionError(this.source);
+    if (!this.take(type)) throw new SyntaxError(this.source);
     return token;
   }
   parse(): Node {
@@ -173,7 +172,7 @@ class Parser {
           this.require(")");
         }
         const range = arities[name.toLowerCase()];
-        if (!range) throw new UnsupportedExpressionError(name);
+        if (!range) throw new SyntaxError(name);
         if (args.length < range[0] || args.length > range[1]) {
           throw new TypeError(`Invalid argument count for ${name}.`);
         }
@@ -390,8 +389,14 @@ function json(value: unknown, depth = 0): string {
   }`;
 }
 
-function evalNode(node: Node, context: Context, status: Status): Value {
-  const evaluate = (node: Node) => evalNode(node, context, status).value;
+function evalNode(
+  node: Node,
+  context: Context,
+  status: Status,
+  hashes?: ReadonlyMap<string, string>,
+): Value {
+  const resolve = (node: Node) => evalNode(node, context, status, hashes);
+  const evaluate = (node: Node) => resolve(node).value;
   switch (node.kind) {
     case "literal":
       return { value: node.value };
@@ -405,7 +410,7 @@ function evalNode(node: Node, context: Context, status: Status): Value {
       return { value: context[name], path: [name.toLowerCase()] };
     }
     case "access": {
-      const base = evalNode(node.value, context, status);
+      const base = resolve(node.value);
       if (base.value === null || typeof base.value !== "object") {
         return node.key === "*" ? { value: [], filtered: [] } : { value: null };
       }
@@ -418,16 +423,12 @@ function evalNode(node: Node, context: Context, status: Status): Value {
     case "unary":
       return { value: !truthy(evaluate(node.value)) };
     case "binary": {
-      const left = evalNode(node.left, context, status);
+      const left = resolve(node.left);
       if (node.op === "&&") {
-        return truthy(left.value)
-          ? evalNode(node.right, context, status)
-          : left;
+        return truthy(left.value) ? resolve(node.right) : left;
       }
       if (node.op === "||") {
-        return truthy(left.value)
-          ? left
-          : evalNode(node.right, context, status);
+        return truthy(left.value) ? left : resolve(node.right);
       }
       const right = evaluate(node.right);
       const a = left.value;
@@ -452,7 +453,11 @@ function evalNode(node: Node, context: Context, status: Status): Value {
         return { value: status[name] };
       }
       if (name === "hashfiles") {
-        throw new UnsupportedExpressionError("hashFiles()");
+        const key = JSON.stringify(
+          node.args.map((arg) => stringValue(evaluate(arg))),
+        );
+        if (!hashes?.has(key)) throw new MissingHashFilesError();
+        return { value: hashes!.get(key)! };
       }
       if (name === "case") {
         if (node.args.length % 2 !== 1) {
@@ -462,10 +467,10 @@ function evalNode(node: Node, context: Context, status: Status): Value {
         }
         for (let index = 0; index < node.args.length - 1; index += 2) {
           if (truthy(evaluate(node.args[index]))) {
-            return evalNode(node.args[index + 1], context, status);
+            return resolve(node.args[index + 1]);
           }
         }
-        return evalNode(node.args[node.args.length - 1], context, status);
+        return resolve(node.args[node.args.length - 1]);
       }
       const first = evaluate(node.args[0]);
       if (name === "fromjson") return { value: JSON.parse(stringValue(first)) };
@@ -530,6 +535,7 @@ export function evaluateExpression(
   value: string,
   context: Context,
   status: Status,
+  hashes?: ReadonlyMap<string, string>,
 ): unknown {
   if (!value.includes("${{")) return value;
   const parts: (string | Node)[] = [];
@@ -553,17 +559,17 @@ export function evaluateExpression(
       }
       if (!quoted && value.slice(end, end + 2) === "}}") break;
     }
-    if (end === value.length) throw new UnsupportedExpressionError(value);
+    if (end === value.length) throw new SyntaxError(value);
     const source = value.slice(start + 3, end);
     parts.push(new Parser(source, tokenize(source)).parse());
     cursor = end + 2;
   }
   if (parts.length === 1 && typeof parts[0] !== "string") {
-    return evalNode(parts[0], context, status).value;
+    return evalNode(parts[0], context, status, hashes).value;
   }
   return parts.map((part) =>
     typeof part === "string"
       ? part
-      : stringValue(evalNode(part, context, status).value)
+      : stringValue(evalNode(part, context, status, hashes).value)
   ).join("");
 }

@@ -2927,19 +2927,21 @@
     {
       "domain": "context",
       "key": "strategy",
-      "status": "limited",
-      "notes": "All four native hyphenated properties have typed references and unchanged expression emission. Scenarios derive fail-fast, job-index and job-total; reading max-parallel requires an explicit workflow maxParallel setting. Supplying that value separately when the setting is omitted is unimplemented. Actual scheduling is outside this value model.",
+      "status": "implemented",
+      "notes": "Native strategy properties retain typed references and expression emission. Scenarios derive fail-fast, job-index, job-total and explicit max-parallel; omitted max-parallel uses expanded instance count under a sufficient-runner model. Callback/result inspection does not establish actual scheduling or platform-selected parallelism.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
         "native-authoring",
-        "scenario-setting-required"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
         "tests/scenario_expression_test.ts",
         "tests/context_runtime_types_test.ts",
         "tests/matrix_test.ts",
-        "tests/language_server_completion_test.ts"
+        "tests/language_server_completion_test.ts",
+        "tests/scenario_value_fixtures_test.ts"
       ],
       "related": [
         "context:strategy.max-parallel",
@@ -4754,20 +4756,22 @@
     {
       "domain": "context",
       "key": "strategy.max-parallel",
-      "status": "limited",
-      "notes": "Typed native reference and expression emission are supported. Scenarios evaluate an explicit maxParallel setting, but cannot supply a context-only fixture when that setting is omitted. No platform default is guessed.",
+      "status": "implemented",
+      "notes": "Native strategy properties retain typed references and expression emission. Scenarios derive fail-fast, job-index, job-total and explicit max-parallel; omitted max-parallel uses expanded instance count under a sufficient-runner model. Callback/result inspection does not establish actual scheduling or platform-selected parallelism.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
         "native-authoring",
-        "scenario-setting-required"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
         "tests/context_runtime_test.ts",
         "tests/context_runtime_types_test.ts",
         "tests/scenario_expression_test.ts",
         "tests/matrix_test.ts",
-        "tests/language_server_completion_test.ts"
+        "tests/language_server_completion_test.ts",
+        "tests/scenario_value_fixtures_test.ts"
       ],
       "related": [
         "scenario-capability:strategy-max-parallel-fixture"
@@ -5062,7 +5066,7 @@
       "domain": "expression",
       "key": "hashFiles",
       "status": "implemented",
-      "notes": "Emits the native hashFiles call with its authored patterns. This unit covers expression generation, not hashing or scenario function evaluation. Current scenario overrides replace the entire failing field, including surrounding operators/interpolation; they do not supply a hashFiles return value.",
+      "notes": "Emits native hashFiles with authored patterns. Step return-value fixtures evaluate surrounding expressions without filesystem hashing; generation, supplied-return interpretation and actual hashing remain separate units.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "hashfiles",
       "assessment": [
@@ -5347,7 +5351,7 @@
       "domain": "reuse",
       "key": "Using outputs from a reusable workflow",
       "status": "implemented",
-      "notes": "Declares workflow_call outputs, emits caller needs references and propagates local callee output values. Secret-based suppression and matrix completion-order selection are separate unimplemented scenario behaviors.",
+      "notes": "Declares workflow_call outputs, emits caller needs references and propagates local callee output values. Supplied matrix completion order selects the last successful nonempty output per name. Secret-based suppression remains a separate unimplemented scenario behavior.",
       "source": "content/actions/how-tos/reuse-automations/reuse-workflows.md",
       "anchor": "using-outputs-from-a-reusable-workflow",
       "assessment": [
@@ -5356,7 +5360,8 @@
       ],
       "evidence": [
         "tests/reusable_workflow_test.ts",
-        "tests/reusable_types_test.ts"
+        "tests/reusable_types_test.ts",
+        "tests/scenario_value_fixtures_test.ts"
       ],
       "related": [
         "scenario-capability:secret-output-suppression",
@@ -5711,7 +5716,7 @@
       "domain": "reuse-reference",
       "key": "Access and permissions for nested workflows",
       "status": "reference",
-      "notes": "Groups GitHub access eligibility and the rule that nested GITHUB_TOKEN permissions cannot increase. Access rules are explanatory; validation from supplied initial permissions has a separate unimplemented unit.",
+      "notes": "Groups GitHub access eligibility and the rule that nested GITHUB_TOKEN permissions cannot increase. Opt-in validation from explicit root environment assumptions is implemented separately; GitHub access and live authorization remain provider-owned.",
       "source": "content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md",
       "anchor": "access-and-permissions-for-nested-workflows",
       "assessment": [
@@ -8010,16 +8015,21 @@
     {
       "domain": "scenario-capability",
       "key": "nested-token-permissions",
-      "status": "unimplemented",
-      "notes": "Permission declarations emit natively, but scenarios do not derive nested GITHUB_TOKEN permission ceilings from supplied initial permissions. A value-based model could detect insufficient downstream permissions without establishing live GitHub authorization; initial authority and scope/default/reduction rules must be explicit.",
+      "status": "implemented",
+      "notes": "Root environment default permissions and an explicit write restriction enable opt-in interpretation. Native workflow/job replacement rules yield caller ceilings inherited by local callees; effective excess demands and nested initial fixtures fail. Callbacks/results expose complete readonly permission maps. External calls expose incoming authority only; live authorization and external internals are not verified.",
       "source": "content/actions/reference/workflows-and-actions/reusing-workflow-configurations.md",
       "anchor": "access-and-permissions-for-nested-workflows",
       "assessment": [
-        "scenario-gap"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
+        "src/testing/mod.ts",
         "src/testing/run.ts",
-        "tests/reusable_types_test.ts"
+        "tests/scenario_value_fixtures_test.ts",
+        "tests/scenario_permissions_test.ts",
+        "tests/scenario_fixture_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "syntax:permissions",
@@ -8029,17 +8039,21 @@
     {
       "domain": "scenario-capability",
       "key": "strategy-max-parallel-fixture",
-      "status": "unimplemented",
-      "notes": "When maxParallel is omitted, scenarios have no context-only fixture for strategy.max-parallel. Supplying a known runtime value would allow expression validation without changing the workflow; the platform-selected default and actual concurrency must not be guessed.",
+      "status": "implemented",
+      "notes": "Scenarios use the evaluated authored maxParallel or default to expanded instance count under a sufficient-runner model. Readonly strategy is exposed in fixture callbacks and instance results. The default is interpreter-owned, not a user registration or a prediction of GitHub runner availability; authored settings expectations remain separate.",
       "source": "content/actions/reference/workflows-and-actions/contexts.md",
       "anchor": "strategy-context",
       "assessment": [
-        "scenario-fixture-gap"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
-        "src/testing/run.ts",
         "src/testing/mod.ts",
-        "tests/scenario_expression_test.ts"
+        "src/testing/run.ts",
+        "tests/scenario_value_fixtures_test.ts",
+        "tests/scenario_permissions_test.ts",
+        "tests/scenario_fixture_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "context:strategy.max-parallel"
@@ -8066,16 +8080,21 @@
     {
       "domain": "scenario-capability",
       "key": "matrix-output-completion-order",
-      "status": "unimplemented",
-      "notes": "Different nonempty matrix output values currently fail locally. Supplied completion order could select the last successful reusable invocation that sets a nonempty value, retaining the earlier value when a later successful output is empty. No completion-order fixture/model exists; actual scheduling must not be predicted.",
+      "status": "implemented",
+      "notes": "Ordinary matrix jobs and reusable calls accept a full permutation of zero-based job indices for output aggregation. Reusable output selection uses the last successful nonempty value; later empty values retain earlier values. Instance results stay in expansion order. Omitted order retains conflicting-nonempty-value errors; no scheduling is simulated.",
       "source": "content/actions/how-tos/reuse-automations/reuse-workflows.md",
       "anchor": "using-outputs-from-a-reusable-workflow",
       "assessment": [
-        "scenario-fixture-gap"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
+        "src/testing/mod.ts",
         "src/testing/run.ts",
-        "tests/reusable_workflow_test.ts"
+        "tests/scenario_value_fixtures_test.ts",
+        "tests/scenario_permissions_test.ts",
+        "tests/scenario_fixture_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "reuse:Using outputs from a reusable workflow"
@@ -8107,18 +8126,21 @@
     {
       "domain": "scenario-capability",
       "key": "hashFiles-result-fixture",
-      "status": "unimplemented",
-      "notes": "No fixture supplies the return value of a hashFiles call inside an expression. On an unsupported call, the current field-specific override replaces the complete field, bypassing surrounding functions/operators/interpolation. Return-value injection would evaluate those surrounding expressions while retaining missing-fixture errors, without reading files.",
+      "status": "implemented",
+      "notes": "Step-scoped return fixtures match evaluated string argument tuples in exact order. Surrounding functions/operators/interpolation still evaluate; lazy/skipped calls need no fixture. Missing reached values fail at the field. Filesystem hashing is excluded; complete-field expression overrides are not supported.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "hashfiles",
       "assessment": [
-        "scenario-fixture-gap"
+        "supplied-value-model",
+        "execution-boundary"
       ],
       "evidence": [
-        "src/testing/expression.ts",
+        "src/testing/mod.ts",
         "src/testing/run.ts",
-        "tests/github_spec_test.ts",
-        "tests/scenario_test.ts"
+        "tests/scenario_value_fixtures_test.ts",
+        "tests/scenario_permissions_test.ts",
+        "tests/scenario_fixture_types_test.ts",
+        "tests/language_server_completion_test.ts"
       ],
       "related": [
         "expression:hashFiles",
@@ -8129,7 +8151,7 @@
       "domain": "execution-capability",
       "key": "hashFiles-filesystem",
       "status": "excluded",
-      "notes": "Tsugiori does not glob/read/hash files for scenarios. Local checkout contents do not establish runner workspace state after checkout/actions/steps, which scenarios do not execute. The supported native call delegates hashing to GitHub; result-fixture interpretation is a separate unimplemented value-model capability.",
+      "notes": "Tsugiori does not glob/read/hash files for scenarios. Local checkout contents do not establish runner workspace state after checkout/actions/steps, which scenarios do not execute. The supported native call delegates hashing to GitHub; result-fixture interpretation is a separate implemented supplied-value capability.",
       "source": "content/actions/reference/workflows-and-actions/expressions.md",
       "anchor": "hashfiles",
       "assessment": [

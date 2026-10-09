@@ -3700,7 +3700,7 @@ interface ExecBase<
   >;
   /** Uses an explicit raw whole-matrix expression without inferred row fields.
    * The caller asserts expression validity; GitHub validates its actual shape.
-   * Scenarios evaluate supported forms or require a field-specific override.
+   * Scenarios evaluate native expressions with supplied contexts; invalid expressions fail.
    * Configure strategy before dependent fields; see {@link Strategy} for controls.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
@@ -5811,7 +5811,7 @@ interface CallJobBase<
   ): CallJobOf<P, J, N, Shape, V, S, InputValues>;
   /** Uses an explicit raw whole-matrix expression without inferred row fields.
    * The caller asserts expression validity; GitHub validates its actual shape.
-   * Scenarios evaluate supported forms or require a field-specific override.
+   * Scenarios evaluate native expressions with supplied contexts; invalid expressions fail.
    * Configure strategy before dependent fields; see {@link Strategy} for controls.
    * @see https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#jobsjob_idstrategy
    * @example In a `workflow().job()` callback with `{ job }`.
